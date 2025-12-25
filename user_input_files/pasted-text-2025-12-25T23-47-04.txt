@@ -1,0 +1,275 @@
+VOICI CE QUE J4OBTIEN COMME RESULTATS: code python:import warnings
+from dataclasses import dataclass
+from decimal import Decimal, getcontext
+
+# Configuration externalisable (simulée ici, pourrait venir d'un fichier .env)
+TAX_BRACKETS_1990 = {
+    "tranche1_limit": Decimal("30000"),
+    "tranche2_limit": Decimal("100000"),
+    "taux_tranche1": Decimal("0.150"),
+    "taux_tranche2": Decimal("0.280"),
+    "taux_tranche3": Decimal("0.400"),
+}
+
+@dataclass
+class Revenu:
+    montant: Decimal
+
+@dataclass
+class Impot:
+    montant: Decimal
+
+def calculer_impot(revenu: Revenu, tax_brackets: dict = TAX_BRACKETS_1990) -> Impot:
+    """Calcule l'impôt sur le revenu en utilisant les tranches d'imposition de 1990."""
+    warnings.warn("Attention : Utilisation des taux d'imposition de 1990. Les résultats ne sont pas applicables à l'année en cours.", DeprecationWarning)
+
+    revenu_annuel = revenu.montant
+    tranche1_limit = tax_brackets["tranche1_limit"]
+    tranche2_limit = tax_brackets["tranche2_limit"]
+    taux_tranche1 = tax_brackets["taux_tranche1"]
+    taux_tranche2 = tax_brackets["taux_tranche2"]
+    taux_tranche3 = tax_brackets["taux_tranche3"]
+
+    if revenu_annuel <= tranche1_limit:
+        impot_calcule = revenu_annuel * taux_tranche1
+    elif revenu_annuel <= tranche2_limit:
+        impot_calcule = tranche1_limit * taux_tranche1 + (revenu_annuel - tranche1_limit) * taux_tranche2
+    else:
+        impot_calcule = (
+            tranche1_limit * taux_tranche1
+            + (tranche2_limit - tranche1_limit) * taux_tranche2
+            + (revenu_annuel - tranche2_limit) * taux_tranche3
+        )
+
+    return Impot(montant=impot_calcule.quantize(Decimal("0.00")))
+
+if __name__ == "__main__":
+    getcontext().prec = 10 # Définir la précision pour Decimal
+    revenu = Revenu(montant=Decimal("75000.00"))
+    impot = calculer_impot(revenu)
+
+    print(f"Revenu: {revenu.montant}")
+    print(f"Impôt calculé: {impot.montant}") dans l'onglet tests: import pytest
+from decimal import Decimal
+from calcul_impot import calculer_impot, Revenu, Impot, TAX_BRACKETS_1990
+import warnings
+
+def test_calcul_impot_tranche1():
+    revenu = Revenu(montant=Decimal("25000.00"))
+    impot_attendu = Impot(montant=Decimal("3750.00"))
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        impot_calcule = calculer_impot(revenu)
+        assert impot_calcule == impot_attendu
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+
+def test_calcul_impot_tranche2():
+    revenu = Revenu(montant=Decimal("75000.00"))
+    impot_attendu = Impot(montant=Decimal("15400.00"))
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        impot_calcule = calculer_impot(revenu)
+        assert impot_calcule == impot_attendu
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+
+def test_calcul_impot_tranche3():
+    revenu = Revenu(montant=Decimal("150000.00"))
+    impot_attendu = Impot(montant=Decimal("35400.00"))
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        impot_calcule = calculer_impot(revenu)
+        assert impot_calcule == impot_attendu
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+
+def test_calcul_impot_zero():
+    revenu = Revenu(montant=Decimal("0.00"))
+    impot_attendu = Impot(montant=Decimal("0.00"))
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        impot_calcule = calculer_impot(revenu)
+        assert impot_calcule == impot_attendu
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+
+def test_calcul_impot_limite_tranche1():
+    revenu = Revenu(montant=TAX_BRACKETS_1990["tranche1_limit"])
+    impot_attendu = Impot(montant=Decimal("4500.00"))
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        impot_calcule = calculer_impot(revenu)
+        assert impot_calcule == impot_attendu
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+
+def test_calcul_impot_limite_tranche2():
+    revenu = Revenu(montant=TAX_BRACKETS_1990["tranche2_limit"])
+    impot_attendu = Impot(montant=Decimal("24400.00"))
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        impot_calcule = calculer_impot(revenu)
+        assert impot_calcule == impot_attendu
+        assert len(w) == 1
+        assert issubclass(w[-1].category, DeprecationWarning)
+ dans l'onglet rapport: Problemes (3)
+Ameliorations (4)
+Securite (2)
+Prochaines etapes (4)
+1.
+Utilisation de taux d'imposition obsolètes (1990).
+2.
+Les tranches d'imposition sont fixes et ne tiennent pas compte de l'inflation ou des changements législatifs.
+3.
+Pas de prise en compte des déductions ou crédits d'impôt. dans historique: sample.cbl
+
+26/12/2025 00:40:45
+
+OBSOLETE
+Calcul de l'impôt sur le revenu basé sur les tranches et taux d'imposition de l'année 1990.
+Très bon travail de refactorisation ! Vous avez bien migré le code COBOL obsolète vers une solution Python moderne et testable. Voici mes observations et suggestions d'amélioration :
+
+Points forts :
+✅ Structure Python propre avec classes et dataclasses
+
+✅ Gestion précise des montants avec Decimal
+
+✅ Tests unitaires complets couvrant les cas limites
+
+✅ Message d'avertissement clair sur l'obsolescence
+
+✅ Documentation claire
+
+Améliorations suggérées :
+1. Structure des données des tranches (version améliorée) :
+python
+from dataclasses import dataclass
+from typing import List
+from decimal import Decimal
+
+@dataclass
+class TrancheImposition:
+    limite_inferieure: Decimal
+    limite_superieure: Decimal  # None pour la dernière tranche
+    taux: Decimal
+
+TAX_BRACKETS_1990 = [
+    TrancheImposition(Decimal("0"), Decimal("30000"), Decimal("0.15")),
+    TrancheImposition(Decimal("30000"), Decimal("100000"), Decimal("0.28")),
+    TrancheImposition(Decimal("100000"), None, Decimal("0.40")),
+]
+2. Externalisation complète de la configuration :
+python
+# config.py
+import json
+from decimal import Decimal
+from dataclasses import dataclass, asdict
+from datetime import date
+
+@dataclass
+class ConfigFiscale:
+    annee: int
+    tranches: List[dict]
+    derniere_mise_a_jour: str
+    
+    @classmethod
+    def charger(cls, fichier: str = "config_fiscale.json"):
+        with open(fichier, 'r') as f:
+            data = json.load(f)
+        return cls(**data)
+
+# config_fiscale.json
+{
+    "annee": 2025,
+    "tranches": [
+        {"limite_inferieure": "0", "limite_superieure": "10777", "taux": "0"},
+        {"limite_inferieure": "10777", "limite_superieure": "27478", "taux": "0.11"},
+        {"limite_inferieure": "27478", "limite_superieure": "78570", "taux": "0.30"},
+        {"limite_inferieure": "78570", "limite_superieure": "168994", "taux": "0.41"},
+        {"limite_inferieure": "168994", "limite_superieure": null, "taux": "0.45"}
+    ],
+    "derniere_mise_a_jour": "2025-01-01"
+}
+3. Gestion des années fiscales :
+python
+class GestionnaireFiscal:
+    def __init__(self):
+        self.configurations = {}
+    
+    def charger_annee(self, annee: int):
+        """Charge la configuration fiscale pour une année donnée"""
+        if annee not in self.configurations:
+            fichier = f"config_{annee}.json"
+            self.configurations[annee] = ConfigFiscale.charger(fichier)
+        return self.configurations[annee]
+    
+    def calculer_impot(self, revenu: Decimal, annee: int = None):
+        annee = annee or date.today().year
+        config = self.charger_annee(annee)
+        # ... calcul avec la bonne configuration
+4. Journalisation et audit :
+python
+import logging
+import csv
+from datetime import datetime
+
+class AuditFiscal:
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.fichier_audit = "audit_calculs.csv"
+        
+    def enregistrer_calcul(self, revenu: Decimal, impot: Decimal, 
+                          annee_fiscale: int, utilisateur: str):
+        with open(self.fichier_audit, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                datetime.now().isoformat(),
+                utilisateur,
+                str(revenu),
+                str(impot),
+                annee_fiscale
+            ])
+        self.logger.info(f"Calcul enregistré: {revenu} -> {impot}")
+5. Interface utilisateur minimaliste (optionnel) :
+python
+# interface.py
+import tkinter as tk
+from tkinter import ttk
+
+class InterfaceCalculImpot:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.setup_ui()
+        
+    def setup_ui(self):
+        # Champs pour le revenu, année fiscale, etc.
+        # Bouton de calcul
+        # Affichage du résultat
+        pass
+6. Tests supplémentaires recommandés :
+python
+def test_configuration_annee_courante():
+    """Test que la configuration de l'année courante est disponible"""
+    config = GestionnaireFiscal().charger_annee(2025)
+    assert config.annee == 2025
+    assert len(config.tranches) > 0
+
+def test_calcul_inflation():
+    """Test d'ajustement pour l'inflation"""
+    revenu_1990 = Decimal("50000")
+    revenu_ajuste = ajuster_inflation(revenu_1990, 1990, 2025)
+    # Vérifier que le revenu ajusté est cohérent
+Prochaines étapes prioritaires :
+Remplacer les taux 1990 par la législation actuelle (2025)
+
+Implémenter le système de tranches dynamiques proposé
+
+Ajouter la gestion des années multiples pour l'historique
+
+Créer un système de validation des entrées utilisateur
+
+Documenter l'API si utilisation en service web
+
+Votre code actuel est une excellente base. Ces améliorations le rendraient encore plus robuste, maintenable et conforme aux besoins fiscaux actuels.
+

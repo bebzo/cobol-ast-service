@@ -19,13 +19,17 @@ import {
   X,
   Code2,
   ArrowRight,
+  Download,
+  FileText,
+  Clock,
+  TrendingUp,
+  TestTube,
+  BookOpen,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Dynamic import Monaco to avoid SSR issues
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
-// Sample COBOL code
 const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
        PROGRAM-ID.  CALCULIMPOT.
        AUTHOR.      SYSTEME-FISCAL-1990.
@@ -69,32 +73,77 @@ const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
            
            STOP RUN.`;
 
-// Gemini prompt template
-const GEMINI_PROMPT = `Tu es CodeSwitch, un expert en migration de code legacy avec 25 ans d'experience.
+// Enhanced CodeSwitch prompt - La vraie valeur ajoutee
+const GEMINI_PROMPT = `Tu es CodeSwitch, un expert en migration de code legacy avec 25 ans d'experience en refactorisation intelligente.
 
-Analyse ce programme COBOL et genere une reponse JSON stricte avec cette structure exacte:
+MISSION: Ne fais PAS une simple traduction. Fais une ANALYSE METIER COMPLETE + REFACTORISATION INTELLIGENTE.
+
+Analyse ce programme COBOL et genere une reponse JSON stricte:
 {
-  "summary": "Description en une phrase de ce que fait le programme",
-  "python_code": "Le code Python complet equivalent, propre et bien documente",
-  "issues": ["Liste des problemes detectes dans le code original"],
-  "improvements": ["Liste des ameliorations suggerees pour le code moderne"],
-  "security_warnings": ["Avertissements de securite ou conformite"]
+  "summary": "Description en une phrase",
+  
+  "business_context": {
+    "domain": "Domaine metier (ex: fiscalite, bancaire, assurance)",
+    "detected_year": "Annee detectee dans le code ou estimee",
+    "regulatory_context": "Contexte reglementaire (ex: loi de finances 1990)",
+    "is_obsolete": true/false,
+    "obsolescence_reason": "Explication si obsolete"
+  },
+  
+  "python_code": "Code Python MODERNE avec: dataclasses, typage, docstrings, Decimal pour finance, warnings d'obsolescence integres, configuration externalisable",
+  
+  "unit_tests": "Code Python des tests unitaires pytest qui valident la non-regression vs le comportement COBOL original",
+  
+  "issues": ["Problemes detectes avec contexte metier"],
+  "improvements": ["Ameliorations architecturales suggerees"],
+  "security_warnings": ["Avertissements de securite, conformite, obsolescence legale"],
+  
+  "migration_score": {
+    "complexity": "LOW/MEDIUM/HIGH",
+    "risk_level": "LOW/MEDIUM/HIGH/CRITICAL",
+    "estimated_effort": "Estimation en jours-homme",
+    "confidence": "Pourcentage de confiance dans la migration"
+  },
+  
+  "next_steps": ["Actions recommandees pour mise en production"]
 }
 
-IMPORTANT: 
-- Le code Python doit etre moderne (Python 3.10+), avec typage, docstrings et noms explicites
-- Ne fais PAS de traduction ligne a ligne, fais une REFACTORISATION intelligente
-- Retourne UNIQUEMENT le JSON, sans texte avant ou apres
+REGLES CRITIQUES:
+1. Detecte le DOMAINE METIER (fiscalite, banque, RH, etc.)
+2. Identifie l'ANNEE du code et si les regles sont OBSOLETES
+3. Genere du code Python MODERNE (pas de traduction ligne a ligne)
+4. Ajoute des WARNINGS dans le code Python si les donnees sont obsoletes
+5. Genere des TESTS qui valident que le nouveau code = ancien comportement
+6. Retourne UNIQUEMENT le JSON, sans texte avant ou apres
 
 Code COBOL a analyser:
 `;
 
+interface BusinessContext {
+  domain: string;
+  detected_year: string;
+  regulatory_context: string;
+  is_obsolete: boolean;
+  obsolescence_reason: string;
+}
+
+interface MigrationScore {
+  complexity: string;
+  risk_level: string;
+  estimated_effort: string;
+  confidence: string;
+}
+
 interface AnalysisResult {
   summary: string;
+  business_context: BusinessContext;
   python_code: string;
+  unit_tests: string;
   issues: string[];
   improvements: string[];
   security_warnings: string[];
+  migration_score: MigrationScore;
+  next_steps: string[];
 }
 
 interface HistoryItem {
@@ -118,22 +167,21 @@ export default function Home() {
   const [filename, setFilename] = useState("sample.cbl");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [activeTab, setActiveTab] = useState<"issues" | "improvements" | "security">("issues");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "report">("code");
+  const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
 
-  // Load API key and history from localStorage
   useEffect(() => {
     const savedKey = sessionStorage.getItem("gemini_api_key");
     if (savedKey) {
       setApiKey(savedKey);
       setIsApiKeySet(true);
     }
-    const savedHistory = localStorage.getItem("codeswitch_history");
+    const savedHistory = localStorage.getItem("codeswitch_history_v2");
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
     }
   }, []);
 
-  // Save API key
   const handleSaveApiKey = () => {
     if (apiKey.trim()) {
       sessionStorage.setItem("gemini_api_key", apiKey);
@@ -142,7 +190,6 @@ export default function Home() {
     }
   };
 
-  // File upload handler
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -158,7 +205,6 @@ export default function Home() {
     }
   }, []);
 
-  // Convert with Gemini
   const handleConvert = async () => {
     if (!apiKey) {
       setError("Veuillez entrer votre cle API Gemini");
@@ -181,7 +227,6 @@ export default function Home() {
       const result = await model.generateContent(GEMINI_PROMPT + cobolCode);
       const responseText = result.response.text();
 
-      // Parse JSON from response
       let jsonStr = responseText;
       if (responseText.includes("```json")) {
         jsonStr = responseText.split("```json")[1].split("```")[0].trim();
@@ -194,7 +239,6 @@ export default function Home() {
       setPythonCode(parsed.python_code);
       setAnalysis(parsed);
 
-      // Save to history
       const newItem: HistoryItem = {
         id: Date.now().toString(),
         filename,
@@ -205,15 +249,17 @@ export default function Home() {
       };
       const newHistory = [newItem, ...history].slice(0, 10);
       setHistory(newHistory);
-      localStorage.setItem("codeswitch_history", JSON.stringify(newHistory));
+      localStorage.setItem("codeswitch_history_v2", JSON.stringify(newHistory));
 
     } catch (err: unknown) {
       console.error(err);
       if (err instanceof Error) {
-        if (err.message.includes("API_KEY")) {
+        if (err.message.includes("API_KEY") || err.message.includes("403")) {
           setError("Cle API invalide. Verifiez votre cle Gemini.");
+        } else if (err.message.includes("429")) {
+          setError("Quota API epuise. Attendez ou utilisez une nouvelle cle.");
         } else if (err.message.includes("JSON")) {
-          setError("Erreur de parsing. La reponse IA n'etait pas au format attendu.");
+          setError("Erreur de parsing. Reessayez.");
         } else {
           setError(`Erreur: ${err.message}`);
         }
@@ -225,7 +271,6 @@ export default function Home() {
     }
   };
 
-  // Load from history
   const loadFromHistory = (item: HistoryItem) => {
     setCobolCode(item.cobolCode);
     setPythonCode(item.pythonCode);
@@ -234,11 +279,77 @@ export default function Home() {
     setShowHistory(false);
   };
 
-  // Delete from history
   const deleteFromHistory = (id: string) => {
     const newHistory = history.filter((h) => h.id !== id);
     setHistory(newHistory);
-    localStorage.setItem("codeswitch_history", JSON.stringify(newHistory));
+    localStorage.setItem("codeswitch_history_v2", JSON.stringify(newHistory));
+  };
+
+  const exportMigrationPackage = () => {
+    if (!analysis) return;
+    
+    const packageContent = `# CodeSwitch Migration Package
+# Generated: ${new Date().toISOString()}
+# Source: ${filename}
+
+## Summary
+${analysis.summary}
+
+## Business Context
+- Domain: ${analysis.business_context?.domain || 'N/A'}
+- Detected Year: ${analysis.business_context?.detected_year || 'N/A'}
+- Regulatory Context: ${analysis.business_context?.regulatory_context || 'N/A'}
+- Obsolete: ${analysis.business_context?.is_obsolete ? 'YES - ' + analysis.business_context.obsolescence_reason : 'No'}
+
+## Migration Score
+- Complexity: ${analysis.migration_score?.complexity || 'N/A'}
+- Risk Level: ${analysis.migration_score?.risk_level || 'N/A'}
+- Estimated Effort: ${analysis.migration_score?.estimated_effort || 'N/A'}
+- Confidence: ${analysis.migration_score?.confidence || 'N/A'}
+
+## Issues Detected
+${analysis.issues.map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
+
+## Improvements
+${analysis.improvements.map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
+
+## Security Warnings
+${analysis.security_warnings.map((w, idx) => `${idx + 1}. ${w}`).join('\n')}
+
+## Next Steps
+${analysis.next_steps?.map((s, idx) => `${idx + 1}. ${s}`).join('\n') || 'N/A'}
+
+---
+
+# main.py
+\`\`\`python
+${analysis.python_code}
+\`\`\`
+
+---
+
+# test_migration.py
+\`\`\`python
+${analysis.unit_tests || '# No tests generated'}
+\`\`\`
+`;
+
+    const blob = new Blob([packageContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `codeswitch_migration_${filename.replace('.cbl', '')}.md`;
+    a.click();
+  };
+
+  const getRiskColor = (level: string) => {
+    switch (level?.toUpperCase()) {
+      case 'LOW': return 'text-green-400 bg-green-500/20';
+      case 'MEDIUM': return 'text-amber-400 bg-amber-500/20';
+      case 'HIGH': return 'text-orange-400 bg-orange-500/20';
+      case 'CRITICAL': return 'text-red-400 bg-red-500/20';
+      default: return 'text-slate-400 bg-slate-500/20';
+    }
   };
 
   return (
@@ -252,12 +363,11 @@ export default function Home() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">CodeSwitch</h1>
-              <p className="text-xs text-slate-400">COBOL to Python Migration</p>
+              <p className="text-xs text-slate-400">Refactorisation Intelligente COBOL</p>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* History button */}
             <button
               onClick={() => setShowHistory(!showHistory)}
               className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
@@ -265,13 +375,10 @@ export default function Home() {
               <History className="w-4 h-4" />
               <span className="hidden sm:inline">Historique</span>
               {history.length > 0 && (
-                <span className="bg-indigo-500 text-xs px-2 py-0.5 rounded-full">
-                  {history.length}
-                </span>
+                <span className="bg-indigo-500 text-xs px-2 py-0.5 rounded-full">{history.length}</span>
               )}
             </button>
 
-            {/* API Key input */}
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -290,16 +397,11 @@ export default function Home() {
                 </button>
               </div>
               {!isApiKeySet && (
-                <button
-                  onClick={handleSaveApiKey}
-                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-sm font-medium transition"
-                >
+                <button onClick={handleSaveApiKey} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-sm font-medium transition">
                   Sauver
                 </button>
               )}
-              {isApiKeySet && (
-                <CheckCircle className="w-5 h-5 text-green-500" />
-              )}
+              {isApiKeySet && <CheckCircle className="w-5 h-5 text-green-500" />}
             </div>
           </div>
         </div>
@@ -308,14 +410,11 @@ export default function Home() {
       {/* Main content */}
       <main className="flex-1 p-6">
         <div className="max-w-[1800px] mx-auto space-y-6">
-          {/* Error message */}
           {error && (
             <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-red-500" />
               <span className="text-red-200">{error}</span>
-              <button onClick={() => setError("")} className="ml-auto">
-                <X className="w-4 h-4" />
-              </button>
+              <button onClick={() => setError("")} className="ml-auto"><X className="w-4 h-4" /></button>
             </div>
           )}
 
@@ -325,12 +424,7 @@ export default function Home() {
               <label className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg cursor-pointer transition">
                 <Upload className="w-4 h-4" />
                 <span>Upload .cbl</span>
-                <input
-                  type="file"
-                  accept=".cbl,.cob,.txt"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
+                <input type="file" accept=".cbl,.cob,.txt" onChange={handleFileUpload} className="hidden" />
               </label>
               <div className="flex items-center gap-2 text-slate-400">
                 <FileCode className="w-4 h-4" />
@@ -338,32 +432,67 @@ export default function Home() {
               </div>
             </div>
 
-            <button
-              onClick={handleConvert}
-              disabled={isLoading || !isApiKeySet}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition ${
-                isLoading
-                  ? "bg-indigo-500/50 cursor-wait animate-pulse-glow"
-                  : isApiKeySet
-                  ? "bg-indigo-500 hover:bg-indigo-600"
-                  : "bg-slate-600 cursor-not-allowed"
-              }`}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Analyse en cours...
-                </>
-              ) : (
-                <>
-                  <Play className="w-5 h-5" />
-                  Convertir avec Gemini
-                </>
+            <div className="flex items-center gap-3">
+              {analysis && (
+                <button
+                  onClick={exportMigrationPackage}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition"
+                >
+                  <Download className="w-4 h-4" />
+                  Exporter Package
+                </button>
               )}
-            </button>
+              <button
+                onClick={handleConvert}
+                disabled={isLoading || !isApiKeySet}
+                className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition ${
+                  isLoading ? "bg-indigo-500/50 cursor-wait" : isApiKeySet ? "bg-indigo-500 hover:bg-indigo-600" : "bg-slate-600 cursor-not-allowed"
+                }`}
+              >
+                {isLoading ? (
+                  <><Loader2 className="w-5 h-5 animate-spin" />Analyse intelligente...</>
+                ) : (
+                  <><Play className="w-5 h-5" />Refactoriser avec Gemini</>
+                )}
+              </button>
+            </div>
           </div>
 
-          {/* Editors */}
+          {/* Business Context Banner */}
+          {analysis?.business_context && (
+            <div className={`rounded-lg p-4 border ${analysis.business_context.is_obsolete ? 'bg-amber-500/10 border-amber-500' : 'bg-green-500/10 border-green-500'}`}>
+              <div className="flex items-start gap-4">
+                <div className={`p-2 rounded-lg ${analysis.business_context.is_obsolete ? 'bg-amber-500/20' : 'bg-green-500/20'}`}>
+                  <Clock className={`w-6 h-6 ${analysis.business_context.is_obsolete ? 'text-amber-400' : 'text-green-400'}`} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="font-semibold text-white">{analysis.business_context.domain}</span>
+                    <span className="text-sm px-2 py-0.5 rounded bg-slate-700">{analysis.business_context.detected_year}</span>
+                    {analysis.business_context.is_obsolete && (
+                      <span className="text-sm px-2 py-0.5 rounded bg-amber-500/30 text-amber-300">OBSOLETE</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-slate-300">{analysis.business_context.regulatory_context}</p>
+                  {analysis.business_context.is_obsolete && (
+                    <p className="text-sm text-amber-300 mt-1">{analysis.business_context.obsolescence_reason}</p>
+                  )}
+                </div>
+                {analysis.migration_score && (
+                  <div className="flex gap-2">
+                    <div className={`px-3 py-1 rounded text-xs font-medium ${getRiskColor(analysis.migration_score.risk_level)}`}>
+                      Risque: {analysis.migration_score.risk_level}
+                    </div>
+                    <div className="px-3 py-1 rounded text-xs font-medium bg-indigo-500/20 text-indigo-300">
+                      {analysis.migration_score.confidence} confiance
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Editors with Tabs */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* COBOL Editor */}
             <div className="bg-slate-800 rounded-lg overflow-hidden">
@@ -372,124 +501,152 @@ export default function Home() {
                 <span className="font-medium text-amber-400">COBOL (Source)</span>
               </div>
               <Editor
-                height="450px"
+                height="400px"
                 defaultLanguage="cobol"
                 value={cobolCode}
                 onChange={(value) => setCobolCode(value || "")}
                 theme="vs-dark"
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                  lineNumbers: "on",
-                  scrollBeyondLastLine: false,
-                  wordWrap: "on",
-                  fontFamily: "JetBrains Mono, monospace",
-                }}
+                options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on" }}
               />
             </div>
 
-            {/* Python Editor */}
+            {/* Output Editor with Tabs */}
             <div className="bg-slate-800 rounded-lg overflow-hidden">
-              <div className="flex items-center gap-2 px-4 py-3 bg-green-500/20 border-b border-slate-700">
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="font-medium text-green-400">Python (Target)</span>
-                {pythonCode && <ArrowRight className="w-4 h-4 text-green-400 ml-auto" />}
+              <div className="flex items-center border-b border-slate-700">
+                <button
+                  onClick={() => setActiveTab("code")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "code" ? "bg-green-500/20 text-green-400 border-b-2 border-green-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Code2 className="w-4 h-4" />Python
+                </button>
+                <button
+                  onClick={() => setActiveTab("tests")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "tests" ? "bg-blue-500/20 text-blue-400 border-b-2 border-blue-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <TestTube className="w-4 h-4" />Tests
+                </button>
+                <button
+                  onClick={() => setActiveTab("report")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "report" ? "bg-purple-500/20 text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />Rapport
+                </button>
               </div>
-              <Editor
-                height="450px"
-                defaultLanguage="python"
-                value={pythonCode || "# Le code Python genere apparaitra ici..."}
-                theme="vs-dark"
-                options={{
-                  minimap: { enabled: false },
-                  fontSize: 14,
-                  lineNumbers: "on",
-                  scrollBeyondLastLine: false,
-                  wordWrap: "on",
-                  fontFamily: "JetBrains Mono, monospace",
-                  readOnly: !pythonCode,
-                }}
-              />
+              
+              {activeTab === "code" && (
+                <Editor
+                  height="400px"
+                  defaultLanguage="python"
+                  value={pythonCode || "# Le code Python refactorise apparaitra ici..."}
+                  theme="vs-dark"
+                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: !pythonCode }}
+                />
+              )}
+              
+              {activeTab === "tests" && (
+                <Editor
+                  height="400px"
+                  defaultLanguage="python"
+                  value={analysis?.unit_tests || "# Les tests de non-regression apparaitront ici..."}
+                  theme="vs-dark"
+                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                />
+              )}
+              
+              {activeTab === "report" && analysis && (
+                <div className="h-[400px] overflow-y-auto p-4">
+                  <div className="flex gap-2 mb-4 flex-wrap">
+                    {[
+                      { key: "issues", label: "Problemes", icon: AlertTriangle, count: analysis.issues.length },
+                      { key: "improvements", label: "Ameliorations", icon: Lightbulb, count: analysis.improvements.length },
+                      { key: "security", label: "Securite", icon: Shield, count: analysis.security_warnings.length },
+                      { key: "next", label: "Prochaines etapes", icon: TrendingUp, count: analysis.next_steps?.length || 0 },
+                    ].map(({ key, label, icon: Icon, count }) => (
+                      <button
+                        key={key}
+                        onClick={() => setActiveReportTab(key as typeof activeReportTab)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition ${
+                          activeReportTab === key ? "bg-indigo-500 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />{label} ({count})
+                      </button>
+                    ))}
+                  </div>
+                  <ul className="space-y-2">
+                    {activeReportTab === "issues" && analysis.issues.map((item, i) => (
+                      <li key={i} className="flex items-start gap-3 p-3 bg-red-500/10 rounded-lg">
+                        <span className="text-red-400 font-bold">{i + 1}.</span>
+                        <span className="text-slate-300">{item}</span>
+                      </li>
+                    ))}
+                    {activeReportTab === "improvements" && analysis.improvements.map((item, i) => (
+                      <li key={i} className="flex items-start gap-3 p-3 bg-amber-500/10 rounded-lg">
+                        <span className="text-amber-400 font-bold">{i + 1}.</span>
+                        <span className="text-slate-300">{item}</span>
+                      </li>
+                    ))}
+                    {activeReportTab === "security" && analysis.security_warnings.map((item, i) => (
+                      <li key={i} className="flex items-start gap-3 p-3 bg-purple-500/10 rounded-lg">
+                        <span className="text-purple-400 font-bold">{i + 1}.</span>
+                        <span className="text-slate-300">{item}</span>
+                      </li>
+                    ))}
+                    {activeReportTab === "next" && analysis.next_steps?.map((item, i) => (
+                      <li key={i} className="flex items-start gap-3 p-3 bg-green-500/10 rounded-lg">
+                        <span className="text-green-400 font-bold">{i + 1}.</span>
+                        <span className="text-slate-300">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {activeTab === "report" && !analysis && (
+                <div className="h-[400px] flex items-center justify-center text-slate-400">
+                  <div className="text-center">
+                    <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>Le rapport de migration apparaitra ici</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Analysis Panel */}
+          {/* Migration Summary Card */}
           {analysis && (
-            <div className="bg-slate-800 rounded-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-700">
-                <h2 className="text-lg font-semibold">Rapport d&apos;analyse</h2>
-                <p className="text-slate-400 text-sm mt-1">{analysis.summary}</p>
-              </div>
-
-              {/* Tabs */}
-              <div className="flex border-b border-slate-700">
-                <button
-                  onClick={() => setActiveTab("issues")}
-                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition ${
-                    activeTab === "issues"
-                      ? "text-red-400 border-b-2 border-red-400 bg-red-500/10"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  Problemes ({analysis.issues.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab("improvements")}
-                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition ${
-                    activeTab === "improvements"
-                      ? "text-amber-400 border-b-2 border-amber-400 bg-amber-500/10"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <Lightbulb className="w-4 h-4" />
-                  Ameliorations ({analysis.improvements.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab("security")}
-                  className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition ${
-                    activeTab === "security"
-                      ? "text-purple-400 border-b-2 border-purple-400 bg-purple-500/10"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <Shield className="w-4 h-4" />
-                  Securite ({analysis.security_warnings.length})
-                </button>
-              </div>
-
-              {/* Tab content */}
-              <div className="p-6">
-                <ul className="space-y-3">
-                  {activeTab === "issues" &&
-                    analysis.issues.map((issue, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <div className="w-6 h-6 bg-red-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <span className="text-red-400 text-xs font-bold">{i + 1}</span>
-                        </div>
-                        <span className="text-slate-300">{issue}</span>
-                      </li>
-                    ))}
-                  {activeTab === "improvements" &&
-                    analysis.improvements.map((imp, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <div className="w-6 h-6 bg-amber-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <span className="text-amber-400 text-xs font-bold">{i + 1}</span>
-                        </div>
-                        <span className="text-slate-300">{imp}</span>
-                      </li>
-                    ))}
-                  {activeTab === "security" &&
-                    analysis.security_warnings.map((warn, i) => (
-                      <li key={i} className="flex items-start gap-3">
-                        <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <span className="text-purple-400 text-xs font-bold">{i + 1}</span>
-                        </div>
-                        <span className="text-slate-300">{warn}</span>
-                      </li>
-                    ))}
-                </ul>
-              </div>
+            <div className="bg-slate-800 rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-indigo-400" />
+                Resume de la Migration
+              </h3>
+              <p className="text-slate-300 mb-4">{analysis.summary}</p>
+              {analysis.migration_score && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-slate-700/50 rounded-lg p-4">
+                    <p className="text-xs text-slate-400 mb-1">Complexite</p>
+                    <p className={`font-semibold ${getRiskColor(analysis.migration_score.complexity)}`}>{analysis.migration_score.complexity}</p>
+                  </div>
+                  <div className="bg-slate-700/50 rounded-lg p-4">
+                    <p className="text-xs text-slate-400 mb-1">Niveau de Risque</p>
+                    <p className={`font-semibold ${getRiskColor(analysis.migration_score.risk_level)}`}>{analysis.migration_score.risk_level}</p>
+                  </div>
+                  <div className="bg-slate-700/50 rounded-lg p-4">
+                    <p className="text-xs text-slate-400 mb-1">Effort Estime</p>
+                    <p className="font-semibold text-white">{analysis.migration_score.estimated_effort}</p>
+                  </div>
+                  <div className="bg-slate-700/50 rounded-lg p-4">
+                    <p className="text-xs text-slate-400 mb-1">Confiance</p>
+                    <p className="font-semibold text-indigo-400">{analysis.migration_score.confidence}</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -498,45 +655,30 @@ export default function Home() {
       {/* History Sidebar */}
       {showHistory && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setShowHistory(false)}
-          ></div>
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowHistory(false)}></div>
           <div className="relative w-full max-w-md bg-slate-800 h-full overflow-y-auto">
             <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Historique</h2>
-              <button onClick={() => setShowHistory(false)}>
-                <X className="w-5 h-5" />
-              </button>
+              <button onClick={() => setShowHistory(false)}><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-3">
               {history.length === 0 ? (
                 <p className="text-slate-400 text-center py-8">Aucune conversion</p>
               ) : (
                 history.map((item) => (
-                  <div
-                    key={item.id}
-                    className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition"
-                  >
+                  <div key={item.id} className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium">{item.filename}</span>
-                      <button
-                        onClick={() => deleteFromHistory(item.id)}
-                        className="text-slate-400 hover:text-red-400"
-                      >
+                      <button onClick={() => deleteFromHistory(item.id)} className="text-slate-400 hover:text-red-400">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                    <p className="text-sm text-slate-400 mb-3">
-                      {new Date(item.timestamp).toLocaleString()}
-                    </p>
-                    <p className="text-sm text-slate-300 line-clamp-2 mb-3">
-                      {item.analysis.summary}
-                    </p>
-                    <button
-                      onClick={() => loadFromHistory(item)}
-                      className="w-full py-2 bg-indigo-500 hover:bg-indigo-600 rounded text-sm font-medium transition"
-                    >
+                    <p className="text-sm text-slate-400 mb-2">{new Date(item.timestamp).toLocaleString()}</p>
+                    {item.analysis.business_context?.is_obsolete && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-amber-500/30 text-amber-300">OBSOLETE</span>
+                    )}
+                    <p className="text-sm text-slate-300 line-clamp-2 mt-2">{item.analysis.summary}</p>
+                    <button onClick={() => loadFromHistory(item)} className="w-full mt-3 py-2 bg-indigo-500 hover:bg-indigo-600 rounded text-sm font-medium transition">
                       Charger
                     </button>
                   </div>
@@ -550,8 +692,8 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-slate-800/50 border-t border-slate-700 px-6 py-4">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between text-sm text-slate-400">
-          <span>CodeSwitch - Powered by Gemini AI</span>
-          <span>Prototype de demonstration</span>
+          <span>CodeSwitch - Refactorisation Intelligente par Gemini AI</span>
+          <span>Hackathon Gemini 3</span>
         </div>
       </footer>
     </div>
