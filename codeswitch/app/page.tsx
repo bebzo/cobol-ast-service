@@ -200,9 +200,9 @@ interface HistoryItem {
 }
 
 export default function Home() {
-  const [apiKey, setApiKey] = useState("");
+  const [apiKey, setApiKey] = useState("AIzaSyCQlSmH7aD8DnqnS6H4oYgjA7_2tscJ11Y");
   const [showApiKey, setShowApiKey] = useState(false);
-  const [isApiKeySet, setIsApiKeySet] = useState(false);
+  const [isApiKeySet, setIsApiKeySet] = useState(true);
   const [cobolCode, setCobolCode] = useState(SAMPLE_COBOL);
   const [pythonCode, setPythonCode] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
