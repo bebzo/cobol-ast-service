@@ -218,6 +218,9 @@ export default function Home() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceResponse, setVoiceResponse] = useState("");
   const [showVoicePanel, setShowVoicePanel] = useState(false);
+  const [diffStep, setDiffStep] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [showMagicDiff, setShowMagicDiff] = useState(false);
 
   useEffect(() => {
     const savedKey = sessionStorage.getItem("gemini_api_key");
@@ -719,38 +722,179 @@ ${analysis.unit_tests || '# No tests generated'}
               )}
 
               {activeTab === "diff" && (
-                <div className="h-[400px] overflow-y-auto p-4 space-y-3">
-                  <h3 className="text-lg font-semibold text-orange-400 flex items-center gap-2">
-                    <GitCompare className="w-5 h-5" />
-                    Mapping COBOL → Python
-                  </h3>
-                  {[
-                    { cobol: "IDENTIFICATION DIVISION", python: "# Module docstring + __name__", type: "structure" },
-                    { cobol: "WORKING-STORAGE SECTION", python: "@dataclass / class attributes", type: "data" },
-                    { cobol: "PIC S9(7)V99 COMP-3", python: "Decimal (précision financière)", type: "type" },
-                    { cobol: "88 LEVEL (conditions)", python: "Enum / @property bool", type: "type" },
-                    { cobol: "PERFORM ... THRU", python: "def function() + appel", type: "control" },
-                    { cobol: "EVALUATE ... WHEN", python: "match/case (Python 3.10+)", type: "control" },
-                    { cobol: "GO TO", python: "⚠️ Refactorisé en flux structuré", type: "warning" },
-                    { cobol: "COMPUTE ... = ...", python: "Opération arithmétique directe", type: "calc" },
-                    { cobol: "IF ... ELSE ... END-IF", python: "if/elif/else standard", type: "control" },
-                    { cobol: "COPY (copybook)", python: "from module import *", type: "structure" },
-                  ].map((mapping, i) => (
-                    <div key={i} className={`flex items-center gap-3 p-3 rounded-lg ${
-                      mapping.type === "warning" ? "bg-red-500/10 border border-red-500/30" : "bg-slate-700/50"
-                    }`}>
-                      <div className="flex-1">
-                        <code className="text-amber-400 text-sm font-mono">{mapping.cobol}</code>
-                      </div>
-                      <ArrowRight className={`w-5 h-5 ${mapping.type === "warning" ? "text-red-400" : "text-slate-500"}`} />
-                      <div className="flex-1">
-                        <code className={`text-sm font-mono ${mapping.type === "warning" ? "text-red-400" : "text-green-400"}`}>{mapping.python}</code>
-                      </div>
+                <div className="h-[400px] overflow-hidden relative">
+                  {/* Magic Diff Animation */}
+                  <div className="absolute inset-0 p-4">
+                    {/* Header with Start Animation Button */}
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-orange-400 flex items-center gap-2">
+                        <GitCompare className="w-5 h-5" />
+                        Transformation Magique
+                      </h3>
+                      <button
+                        onClick={() => {
+                          if (!isAnimating && analysis) {
+                            setShowMagicDiff(true);
+                            setIsAnimating(true);
+                            setDiffStep(0);
+                            const totalSteps = 8;
+                            let step = 0;
+                            const interval = setInterval(() => {
+                              step++;
+                              setDiffStep(step);
+                              if (step >= totalSteps) {
+                                clearInterval(interval);
+                                setIsAnimating(false);
+                              }
+                            }, 800);
+                          }
+                        }}
+                        disabled={isAnimating || !analysis}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition ${
+                          isAnimating ? 'bg-orange-500 animate-pulse' : analysis ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600' : 'bg-slate-600 cursor-not-allowed'
+                        }`}
+                      >
+                        {isAnimating ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" />Transformation...</>
+                        ) : (
+                          <><Play className="w-4 h-4" />Lancer Animation</>
+                        )}
+                      </button>
                     </div>
-                  ))}
-                  <p className="text-xs text-slate-500 mt-4 text-center">
-                    Ces transformations sont appliquées automatiquement par Gemini lors de la refactorisation
-                  </p>
+
+                    {/* Animated Code Transformation View */}
+                    {showMagicDiff ? (
+                      <div className="grid grid-cols-2 gap-4 h-[320px]">
+                        {/* COBOL Side - Disappearing */}
+                        <div className="bg-slate-900 rounded-lg p-3 overflow-hidden relative">
+                          <div className="text-xs text-amber-400 mb-2 font-semibold flex items-center gap-2">
+                            <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                            COBOL Legacy
+                          </div>
+                          <div className="font-mono text-xs space-y-1">
+                            {[
+                              { line: "IDENTIFICATION DIVISION.", step: 1 },
+                              { line: "PROGRAM-ID. PAYROLL01.", step: 1 },
+                              { line: "DATA DIVISION.", step: 2 },
+                              { line: "01 EMP-RATE PIC S9(5)V99 COMP-3.", step: 3 },
+                              { line: "01 WS-TAX-BRACKETS-1995.", step: 4 },
+                              { line: "   05 WS-RATE-1 PIC V999.", step: 4 },
+                              { line: "PROCEDURE DIVISION.", step: 5 },
+                              { line: "PERFORM 4000-CALC-GROSS.", step: 6 },
+                              { line: "COMPUTE WS-NET = WS-GROSS - WS-TAX.", step: 7 },
+                              { line: "STOP RUN.", step: 8 },
+                            ].map((item, i) => (
+                              <div
+                                key={i}
+                                className={`transition-all duration-500 ${
+                                  diffStep >= item.step
+                                    ? 'opacity-20 line-through blur-[1px] translate-x-2'
+                                    : 'opacity-100'
+                                }`}
+                              >
+                                <span className="text-amber-400/70">{item.line}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {/* Dissolve Effect Overlay */}
+                          {diffStep > 0 && (
+                            <div className="absolute inset-0 pointer-events-none">
+                              {[...Array(diffStep * 3)].map((_, i) => (
+                                <div
+                                  key={i}
+                                  className="absolute w-1 h-1 bg-amber-500 rounded-full animate-ping"
+                                  style={{
+                                    left: `${Math.random() * 100}%`,
+                                    top: `${Math.random() * 100}%`,
+                                    animationDelay: `${Math.random() * 0.5}s`,
+                                    animationDuration: '1s'
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Python Side - Appearing */}
+                        <div className="bg-slate-900 rounded-lg p-3 overflow-hidden relative">
+                          <div className="text-xs text-green-400 mb-2 font-semibold flex items-center gap-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            Python Moderne
+                          </div>
+                          <div className="font-mono text-xs space-y-1">
+                            {[
+                              { line: "from dataclasses import dataclass", step: 1 },
+                              { line: "from decimal import Decimal", step: 1 },
+                              { line: "", step: 2 },
+                              { line: "@dataclass", step: 2 },
+                              { line: "class TrancheImposition:", step: 3 },
+                              { line: "    taux: Decimal", step: 3 },
+                              { line: "", step: 4 },
+                              { line: "class ConfigFiscale:", step: 4 },
+                              { line: "    def charger(self, path):", step: 5 },
+                              { line: "        return json.load(f)", step: 5 },
+                              { line: "", step: 6 },
+                              { line: "def calculer_impot(revenu: Decimal):", step: 6 },
+                              { line: "    net = brut - impot", step: 7 },
+                              { line: "    return net.quantize(...)", step: 7 },
+                              { line: "", step: 8 },
+                              { line: "# Tests: pytest ready ✓", step: 8 },
+                            ].map((item, i) => (
+                              <div
+                                key={i}
+                                className={`transition-all duration-700 ${
+                                  diffStep >= item.step
+                                    ? 'opacity-100 translate-x-0'
+                                    : 'opacity-0 -translate-x-4'
+                                }`}
+                                style={{ transitionDelay: `${(i % 3) * 100}ms` }}
+                              >
+                                <span className="text-green-400">{item.line}</span>
+                              </div>
+                            ))}
+                          </div>
+                          {/* Glow Effect */}
+                          {diffStep > 0 && (
+                            <div
+                              className="absolute inset-0 bg-gradient-to-r from-green-500/0 via-green-500/5 to-green-500/0 animate-pulse pointer-events-none"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Initial State - Instructions */
+                      <div className="h-[320px] flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center">
+                            <GitCompare className="w-10 h-10 text-white" />
+                          </div>
+                          <h4 className="text-lg font-semibold text-white mb-2">Visualisation Magique</h4>
+                          <p className="text-slate-400 text-sm max-w-xs">
+                            {analysis 
+                              ? "Cliquez sur 'Lancer Animation' pour voir le code COBOL se transformer en Python ligne par ligne"
+                              : "Analysez d'abord un fichier COBOL pour activer la transformation magique"
+                            }
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Progress Bar */}
+                    {showMagicDiff && (
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                          <span>Progression</span>
+                          <span>{Math.round((diffStep / 8) * 100)}%</span>
+                        </div>
+                        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-green-500 transition-all duration-500"
+                            style={{ width: `${(diffStep / 8) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               
