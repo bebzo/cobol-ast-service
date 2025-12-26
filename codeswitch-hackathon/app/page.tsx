@@ -106,60 +106,60 @@ const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
            COMPUTE WS-NET-PAY = 
                WS-GROSS-PAY - WS-FEDERAL-TAX - WS-FICA-TAX.`;
 
-// Enhanced CodeSwitch Pro prompt - Architecture avancee
-const GEMINI_PROMPT = `Tu es CodeSwitch Pro, un architecte senior en migration legacy avec 25 ans d'experience.
+// Enhanced CodeSwitch Pro prompt - Advanced Architecture
+const GEMINI_PROMPT = `You are CodeSwitch Pro, a senior legacy migration architect with 25 years of experience.
 
-MISSION: Genere du code Python de QUALITE PRODUCTION avec une architecture moderne et extensible.
+MISSION: Generate PRODUCTION-QUALITY Python code with modern and extensible architecture.
 
-ARCHITECTURE REQUISE dans python_code:
-1. @dataclass pour les structures de donnees (ex: TrancheImposition avec limite_inferieure, limite_superieure, taux en Decimal)
-2. Configuration externalisable via JSON (classe ConfigFiscale avec methode charger())
-3. Gestionnaire multi-annees (classe GestionnaireFiscal avec cache des configurations)
-4. Systeme d'audit/logging (classe AuditFiscal avec enregistrement CSV)
-5. Utiliser Decimal pour TOUS les calculs financiers
-6. Typage complet (typing: List, Optional, Dict)
-7. Docstrings detailles pour chaque classe/methode
-8. Warnings integres si donnees obsoletes
+REQUIRED ARCHITECTURE in python_code:
+1. @dataclass for data structures (e.g., TaxBracket with lower_limit, upper_limit, rate as Decimal)
+2. Externalizable configuration via JSON (TaxConfig class with load() method)
+3. Multi-year manager (TaxManager class with configuration cache)
+4. Audit/logging system (TaxAudit class with CSV recording)
+5. Use Decimal for ALL financial calculations
+6. Complete typing (typing: List, Optional, Dict)
+7. Detailed docstrings for each class/method
+8. Built-in warnings if data is obsolete
 
-Analyse ce programme COBOL et genere une reponse JSON stricte:
+Analyze this COBOL program and generate a strict JSON response:
 {
-  "summary": "Description en une phrase",
+  "summary": "One-sentence description",
   
   "business_context": {
-    "domain": "Domaine metier (fiscalite, bancaire, assurance, RH)",
-    "detected_year": "Annee detectee ou estimee",
-    "regulatory_context": "Contexte reglementaire",
+    "domain": "Business domain (taxation, banking, insurance, HR)",
+    "detected_year": "Detected or estimated year",
+    "regulatory_context": "Regulatory context",
     "is_obsolete": true/false,
-    "obsolescence_reason": "Explication si obsolete"
+    "obsolescence_reason": "Explanation if obsolete"
   },
   
-  "python_code": "Code Python COMPLET avec: dataclasses TrancheImposition, ConfigFiscale, GestionnaireFiscal, AuditFiscal, Decimal, typage, docstrings, warnings obsolescence, exemple config JSON en commentaire",
+  "python_code": "COMPLETE Python code with: dataclasses TaxBracket, TaxConfig, TaxManager, TaxAudit, Decimal, typing, docstrings, obsolescence warnings, example JSON config in comments",
   
-  "unit_tests": "Tests pytest COMPLETS: test_configuration, test_calcul_nominal, test_cas_limites, test_tranches, test_audit",
+  "unit_tests": "COMPLETE pytest tests: test_configuration, test_nominal_calculation, test_edge_cases, test_brackets, test_audit",
   
-  "config_json": "Exemple de fichier config_fiscale.json avec les tranches actuelles 2025",
+  "config_json": "Example tax_config.json file with current 2025 brackets",
   
-  "issues": ["Problemes detectes"],
-  "improvements": ["Ameliorations architecturales"],
-  "security_warnings": ["Avertissements securite/conformite"],
+  "issues": ["Detected problems"],
+  "improvements": ["Architectural improvements"],
+  "security_warnings": ["Security/compliance warnings"],
   
   "migration_score": {
     "complexity": "LOW/MEDIUM/HIGH",
     "risk_level": "LOW/MEDIUM/HIGH/CRITICAL",
-    "estimated_effort": "Jours-homme",
-    "confidence": "Pourcentage"
+    "estimated_effort": "Person-days",
+    "confidence": "Percentage"
   },
   
-  "next_steps": ["Actions pour production"]
+  "next_steps": ["Actions for production"]
 }
 
-REGLES:
-1. Le python_code doit etre EXECUTABLE et inclure TOUTES les classes mentionnees
-2. Inclure un exemple de config JSON 2025 en commentaire dans le code
-3. Les tests doivent couvrir les cas limites (0, negatif, tres grand)
-4. Retourne UNIQUEMENT le JSON valide
+RULES:
+1. python_code must be EXECUTABLE and include ALL mentioned classes
+2. Include a 2025 JSON config example in code comments
+3. Tests must cover edge cases (0, negative, very large)
+4. Return ONLY valid JSON
 
-Code COBOL:
+COBOL Code:
 `;
 
 interface BusinessContext {
