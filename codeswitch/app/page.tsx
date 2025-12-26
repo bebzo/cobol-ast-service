@@ -207,6 +207,7 @@ export default function Home() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analyzedCobolCode, setAnalyzedCobolCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
   const [error, setError] = useState("");
   const [filename, setFilename] = useState("sample.cbl");
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -356,6 +357,13 @@ export default function Home() {
     }
 
     setIsLoading(true);
+    setAnalysisProgress(0);
+    
+    // Animate progress bar
+    const progressInterval = setInterval(() => {
+      setAnalysisProgress(prev => prev >= 90 ? prev : prev + Math.random() * 12);
+    }, 250);
+    
     setError("");
     setPythonCode("");
     setAnalysis(null);
@@ -410,7 +418,9 @@ export default function Home() {
         setError("Une erreur inconnue s'est produite");
       }
     } finally {
-      setIsLoading(false);
+      clearInterval(progressInterval);
+      setAnalysisProgress(100);
+      setTimeout(() => setIsLoading(false), 300);
     }
   };
 
@@ -677,13 +687,30 @@ ${analysis.unit_tests || '# No tests generated'}
                 }`}
               >
                 {isLoading ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" />Analyse intelligente...</>
+                  <><Loader2 className="w-5 h-5 animate-spin" />Analyse... {Math.round(analysisProgress)}%</>
                 ) : (
                   <><Play className="w-5 h-5" />Refactoriser avec Gemini</>
                 )}
               </button>
             </div>
           </div>
+
+          {/* Progress Bar during analysis */}
+          {isLoading && (
+            <div className="bg-slate-800 rounded-lg p-4 border border-indigo-500/30">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-slate-300">🔄 Analyse IA en cours...</span>
+                <span className="text-sm font-mono text-indigo-400">{Math.round(analysisProgress)}%</span>
+              </div>
+              <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-200"
+                  style={{ width: `${analysisProgress}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-500 mt-2">Parsing COBOL → Génération Python → Tests unitaires → Analyse sécurité</p>
+            </div>
+          )}
 
           {/* Business Context Banner */}
           {analysis?.business_context && (
