@@ -25,53 +25,84 @@ import {
   TrendingUp,
   TestTube,
   BookOpen,
+  Mic,
+  MicOff,
+  Volume2,
+  MessageCircle,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
 const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
-       PROGRAM-ID.  CALCULIMPOT.
-       AUTHOR.      SYSTEME-FISCAL-1990.
-      * Programme de calcul d'impot sur le revenu
-      * Taux de 1990 - A mettre a jour pour 2025
+       PROGRAM-ID.  PAYROLL01.
+       AUTHOR.      MAINFRAME-LEGACY-1987.
+      *================================================================*
+      * SYSTEME DE PAIE - MODULE CALCUL BRUT/NET                       *
+      * ATTENTION: TAUX FISCAUX DE 1995 - OBSOLETE                     *
+      *================================================================*
+       
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-       01  WS-REVENU-ANNUEL    PIC 9(7)V99.
-       01  WS-TRANCHE1-LIMITE  PIC 9(7) VALUE 30000.
-       01  WS-TRANCHE2-LIMITE  PIC 9(7) VALUE 100000.
-       01  WS-TAUX-TRANCHE1    PIC V999 VALUE .150.
-       01  WS-TAUX-TRANCHE2    PIC V999 VALUE .280.
-       01  WS-TAUX-TRANCHE3    PIC V999 VALUE .400.
-       01  WS-IMPOT-CALCULE    PIC 9(7)V99.
+       
+       01  EMP-HOURLY-RATE         PIC S9(5)V99 COMP-3.
+       01  EMP-STATUS              PIC X(1).
+           88  EMP-ACTIVE          VALUE 'A'.
+           88  EMP-TERMINATED      VALUE 'T'.
+       
+      * TAUX FISCAUX 1995 - NON CONFORMES 2025
+       01  WS-TAX-BRACKETS-1995.
+           05  WS-BRACKET-1-LIMIT  PIC 9(7) VALUE 23350.
+           05  WS-BRACKET-2-LIMIT  PIC 9(7) VALUE 56550.
+           05  WS-RATE-BRACKET-1   PIC V999 VALUE .150.
+           05  WS-RATE-BRACKET-2   PIC V999 VALUE .280.
+       
+       01  WS-FICA-RATES.
+           05  WS-SS-RATE          PIC V9999 VALUE .0620.
+           05  WS-MEDICARE-RATE    PIC V9999 VALUE .0145.
+           05  WS-SS-WAGE-BASE     PIC 9(7) VALUE 61200.
+       
+       01  WS-CALC-FIELDS.
+           05  WS-GROSS-PAY        PIC S9(7)V99 COMP-3.
+           05  WS-FEDERAL-TAX      PIC S9(7)V99 COMP-3.
+           05  WS-FICA-TAX         PIC S9(7)V99 COMP-3.
+           05  WS-NET-PAY          PIC S9(7)V99 COMP-3.
        
        PROCEDURE DIVISION.
-       DEBUT.
-           MOVE 75000 TO WS-REVENU-ANNUEL.
-           
-           IF WS-REVENU-ANNUEL <= WS-TRANCHE1-LIMITE
-               COMPUTE WS-IMPOT-CALCULE = 
-                 WS-REVENU-ANNUEL * WS-TAUX-TRANCHE1
+       
+       0000-MAIN.
+           MOVE 25.50 TO EMP-HOURLY-RATE
+           PERFORM 4000-CALC-GROSS
+           PERFORM 5100-CALC-FED-TAX
+           PERFORM 5200-CALC-FICA
+           PERFORM 6000-CALC-NET
+           DISPLAY "BRUT: " WS-GROSS-PAY
+           DISPLAY "NET:  " WS-NET-PAY
+           STOP RUN.
+       
+       4000-CALC-GROSS.
+           COMPUTE WS-GROSS-PAY = EMP-HOURLY-RATE * 40.
+       
+       5100-CALC-FED-TAX.
+      * CALCUL OBSOLETE - TAUX 1995
+           IF WS-GROSS-PAY * 52 <= WS-BRACKET-1-LIMIT
+               COMPUTE WS-FEDERAL-TAX = 
+                   WS-GROSS-PAY * WS-RATE-BRACKET-1
            ELSE
-               IF WS-REVENU-ANNUEL <= WS-TRANCHE2-LIMITE
-                   COMPUTE WS-IMPOT-CALCULE = 
-                     WS-TRANCHE1-LIMITE * WS-TAUX-TRANCHE1 +
-                     (WS-REVENU-ANNUEL - WS-TRANCHE1-LIMITE) 
-                     * WS-TAUX-TRANCHE2
-               ELSE
-                   COMPUTE WS-IMPOT-CALCULE = 
-                     WS-TRANCHE1-LIMITE * WS-TAUX-TRANCHE1 +
-                     (WS-TRANCHE2-LIMITE - WS-TRANCHE1-LIMITE) 
-                     * WS-TAUX-TRANCHE2 +
-                     (WS-REVENU-ANNUEL - WS-TRANCHE2-LIMITE) 
-                     * WS-TAUX-TRANCHE3
-               END-IF
+               COMPUTE WS-FEDERAL-TAX = 
+                   WS-BRACKET-1-LIMIT * WS-RATE-BRACKET-1 / 52 +
+                   (WS-GROSS-PAY - WS-BRACKET-1-LIMIT / 52) 
+                   * WS-RATE-BRACKET-2
            END-IF.
-           
-           DISPLAY "REVENU: " WS-REVENU-ANNUEL.
-           DISPLAY "IMPOT CALCULE: " WS-IMPOT-CALCULE.
-           
-           STOP RUN.`;
+       
+       5200-CALC-FICA.
+      * PLAFOND SS OBSOLETE: $61,200 (1995) VS $168,600 (2025)
+           COMPUTE WS-FICA-TAX = 
+               WS-GROSS-PAY * (WS-SS-RATE + WS-MEDICARE-RATE).
+       
+       6000-CALC-NET.
+           COMPUTE WS-NET-PAY = 
+               WS-GROSS-PAY - WS-FEDERAL-TAX - WS-FICA-TAX.`;
 
 // Enhanced CodeSwitch Pro prompt - Architecture avancee
 const GEMINI_PROMPT = `Tu es CodeSwitch Pro, un architecte senior en migration legacy avec 25 ans d'experience.
@@ -180,6 +211,12 @@ export default function Home() {
   const [showHistory, setShowHistory] = useState(false);
   const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "report">("code");
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceResponse, setVoiceResponse] = useState("");
+  const [showVoicePanel, setShowVoicePanel] = useState(false);
 
   useEffect(() => {
     const savedKey = sessionStorage.getItem("gemini_api_key");
@@ -296,6 +333,79 @@ export default function Home() {
     localStorage.setItem("codeswitch_history_v2", JSON.stringify(newHistory));
   };
 
+  // Voice Assistant Functions
+  const startVoiceAssistant = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      setError("Votre navigateur ne supporte pas la reconnaissance vocale. Utilisez Chrome.");
+      return;
+    }
+    setShowVoicePanel(true);
+    setIsVoiceActive(true);
+  };
+
+  const handleVoiceQuery = async (query: string) => {
+    if (!apiKey || !query.trim()) return;
+    
+    setVoiceTranscript(query);
+    setIsListening(false);
+    
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+      
+      const voicePrompt = `Tu es un assistant vocal expert en migration COBOL. Reponds de maniere concise et claire (max 3 phrases).
+      
+Contexte: L'utilisateur analyse ce code COBOL:
+\`\`\`cobol
+${cobolCode.substring(0, 2000)}
+\`\`\`
+
+Question de l'utilisateur: ${query}
+
+Reponds directement et simplement:`;
+
+      const result = await model.generateContent(voicePrompt);
+      const response = result.response.text();
+      setVoiceResponse(response);
+      
+      // Text-to-speech
+      if ('speechSynthesis' in window) {
+        setIsSpeaking(true);
+        const utterance = new SpeechSynthesisUtterance(response);
+        utterance.lang = 'fr-FR';
+        utterance.rate = 1.1;
+        utterance.onend = () => setIsSpeaking(false);
+        speechSynthesis.speak(utterance);
+      }
+    } catch (err) {
+      console.error(err);
+      setVoiceResponse("Desolee, je n'ai pas pu traiter votre demande.");
+    }
+  };
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'fr-FR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      handleVoiceQuery(transcript);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    
+    recognition.start();
+  };
+
+  const stopSpeaking = () => {
+    speechSynthesis.cancel();
+    setIsSpeaking(false);
+  };
+
   const exportMigrationPackage = () => {
     if (!analysis) return;
     
@@ -379,6 +489,17 @@ ${analysis.unit_tests || '# No tests generated'}
           </div>
 
           <div className="flex items-center gap-4">
+            <button
+              onClick={startVoiceAssistant}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                isVoiceActive ? 'bg-green-600 hover:bg-green-700' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+              }`}
+            >
+              <Mic className="w-4 h-4" />
+              <span className="hidden sm:inline">Assistant Vocal</span>
+              {isVoiceActive && <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>}
+            </button>
+
             <button
               onClick={() => setShowHistory(!showHistory)}
               className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
@@ -718,10 +839,88 @@ ${analysis.unit_tests || '# No tests generated'}
         </div>
       )}
 
+      {/* Voice Assistant Panel */}
+      {showVoicePanel && (
+        <div className="fixed bottom-24 right-6 w-96 bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden z-50">
+          <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${isListening ? 'bg-red-400 animate-pulse' : isSpeaking ? 'bg-green-400 animate-pulse' : 'bg-white'}`}></div>
+              <span className="font-semibold text-white">Assistant Vocal Gemini</span>
+            </div>
+            <button onClick={() => { setShowVoicePanel(false); setIsVoiceActive(false); stopSpeaking(); }} className="text-white/80 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="p-4 space-y-4">
+            {/* Waveform Visualizer */}
+            <div className="h-16 bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden">
+              {isListening ? (
+                <div className="flex items-center gap-1">
+                  {[...Array(12)].map((_, i) => (
+                    <div key={i} className="w-1 bg-red-500 rounded-full animate-pulse" style={{ height: `${Math.random() * 40 + 10}px`, animationDelay: `${i * 0.1}s` }}></div>
+                  ))}
+                </div>
+              ) : isSpeaking ? (
+                <div className="flex items-center gap-1">
+                  {[...Array(12)].map((_, i) => (
+                    <div key={i} className="w-1 bg-green-500 rounded-full animate-pulse" style={{ height: `${Math.random() * 40 + 10}px`, animationDelay: `${i * 0.1}s` }}></div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500 text-sm">Appuyez sur le micro pour parler</p>
+              )}
+            </div>
+
+            {/* Transcript */}
+            {voiceTranscript && (
+              <div className="bg-slate-700/50 rounded-lg p-3">
+                <p className="text-xs text-slate-400 mb-1">Vous avez dit:</p>
+                <p className="text-white text-sm">{voiceTranscript}</p>
+              </div>
+            )}
+
+            {/* Response */}
+            {voiceResponse && (
+              <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg p-3">
+                <p className="text-xs text-purple-300 mb-1">Gemini:</p>
+                <p className="text-white text-sm">{voiceResponse}</p>
+              </div>
+            )}
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={startListening}
+                disabled={isListening || isSpeaking}
+                className={`w-16 h-16 rounded-full flex items-center justify-center transition ${
+                  isListening ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+                }`}
+              >
+                {isListening ? <MicOff className="w-8 h-8 text-white" /> : <Mic className="w-8 h-8 text-white" />}
+              </button>
+              
+              {isSpeaking && (
+                <button
+                  onClick={stopSpeaking}
+                  className="w-12 h-12 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center"
+                >
+                  <Volume2 className="w-6 h-6 text-white" />
+                </button>
+              )}
+            </div>
+
+            <p className="text-center text-xs text-slate-400">
+              Demandez: "Explique ce code" ou "Quels sont les risques?"
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="bg-slate-800/50 border-t border-slate-700 px-6 py-4">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between text-sm text-slate-400">
-          <span>CodeSwitch - Refactorisation Intelligente par Gemini AI</span>
+          <span>CodeSwitch Pro - Assistant Vocal Gemini AI</span>
           <span>Hackathon Gemini 3</span>
         </div>
       </footer>
