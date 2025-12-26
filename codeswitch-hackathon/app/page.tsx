@@ -374,7 +374,9 @@ export default function Home() {
     ];
     const progressInterval = setInterval(() => {
       setAnalysisProgress(prev => {
-        const next = Math.min(90, prev + Math.random() * 10);
+        // Slow down as we approach 98%
+        let increment = prev < 85 ? Math.random() * 10 : prev < 95 ? Math.random() * 3 : Math.random() * 1;
+        const next = Math.min(98, prev + increment);
         const status = statusMessages.find(s => next < s.threshold) || statusMessages[statusMessages.length - 1];
         setAnalysisStatus(status.msg);
         return next;
