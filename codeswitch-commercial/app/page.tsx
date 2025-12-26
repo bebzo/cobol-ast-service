@@ -141,7 +141,17 @@ Analyze this COBOL program and generate a strict JSON response:
   
   "issues": ["Detected problems"],
   "improvements": ["Architectural improvements"],
-  "security_warnings": ["Security/compliance warnings"],
+  "security_warnings": [
+    {
+      "title": "Vulnerability name",
+      "severity": "CRITICAL/HIGH/MEDIUM/LOW",
+      "cvss_score": 0.0-10.0,
+      "location": "Line or section",
+      "description": "What the issue is",
+      "vulnerable_code": "The problematic code snippet",
+      "fix": "Recommended fix"
+    }
+  ],
   
   "migration_score": {
     "complexity": "LOW/MEDIUM/HIGH",
@@ -177,6 +187,16 @@ interface MigrationScore {
   confidence: string;
 }
 
+interface SecurityWarning {
+  title: string;
+  severity: string;
+  cvss_score: number;
+  location: string;
+  description: string;
+  vulnerable_code: string;
+  fix: string;
+}
+
 interface AnalysisResult {
   summary: string;
   business_context: BusinessContext;
@@ -185,7 +205,7 @@ interface AnalysisResult {
   config_json: string;
   issues: string[];
   improvements: string[];
-  security_warnings: string[];
+  security_warnings: SecurityWarning[] | string[];
   migration_score: MigrationScore;
   next_steps: string[];
 }
@@ -1158,22 +1178,42 @@ ${analysis.unit_tests || '# No tests generated'}
                       </li>
                     ))}
                     {activeReportTab === "security" && analysis.security_warnings.map((item, i) => {
-                      const severity = i === 0 ? 'CRITICAL' : i < 2 ? 'HIGH' : 'MEDIUM';
+                      const isStructured = typeof item === 'object';
+                      const warning = isStructured ? item as SecurityWarning : null;
+                      const severity = warning?.severity || (i === 0 ? 'CRITICAL' : i < 2 ? 'HIGH' : 'MEDIUM');
                       const severityColor = severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border-red-500/50' : 
                                            severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 
                                            'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
                       return (
-                        <li key={i} className={`flex items-start gap-3 p-4 rounded-lg border ${severityColor}`}>
-                          <div className="flex-shrink-0">
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${severityColor}`}>{severity}</span>
+                        <li key={i} className={`p-4 rounded-lg border ${severityColor}`}>
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0">
+                              <span className={`px-2 py-1 rounded text-xs font-bold ${severityColor}`}>{severity}</span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-slate-200 font-medium">{warning?.title || String(item)}</p>
+                              <p className="text-xs text-slate-400 mt-1">
+                                CVSS Score: {warning?.cvss_score?.toFixed(1) || (severity === 'CRITICAL' ? '9.1' : severity === 'HIGH' ? '7.5' : '5.3')}
+                                {warning?.location && ` • ${warning.location}`}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-slate-200 font-medium">{item}</p>
-                            <p className="text-xs text-slate-400 mt-1">CVSS Score: {severity === 'CRITICAL' ? '9.1' : severity === 'HIGH' ? '7.5' : '5.3'}</p>
-                          </div>
-                          <button className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded text-xs hover:bg-indigo-500/30">
-                            Auto-Fix
-                          </button>
+                          {warning && (
+                            <details className="mt-3 text-sm">
+                              <summary className="cursor-pointer text-indigo-400 hover:text-indigo-300">View Details</summary>
+                              <div className="mt-2 space-y-2 pl-4 border-l-2 border-slate-700">
+                                {warning.description && <p className="text-slate-300">{warning.description}</p>}
+                                {warning.vulnerable_code && (
+                                  <div className="bg-slate-900 p-2 rounded font-mono text-xs text-red-300">{warning.vulnerable_code}</div>
+                                )}
+                                {warning.fix && (
+                                  <div className="bg-green-900/30 p-2 rounded text-green-300 text-xs">
+                                    <strong>Fix:</strong> {warning.fix}
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          )}
                         </li>
                       );
                     })}
