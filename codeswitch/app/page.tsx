@@ -73,50 +73,60 @@ const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
            
            STOP RUN.`;
 
-// Enhanced CodeSwitch prompt - La vraie valeur ajoutee
-const GEMINI_PROMPT = `Tu es CodeSwitch, un expert en migration de code legacy avec 25 ans d'experience en refactorisation intelligente.
+// Enhanced CodeSwitch Pro prompt - Architecture avancee
+const GEMINI_PROMPT = `Tu es CodeSwitch Pro, un architecte senior en migration legacy avec 25 ans d'experience.
 
-MISSION: Ne fais PAS une simple traduction. Fais une ANALYSE METIER COMPLETE + REFACTORISATION INTELLIGENTE.
+MISSION: Genere du code Python de QUALITE PRODUCTION avec une architecture moderne et extensible.
+
+ARCHITECTURE REQUISE dans python_code:
+1. @dataclass pour les structures de donnees (ex: TrancheImposition avec limite_inferieure, limite_superieure, taux en Decimal)
+2. Configuration externalisable via JSON (classe ConfigFiscale avec methode charger())
+3. Gestionnaire multi-annees (classe GestionnaireFiscal avec cache des configurations)
+4. Systeme d'audit/logging (classe AuditFiscal avec enregistrement CSV)
+5. Utiliser Decimal pour TOUS les calculs financiers
+6. Typage complet (typing: List, Optional, Dict)
+7. Docstrings detailles pour chaque classe/methode
+8. Warnings integres si donnees obsoletes
 
 Analyse ce programme COBOL et genere une reponse JSON stricte:
 {
   "summary": "Description en une phrase",
   
   "business_context": {
-    "domain": "Domaine metier (ex: fiscalite, bancaire, assurance)",
-    "detected_year": "Annee detectee dans le code ou estimee",
-    "regulatory_context": "Contexte reglementaire (ex: loi de finances 1990)",
+    "domain": "Domaine metier (fiscalite, bancaire, assurance, RH)",
+    "detected_year": "Annee detectee ou estimee",
+    "regulatory_context": "Contexte reglementaire",
     "is_obsolete": true/false,
     "obsolescence_reason": "Explication si obsolete"
   },
   
-  "python_code": "Code Python MODERNE avec: dataclasses, typage, docstrings, Decimal pour finance, warnings d'obsolescence integres, configuration externalisable",
+  "python_code": "Code Python COMPLET avec: dataclasses TrancheImposition, ConfigFiscale, GestionnaireFiscal, AuditFiscal, Decimal, typage, docstrings, warnings obsolescence, exemple config JSON en commentaire",
   
-  "unit_tests": "Code Python des tests unitaires pytest qui valident la non-regression vs le comportement COBOL original",
+  "unit_tests": "Tests pytest COMPLETS: test_configuration, test_calcul_nominal, test_cas_limites, test_tranches, test_audit",
   
-  "issues": ["Problemes detectes avec contexte metier"],
-  "improvements": ["Ameliorations architecturales suggerees"],
-  "security_warnings": ["Avertissements de securite, conformite, obsolescence legale"],
+  "config_json": "Exemple de fichier config_fiscale.json avec les tranches actuelles 2025",
+  
+  "issues": ["Problemes detectes"],
+  "improvements": ["Ameliorations architecturales"],
+  "security_warnings": ["Avertissements securite/conformite"],
   
   "migration_score": {
     "complexity": "LOW/MEDIUM/HIGH",
     "risk_level": "LOW/MEDIUM/HIGH/CRITICAL",
-    "estimated_effort": "Estimation en jours-homme",
-    "confidence": "Pourcentage de confiance dans la migration"
+    "estimated_effort": "Jours-homme",
+    "confidence": "Pourcentage"
   },
   
-  "next_steps": ["Actions recommandees pour mise en production"]
+  "next_steps": ["Actions pour production"]
 }
 
-REGLES CRITIQUES:
-1. Detecte le DOMAINE METIER (fiscalite, banque, RH, etc.)
-2. Identifie l'ANNEE du code et si les regles sont OBSOLETES
-3. Genere du code Python MODERNE (pas de traduction ligne a ligne)
-4. Ajoute des WARNINGS dans le code Python si les donnees sont obsoletes
-5. Genere des TESTS qui valident que le nouveau code = ancien comportement
-6. Retourne UNIQUEMENT le JSON, sans texte avant ou apres
+REGLES:
+1. Le python_code doit etre EXECUTABLE et inclure TOUTES les classes mentionnees
+2. Inclure un exemple de config JSON 2025 en commentaire dans le code
+3. Les tests doivent couvrir les cas limites (0, negatif, tres grand)
+4. Retourne UNIQUEMENT le JSON valide
 
-Code COBOL a analyser:
+Code COBOL:
 `;
 
 interface BusinessContext {
@@ -139,6 +149,7 @@ interface AnalysisResult {
   business_context: BusinessContext;
   python_code: string;
   unit_tests: string;
+  config_json: string;
   issues: string[];
   improvements: string[];
   security_warnings: string[];
@@ -167,7 +178,7 @@ export default function Home() {
   const [filename, setFilename] = useState("sample.cbl");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "report">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "report">("code");
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
 
   useEffect(() => {
@@ -530,6 +541,14 @@ ${analysis.unit_tests || '# No tests generated'}
                   <TestTube className="w-4 h-4" />Tests
                 </button>
                 <button
+                  onClick={() => setActiveTab("config")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "config" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <FileCode className="w-4 h-4" />Config
+                </button>
+                <button
                   onClick={() => setActiveTab("report")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
                     activeTab === "report" ? "bg-purple-500/20 text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white"
@@ -554,6 +573,16 @@ ${analysis.unit_tests || '# No tests generated'}
                   height="400px"
                   defaultLanguage="python"
                   value={analysis?.unit_tests || "# Les tests de non-regression apparaitront ici..."}
+                  theme="vs-dark"
+                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                />
+              )}
+              
+              {activeTab === "config" && (
+                <Editor
+                  height="400px"
+                  defaultLanguage="json"
+                  value={analysis?.config_json || '{\n  "annee": 2025,\n  "tranches": []\n}'}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
                 />
