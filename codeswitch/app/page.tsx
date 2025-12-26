@@ -205,6 +205,7 @@ export default function Home() {
   const [cobolCode, setCobolCode] = useState(SAMPLE_COBOL);
   const [pythonCode, setPythonCode] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [analyzedCobolCode, setAnalyzedCobolCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [filename, setFilename] = useState("sample.cbl");
@@ -379,6 +380,7 @@ export default function Home() {
       
       setPythonCode(parsed.python_code);
       setAnalysis(parsed);
+      setAnalyzedCobolCode(cobolCode);
 
       const newItem: HistoryItem = {
         id: Date.now().toString(),
@@ -1082,7 +1084,7 @@ ${analysis.unit_tests || '# No tests generated'}
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
                 {/* COBOL Lines */}
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-amber-400 tabular-nums">{cobolCode.split('\n').filter(l => l.trim()).length}</p>
+                  <p className="text-2xl font-bold text-amber-400 tabular-nums">{(analyzedCobolCode || cobolCode).split('\n').filter(l => l.trim()).length}</p>
                   <p className="text-xs text-slate-400 mt-1">COBOL</p>
                 </div>
                 {/* Arrow */}
@@ -1098,7 +1100,7 @@ ${analysis.unit_tests || '# No tests generated'}
                 <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold tabular-nums text-indigo-400">
                     {(() => {
-                      const cobol = cobolCode.split('\n').filter(l => l.trim()).length;
+                      const cobol = (analyzedCobolCode || cobolCode).split('\n').filter(l => l.trim()).length;
                       const python = analysis.python_code.split('\n').filter(l => l.trim()).length;
                       const delta = Math.round(((cobol - python) / cobol) * 100);
                       return delta >= 0 ? `-${delta}%` : `+${Math.abs(delta)}%`;
