@@ -1073,6 +1073,16 @@ ${analysis.unit_tests || '# No tests generated'}
             </div>
           </div>
 
+          {/* Critical Alert if HIGH/CRITICAL risk */}
+          {analysis && (analysis.migration_score?.risk_level === 'HIGH' || analysis.migration_score?.risk_level === 'CRITICAL') && (
+            <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 flex items-center gap-3">
+              <AlertTriangle className="w-6 h-6 text-red-400 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-red-400">⚠️ Alerte: Risque {analysis.migration_score?.risk_level}</p>
+                <p className="text-sm text-red-300/80">Code source contient des éléments obsolètes nécessitant une validation métier avant mise en production.</p>
+              </div>
+            </div>
+          )}
           {/* Live Metrics Panel - Show when analysis is ready */}
           {analysis && analysis.python_code && (
             <div className="bg-gradient-to-r from-slate-800 via-slate-800 to-indigo-900/30 rounded-lg p-6 border border-indigo-500/20">
