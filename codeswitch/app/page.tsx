@@ -1106,7 +1106,8 @@ ${analysis.unit_tests || '# No tests generated'}
                       return delta >= 0 ? `-${delta}%` : `+${Math.abs(delta)}%`;
                     })()}
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">Delta</p>
+                  <p className="text-xs text-slate-400 mt-1">Ratio</p>
+                  <p className="text-[10px] text-slate-500">(tests inclus)</p>
                 </div>
                 {/* Issues */}
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
