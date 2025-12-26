@@ -459,16 +459,16 @@ export default function Home() {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
       
-      const voicePrompt = `Tu es un assistant vocal expert en migration COBOL. Reponds de maniere concise et claire (max 3 phrases).
+      const voicePrompt = `You are a voice assistant expert in COBOL migration. Respond concisely and clearly in English (max 3 sentences).
       
-Contexte: L'utilisateur analyse ce code COBOL:
+Context: The user is analyzing this COBOL code:
 \`\`\`cobol
 ${cobolCode.substring(0, 2000)}
 \`\`\`
 
-Question de l'utilisateur: ${query}
+User question: ${query}
 
-Reponds directement et simplement:`;
+Respond directly and simply:`;
 
       const result = await model.generateContent(voicePrompt);
       const response = result.response.text();
@@ -478,7 +478,7 @@ Reponds directement et simplement:`;
       if ('speechSynthesis' in window) {
         setIsSpeaking(true);
         const utterance = new SpeechSynthesisUtterance(response);
-        utterance.lang = 'fr-FR';
+        utterance.lang = 'en-US';
         utterance.rate = 1.1;
         utterance.onend = () => setIsSpeaking(false);
         speechSynthesis.speak(utterance);
@@ -492,7 +492,7 @@ Reponds directement et simplement:`;
   const startListening = () => {
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
+    recognition.lang = 'en-US';
     recognition.continuous = false;
     recognition.interimResults = false;
     
