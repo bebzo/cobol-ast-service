@@ -160,6 +160,8 @@ Analyze this COBOL program and generate a strict JSON response:
     "confidence": "Percentage"
   },
   
+  "architecture_diagram": "graph LR; A[COBOL Module] --> B[Python Class]; ... (valid Mermaid flowchart showing COBOL to Python mapping)",
+  
   "next_steps": ["Actions for production"]
 }
 
@@ -207,6 +209,7 @@ interface AnalysisResult {
   improvements: string[];
   security_warnings: SecurityWarning[] | string[];
   migration_score: MigrationScore;
+  architecture_diagram?: string;
   next_steps: string[];
 }
 
@@ -234,7 +237,7 @@ export default function Home() {
   const [filename, setFilename] = useState("sample.cbl");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "report">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "report">("code");
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -903,6 +906,14 @@ ${analysis.unit_tests || '# No tests generated'}
                   <GitCompare className="w-4 h-4" />Diff
                 </button>
                 <button
+                  onClick={() => setActiveTab("arch")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "arch" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <GitCompare className="w-4 h-4" />Architecture
+                </button>
+                <button
                   onClick={() => setActiveTab("report")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
                     activeTab === "report" ? "bg-purple-500/20 text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white"
@@ -1144,6 +1155,30 @@ ${analysis.unit_tests || '# No tests generated'}
                 </div>
               )}
               
+              {activeTab === "arch" && (
+                <div className="h-[400px] overflow-y-auto p-4 bg-slate-900">
+                  {analysis?.architecture_diagram ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-cyan-400 font-semibold">
+                        <GitCompare className="w-5 h-5" />
+                        COBOL → Python Architecture Map
+                      </div>
+                      <div className="bg-slate-800 p-4 rounded-lg border border-cyan-500/30">
+                        <pre className="text-sm text-slate-300 font-mono whitespace-pre-wrap">{analysis.architecture_diagram}</pre>
+                      </div>
+                      <p className="text-xs text-slate-500">Mermaid diagram showing the transformation from COBOL modules to Python classes</p>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-400">
+                      <div className="text-center">
+                        <GitCompare className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Architecture diagram will appear after analysis</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {activeTab === "report" && analysis && (
                 <div className="h-[400px] overflow-y-auto p-4">
                   <div className="flex gap-2 mb-4 flex-wrap">
