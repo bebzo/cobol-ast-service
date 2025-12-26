@@ -726,13 +726,41 @@ ${analysis.unit_tests || '# No tests generated'}
 
             <div className="flex items-center gap-3">
               {analysis && (
-                <button
-                  onClick={exportMigrationPackage}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition"
-                >
-                  <Download className="w-4 h-4" />
-                  Export Package
-                </button>
+                <div className="relative group">
+                  <button
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export ▾
+                  </button>
+                  <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[160px]">
+                    <button onClick={exportMigrationPackage} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-t-lg">📄 Full Report (.md)</button>
+                    <button onClick={() => {
+                      const blob = new Blob([analysis.python_code], { type: 'text/python' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${filename.replace('.cbl', '')}_main.py`;
+                      a.click();
+                    }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700">🐍 Python Code (.py)</button>
+                    <button onClick={() => {
+                      const blob = new Blob([analysis.unit_tests || ''], { type: 'text/python' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${filename.replace('.cbl', '')}_tests.py`;
+                      a.click();
+                    }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700">🧪 Tests (.py)</button>
+                    <button onClick={() => {
+                      const blob = new Blob([JSON.stringify(analysis, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${filename.replace('.cbl', '')}_analysis.json`;
+                      a.click();
+                    }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-b-lg">📊 JSON Data (.json)</button>
+                  </div>
+                </div>
               )}
               <button
                 onClick={handleConvert}
