@@ -374,14 +374,14 @@ export default function Home() {
     ];
     const progressInterval = setInterval(() => {
       setAnalysisProgress(prev => {
-        // Slow down as we approach 98%
-        let increment = prev < 85 ? Math.random() * 10 : prev < 95 ? Math.random() * 3 : Math.random() * 1;
+        // Much slower progression - matches real API time (~30-45s)
+        let increment = prev < 50 ? Math.random() * 3 : prev < 80 ? Math.random() * 2 : prev < 95 ? Math.random() * 0.5 : Math.random() * 0.2;
         const next = Math.min(98, prev + increment);
         const status = statusMessages.find(s => next < s.threshold) || statusMessages[statusMessages.length - 1];
         setAnalysisStatus(status.msg);
         return next;
       });
-    }, 400);
+    }, 600);
     
     setError("");
     setPythonCode("");
