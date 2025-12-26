@@ -409,11 +409,11 @@ export default function Home() {
         if (err.message.includes("API_KEY") || err.message.includes("403")) {
           setError("Invalid API key. Please check your Gemini key.");
         } else if (err.message.includes("429")) {
-          setError("Quota API epuise. Attendez ou utilisez une nouvelle cle.");
+          setError("API quota exhausted. Wait or use a new key.");
         } else if (err.message.includes("JSON")) {
-          setError("Erreur de parsing. Reessayez.");
+          setError("Parsing error. Please try again.");
         } else {
-          setError(`Erreur: ${err.message}`);
+          setError(`Error: ${err.message}`);
         }
       } else {
         setError("An unknown error occurred");
@@ -442,7 +442,7 @@ export default function Home() {
   // Voice Assistant Functions
   const startVoiceAssistant = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      setError("Votre navigateur ne supporte pas la reconnaissance vocale. Utilisez Chrome.");
+      setError("Your browser doesn't support voice recognition. Please use Chrome.");
       return;
     }
     setShowVoicePanel(true);
@@ -485,7 +485,7 @@ Reponds directement et simplement:`;
       }
     } catch (err) {
       console.error(err);
-      setVoiceResponse("Desolee, je n'ai pas pu traiter votre demande.");
+      setVoiceResponse("Sorry, I couldn't process your request.");
     }
   };
 
@@ -590,7 +590,7 @@ ${analysis.unit_tests || '# No tests generated'}
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">CodeSwitch</h1>
-              <p className="text-xs text-slate-400">Refactorisation Intelligente COBOL</p>
+              <p className="text-xs text-slate-400">Intelligent COBOL Refactoring</p>
             </div>
           </div>
 
@@ -602,7 +602,7 @@ ${analysis.unit_tests || '# No tests generated'}
               }`}
             >
               <Mic className="w-4 h-4" />
-              <span className="hidden sm:inline">Assistant Vocal</span>
+              <span className="hidden sm:inline">Voice Assistant</span>
               {isVoiceActive && <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>}
             </button>
 
@@ -636,7 +636,7 @@ ${analysis.unit_tests || '# No tests generated'}
               </div>
               {!isApiKeySet && (
                 <button onClick={handleSaveApiKey} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-sm font-medium transition">
-                  Sauver
+                  Save
                 </button>
               )}
               {isApiKeySet && <CheckCircle className="w-5 h-5 text-green-500" />}
@@ -694,7 +694,7 @@ ${analysis.unit_tests || '# No tests generated'}
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition"
                 >
                   <Download className="w-4 h-4" />
-                  Exporter Package
+                  Export Package
                 </button>
               )}
               <button
@@ -1360,7 +1360,7 @@ ${analysis.unit_tests || '# No tests generated'}
           <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className={`w-3 h-3 rounded-full ${isListening ? 'bg-red-400 animate-pulse' : isSpeaking ? 'bg-green-400 animate-pulse' : 'bg-white'}`}></div>
-              <span className="font-semibold text-white">Assistant Vocal Gemini</span>
+              <span className="font-semibold text-white">Gemini Voice Assistant</span>
             </div>
             <button onClick={() => { setShowVoicePanel(false); setIsVoiceActive(false); stopSpeaking(); }} className="text-white/80 hover:text-white">
               <X className="w-5 h-5" />
@@ -1383,14 +1383,14 @@ ${analysis.unit_tests || '# No tests generated'}
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-500 text-sm">Appuyez sur le micro pour parler</p>
+                <p className="text-slate-500 text-sm">Press the microphone to speak</p>
               )}
             </div>
 
             {/* Transcript */}
             {voiceTranscript && (
               <div className="bg-slate-700/50 rounded-lg p-3">
-                <p className="text-xs text-slate-400 mb-1">Vous avez dit:</p>
+                <p className="text-xs text-slate-400 mb-1">You said:</p>
                 <p className="text-white text-sm">{voiceTranscript}</p>
               </div>
             )}
@@ -1426,7 +1426,7 @@ ${analysis.unit_tests || '# No tests generated'}
             </div>
 
             <p className="text-center text-xs text-slate-400">
-              Demandez: "Explique ce code" ou "Quels sont les risques?"
+              Ask: "Explain this code" or "What are the risks?"
             </p>
           </div>
         </div>
@@ -1435,7 +1435,7 @@ ${analysis.unit_tests || '# No tests generated'}
       {/* Footer */}
       <footer className="bg-slate-800/50 border-t border-slate-700 px-6 py-4">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between text-sm text-slate-400">
-          <span>CodeSwitch Pro - Assistant Vocal Gemini AI</span>
+          <span>CodeSwitch Pro - Gemini Voice Assistant AI</span>
           <span>Hackathon Gemini 3</span>
         </div>
       </footer>
