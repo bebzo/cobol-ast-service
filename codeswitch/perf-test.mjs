@@ -1,67 +1,41 @@
-// Test de Performance Gemini - CodeSwitch
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// Test de Performance Gemini API - Direct fetch
+const API_KEY = process.argv[2];
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_KEY}`;
 
-const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
-       PROGRAM-ID.  PAYROLL01.
-       DATA DIVISION.
-       WORKING-STORAGE SECTION.
-       01  EMP-HOURLY-RATE         PIC S9(5)V99 COMP-3.
-       01  WS-TAX-BRACKETS-1995.
-           05  WS-BRACKET-1-LIMIT  PIC 9(7) VALUE 23350.
-           05  WS-RATE-BRACKET-1   PIC V999 VALUE .150.
-       PROCEDURE DIVISION.
-       0000-MAIN.
-           COMPUTE WS-GROSS-PAY = EMP-HOURLY-RATE * 40.
-           STOP RUN.`;
+const COBOL = `IDENTIFICATION DIVISION. PROGRAM-ID. PAYROLL01. DATA DIVISION. 01 EMP-RATE PIC S9(5)V99 COMP-3. PROCEDURE DIVISION. COMPUTE WS-PAY = EMP-RATE * 40. STOP RUN.`;
 
-const PROMPT = `Analyse ce code COBOL et retourne un JSON avec: summary, python_code (court), issues (array).
-Code: ${SAMPLE_COBOL}`;
-
-async function testPerformance(apiKey) {
-  console.log("🚀 Test de Performance Gemini\n");
-  console.log("=" .repeat(50));
+async function test() {
+  console.log("🚀 Test Performance Gemini 2.0 Flash\n" + "=".repeat(40));
   
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+  const start = Date.now();
   
-  // Test 1: Temps de réponse simple
-  console.log("\n📊 Test 1: Analyse COBOL simple");
-  const start1 = Date.now();
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: `Analyse ce COBOL, retourne JSON {summary, python_code}: ${COBOL}` }] }]
+    })
+  });
   
-  try {
-    const result = await model.generateContent(PROMPT);
-    const time1 = Date.now() - start1;
-    const response = result.response.text();
-    
-    console.log(`   ✅ Temps: ${time1}ms (${(time1/1000).toFixed(2)}s)`);
-    console.log(`   📝 Longueur réponse: ${response.length} caractères`);
-    
-    // Évaluation
-    if (time1 < 3000) {
-      console.log("   🟢 EXCELLENT - Parfait pour la démo");
-    } else if (time1 < 6000) {
-      console.log("   🟡 BON - Acceptable pour la démo");
-    } else {
-      console.log("   🔴 LENT - Risque pour la démo vidéo");
-    }
-    
-    return { success: true, time: time1, responseLength: response.length };
-    
-  } catch (error) {
-    console.log(`   ❌ Erreur: ${error.message}`);
-    return { success: false, error: error.message };
+  const time = Date.now() - start;
+  const data = await res.json();
+  
+  if (data.error) {
+    console.log(`❌ Erreur: ${data.error.message}`);
+    return;
   }
+  
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  
+  console.log(`\n⏱️  Temps de réponse: ${time}ms (${(time/1000).toFixed(2)}s)`);
+  console.log(`📝 Longueur: ${text.length} caractères`);
+  
+  if (time < 3000) console.log("🟢 EXCELLENT - Parfait pour la démo vidéo");
+  else if (time < 6000) console.log("🟡 BON - Acceptable");
+  else console.log("🔴 LENT - Prévoir loading");
+  
+  console.log("\n📄 Aperçu réponse:\n" + text.substring(0, 300) + "...");
 }
 
-// Vérifier si une clé API est fournie
-const apiKey = process.argv[2];
-if (!apiKey) {
-  console.log("Usage: node perf-test.mjs <GEMINI_API_KEY>");
-  console.log("\nPour obtenir une clé: https://aistudio.google.com/apikey");
-  process.exit(1);
-}
-
-testPerformance(apiKey).then(result => {
-  console.log("\n" + "=".repeat(50));
-  console.log("📈 Résumé:", JSON.stringify(result, null, 2));
-});
+if (!API_KEY) { console.log("Usage: node perf-test.mjs <API_KEY>"); process.exit(1); }
+test();
