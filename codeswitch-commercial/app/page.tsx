@@ -226,6 +226,7 @@ export default function Home() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [showMagicDiff, setShowMagicDiff] = useState(false);
   const [diffMode, setDiffMode] = useState<"animation" | "realcode">("animation");
+  const [diffExpanded, setDiffExpanded] = useState(false);
   const [animatedMetrics, setAnimatedMetrics] = useState<{
     cobolLines: number;
     pythonLines: number;
@@ -893,7 +894,7 @@ ${analysis.unit_tests || '# No tests generated'}
               )}
 
               {activeTab === "diff" && (
-                <div className="h-[400px] overflow-hidden relative">
+                <div className={`${diffExpanded ? 'fixed inset-4 z-50 bg-slate-900 rounded-xl shadow-2xl' : 'h-[400px]'} overflow-hidden relative transition-all duration-300`}>
                   {/* Mode Toggle Header */}
                   <div className="flex items-center justify-between px-4 py-2 bg-slate-800/50 border-b border-slate-700">
                     <div className="flex items-center gap-2">
@@ -911,7 +912,13 @@ ${analysis.unit_tests || '# No tests generated'}
                           diffMode === "realcode" ? "bg-blue-500 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"
                         }`}
                       >
-                        Code Reel
+                        Real Code
+                      </button>
+                      <button
+                        onClick={() => setDiffExpanded(!diffExpanded)}
+                        className="px-3 py-1.5 rounded text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
+                      >
+                        {diffExpanded ? '↙ Reduce' : '↗ Expand'}
                       </button>
                     </div>
                     {diffMode === "animation" && (
