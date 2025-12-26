@@ -1097,7 +1097,12 @@ ${analysis.unit_tests || '# No tests generated'}
                 {/* Reduction/Expansion */}
                 <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold tabular-nums text-indigo-400">
-                    -{Math.round(((cobolCode.split('\n').filter(l => l.trim()).length - analysis.python_code.split('\n').filter(l => l.trim()).length) / cobolCode.split('\n').filter(l => l.trim()).length) * 100)}%
+                    {(() => {
+                      const cobol = cobolCode.split('\n').filter(l => l.trim()).length;
+                      const python = analysis.python_code.split('\n').filter(l => l.trim()).length;
+                      const delta = Math.round(((cobol - python) / cobol) * 100);
+                      return delta >= 0 ? `-${delta}%` : `+${Math.abs(delta)}%`;
+                    })()}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Delta</p>
                 </div>
