@@ -901,7 +901,7 @@ ${analysis.unit_tests || '# No tests generated'}
                             setShowMagicDiff(true);
                             setIsAnimating(true);
                             setDiffStep(0);
-                            const totalSteps = 8;
+                            const totalSteps = 12;
                             let step = 0;
                             const interval = setInterval(() => {
                               step++;
@@ -910,7 +910,7 @@ ${analysis.unit_tests || '# No tests generated'}
                                 clearInterval(interval);
                                 setIsAnimating(false);
                               }
-                            }, 800);
+                            }, 1200);
                           }
                         }}
                         disabled={isAnimating || !analysis}
@@ -1012,12 +1012,12 @@ ${analysis.unit_tests || '# No tests generated'}
                         <div className="mt-4">
                           <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
                             <span>Transformation</span>
-                            <span>{Math.round((diffStep / 8) * 100)}%</span>
+                            <span>{Math.round((diffStep / 12) * 100)}%</span>
                           </div>
                           <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-green-500 transition-all duration-500"
-                              style={{ width: `${(diffStep / 8) * 100}%` }}
+                              style={{ width: `${(diffStep / 12) * 100}%` }}
                             />
                           </div>
                         </div>
