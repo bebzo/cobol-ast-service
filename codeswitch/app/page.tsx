@@ -222,6 +222,8 @@ export default function Home() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [showMagicDiff, setShowMagicDiff] = useState(false);
   const [diffMode, setDiffMode] = useState<"animation" | "realcode">("animation");
+  const [animatedMetrics, setAnimatedMetrics] = useState({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, coverage: 0 });
+  const [metricsAnimated, setMetricsAnimated] = useState(false);
 
   useEffect(() => {
     const savedKey = sessionStorage.getItem("gemini_api_key");
@@ -242,6 +244,38 @@ export default function Home() {
       setError("");
     }
   };
+
+  // Animate metrics when analysis completes
+  useEffect(() => {
+    if (analysis && !metricsAnimated) {
+      setMetricsAnimated(true);
+      const cobolLines = cobolCode.split('\n').length;
+      const pythonLines = (analysis.python_code || '').split('\n').length;
+      const reduction = Math.round(((cobolLines - pythonLines) / cobolLines) * 100);
+      const issues = analysis.issues?.length || 0;
+      
+      // Animate counters
+      const duration = 1500;
+      const steps = 30;
+      const interval = duration / steps;
+      let step = 0;
+      
+      const timer = setInterval(() => {
+        step++;
+        const progress = step / steps;
+        setAnimatedMetrics({
+          cobolLines: Math.round(cobolLines * progress),
+          pythonLines: Math.round(pythonLines * progress),
+          reduction: Math.round(Math.abs(reduction) * progress),
+          issues: Math.round(issues * progress),
+          coverage: Math.round(100 * progress),
+        });
+        if (step >= steps) clearInterval(timer);
+      }, interval);
+      
+      return () => clearInterval(timer);
+    }
+  }, [analysis, cobolCode, metricsAnimated]);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -272,6 +306,8 @@ export default function Home() {
     setError("");
     setPythonCode("");
     setAnalysis(null);
+    setMetricsAnimated(false);
+    setAnimatedMetrics({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, coverage: 0 });
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
@@ -982,6 +1018,44 @@ ${analysis.unit_tests || '# No tests generated'}
               )}
             </div>
           </div>
+
+          {/* Live Metrics Panel - Animated */}
+          {analysis && (
+            <div className="bg-gradient-to-r from-slate-800 via-slate-800 to-indigo-900/30 rounded-lg p-6 border border-indigo-500/20">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-indigo-400" />
+                Metriques de Transformation
+                <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">LIVE</span>
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {/* COBOL Lines */}
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-center">
+                  <p className="text-3xl font-bold text-amber-400 tabular-nums">{animatedMetrics.cobolLines}</p>
+                  <p className="text-xs text-slate-400 mt-1">Lignes COBOL</p>
+                </div>
+                {/* Python Lines */}
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
+                  <p className="text-3xl font-bold text-green-400 tabular-nums">{animatedMetrics.pythonLines}</p>
+                  <p className="text-xs text-slate-400 mt-1">Lignes Python</p>
+                </div>
+                {/* Reduction */}
+                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4 text-center">
+                  <p className="text-3xl font-bold text-indigo-400 tabular-nums">-{animatedMetrics.reduction}%</p>
+                  <p className="text-xs text-slate-400 mt-1">Reduction Code</p>
+                </div>
+                {/* Issues */}
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-center">
+                  <p className="text-3xl font-bold text-red-400 tabular-nums">{animatedMetrics.issues}</p>
+                  <p className="text-xs text-slate-400 mt-1">Problemes Detectes</p>
+                </div>
+                {/* Test Coverage */}
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 text-center">
+                  <p className="text-3xl font-bold text-purple-400 tabular-nums">{animatedMetrics.coverage}%</p>
+                  <p className="text-xs text-slate-400 mt-1">Couverture Tests</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Migration Summary Card */}
           {analysis && (
