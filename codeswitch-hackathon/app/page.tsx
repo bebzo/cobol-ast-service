@@ -894,7 +894,10 @@ ${analysis.unit_tests || '# No tests generated'}
               )}
 
               {activeTab === "diff" && (
-                <div className={`${diffExpanded ? 'fixed inset-4 z-50 bg-slate-900 rounded-xl shadow-2xl' : 'h-[400px]'} overflow-hidden relative transition-all duration-300`}>
+                <div 
+                  className="overflow-auto relative border border-slate-700 rounded-lg"
+                  style={{ minHeight: '400px', maxHeight: '80vh', resize: 'vertical' }}
+                >
                   {/* Mode Toggle Header */}
                   <div className="flex items-center justify-between px-4 py-2 bg-slate-800/50 border-b border-slate-700">
                     <div className="flex items-center gap-2">
@@ -914,12 +917,7 @@ ${analysis.unit_tests || '# No tests generated'}
                       >
                         Real Code
                       </button>
-                      <button
-                        onClick={() => setDiffExpanded(!diffExpanded)}
-                        className="px-3 py-1.5 rounded text-xs font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
-                      >
-                        {diffExpanded ? '↙ Reduce' : '↗ Expand'}
-                      </button>
+                      <span className="text-xs text-slate-500">↕ Drag bottom edge to resize</span>
                     </div>
                     {diffMode === "animation" && (
                       <button
