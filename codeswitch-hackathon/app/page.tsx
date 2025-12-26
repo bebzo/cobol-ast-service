@@ -390,17 +390,37 @@ export default function Home() {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
-      const result = await model.generateContent(GEMINI_PROMPT + cobolCode);
-      const responseText = result.response.text();
+      let parsed: AnalysisResult | null = null;
+      let lastError = "";
+      
+      // Retry up to 3 times
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          setAnalysisStatus(`Attempt ${attempt}/3 - Calling Gemini API...`);
+          const result = await model.generateContent(GEMINI_PROMPT + cobolCode);
+          const responseText = result.response.text();
 
-      let jsonStr = responseText;
-      if (responseText.includes("```json")) {
-        jsonStr = responseText.split("```json")[1].split("```")[0].trim();
-      } else if (responseText.includes("```")) {
-        jsonStr = responseText.split("```")[1].split("```")[0].trim();
+          let jsonStr = responseText;
+          if (responseText.includes("```json")) {
+            jsonStr = responseText.split("```json")[1].split("```")[0].trim();
+          } else if (responseText.includes("```")) {
+            jsonStr = responseText.split("```")[1].split("```")[0].trim();
+          }
+
+          parsed = JSON.parse(jsonStr);
+          break; // Success, exit retry loop
+        } catch (parseErr) {
+          lastError = parseErr instanceof Error ? parseErr.message : "Parse error";
+          if (attempt < 3) {
+            setAnalysisStatus(`Retry ${attempt + 1}/3 - Parsing failed, retrying...`);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
       }
-
-      const parsed: AnalysisResult = JSON.parse(jsonStr);
+      
+      if (!parsed) {
+        throw new Error(`Failed after 3 attempts: ${lastError}`);
+      }
       
       setPythonCode(parsed.python_code);
       setAnalysis(parsed);
