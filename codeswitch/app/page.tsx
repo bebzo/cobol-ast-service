@@ -29,6 +29,7 @@ import {
   MicOff,
   Volume2,
   MessageCircle,
+  GitCompare,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -209,7 +210,7 @@ export default function Home() {
   const [filename, setFilename] = useState("sample.cbl");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "report">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "report">("code");
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -670,6 +671,14 @@ ${analysis.unit_tests || '# No tests generated'}
                   <FileCode className="w-4 h-4" />Config
                 </button>
                 <button
+                  onClick={() => setActiveTab("diff")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "diff" ? "bg-orange-500/20 text-orange-400 border-b-2 border-orange-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <GitCompare className="w-4 h-4" />Diff
+                </button>
+                <button
                   onClick={() => setActiveTab("report")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
                     activeTab === "report" ? "bg-purple-500/20 text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white"
@@ -707,6 +716,42 @@ ${analysis.unit_tests || '# No tests generated'}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
                 />
+              )}
+
+              {activeTab === "diff" && (
+                <div className="h-[400px] overflow-y-auto p-4 space-y-3">
+                  <h3 className="text-lg font-semibold text-orange-400 flex items-center gap-2">
+                    <GitCompare className="w-5 h-5" />
+                    Mapping COBOL → Python
+                  </h3>
+                  {[
+                    { cobol: "IDENTIFICATION DIVISION", python: "# Module docstring + __name__", type: "structure" },
+                    { cobol: "WORKING-STORAGE SECTION", python: "@dataclass / class attributes", type: "data" },
+                    { cobol: "PIC S9(7)V99 COMP-3", python: "Decimal (précision financière)", type: "type" },
+                    { cobol: "88 LEVEL (conditions)", python: "Enum / @property bool", type: "type" },
+                    { cobol: "PERFORM ... THRU", python: "def function() + appel", type: "control" },
+                    { cobol: "EVALUATE ... WHEN", python: "match/case (Python 3.10+)", type: "control" },
+                    { cobol: "GO TO", python: "⚠️ Refactorisé en flux structuré", type: "warning" },
+                    { cobol: "COMPUTE ... = ...", python: "Opération arithmétique directe", type: "calc" },
+                    { cobol: "IF ... ELSE ... END-IF", python: "if/elif/else standard", type: "control" },
+                    { cobol: "COPY (copybook)", python: "from module import *", type: "structure" },
+                  ].map((mapping, i) => (
+                    <div key={i} className={`flex items-center gap-3 p-3 rounded-lg ${
+                      mapping.type === "warning" ? "bg-red-500/10 border border-red-500/30" : "bg-slate-700/50"
+                    }`}>
+                      <div className="flex-1">
+                        <code className="text-amber-400 text-sm font-mono">{mapping.cobol}</code>
+                      </div>
+                      <ArrowRight className={`w-5 h-5 ${mapping.type === "warning" ? "text-red-400" : "text-slate-500"}`} />
+                      <div className="flex-1">
+                        <code className={`text-sm font-mono ${mapping.type === "warning" ? "text-red-400" : "text-green-400"}`}>{mapping.python}</code>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-slate-500 mt-4 text-center">
+                    Ces transformations sont appliquées automatiquement par Gemini lors de la refactorisation
+                  </p>
+                </div>
               )}
               
               {activeTab === "report" && analysis && (
