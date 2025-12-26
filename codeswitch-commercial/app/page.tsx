@@ -426,10 +426,24 @@ export default function Home() {
           const responseText = result.response.text();
 
           let jsonStr = responseText;
+          
+          // Extract JSON from markdown code blocks
           if (responseText.includes("```json")) {
             jsonStr = responseText.split("```json")[1].split("```")[0].trim();
           } else if (responseText.includes("```")) {
             jsonStr = responseText.split("```")[1].split("```")[0].trim();
+          }
+          
+          // Clean common JSON issues
+          jsonStr = jsonStr
+            .replace(/[\x00-\x1F\x7F]/g, (match) => match === '\n' || match === '\r' || match === '\t' ? match : ' ')
+            .replace(/,\s*}/g, '}') // Remove trailing commas before }
+            .replace(/,\s*]/g, ']'); // Remove trailing commas before ]
+          
+          // Try to find JSON object if still failing
+          if (!jsonStr.startsWith('{')) {
+            const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+            if (jsonMatch) jsonStr = jsonMatch[0];
           }
 
           parsed = JSON.parse(jsonStr);
