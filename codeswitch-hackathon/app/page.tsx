@@ -411,7 +411,7 @@ export default function Home() {
     try {
       setAnalysisStatus("Calling CodeSwitch API...");
       
-      const response = await fetch('https://jcizfxniwgwfdmubapyb.supabase.co/functions/v1/analyze', {
+      const response = await fetch('https://jcizfxniwgwfdmubapyb.supabase.co/functions/v1/analyse', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
