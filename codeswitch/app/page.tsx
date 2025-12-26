@@ -348,11 +348,11 @@ export default function Home() {
 
   const handleConvert = async () => {
     if (!apiKey) {
-      setError("Veuillez entrer votre cle API Gemini");
+      setError("Please enter your Gemini API key");
       return;
     }
     if (!cobolCode.trim()) {
-      setError("Veuillez entrer du code COBOL");
+      setError("Please enter COBOL code");
       return;
     }
 
@@ -406,7 +406,7 @@ export default function Home() {
       console.error(err);
       if (err instanceof Error) {
         if (err.message.includes("API_KEY") || err.message.includes("403")) {
-          setError("Cle API invalide. Verifiez votre cle Gemini.");
+          setError("Invalid API key. Please check your Gemini key.");
         } else if (err.message.includes("429")) {
           setError("Quota API epuise. Attendez ou utilisez une nouvelle cle.");
         } else if (err.message.includes("JSON")) {
@@ -415,7 +415,7 @@ export default function Home() {
           setError(`Erreur: ${err.message}`);
         }
       } else {
-        setError("Une erreur inconnue s'est produite");
+        setError("An unknown error occurred");
       }
     } finally {
       clearInterval(progressInterval);
@@ -610,7 +610,7 @@ ${analysis.unit_tests || '# No tests generated'}
               className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
             >
               <History className="w-4 h-4" />
-              <span className="hidden sm:inline">Historique</span>
+              <span className="hidden sm:inline">History</span>
               {history.length > 0 && (
                 <span className="bg-indigo-500 text-xs px-2 py-0.5 rounded-full">{history.length}</span>
               )}
@@ -687,9 +687,9 @@ ${analysis.unit_tests || '# No tests generated'}
                 }`}
               >
                 {isLoading ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" />Analyse... {Math.round(analysisProgress)}%</>
+                  <><Loader2 className="w-5 h-5 animate-spin" />Analyzing... {Math.round(analysisProgress)}%</>
                 ) : (
-                  <><Play className="w-5 h-5" />Refactoriser avec Gemini</>
+                  <><Play className="w-5 h-5" />Refactor with Gemini</>
                 )}
               </button>
             </div>
@@ -699,7 +699,7 @@ ${analysis.unit_tests || '# No tests generated'}
           {isLoading && (
             <div className="bg-slate-800 rounded-lg p-4 border border-indigo-500/30">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-300">🔄 Analyse IA en cours...</span>
+                <span className="text-sm text-slate-300">🔄 AI Analysis in progress...</span>
                 <span className="text-sm font-mono text-indigo-400">{Math.round(analysisProgress)}%</span>
               </div>
               <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
@@ -708,7 +708,7 @@ ${analysis.unit_tests || '# No tests generated'}
                   style={{ width: `${analysisProgress}%` }}
                 />
               </div>
-              <p className="text-xs text-slate-500 mt-2">Parsing COBOL → Génération Python → Tests unitaires → Analyse sécurité</p>
+              <p className="text-xs text-slate-500 mt-2">Parsing COBOL → Python Generation → Unit Tests → Security Analysis</p>
             </div>
           )}
 
@@ -735,10 +735,10 @@ ${analysis.unit_tests || '# No tests generated'}
                 {analysis.migration_score && (
                   <div className="flex gap-2">
                     <div className={`px-3 py-1 rounded text-xs font-medium ${getRiskColor(analysis.migration_score.risk_level)}`}>
-                      Risque: {analysis.migration_score.risk_level}
+                      Risk: {analysis.migration_score.risk_level}
                     </div>
                     <div className="px-3 py-1 rounded text-xs font-medium bg-indigo-500/20 text-indigo-300">
-                      {analysis.migration_score.confidence} confiance
+                      {analysis.migration_score.confidence} confidence
                     </div>
                   </div>
                 )}
@@ -805,7 +805,7 @@ ${analysis.unit_tests || '# No tests generated'}
                     activeTab === "report" ? "bg-purple-500/20 text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <FileText className="w-4 h-4" />Rapport
+                  <FileText className="w-4 h-4" />Report
                 </button>
               </div>
               
@@ -813,7 +813,7 @@ ${analysis.unit_tests || '# No tests generated'}
                 <Editor
                   height="400px"
                   defaultLanguage="python"
-                  value={pythonCode || "# Le code Python refactorise apparaitra ici..."}
+                  value={pythonCode || "# Refactored Python code will appear here..."}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: !pythonCode }}
                 />
@@ -823,7 +823,7 @@ ${analysis.unit_tests || '# No tests generated'}
                 <Editor
                   height="400px"
                   defaultLanguage="python"
-                  value={analysis?.unit_tests || "# Les tests de non-regression apparaitront ici..."}
+                  value={analysis?.unit_tests || "# Unit tests will appear here..."}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
                 />
@@ -888,7 +888,7 @@ ${analysis.unit_tests || '# No tests generated'}
                         {isAnimating ? (
                           <><Loader2 className="w-3 h-3 animate-spin" />En cours...</>
                         ) : (
-                          <><Play className="w-3 h-3" />Lancer</>
+                          <><Play className="w-3 h-3" />Play</>
                         )}
                       </button>
                     )}
@@ -969,7 +969,7 @@ ${analysis.unit_tests || '# No tests generated'}
                               <GitCompare className="w-8 h-8 text-white" />
                             </div>
                             <p className="text-slate-400 text-sm">
-                              {analysis ? "Cliquez 'Lancer' pour voir la transformation" : "Analysez d'abord un fichier COBOL"}
+                              {analysis ? "Click 'Play' to see the transformation" : "Analyze a COBOL file first"}
                             </p>
                           </div>
                         </div>
@@ -1024,7 +1024,7 @@ ${analysis.unit_tests || '# No tests generated'}
                         <Editor
                           height="320px"
                           defaultLanguage="python"
-                          value={analysis?.python_code || "# Analysez d'abord un fichier COBOL..."}
+                          value={analysis?.python_code || "# Analyze a COBOL file first..."}
                           theme="vs-dark"
                           options={{ 
                             minimap: { enabled: false }, 
@@ -1044,10 +1044,10 @@ ${analysis.unit_tests || '# No tests generated'}
                 <div className="h-[400px] overflow-y-auto p-4">
                   <div className="flex gap-2 mb-4 flex-wrap">
                     {[
-                      { key: "issues", label: "Problemes", icon: AlertTriangle, count: analysis.issues.length },
-                      { key: "improvements", label: "Ameliorations", icon: Lightbulb, count: analysis.improvements.length },
-                      { key: "security", label: "Securite", icon: Shield, count: analysis.security_warnings.length },
-                      { key: "next", label: "Prochaines etapes", icon: TrendingUp, count: analysis.next_steps?.length || 0 },
+                      { key: "issues", label: "Issues", icon: AlertTriangle, count: analysis.issues.length },
+                      { key: "improvements", label: "Improvements", icon: Lightbulb, count: analysis.improvements.length },
+                      { key: "security", label: "Security", icon: Shield, count: analysis.security_warnings.length },
+                      { key: "next", label: "Next Steps", icon: TrendingUp, count: analysis.next_steps?.length || 0 },
                     ].map(({ key, label, icon: Icon, count }) => (
                       <button
                         key={key}
@@ -1093,7 +1093,7 @@ ${analysis.unit_tests || '# No tests generated'}
                 <div className="h-[400px] flex items-center justify-center text-slate-400">
                   <div className="text-center">
                     <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>Le rapport de migration apparaitra ici</p>
+                    <p>Migration report will appear here</p>
                   </div>
                 </div>
               )}
@@ -1105,8 +1105,8 @@ ${analysis.unit_tests || '# No tests generated'}
             <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 flex items-center gap-3">
               <AlertTriangle className="w-6 h-6 text-red-400 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-red-400">⚠️ Alerte: Risque {analysis.migration_score?.risk_level}</p>
-                <p className="text-sm text-red-300/80">Code source contient des éléments obsolètes nécessitant une validation métier avant mise en production.</p>
+                <p className="font-semibold text-red-400">⚠️ Alert: Risk {analysis.migration_score?.risk_level}</p>
+                <p className="text-sm text-red-300/80">Source code contains obsolete elements requiring business validation before production.</p>
               </div>
             </div>
           )}
@@ -1115,7 +1115,7 @@ ${analysis.unit_tests || '# No tests generated'}
             <div className="bg-gradient-to-r from-slate-800 via-slate-800 to-indigo-900/30 rounded-lg p-6 border border-indigo-500/20">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-indigo-400" />
-                Metriques de Transformation
+                Transformation Metrics
                 <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">LIVE</span>
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -1132,13 +1132,13 @@ ${analysis.unit_tests || '# No tests generated'}
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-green-400 tabular-nums">{analysis.python_code.split('\n').filter(l => l.trim()).length}</p>
                   <p className="text-xs text-slate-400 mt-1">Python</p>
-                  <p className="text-[10px] text-slate-500">(code métier)</p>
+                  <p className="text-[10px] text-slate-500">(business code)</p>
                 </div>
                 {/* Tests */}
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-purple-400 tabular-nums">{(analysis.unit_tests || '').split('\n').filter(l => l.trim()).length || 24}</p>
                   <p className="text-xs text-slate-400 mt-1">Tests</p>
-                  <p className="text-[10px] text-slate-500">(générés)</p>
+                  <p className="text-[10px] text-slate-500">(generated)</p>
                 </div>
                 {/* Total */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
@@ -1146,23 +1146,23 @@ ${analysis.unit_tests || '# No tests generated'}
                     {analysis.python_code.split('\n').filter(l => l.trim()).length + ((analysis.unit_tests || '').split('\n').filter(l => l.trim()).length || 24)}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Total</p>
-                  <p className="text-[10px] text-slate-500">(livré)</p>
+                  <p className="text-[10px] text-slate-500">(delivered)</p>
                 </div>
                 {/* Issues */}
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-red-400 tabular-nums">{Array.isArray(analysis.issues) ? analysis.issues.length : 3}</p>
-                  <p className="text-xs text-slate-400 mt-1">Problemes</p>
+                  <p className="text-xs text-slate-400 mt-1">Issues</p>
                 </div>
                 {/* Improvements */}
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-cyan-400 tabular-nums">{Array.isArray(analysis.improvements) ? analysis.improvements.length : 5}</p>
-                  <p className="text-xs text-slate-400 mt-1">Ameliorations</p>
+                  <p className="text-xs text-slate-400 mt-1">Improvements</p>
                 </div>
                 
                 {/* Confidence */}
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-green-400 tabular-nums">{parseInt((analysis.migration_score?.confidence || '85%').replace(/[^0-9]/g, '')) || 85}%</p>
-                  <p className="text-xs text-slate-400 mt-1">Confiance</p>
+                  <p className="text-xs text-slate-400 mt-1">Confidence</p>
                 </div>
               </div>
             </div>
@@ -1179,19 +1179,19 @@ ${analysis.unit_tests || '# No tests generated'}
               {analysis.migration_score && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-xs text-slate-400 mb-1">Complexite</p>
+                    <p className="text-xs text-slate-400 mb-1">Complexity</p>
                     <p className={`font-semibold ${getRiskColor(analysis.migration_score.complexity)}`}>{analysis.migration_score.complexity}</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-xs text-slate-400 mb-1">Niveau de Risque</p>
+                    <p className="text-xs text-slate-400 mb-1">Risk Level</p>
                     <p className={`font-semibold ${getRiskColor(analysis.migration_score.risk_level)}`}>{analysis.migration_score.risk_level}</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-xs text-slate-400 mb-1">Effort Estime</p>
+                    <p className="text-xs text-slate-400 mb-1">Estimated Effort</p>
                     <p className="font-semibold text-white">{analysis.migration_score.estimated_effort}</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4">
-                    <p className="text-xs text-slate-400 mb-1">Confiance</p>
+                    <p className="text-xs text-slate-400 mb-1">Confidence</p>
                     <p className="font-semibold text-indigo-400">{analysis.migration_score.confidence}</p>
                   </div>
                 </div>
@@ -1207,12 +1207,12 @@ ${analysis.unit_tests || '# No tests generated'}
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowHistory(false)}></div>
           <div className="relative w-full max-w-md bg-slate-800 h-full overflow-y-auto">
             <div className="sticky top-0 bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Historique</h2>
+              <h2 className="text-lg font-semibold">History</h2>
               <button onClick={() => setShowHistory(false)}><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-3">
               {history.length === 0 ? (
-                <p className="text-slate-400 text-center py-8">Aucune conversion</p>
+                <p className="text-slate-400 text-center py-8">No conversions yet</p>
               ) : (
                 history.map((item) => (
                   <div key={item.id} className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition">
@@ -1228,7 +1228,7 @@ ${analysis.unit_tests || '# No tests generated'}
                     )}
                     <p className="text-sm text-slate-300 line-clamp-2 mt-2">{item.analysis.summary}</p>
                     <button onClick={() => loadFromHistory(item)} className="w-full mt-3 py-2 bg-indigo-500 hover:bg-indigo-600 rounded text-sm font-medium transition">
-                      Charger
+                      Load
                     </button>
                   </div>
                 ))
