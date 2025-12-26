@@ -919,7 +919,7 @@ ${analysis.unit_tests || '# No tests generated'}
                         }`}
                       >
                         {isAnimating ? (
-                          <><Loader2 className="w-3 h-3 animate-spin" />En cours...</>
+                          <><Loader2 className="w-3 h-3 animate-spin" />Transforming...</>
                         ) : (
                           <><Play className="w-3 h-3" />Play</>
                         )}
@@ -973,10 +973,10 @@ ${analysis.unit_tests || '# No tests generated'}
                           <div className="bg-slate-900 rounded-lg p-3 overflow-hidden relative">
                             <div className="text-xs text-green-400 mb-2 font-semibold flex items-center gap-2">
                               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                              Python Moderne
+                              Modern Python
                             </div>
                             <div className="font-mono text-xs space-y-1 overflow-y-auto h-[220px]">
-                              {(analysis?.python_code || '# En attente...').split('\n').slice(0, 20).map((line, i) => (
+                              {(analysis?.python_code || '# Waiting for analysis...').split('\n').slice(0, 20).map((line, i) => (
                                 <div
                                   key={i}
                                   className={`transition-all duration-700 ${
