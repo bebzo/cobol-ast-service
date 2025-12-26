@@ -226,7 +226,6 @@ export default function Home() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [showMagicDiff, setShowMagicDiff] = useState(false);
   const [diffMode, setDiffMode] = useState<"animation" | "realcode">("animation");
-  const [diffExpanded, setDiffExpanded] = useState(false);
   const [animatedMetrics, setAnimatedMetrics] = useState<{
     cobolLines: number;
     pythonLines: number;
@@ -896,10 +895,7 @@ ${analysis.unit_tests || '# No tests generated'}
               )}
 
               {activeTab === "diff" && (
-                <div 
-                  className="overflow-auto relative border border-slate-700 rounded-lg"
-                  style={{ minHeight: '400px', maxHeight: '80vh', resize: 'vertical' }}
-                >
+                <div className="h-[400px] overflow-hidden relative">
                   {/* Mode Toggle Header */}
                   <div className="flex items-center justify-between px-4 py-2 bg-slate-800/50 border-b border-slate-700">
                     <div className="flex items-center gap-2">
@@ -919,7 +915,7 @@ ${analysis.unit_tests || '# No tests generated'}
                       >
                         Real Code
                       </button>
-                      <span className="text-xs text-slate-500">↕ Drag bottom edge to resize</span>
+                      
                     </div>
                     {diffMode === "animation" && (
                       <button
