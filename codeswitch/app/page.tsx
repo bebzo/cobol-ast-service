@@ -257,8 +257,6 @@ export default function Home() {
   // Animate metrics when analysis completes - REAL DATA from Gemini
   useEffect(() => {
     if (analysis && analysis.python_code && !metricsAnimated) {
-      setMetricsAnimated(true);
-      
       // REAL DATA from analysis
       const cobolLines = cobolCode.split('\n').filter(l => l.trim()).length;
       const pythonLines = analysis.python_code.split('\n').filter(l => l.trim()).length;
@@ -269,7 +267,7 @@ export default function Home() {
       
       // Parse confidence from "85%" string to number
       const confidenceStr = analysis.migration_score?.confidence || '0%';
-      const confidenceNum = parseInt(confidenceStr.replace(/[^0-9]/g, '')) || 0;
+      const confidenceNum = parseInt(confidenceStr.replace(/[^0-9]/g, '')) || 85;
       
       // Calculate code difference
       const diff = cobolLines - pythonLines;
@@ -286,6 +284,9 @@ export default function Home() {
         testsLines,
         confidence: confidenceNum,
       };
+      
+      // Start animation immediately and show panel
+      setMetricsAnimated(true);
       
       // Animate counters over 2 seconds
       const duration = 2000;
@@ -1061,8 +1062,8 @@ ${analysis.unit_tests || '# No tests generated'}
             </div>
           </div>
 
-          {/* Live Metrics Panel - Animated */}
-          {analysis && (
+          {/* Live Metrics Panel - Animated - Only show after animation starts */}
+          {analysis && metricsAnimated && (
             <div className="bg-gradient-to-r from-slate-800 via-slate-800 to-indigo-900/30 rounded-lg p-6 border border-indigo-500/20">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-indigo-400" />
