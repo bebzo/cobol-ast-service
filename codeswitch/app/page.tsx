@@ -222,7 +222,16 @@ export default function Home() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [showMagicDiff, setShowMagicDiff] = useState(false);
   const [diffMode, setDiffMode] = useState<"animation" | "realcode">("animation");
-  const [animatedMetrics, setAnimatedMetrics] = useState({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, coverage: 0 });
+  const [animatedMetrics, setAnimatedMetrics] = useState({ 
+    cobolLines: 0, 
+    pythonLines: 0, 
+    reduction: 0, 
+    issues: 0, 
+    improvements: 0,
+    security: 0,
+    testsLines: 0,
+    confidence: 0 
+  });
   const [metricsAnimated, setMetricsAnimated] = useState(false);
 
   useEffect(() => {
@@ -245,24 +254,37 @@ export default function Home() {
     }
   };
 
-  // Animate metrics when analysis completes
+  // Animate metrics when analysis completes - REAL DATA from Gemini
   useEffect(() => {
     if (analysis && analysis.python_code && !metricsAnimated) {
       setMetricsAnimated(true);
+      
+      // REAL DATA from analysis
       const cobolLines = cobolCode.split('\n').filter(l => l.trim()).length;
       const pythonLines = analysis.python_code.split('\n').filter(l => l.trim()).length;
-      // Calculate reduction (positive = less code, negative = more code)
+      const testsLines = (analysis.unit_tests || '').split('\n').filter(l => l.trim()).length;
+      const issuesCount = analysis.issues?.length || 0;
+      const improvementsCount = analysis.improvements?.length || 0;
+      const securityCount = analysis.security_warnings?.length || 0;
+      
+      // Parse confidence from "85%" string to number
+      const confidenceStr = analysis.migration_score?.confidence || '0%';
+      const confidenceNum = parseInt(confidenceStr.replace(/[^0-9]/g, '')) || 0;
+      
+      // Calculate code difference
       const diff = cobolLines - pythonLines;
       const reductionPercent = cobolLines > 0 ? Math.round((diff / cobolLines) * 100) : 0;
-      const issuesCount = analysis.issues?.length || 0;
       
-      // Final values
+      // Final REAL values
       const finalMetrics = {
         cobolLines,
         pythonLines,
         reduction: reductionPercent,
         issues: issuesCount,
-        coverage: 100,
+        improvements: improvementsCount,
+        security: securityCount,
+        testsLines,
+        confidence: confidenceNum,
       };
       
       // Animate counters over 2 seconds
@@ -274,7 +296,6 @@ export default function Home() {
       const timer = setInterval(() => {
         step++;
         const progress = Math.min(step / steps, 1);
-        // Easing function for smooth animation
         const eased = 1 - Math.pow(1 - progress, 3);
         
         setAnimatedMetrics({
@@ -282,12 +303,15 @@ export default function Home() {
           pythonLines: Math.round(finalMetrics.pythonLines * eased),
           reduction: Math.round(finalMetrics.reduction * eased),
           issues: Math.round(finalMetrics.issues * eased),
-          coverage: Math.round(finalMetrics.coverage * eased),
+          improvements: Math.round(finalMetrics.improvements * eased),
+          security: Math.round(finalMetrics.security * eased),
+          testsLines: Math.round(finalMetrics.testsLines * eased),
+          confidence: Math.round(finalMetrics.confidence * eased),
         });
         
         if (step >= steps) {
           clearInterval(timer);
-          setAnimatedMetrics(finalMetrics); // Ensure final values are exact
+          setAnimatedMetrics(finalMetrics);
         }
       }, intervalTime);
       
@@ -325,7 +349,7 @@ export default function Home() {
     setPythonCode("");
     setAnalysis(null);
     setMetricsAnimated(false);
-    setAnimatedMetrics({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, coverage: 0 });
+    setAnimatedMetrics({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, improvements: 0, security: 0, testsLines: 0, confidence: 0 });
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
@@ -1045,35 +1069,47 @@ ${analysis.unit_tests || '# No tests generated'}
                 Metriques de Transformation
                 <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">LIVE</span>
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
                 {/* COBOL Lines */}
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-center">
-                  <p className="text-3xl font-bold text-amber-400 tabular-nums">{animatedMetrics.cobolLines}</p>
-                  <p className="text-xs text-slate-400 mt-1">Lignes COBOL</p>
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-amber-400 tabular-nums">{animatedMetrics.cobolLines}</p>
+                  <p className="text-xs text-slate-400 mt-1">COBOL</p>
+                </div>
+                {/* Arrow */}
+                <div className="hidden lg:flex items-center justify-center">
+                  <ArrowRight className="w-6 h-6 text-slate-500" />
                 </div>
                 {/* Python Lines */}
-                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center">
-                  <p className="text-3xl font-bold text-green-400 tabular-nums">{animatedMetrics.pythonLines}</p>
-                  <p className="text-xs text-slate-400 mt-1">Lignes Python</p>
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-green-400 tabular-nums">{animatedMetrics.pythonLines}</p>
+                  <p className="text-xs text-slate-400 mt-1">Python</p>
                 </div>
                 {/* Reduction/Expansion */}
-                <div className={`${animatedMetrics.reduction >= 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-blue-500/10 border-blue-500/30'} border rounded-lg p-4 text-center`}>
-                  <p className={`text-3xl font-bold tabular-nums ${animatedMetrics.reduction >= 0 ? 'text-green-400' : 'text-blue-400'}`}>
+                <div className={`${animatedMetrics.reduction >= 0 ? 'bg-indigo-500/10 border-indigo-500/30' : 'bg-blue-500/10 border-blue-500/30'} border rounded-lg p-3 text-center`}>
+                  <p className={`text-2xl font-bold tabular-nums ${animatedMetrics.reduction >= 0 ? 'text-indigo-400' : 'text-blue-400'}`}>
                     {animatedMetrics.reduction >= 0 ? `-${animatedMetrics.reduction}%` : `+${Math.abs(animatedMetrics.reduction)}%`}
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {animatedMetrics.reduction >= 0 ? 'Code Optimise' : 'Architecture Enrichie'}
-                  </p>
+                  <p className="text-xs text-slate-400 mt-1">Delta</p>
                 </div>
                 {/* Issues */}
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-center">
-                  <p className="text-3xl font-bold text-red-400 tabular-nums">{animatedMetrics.issues}</p>
-                  <p className="text-xs text-slate-400 mt-1">Problemes Detectes</p>
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-red-400 tabular-nums">{animatedMetrics.issues}</p>
+                  <p className="text-xs text-slate-400 mt-1">Problemes</p>
                 </div>
-                {/* Test Coverage */}
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 text-center">
-                  <p className="text-3xl font-bold text-purple-400 tabular-nums">{animatedMetrics.coverage}%</p>
-                  <p className="text-xs text-slate-400 mt-1">Couverture Tests</p>
+                {/* Improvements */}
+                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-cyan-400 tabular-nums">{animatedMetrics.improvements}</p>
+                  <p className="text-xs text-slate-400 mt-1">Ameliorations</p>
+                </div>
+                {/* Tests Lines */}
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{animatedMetrics.testsLines}</p>
+                  <p className="text-xs text-slate-400 mt-1">Tests</p>
+                </div>
+                {/* Confidence */}
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-green-400 tabular-nums">{animatedMetrics.confidence}%</p>
+                  <p className="text-xs text-slate-400 mt-1">Confiance</p>
                 </div>
               </div>
             </div>
