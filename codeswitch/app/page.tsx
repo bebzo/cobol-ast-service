@@ -247,31 +247,49 @@ export default function Home() {
 
   // Animate metrics when analysis completes
   useEffect(() => {
-    if (analysis && !metricsAnimated) {
+    if (analysis && analysis.python_code && !metricsAnimated) {
       setMetricsAnimated(true);
-      const cobolLines = cobolCode.split('\n').length;
-      const pythonLines = (analysis.python_code || '').split('\n').length;
-      const reduction = Math.round(((cobolLines - pythonLines) / cobolLines) * 100);
-      const issues = analysis.issues?.length || 0;
+      const cobolLines = cobolCode.split('\n').filter(l => l.trim()).length;
+      const pythonLines = analysis.python_code.split('\n').filter(l => l.trim()).length;
+      // Calculate reduction (positive = less code, negative = more code)
+      const diff = cobolLines - pythonLines;
+      const reductionPercent = cobolLines > 0 ? Math.round((diff / cobolLines) * 100) : 0;
+      const issuesCount = analysis.issues?.length || 0;
       
-      // Animate counters
-      const duration = 1500;
-      const steps = 30;
-      const interval = duration / steps;
+      // Final values
+      const finalMetrics = {
+        cobolLines,
+        pythonLines,
+        reduction: reductionPercent,
+        issues: issuesCount,
+        coverage: 100,
+      };
+      
+      // Animate counters over 2 seconds
+      const duration = 2000;
+      const steps = 40;
+      const intervalTime = duration / steps;
       let step = 0;
       
       const timer = setInterval(() => {
         step++;
-        const progress = step / steps;
+        const progress = Math.min(step / steps, 1);
+        // Easing function for smooth animation
+        const eased = 1 - Math.pow(1 - progress, 3);
+        
         setAnimatedMetrics({
-          cobolLines: Math.round(cobolLines * progress),
-          pythonLines: Math.round(pythonLines * progress),
-          reduction: Math.round(Math.abs(reduction) * progress),
-          issues: Math.round(issues * progress),
-          coverage: Math.round(100 * progress),
+          cobolLines: Math.round(finalMetrics.cobolLines * eased),
+          pythonLines: Math.round(finalMetrics.pythonLines * eased),
+          reduction: Math.round(finalMetrics.reduction * eased),
+          issues: Math.round(finalMetrics.issues * eased),
+          coverage: Math.round(finalMetrics.coverage * eased),
         });
-        if (step >= steps) clearInterval(timer);
-      }, interval);
+        
+        if (step >= steps) {
+          clearInterval(timer);
+          setAnimatedMetrics(finalMetrics); // Ensure final values are exact
+        }
+      }, intervalTime);
       
       return () => clearInterval(timer);
     }
@@ -1038,10 +1056,14 @@ ${analysis.unit_tests || '# No tests generated'}
                   <p className="text-3xl font-bold text-green-400 tabular-nums">{animatedMetrics.pythonLines}</p>
                   <p className="text-xs text-slate-400 mt-1">Lignes Python</p>
                 </div>
-                {/* Reduction */}
-                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-4 text-center">
-                  <p className="text-3xl font-bold text-indigo-400 tabular-nums">-{animatedMetrics.reduction}%</p>
-                  <p className="text-xs text-slate-400 mt-1">Reduction Code</p>
+                {/* Reduction/Expansion */}
+                <div className={`${animatedMetrics.reduction >= 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-blue-500/10 border-blue-500/30'} border rounded-lg p-4 text-center`}>
+                  <p className={`text-3xl font-bold tabular-nums ${animatedMetrics.reduction >= 0 ? 'text-green-400' : 'text-blue-400'}`}>
+                    {animatedMetrics.reduction >= 0 ? `-${animatedMetrics.reduction}%` : `+${Math.abs(animatedMetrics.reduction)}%`}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {animatedMetrics.reduction >= 0 ? 'Code Optimise' : 'Architecture Enrichie'}
+                  </p>
                 </div>
                 {/* Issues */}
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-center">
