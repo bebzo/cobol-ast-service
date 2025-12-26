@@ -361,7 +361,7 @@ export default function Home() {
     
     // Animate progress bar
     const progressInterval = setInterval(() => {
-      setAnalysisProgress(prev => prev >= 90 ? prev : prev + Math.random() * 12);
+      setAnalysisProgress(prev => Math.min(90, prev + Math.random() * 10));
     }, 250);
     
     setError("");
