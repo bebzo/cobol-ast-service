@@ -48,3 +48,12 @@ body {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Hide deployment watermark */
+[class*="watermark"], [id*="watermark"], [class*="minimax"], [id*="minimax"],
+div[style*="position: fixed"][style*="bottom"], 
+a[href*="minimax"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
