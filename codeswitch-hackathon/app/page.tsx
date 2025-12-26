@@ -209,6 +209,7 @@ export default function Home() {
   const [analyzedCobolCode, setAnalyzedCobolCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [analysisStatus, setAnalysisStatus] = useState("");
   const [error, setError] = useState("");
   const [filename, setFilename] = useState("sample.cbl");
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -359,11 +360,25 @@ export default function Home() {
 
     setIsLoading(true);
     setAnalysisProgress(0);
+    setAnalysisStatus("Parsing COBOL structure...");
     
-    // Animate progress bar
+    // Animate progress bar with status updates
+    const statusMessages = [
+      { threshold: 10, msg: "Parsing COBOL structure..." },
+      { threshold: 25, msg: "Analyzing business logic..." },
+      { threshold: 40, msg: "Detecting obsolete patterns..." },
+      { threshold: 55, msg: "Generating Python architecture..." },
+      { threshold: 70, msg: "Creating unit tests..." },
+      { threshold: 85, msg: "Finalizing security analysis..." }
+    ];
     const progressInterval = setInterval(() => {
-      setAnalysisProgress(prev => Math.min(90, prev + Math.random() * 10));
-    }, 250);
+      setAnalysisProgress(prev => {
+        const next = Math.min(90, prev + Math.random() * 10);
+        const status = statusMessages.find(s => next < s.threshold) || statusMessages[statusMessages.length - 1];
+        setAnalysisStatus(status.msg);
+        return next;
+      });
+    }, 400);
     
     setError("");
     setPythonCode("");
@@ -717,7 +732,7 @@ ${analysis.unit_tests || '# No tests generated'}
           {isLoading && (
             <div className="bg-slate-800 rounded-lg p-4 border border-indigo-500/30">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-300">🔄 AI Analysis in progress...</span>
+                <span className="text-sm text-slate-300">🔄 {analysisStatus}</span>
                 <span className="text-sm font-mono text-indigo-400">{Math.round(analysisProgress)}%</span>
               </div>
               <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
@@ -726,7 +741,7 @@ ${analysis.unit_tests || '# No tests generated'}
                   style={{ width: `${analysisProgress}%` }}
                 />
               </div>
-              <p className="text-xs text-slate-500 mt-2">Parsing COBOL → Python Generation → Unit Tests → Security Analysis</p>
+              <p className="text-xs text-slate-400 mt-2 animate-pulse">{analysisStatus}</p>
             </div>
           )}
 
