@@ -663,6 +663,23 @@ ${analysis.unit_tests || '# No tests generated'}
                 <span>Upload .cbl</span>
                 <input type="file" accept=".cbl,.cob,.txt" onChange={handleFileUpload} className="hidden" />
               </label>
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/BANKING-SYSTEM.CBL');
+                    const text = await res.text();
+                    setCobolCode(text);
+                    setFilename('BANKING-SYSTEM.CBL');
+                    setAnalysis(null);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-lg transition text-sm font-medium"
+              >
+                <FileCode className="w-4 h-4" />
+                <span>Load Demo (595 LOC)</span>
+              </button>
               <div className="flex items-center gap-2 text-slate-400">
                 <FileCode className="w-4 h-4" />
                 <span className="text-sm">{filename}</span>
