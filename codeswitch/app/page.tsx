@@ -29,6 +29,7 @@ import {
   MicOff,
   Volume2,
   MessageCircle,
+  MessageSquare,
   GitCompare,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -1233,6 +1234,52 @@ ${analysis.unit_tests || '# No tests generated'}
                 <p className="text-xs text-slate-400 mt-2">
                   Tested {(analysis.unit_tests || '').split('\n').filter(l => l.includes('def test_')).length || 12} scenarios including edge cases, boundary conditions, and error handling.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* AI Chat Panel */}
+          {analysis && (
+            <div className="bg-gradient-to-r from-slate-800 to-purple-900/20 rounded-lg p-6 border border-purple-500/30">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-purple-400" />
+                Gemini Live Chat
+                <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">ONLINE</span>
+              </h3>
+              <div className="bg-slate-900/50 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
+                {voiceResponse ? (
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2">
+                      <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs">U</div>
+                      <div className="bg-slate-700 rounded-lg p-2 text-sm text-slate-300">{voiceTranscript || "Ask me anything about this code..."}</div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs">G</div>
+                      <div className="bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200">{voiceResponse}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-sm text-center">Ask Gemini about the code, security issues, or migration...</p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  placeholder="Ask about this COBOL code..." 
+                  className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.currentTarget.value) {
+                      handleVoiceQuery(e.currentTarget.value);
+                      e.currentTarget.value = '';
+                    }
+                  }}
+                />
+                <button 
+                  onClick={startVoiceAssistant}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center gap-2"
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}
