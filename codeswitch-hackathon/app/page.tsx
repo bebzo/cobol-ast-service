@@ -223,9 +223,9 @@ interface HistoryItem {
 }
 
 export default function Home() {
-  const [apiKey, setApiKey] = useState("AIzaSyCQlSmH7aD8DnqnS6H4oYgjA7_2tscJ11Y");
+  const [apiKey, setApiKey] = useState(""); // Only for voice assistant
   const [showApiKey, setShowApiKey] = useState(false);
-  const [isApiKeySet, setIsApiKeySet] = useState(true);
+  const [isApiKeySet, setIsApiKeySet] = useState(true); // API is server-side
   const [cobolCode, setCobolCode] = useState(SAMPLE_COBOL);
   const [pythonCode, setPythonCode] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -372,10 +372,7 @@ export default function Home() {
   }, []);
 
   const handleConvert = async () => {
-    if (!apiKey) {
-      setError("Please enter your Gemini API key");
-      return;
-    }
+    // API key is now server-side
     if (!cobolCode.trim()) {
       setError("Please enter COBOL code");
       return;
@@ -412,54 +409,20 @@ export default function Home() {
     setAnimatedMetrics({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, improvements: 0, security: 0, testsLines: 0, confidence: 0 });
 
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-
-      let parsed: AnalysisResult | null = null;
-      let lastError = "";
+      setAnalysisStatus("Calling CodeSwitch API...");
       
-      // Retry up to 3 times
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          setAnalysisStatus(`Attempt ${attempt}/3 - Calling Gemini API...`);
-          const result = await model.generateContent(GEMINI_PROMPT + cobolCode);
-          const responseText = result.response.text();
-
-          let jsonStr = responseText;
-          
-          // Extract JSON from markdown code blocks
-          if (responseText.includes("```json")) {
-            jsonStr = responseText.split("```json")[1].split("```")[0].trim();
-          } else if (responseText.includes("```")) {
-            jsonStr = responseText.split("```")[1].split("```")[0].trim();
-          }
-          
-          // Clean common JSON issues
-          jsonStr = jsonStr
-            .replace(/[\x00-\x1F\x7F]/g, (match) => match === '\n' || match === '\r' || match === '\t' ? match : ' ')
-            .replace(/,\s*}/g, '}') // Remove trailing commas before }
-            .replace(/,\s*]/g, ']'); // Remove trailing commas before ]
-          
-          // Try to find JSON object if still failing
-          if (!jsonStr.startsWith('{')) {
-            const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-            if (jsonMatch) jsonStr = jsonMatch[0];
-          }
-
-          parsed = JSON.parse(jsonStr);
-          break; // Success, exit retry loop
-        } catch (parseErr) {
-          lastError = parseErr instanceof Error ? parseErr.message : "Parse error";
-          if (attempt < 3) {
-            setAnalysisStatus(`Retry ${attempt + 1}/3 - Parsing failed, retrying...`);
-            await new Promise(r => setTimeout(r, 1000));
-          }
-        }
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cobolCode })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Analysis failed');
       }
       
-      if (!parsed) {
-        throw new Error(`Failed after 3 attempts: ${lastError}`);
-      }
+      const parsed: AnalysisResult = await response.json();
       
       setPythonCode(parsed.python_code);
       setAnalysis(parsed);
@@ -691,29 +654,9 @@ ${analysis.unit_tests || '# No tests generated'}
               )}
             </button>
 
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type={showApiKey ? "text" : "password"}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Gemini API Key"
-                  className="pl-10 pr-10 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm w-48 focus:outline-none focus:border-indigo-500"
-                />
-                <button
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                >
-                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {!isApiKeySet && (
-                <button onClick={handleSaveApiKey} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-sm font-medium transition">
-                  Save
-                </button>
-              )}
-              {isApiKeySet && <CheckCircle className="w-5 h-5 text-green-500" />}
+            <div className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/50 rounded-lg">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <span className="text-sm text-green-400">Gemini API Connected</span>
             </div>
           </div>
         </div>
@@ -801,9 +744,9 @@ ${analysis.unit_tests || '# No tests generated'}
               )}
               <button
                 onClick={handleConvert}
-                disabled={isLoading || !isApiKeySet}
+                disabled={isLoading}
                 className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition ${
-                  isLoading ? "bg-indigo-500/50 cursor-wait" : isApiKeySet ? "bg-indigo-500 hover:bg-indigo-600" : "bg-slate-600 cursor-not-allowed"
+                  isLoading ? "bg-indigo-500/50 cursor-wait" : "bg-indigo-500 hover:bg-indigo-600"
                 }`}
               >
                 {isLoading ? (
