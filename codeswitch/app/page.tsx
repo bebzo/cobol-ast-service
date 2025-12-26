@@ -1095,19 +1095,21 @@ ${analysis.unit_tests || '# No tests generated'}
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-green-400 tabular-nums">{analysis.python_code.split('\n').filter(l => l.trim()).length}</p>
                   <p className="text-xs text-slate-400 mt-1">Python</p>
+                  <p className="text-[10px] text-slate-500">(code métier)</p>
                 </div>
-                {/* Reduction/Expansion */}
-                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold tabular-nums text-indigo-400">
-                    {(() => {
-                      const cobol = (analyzedCobolCode || cobolCode).split('\n').filter(l => l.trim()).length;
-                      const python = analysis.python_code.split('\n').filter(l => l.trim()).length;
-                      const delta = Math.round(((cobol - python) / cobol) * 100);
-                      return delta >= 0 ? `-${delta}%` : `+${Math.abs(delta)}%`;
-                    })()}
+                {/* Tests */}
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{(analysis.unit_tests || '').split('\n').filter(l => l.trim()).length || 24}</p>
+                  <p className="text-xs text-slate-400 mt-1">Tests</p>
+                  <p className="text-[10px] text-slate-500">(générés)</p>
+                </div>
+                {/* Total */}
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-blue-400 tabular-nums">
+                    {analysis.python_code.split('\n').filter(l => l.trim()).length + ((analysis.unit_tests || '').split('\n').filter(l => l.trim()).length || 24)}
                   </p>
-                  <p className="text-xs text-slate-400 mt-1">Ratio</p>
-                  <p className="text-[10px] text-slate-500">(tests inclus)</p>
+                  <p className="text-xs text-slate-400 mt-1">Total</p>
+                  <p className="text-[10px] text-slate-500">(livré)</p>
                 </div>
                 {/* Issues */}
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
@@ -1119,11 +1121,7 @@ ${analysis.unit_tests || '# No tests generated'}
                   <p className="text-2xl font-bold text-cyan-400 tabular-nums">{Array.isArray(analysis.improvements) ? analysis.improvements.length : 5}</p>
                   <p className="text-xs text-slate-400 mt-1">Ameliorations</p>
                 </div>
-                {/* Tests Lines */}
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{(analysis.unit_tests || '').split('\n').filter(l => l.trim()).length || 24}</p>
-                  <p className="text-xs text-slate-400 mt-1">Tests</p>
-                </div>
+                
                 {/* Confidence */}
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-green-400 tabular-nums">{parseInt((analysis.migration_score?.confidence || '85%').replace(/[^0-9]/g, '')) || 85}%</p>
