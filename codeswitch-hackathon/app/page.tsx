@@ -420,12 +420,11 @@ export default function Home() {
         body: JSON.stringify({ cobolCode })
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Analysis failed');
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Analysis failed');
       }
-      
-      const parsed: AnalysisResult = await response.json();
+      const parsed: AnalysisResult = data;
       
       setPythonCode(parsed.python_code);
       setAnalysis(parsed);
