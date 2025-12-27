@@ -209,6 +209,7 @@ export default function Home() {
   const [analyzedCobolCode, setAnalyzedCobolCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
   const [error, setError] = useState("");
   const [filename, setFilename] = useState("sample.cbl");
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -356,16 +357,43 @@ export default function Home() {
     setIsLoading(true);
     setAnalysisProgress(0);
     
-    // Animate progress bar - smooth progression
+    // Animate progress bar with detailed phase messages
+    setProgressMessage("Initializing analysis engine...");
     const progressInterval = setInterval(() => {
       setAnalysisProgress(prev => {
-        if (prev < 30) return prev + 4;
-        if (prev < 60) return prev + 2;
-        if (prev < 85) return prev + 1;
-        if (prev < 95) return prev + 0.3;
+        // Phase 1: Parsing COBOL (0-15%)
+        if (prev < 15) {
+          setProgressMessage("Parsing COBOL structure...");
+          return prev + 1.5;
+        }
+        // Phase 2: Identifying modules (15-30%)
+        if (prev < 30) {
+          setProgressMessage("Identifying divisions & paragraphs...");
+          return prev + 1;
+        }
+        // Phase 3: Analyzing logic (30-50%)
+        if (prev < 50) {
+          setProgressMessage("Analyzing business logic...");
+          return prev + 0.8;
+        }
+        // Phase 4: Generating Python (50-70%)
+        if (prev < 70) {
+          setProgressMessage("Generating Python code...");
+          return prev + 0.5;
+        }
+        // Phase 5: Creating tests (70-85%)
+        if (prev < 85) {
+          setProgressMessage("Creating unit tests...");
+          return prev + 0.3;
+        }
+        // Phase 6: Final validation (85-95%)
+        if (prev < 95) {
+          setProgressMessage("Validating & finalizing...");
+          return prev + 0.15;
+        }
         return prev;
       });
-    }, 400);
+    }, 800);
     
     setError("");
     setPythonCode("");
@@ -421,8 +449,12 @@ export default function Home() {
       }
     } finally {
       clearInterval(progressInterval);
+      setProgressMessage("Complete!");
       setAnalysisProgress(100);
-      setTimeout(() => setIsLoading(false), 300);
+      setTimeout(() => {
+        setIsLoading(false);
+        setProgressMessage("");
+      }, 500);
     }
   };
 
@@ -679,7 +711,7 @@ ${analysis.unit_tests || '# No tests generated'}
                 }`}
               >
                 {isLoading ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" />Analyzing... {Math.round(analysisProgress)}%</>
+                  <><Loader2 className="w-5 h-5 animate-spin" />{progressMessage} {Math.round(analysisProgress)}%</>
                 ) : (
                   <><Play className="w-5 h-5" />Refactor with Gemini</>
                 )}
