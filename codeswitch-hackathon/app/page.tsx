@@ -206,7 +206,7 @@ interface AnalysisResult {
   summary: string;
   business_context: BusinessContext;
   python_code: string;
-  unit_tests: string;
+  unit_tests: string | string[];
   config_json: string;
   issues: string[];
   improvements: string[];
@@ -300,7 +300,8 @@ export default function Home() {
       // REAL DATA from analysis
       const cobolLines = cobolCode ? cobolCode.split('\n').filter(l => l.trim()).length : 350;
       const pythonLines = analysis.python_code ? analysis.python_code.split('\n').filter(l => l.trim()).length : 85;
-      const testsLines = (analysis.unit_tests || '').split('\n').filter(l => l.trim()).length || 24;
+      const testsStr = Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '');
+      const testsLines = testsStr.split('\n').filter(l => l.trim()).length || 24;
       const issuesCount = Array.isArray(analysis.issues) ? analysis.issues.length : 3;
       const improvementsCount = Array.isArray(analysis.improvements) ? analysis.improvements.length : 5;
       const securityCount = Array.isArray(analysis.security_warnings) ? analysis.security_warnings.length : 2;
@@ -594,7 +595,7 @@ ${analysis.python_code}
 
 # test_migration.py
 \`\`\`python
-${analysis.unit_tests || '# No tests generated'}
+${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '# No tests generated')}
 \`\`\`
 `;
 
@@ -724,7 +725,7 @@ ${analysis.unit_tests || '# No tests generated'}
                       a.click();
                     }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700">🐍 Python Code (.py)</button>
                     <button onClick={() => {
-                      const blob = new Blob([analysis.unit_tests || ''], { type: 'text/python' });
+                      const blob = new Blob([Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')], { type: 'text/python' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
@@ -903,7 +904,7 @@ ${analysis.unit_tests || '# No tests generated'}
                 <Editor
                   height="400px"
                   defaultLanguage="python"
-                  value={analysis?.unit_tests || "# Unit tests will appear here..."}
+                  value={analysis?.unit_tests ? (Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : analysis.unit_tests) : "# Unit tests will appear here..."}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
                 />
@@ -1365,14 +1366,14 @@ ${analysis.unit_tests || '# No tests generated'}
                 </div>
                 {/* Tests */}
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{((analysis.unit_tests || '').replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
+                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
                   <p className="text-xs text-slate-400 mt-1">Tests</p>
                   <p className="text-[10px] text-slate-500">(unit tests)</p>
                 </div>
                 {/* Total */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-blue-400 tabular-nums">
-                    {analysis.python_code.split('\n').filter(l => l.trim()).length + ((analysis.unit_tests || '').split('\n').filter(l => l.trim()).length || 24)}
+                    {analysis.python_code.split('\n').filter(l => l.trim()).length + ((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).split('\n').filter(l => l.trim()).length || 24)}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Total</p>
                   <p className="text-[10px] text-slate-500">(delivered)</p>
@@ -1408,11 +1409,11 @@ ${analysis.unit_tests || '# No tests generated'}
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{((analysis.unit_tests || '').replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
+                  <p className="text-2xl font-bold text-emerald-400">{((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
                   <p className="text-xs text-slate-400">Tests Generated</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{((analysis.unit_tests || '').replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
+                  <p className="text-2xl font-bold text-emerald-400">{((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
                   <p className="text-xs text-slate-400">Tests Passed</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
@@ -1430,7 +1431,7 @@ ${analysis.unit_tests || '# No tests generated'}
                   <strong>COBOL ↔ Python Equivalence:</strong> All test cases validated successfully
                 </p>
                 <p className="text-xs text-slate-400 mt-2">
-                  Tested {((analysis.unit_tests || '').replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12} scenarios including edge cases, boundary conditions, and error handling.
+                  Tested {((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12} scenarios including edge cases, boundary conditions, and error handling.
                 </p>
               </div>
             </div>
