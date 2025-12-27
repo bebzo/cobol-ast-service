@@ -1102,18 +1102,29 @@ ${analysis.unit_tests || '# No tests generated'}
                       const severityColor = severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border-red-500/50' : 
                                            severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 
                                            'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+                      const recommendations = {
+                        CRITICAL: "Immediate action required. Block deployment until resolved.",
+                        HIGH: "Address before production release. Security review mandatory.",
+                        MEDIUM: "Schedule fix in next sprint. Monitor for exploitation."
+                      };
                       return (
-                        <li key={i} className={`flex items-start gap-3 p-4 rounded-lg border ${severityColor}`}>
-                          <div className="flex-shrink-0">
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${severityColor}`}>{severity}</span>
+                        <li key={i} className={`p-4 rounded-lg border ${severityColor}`}>
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0">
+                              <span className={`px-2 py-1 rounded text-xs font-bold ${severityColor}`}>{severity}</span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-slate-200 font-medium">{typeof item === 'string' ? item : JSON.stringify(item)}</p>
+                              <p className="text-xs text-slate-400 mt-1">CVSS Score: {severity === 'CRITICAL' ? '9.1' : severity === 'HIGH' ? '7.5' : '5.3'}</p>
+                            </div>
+                            <button className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded text-xs hover:bg-indigo-500/30">
+                              Auto-Fix
+                            </button>
                           </div>
-                          <div className="flex-1">
-                            <p className="text-slate-200 font-medium">{typeof item === 'string' ? item : JSON.stringify(item)}</p>
-                            <p className="text-xs text-slate-400 mt-1">CVSS Score: {severity === 'CRITICAL' ? '9.1' : severity === 'HIGH' ? '7.5' : '5.3'}</p>
+                          <div className="mt-3 pt-3 border-t border-slate-700">
+                            <p className="text-xs text-slate-500 font-medium mb-1">📋 Recommendation:</p>
+                            <p className="text-xs text-slate-400">{recommendations[severity as keyof typeof recommendations]}</p>
                           </div>
-                          <button className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded text-xs hover:bg-indigo-500/30">
-                            Auto-Fix
-                          </button>
                         </li>
                       );
                     })}
