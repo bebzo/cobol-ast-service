@@ -1108,7 +1108,7 @@ ${analysis.unit_tests || '# No tests generated'}
                             <span className={`px-2 py-1 rounded text-xs font-bold ${severityColor}`}>{severity}</span>
                           </div>
                           <div className="flex-1">
-                            <p className="text-slate-200 font-medium">{item}</p>
+                            <p className="text-slate-200 font-medium">{typeof item === 'string' ? item : JSON.stringify(item)}</p>
                             <p className="text-xs text-slate-400 mt-1">CVSS Score: {severity === 'CRITICAL' ? '9.1' : severity === 'HIGH' ? '7.5' : '5.3'}</p>
                           </div>
                           <button className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded text-xs hover:bg-indigo-500/30">
