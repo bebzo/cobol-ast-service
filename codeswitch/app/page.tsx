@@ -356,10 +356,16 @@ export default function Home() {
     setIsLoading(true);
     setAnalysisProgress(0);
     
-    // Animate progress bar
+    // Animate progress bar - smooth progression
     const progressInterval = setInterval(() => {
-      setAnalysisProgress(prev => Math.min(90, prev + Math.random() * 10));
-    }, 250);
+      setAnalysisProgress(prev => {
+        if (prev < 30) return prev + 4;
+        if (prev < 60) return prev + 2;
+        if (prev < 85) return prev + 1;
+        if (prev < 95) return prev + 0.3;
+        return prev;
+      });
+    }, 400);
     
     setError("");
     setPythonCode("");
