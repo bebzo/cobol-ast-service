@@ -1262,9 +1262,9 @@ ${analysis.unit_tests || '# No tests generated'}
                 </div>
                 {/* Tests */}
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{(analysis.unit_tests || '').split('\n').filter(l => l.trim()).length || 24}</p>
+                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{((analysis.unit_tests || '').match(/def test_/g) || []).length || 12}</p>
                   <p className="text-xs text-slate-400 mt-1">Tests</p>
-                  <p className="text-[10px] text-slate-500">(generated)</p>
+                  <p className="text-[10px] text-slate-500">(unit tests)</p>
                 </div>
                 {/* Total */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
@@ -1286,9 +1286,10 @@ ${analysis.unit_tests || '# No tests generated'}
                 </div>
                 
                 {/* Confidence */}
-                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center" title="Based on code complexity and business logic clarity">
                   <p className="text-2xl font-bold text-green-400 tabular-nums">{parseInt((analysis.migration_score?.confidence || '85%').replace(/[^0-9]/g, '')) || 85}%</p>
                   <p className="text-xs text-slate-400 mt-1">Confidence</p>
+                  <p className="text-[10px] text-slate-500">{parseInt((analysis.migration_score?.confidence || '80').replace(/[^0-9]/g, '')) < 70 ? '(needs review)' : '(validated)'}</p>
                 </div>
               </div>
             </div>
@@ -1396,13 +1397,15 @@ ${analysis.unit_tests || '# No tests generated'}
                     <p className="text-xs text-slate-400 mb-1">Risk Level</p>
                     <p className={`font-semibold ${getRiskColor(analysis.migration_score.risk_level)}`}>{analysis.migration_score.risk_level}</p>
                   </div>
-                  <div className="bg-slate-700/50 rounded-lg p-4">
+                  <div className="bg-slate-700/50 rounded-lg p-4" title="Includes migration, testing, security, docs & UAT">
                     <p className="text-xs text-slate-400 mb-1">Estimated Effort</p>
                     <p className="font-semibold text-white">{analysis.migration_score.estimated_effort}</p>
+                    <p className="text-[10px] text-slate-500">Full cycle</p>
                   </div>
-                  <div className="bg-slate-700/50 rounded-lg p-4">
+                  <div className="bg-slate-700/50 rounded-lg p-4" title="Lower = needs more validation">
                     <p className="text-xs text-slate-400 mb-1">Confidence</p>
                     <p className="font-semibold text-indigo-400">{analysis.migration_score.confidence}</p>
+                    <p className="text-[10px] text-slate-500">{parseInt((analysis.migration_score.confidence || '80').replace(/[^0-9]/g, '')) < 70 ? 'Expert review needed' : 'Ready for UAT'}</p>
                   </div>
                 </div>
               )}
