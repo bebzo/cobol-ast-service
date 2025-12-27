@@ -1070,7 +1070,7 @@ ${analysis.unit_tests || '# No tests generated'}
                     {[
                       { key: "issues", label: "Issues", icon: AlertTriangle, count: analysis.issues.length },
                       { key: "improvements", label: "Improvements", icon: Lightbulb, count: analysis.improvements.length },
-                      { key: "security", label: "Security", icon: Shield, count: analysis.security_warnings.length },
+                      { key: "security", label: "Security", icon: Shield, count: Array.isArray(analysis.security_warnings) ? analysis.security_warnings.length : 0 },
                       { key: "next", label: "Next Steps", icon: TrendingUp, count: analysis.next_steps?.length || 0 },
                     ].map(({ key, label, icon: Icon, count }) => (
                       <button
@@ -1097,7 +1097,7 @@ ${analysis.unit_tests || '# No tests generated'}
                         <span className="text-slate-300">{item}</span>
                       </li>
                     ))}
-                    {activeReportTab === "security" && analysis.security_warnings.map((item, i) => {
+                    {activeReportTab === "security" && (Array.isArray(analysis.security_warnings) ? analysis.security_warnings : []).map((item, i) => {
                       const severity = i === 0 ? 'CRITICAL' : i < 2 ? 'HIGH' : 'MEDIUM';
                       const severityColor = severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border-red-500/50' : 
                                            severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 
