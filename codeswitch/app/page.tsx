@@ -417,16 +417,6 @@ export default function Home() {
       }
       
       setPythonCode(parsed.python_code);
-      // Ensure business_context has default values
-      if (!parsed.business_context) {
-        parsed.business_context = {
-          domain: "Banking/Finance",
-          detected_year: "1990s",
-          regulatory_context: "French banking regulations",
-          is_obsolete: true,
-          obsolescence_reason: "Outdated tax rates, potential SQL injection, no input validation"
-        };
-      }
       setAnalysis(parsed);
       setAnalyzedCobolCode(cobolCode);
 
