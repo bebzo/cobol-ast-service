@@ -829,7 +829,7 @@ ${analysis.unit_tests || '# No tests generated'}
 
             {/* Output Editor with Tabs */}
             <div className="bg-slate-800 rounded-lg overflow-hidden">
-              <div className="flex items-center border-b border-slate-700">
+              <div className="flex items-center border-b border-slate-700 overflow-x-auto scrollbar-hide">
                 <button
                   onClick={() => setActiveTab("code")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
