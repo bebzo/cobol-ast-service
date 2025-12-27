@@ -31,6 +31,9 @@ import {
   MessageCircle,
   MessageSquare,
   GitCompare,
+  Layers,
+  Package,
+  Link2,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -211,6 +214,7 @@ interface AnalysisResult {
   migration_score: MigrationScore;
   architecture_diagram?: string;
   next_steps: string[];
+  modules?: { name: string; lines: number; type: string; description: string }[];
 }
 
 interface HistoryItem {
@@ -237,7 +241,7 @@ export default function Home() {
   const [filename, setFilename] = useState("sample.cbl");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "report">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "report">("code");
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -867,6 +871,15 @@ ${analysis.unit_tests || '# No tests generated'}
                   <GitCompare className="w-4 h-4" />Architecture
                 </button>
                 <button
+                  onClick={() => setActiveTab("modules")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "modules" ? "bg-pink-500/20 text-pink-400 border-b-2 border-pink-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Layers className="w-4 h-4" />Modules
+                  <span className="px-1.5 py-0.5 bg-pink-500/30 text-pink-300 text-[10px] rounded">NEW</span>
+                </button>
+                <button
                   onClick={() => setActiveTab("report")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
                     activeTab === "report" ? "bg-purple-500/20 text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white"
@@ -1150,6 +1163,39 @@ ${analysis.unit_tests || '# No tests generated'}
                       <div className="text-center">
                         <GitCompare className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>Architecture diagram will appear after analysis</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "modules" && (
+                <div className="h-[400px] overflow-y-auto p-4 bg-slate-900">
+                  {analysis?.modules && analysis.modules.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-pink-400 font-semibold">
+                        <Layers className="w-5 h-5" />
+                        Smart Module Splitting ({analysis.modules.length} modules detected)
+                      </div>
+                      <div className="grid gap-3">
+                        {analysis.modules.map((mod: { name: string; lines: number; type: string; description: string }, idx: number) => (
+                          <div key={idx} className="bg-slate-800 p-4 rounded-lg border border-pink-500/30 hover:border-pink-400/50 transition">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-pink-300 font-semibold">{mod.name}</span>
+                              <span className="text-xs bg-pink-500/20 text-pink-400 px-2 py-1 rounded">{mod.type}</span>
+                            </div>
+                            <p className="text-sm text-slate-400">{mod.description}</p>
+                            <p className="text-xs text-slate-500 mt-2">{mod.lines} lines</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-400">
+                      <div className="text-center">
+                        <Layers className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Module analysis appears for large files (200+ lines)</p>
+                        <p className="text-xs mt-2 text-slate-500">CodeSwitch automatically splits large COBOL files into logical modules</p>
                       </div>
                     </div>
                   )}
