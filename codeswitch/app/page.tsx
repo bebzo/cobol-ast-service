@@ -605,29 +605,9 @@ ${analysis.unit_tests || '# No tests generated'}
               )}
             </button>
 
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type={showApiKey ? "text" : "password"}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Gemini API Key"
-                  className="pl-10 pr-10 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm w-48 focus:outline-none focus:border-indigo-500"
-                />
-                <button
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                >
-                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {!isApiKeySet && (
-                <button onClick={handleSaveApiKey} className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-sm font-medium transition">
-                  Save
-                </button>
-              )}
-              {isApiKeySet && <CheckCircle className="w-5 h-5 text-green-500" />}
+            <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-green-500/20 to-emerald-500/20 border border-green-500/30 rounded-lg">
+              <CheckCircle className="w-4 h-4 text-green-400" />
+              <span className="text-sm font-medium text-green-400">Gemini API Connected</span>
             </div>
           </div>
         </div>
