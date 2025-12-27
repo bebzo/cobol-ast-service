@@ -38,10 +38,10 @@ const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
 const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
        PROGRAM-ID.  PAYROLL01.
-       AUTHOR.      MAINFRAME-LEGACY-1987.
+       AUTHOR.      GLOBAL-BANKING-LEGACY-1987.
       *================================================================*
-      * SYSTEME DE PAIE - MODULE CALCUL BRUT/NET                       *
-      * ATTENTION: TAUX FISCAUX DE 1995 - OBSOLETE                     *
+      * PAYROLL SYSTEM - GROSS/NET CALCULATION MODULE                  *
+      * WARNING: 1995 TAX RATES - OBSOLETE - REQUIRES UPDATE           *
       *================================================================*
        
        DATA DIVISION.
@@ -52,7 +52,7 @@ const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
            88  EMP-ACTIVE          VALUE 'A'.
            88  EMP-TERMINATED      VALUE 'T'.
        
-      * TAUX FISCAUX 1995 - NON CONFORMES 2025
+      * 1995 TAX RATES - NOT COMPLIANT WITH 2025 REGULATIONS
        01  WS-TAX-BRACKETS-1995.
            05  WS-BRACKET-1-LIMIT  PIC 9(7) VALUE 23350.
            05  WS-BRACKET-2-LIMIT  PIC 9(7) VALUE 56550.
@@ -78,15 +78,15 @@ const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
            PERFORM 5100-CALC-FED-TAX
            PERFORM 5200-CALC-FICA
            PERFORM 6000-CALC-NET
-           DISPLAY "BRUT: " WS-GROSS-PAY
-           DISPLAY "NET:  " WS-NET-PAY
+           DISPLAY "GROSS: " WS-GROSS-PAY
+           DISPLAY "NET:   " WS-NET-PAY
            STOP RUN.
        
        4000-CALC-GROSS.
            COMPUTE WS-GROSS-PAY = EMP-HOURLY-RATE * 40.
        
        5100-CALC-FED-TAX.
-      * CALCUL OBSOLETE - TAUX 1995
+      * OBSOLETE CALCULATION - 1995 TAX RATES
            IF WS-GROSS-PAY * 52 <= WS-BRACKET-1-LIMIT
                COMPUTE WS-FEDERAL-TAX = 
                    WS-GROSS-PAY * WS-RATE-BRACKET-1
@@ -98,7 +98,7 @@ const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
            END-IF.
        
        5200-CALC-FICA.
-      * PLAFOND SS OBSOLETE: $61,200 (1995) VS $168,600 (2025)
+      * OBSOLETE SS CAP: $61,200 (1995) VS $168,600 (2025)
            COMPUTE WS-FICA-TAX = 
                WS-GROSS-PAY * (WS-SS-RATE + WS-MEDICARE-RATE).
        
