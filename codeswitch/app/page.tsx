@@ -1068,8 +1068,8 @@ ${analysis.unit_tests || '# No tests generated'}
                 <div className="h-[400px] overflow-y-auto p-4">
                   <div className="flex gap-2 mb-4 flex-wrap">
                     {[
-                      { key: "issues", label: "Issues", icon: AlertTriangle, count: analysis.issues.length },
-                      { key: "improvements", label: "Improvements", icon: Lightbulb, count: analysis.improvements.length },
+                      { key: "issues", label: "Issues", icon: AlertTriangle, count: Array.isArray(analysis.issues) ? analysis.issues.length : 0 },
+                      { key: "improvements", label: "Improvements", icon: Lightbulb, count: Array.isArray(analysis.improvements) ? analysis.improvements.length : 0 },
                       { key: "security", label: "Security", icon: Shield, count: Array.isArray(analysis.security_warnings) ? analysis.security_warnings.length : 0 },
                       { key: "next", label: "Next Steps", icon: TrendingUp, count: analysis.next_steps?.length || 0 },
                     ].map(({ key, label, icon: Icon, count }) => (
@@ -1085,13 +1085,13 @@ ${analysis.unit_tests || '# No tests generated'}
                     ))}
                   </div>
                   <ul className="space-y-2">
-                    {activeReportTab === "issues" && analysis.issues.map((item, i) => (
+                    {activeReportTab === "issues" && (Array.isArray(analysis.issues) ? analysis.issues : []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-red-500/10 rounded-lg">
                         <span className="text-red-400 font-bold">{i + 1}.</span>
                         <span className="text-slate-300">{item}</span>
                       </li>
                     ))}
-                    {activeReportTab === "improvements" && analysis.improvements.map((item, i) => (
+                    {activeReportTab === "improvements" && (Array.isArray(analysis.improvements) ? analysis.improvements : []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-amber-500/10 rounded-lg">
                         <span className="text-amber-400 font-bold">{i + 1}.</span>
                         <span className="text-slate-300">{item}</span>
