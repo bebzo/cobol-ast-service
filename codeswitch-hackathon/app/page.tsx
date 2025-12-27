@@ -1171,12 +1171,25 @@ ${analysis.unit_tests || '# No tests generated'}
 
               {activeTab === "modules" && (
                 <div className="h-[400px] overflow-y-auto p-4 bg-slate-900">
-                  {analysis?.modules && analysis.modules.length > 0 ? (
+                  {isLoading ? (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center">
+                        <Layers className="w-16 h-16 mx-auto mb-4 text-pink-400 animate-pulse" />
+                        <p className="text-pink-400 font-semibold text-lg animate-pulse">Analyzing COBOL structure...</p>
+                        <p className="text-slate-500 text-sm mt-2">Detecting modules and complexity</p>
+                        <div className="flex justify-center gap-1 mt-4">
+                          <span className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></span>
+                          <span className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></span>
+                          <span className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : analysis?.modules && analysis.modules.length > 0 ? (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-pink-400 font-semibold">
-                          <Layers className="w-5 h-5" />
-                          Smart Module Splitting ({analysis.modules.length} modules detected)
+                          <Layers className="w-5 h-5 animate-spin" style={{animationDuration: '2s'}} />
+                          <span className="animate-pulse">Smart Module Splitting ({analysis.modules.length} modules detected)</span>
                         </div>
                         <div className="flex gap-2 text-xs">
                           <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded">Low</span>
