@@ -214,7 +214,7 @@ interface AnalysisResult {
   migration_score: MigrationScore;
   architecture_diagram?: string;
   next_steps: string[];
-  modules?: { name: string; lines: number; type: string; description: string }[];
+  modules?: { name: string; lines: number; type: string; description: string; complexity?: string; pythonTarget?: string; risk?: string }[];
 }
 
 interface HistoryItem {
@@ -1173,21 +1173,41 @@ ${analysis.unit_tests || '# No tests generated'}
                 <div className="h-[400px] overflow-y-auto p-4 bg-slate-900">
                   {analysis?.modules && analysis.modules.length > 0 ? (
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-pink-400 font-semibold">
-                        <Layers className="w-5 h-5" />
-                        Smart Module Splitting ({analysis.modules.length} modules detected)
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-pink-400 font-semibold">
+                          <Layers className="w-5 h-5" />
+                          Smart Module Splitting ({analysis.modules.length} modules detected)
+                        </div>
+                        <div className="flex gap-2 text-xs">
+                          <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded">Low</span>
+                          <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded">Medium</span>
+                          <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded">High</span>
+                        </div>
                       </div>
                       <div className="grid gap-3">
-                        {analysis.modules.map((mod: { name: string; lines: number; type: string; description: string }, idx: number) => (
-                          <div key={idx} className="bg-slate-800 p-4 rounded-lg border border-pink-500/30 hover:border-pink-400/50 transition">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-pink-300 font-semibold">{mod.name}</span>
-                              <span className="text-xs bg-pink-500/20 text-pink-400 px-2 py-1 rounded">{mod.type}</span>
+                        {analysis.modules.map((mod: { name: string; lines: number; type: string; description: string; complexity?: string; pythonTarget?: string; risk?: string }, idx: number) => {
+                          const complexity = mod.complexity || (mod.lines > 100 ? 'HIGH' : mod.lines > 50 ? 'MEDIUM' : 'LOW');
+                          const complexityColor = complexity === 'HIGH' ? 'red' : complexity === 'MEDIUM' ? 'yellow' : 'green';
+                          const pythonTarget = mod.pythonTarget || mod.name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+                          return (
+                            <div key={idx} className="bg-slate-800 p-4 rounded-lg border border-pink-500/30 hover:border-pink-400/50 transition">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-pink-300 font-semibold">{mod.name}</span>
+                                  <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded">{mod.type}</span>
+                                </div>
+                                <span className={`text-xs px-2 py-1 rounded bg-${complexityColor}-500/20 text-${complexityColor}-400`}>
+                                  {complexity} complexity
+                                </span>
+                              </div>
+                              <p className="text-sm text-slate-400 mb-2">{mod.description || `Handles ${mod.type.toLowerCase()} logic and data processing`}</p>
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-slate-500">{mod.lines} lines</span>
+                                <span className="text-cyan-400">→ {pythonTarget}.py</span>
+                              </div>
                             </div>
-                            <p className="text-sm text-slate-400">{mod.description}</p>
-                            <p className="text-xs text-slate-500 mt-2">{mod.lines} lines</p>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   ) : (
