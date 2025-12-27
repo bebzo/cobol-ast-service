@@ -1200,7 +1200,7 @@ ${analysis.unit_tests || '# No tests generated'}
                       <div className="grid gap-3">
                         {analysis.modules.map((mod: { name: string; lines: number; type: string; description: string; complexity?: string; pythonTarget?: string; risk?: string }, idx: number) => {
                           const complexity = mod.complexity || (mod.lines > 100 ? 'HIGH' : mod.lines > 50 ? 'MEDIUM' : 'LOW');
-                          const complexityColor = complexity === 'HIGH' ? 'red' : complexity === 'MEDIUM' ? 'yellow' : 'green';
+                          const complexityClass = complexity === 'HIGH' ? 'bg-red-500/20 text-red-400' : complexity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400';
                           const pythonTarget = mod.pythonTarget || mod.name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
                           return (
                             <div key={idx} className="bg-slate-800 p-4 rounded-lg border border-pink-500/30 hover:border-pink-400/50 transition">
@@ -1209,7 +1209,7 @@ ${analysis.unit_tests || '# No tests generated'}
                                   <span className="text-pink-300 font-semibold">{mod.name}</span>
                                   <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded">{mod.type}</span>
                                 </div>
-                                <span className={`text-xs px-2 py-1 rounded bg-${complexityColor}-500/20 text-${complexityColor}-400`}>
+                                <span className={`text-xs px-2 py-1 rounded ${complexityClass}`}>
                                   {complexity} complexity
                                 </span>
                               </div>
