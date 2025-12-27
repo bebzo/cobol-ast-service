@@ -32,7 +32,7 @@ import {
   MessageSquare,
   GitCompare,
 } from "lucide-react";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// API calls go through Supabase backend
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -200,7 +200,7 @@ interface HistoryItem {
 }
 
 export default function Home() {
-  const [apiKey, setApiKey] = useState("AIzaSyCQlSmH7aD8DnqnS6H4oYgjA7_2tscJ11Y");
+  const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [isApiKeySet, setIsApiKeySet] = useState(true);
   const [cobolCode, setCobolCode] = useState(SAMPLE_COBOL);
@@ -348,10 +348,6 @@ export default function Home() {
   }, []);
 
   const handleConvert = async () => {
-    if (!apiKey) {
-      setError("Please enter your Gemini API key");
-      return;
-    }
     if (!cobolCode.trim()) {
       setError("Please enter COBOL code");
       return;
@@ -372,20 +368,19 @@ export default function Home() {
     setAnimatedMetrics({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, improvements: 0, security: 0, testsLines: 0, confidence: 0 });
 
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-
-      const result = await model.generateContent(GEMINI_PROMPT + cobolCode);
-      const responseText = result.response.text();
-
-      let jsonStr = responseText;
-      if (responseText.includes("```json")) {
-        jsonStr = responseText.split("```json")[1].split("```")[0].trim();
-      } else if (responseText.includes("```")) {
-        jsonStr = responseText.split("```")[1].split("```")[0].trim();
+      const response = await fetch('https://jcizfxniwgwfdmubapyb.supabase.co/functions/v1/analyse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c'
+        },
+        body: JSON.stringify({ cobolCode })
+      });
+      const data = await response.text();
+      const parsed: AnalysisResult = JSON.parse(data);
+      if ((parsed as any).error) {
+        throw new Error((parsed as any).error);
       }
-
-      const parsed: AnalysisResult = JSON.parse(jsonStr);
       
       setPythonCode(parsed.python_code);
       setAnalysis(parsed);
@@ -450,34 +445,27 @@ export default function Home() {
   };
 
   const handleVoiceQuery = async (query: string) => {
-    if (!apiKey || !query.trim()) return;
+    if (!query.trim()) return;
     
     setVoiceTranscript(query);
     setIsListening(false);
     
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      
-      const voicePrompt = `Tu es un assistant vocal expert en migration COBOL. Reponds de maniere concise et claire (max 3 phrases).
-      
-Contexte: L'utilisateur analyse ce code COBOL:
-\`\`\`cobol
-${cobolCode.substring(0, 2000)}
-\`\`\`
-
-Question de l'utilisateur: ${query}
-
-Reponds directement et simplement:`;
-
-      const result = await model.generateContent(voicePrompt);
-      const response = result.response.text();
-      setVoiceResponse(response);
-      
+      const voiceRes = await fetch('https://jcizfxniwgwfdmubapyb.supabase.co/functions/v1/analyse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c'
+        },
+        body: JSON.stringify({ action: 'voice', query, cobolCode: cobolCode.substring(0, 2000) })
+      });
+      const voiceData = await voiceRes.json();
+      const voiceText = voiceData.response || "No response";
+      setVoiceResponse(voiceText);
       // Text-to-speech
       if ('speechSynthesis' in window) {
         setIsSpeaking(true);
-        const utterance = new SpeechSynthesisUtterance(response);
+        const utterance = new SpeechSynthesisUtterance(voiceText);
         utterance.lang = 'fr-FR';
         utterance.rate = 1.1;
         utterance.onend = () => setIsSpeaking(false);
