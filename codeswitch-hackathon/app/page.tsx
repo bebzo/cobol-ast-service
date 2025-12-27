@@ -489,28 +489,22 @@ export default function Home() {
   };
 
   const handleVoiceQuery = async (query: string) => {
-    if (!apiKey || !query.trim()) return;
+    if (!query.trim()) return;
     
     setVoiceTranscript(query);
     setIsListening(false);
     
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-      
-      const voicePrompt = `You are a voice assistant expert in COBOL migration. Respond concisely and clearly in English (max 3 sentences).
-      
-Context: The user is analyzing this COBOL code:
-\`\`\`cobol
-${cobolCode.substring(0, 2000)}
-\`\`\`
-
-User question: ${query}
-
-Respond directly and simply:`;
-
-      const result = await model.generateContent(voicePrompt);
-      const response = result.response.text();
+      const res = await fetch('https://jcizfxniwgwfdmubapyb.supabase.co/functions/v1/analyse', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c'
+        },
+        body: JSON.stringify({ action: 'voice', query, cobolCode: cobolCode.substring(0, 500), pythonCode: pythonCode.substring(0, 500) })
+      });
+      const data = await res.json();
+      const response = data.response || "Sorry, I couldn't process your request.";
       setVoiceResponse(response);
       
       // Text-to-speech
