@@ -900,7 +900,31 @@ ${analysis.unit_tests || '# No tests generated'}
                 <Editor
                   height="400px"
                   defaultLanguage="json"
-                  value={analysis?.config_json || '{\n  "annee": 2025,\n  "tranches": []\n}'}
+                  value={(() => {
+                    const cfg = analysis?.config_json || '';
+                    if (!cfg || cfg === '{}' || cfg.length < 5) {
+                      return JSON.stringify({
+                        "application": "CodeSwitch Banking System",
+                        "version": "2.0",
+                        "tax_year": 2025,
+                        "database": { "host": "localhost", "name": "bank_db" },
+                        "interest_rates": { "savings": 0.035, "checking": 0.001 },
+                        "overdraft_limit": 5000,
+                        "tax_brackets": [
+                          { "min": 0, "max": 30000, "rate": 0.15 },
+                          { "min": 30001, "max": 100000, "rate": 0.28 },
+                          { "min": 100001, "max": null, "rate": 0.40 }
+                        ],
+                        "security": { "max_transaction": 1000000, "audit_enabled": true }
+                      }, null, 2);
+                    }
+                    try {
+                      const parsed = typeof cfg === 'string' ? JSON.parse(cfg.replace(/\\n/g, '\n')) : cfg;
+                      return JSON.stringify(parsed, null, 2);
+                    } catch {
+                      return cfg.replace(/\\n/g, '\n');
+                    }
+                  })()}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
                 />
