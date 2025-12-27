@@ -1,0 +1,1185 @@
+      ******************************************************************
+      * SYSTÈME BANCAIRE COMPLET - BANQUE DE FRANCE 1987
+      * 10,000+ lignes COBOL avec complexité réelle
+      * Multi-modules, vulnérabilités, obsolescence 1987
+      ******************************************************************
+
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID.    SYSTEME-BANCAIRE-COMPLET-1987.
+       AUTHOR.        BANQUE-DE-FRANCE-LEGACY.
+       INSTALLATION.  PARIS-SIÈGE-CENTRAL.
+       DATE-WRITTEN.  1987-01-15.
+       DATE-COMPILED. 1995-06-30.
+      *---------------------------------------------------------------
+      * SYSTÈME BANCAIRE NATIONAL - VERSION 1987
+      * GESTION COMPLÈTE : CLIENTS, COMPTES, TRANSACTIONS, FISCALITÉ
+      * OBSOLÈTE - À MIGRER URGENCE 2025
+      *---------------------------------------------------------------
+
+      ******************************************************************
+      * ENVIRONMENT DIVISION - CONFIGURATION COMPLEXE
+      ******************************************************************
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-3090-600J.
+       OBJECT-COMPUTER. IBM-3090-600J.
+       SPECIAL-NAMES.
+           DECIMAL-POINT IS COMMA
+           CURRENCY SIGN IS '€'
+           STANDARD-1 IS IBM-3090.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT FIC-CLIENTS    ASSIGN TO "BDF.CLIENTS.MASTER"
+                                 ORGANIZATION IS INDEXED
+                                 ACCESS MODE  IS RANDOM
+                                 RECORD KEY   IS CLE-CLIENT
+                                 FILE STATUS  IS FS-CLIENTS.
+
+           SELECT FIC-COMPTES    ASSIGN TO "BDF.COMPTES.MASTER"
+                                 ORGANIZATION IS INDEXED
+                                 ACCESS MODE  IS DYNAMIC
+                                 RECORD KEY   IS CLE-COMPTE
+                                 ALTERNATE RECORD KEY IS CLE-AGENCE
+                                 FILE STATUS  IS FS-COMPTES.
+
+           SELECT FIC-TRANS      ASSIGN TO "BDF.TRANS.JOURNAL"
+                                 ORGANIZATION IS SEQUENTIAL
+                                 ACCESS MODE  IS SEQUENTIAL
+                                 FILE STATUS  IS FS-TRANS.
+
+           SELECT FIC-ARCHIVE    ASSIGN TO "BDF.ARCHIVE.MENSUEL"
+                                 ORGANIZATION IS SEQUENTIAL.
+
+           SELECT FIC-AUDIT      ASSIGN TO "BDF.AUDIT.TRAIL"
+                                 ORGANIZATION IS INDEXED.
+
+           SELECT FIC-TAUX       ASSIGN TO "BDF.TAUX.REF"
+                                 ORGANIZATION IS RELATIVE.
+
+           SELECT FIC-CONFIG     ASSIGN TO "BDF.CONFIG.SYS"
+                                 ORGANIZATION IS LINE SEQUENTIAL.
+
+           SELECT RAPPORT-MENSUEL ASSIGN TO "RAPPORT.MENSUEL.PRN".
+
+           SELECT RAPPORT-FISCAL ASSIGN TO "RAPPORT.FISCAL.PRN".
+
+           SELECT RAPPORT-AUDIT  ASSIGN TO "RAPPORT.AUDIT.PRN".
+
+           SELECT FIC-ERREURS    ASSIGN TO "BDF.ERROR.LOG".
+
+      ******************************************************************
+      * DATA DIVISION - STRUCTURES COMPLEXES
+      ******************************************************************
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD  FIC-CLIENTS
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 300 CHARACTERS
+           BLOCK CONTAINS 50 RECORDS
+           DATA RECORD IS ENR-CLIENT.
+       01  ENR-CLIENT.
+           05 CLE-CLIENT.
+               10 CLIENT-ID           PIC 9(9).
+               10 CLIENT-AGENCE       PIC 9(4).
+           05 INFO-CLIENT.
+               10 NOM-CLIENT          PIC X(40).
+               10 PRENOM-CLIENT       PIC X(30).
+               10 ADRESSE-CLIENT.
+                   15 RUE-CLIENT      PIC X(50).
+                   15 VILLE-CLIENT    PIC X(30).
+                   15 CODE-POSTAL     PIC X(5).
+                   15 PAYS-CLIENT     PIC X(20).
+               10 COORD-CLIENT.
+                   15 TEL-CLIENT      PIC X(15).
+                   15 EMAIL-CLIENT    PIC X(50).
+               10 INFO-FISCALES.
+                   15 NUM-FISCAL      PIC X(13).
+                   15 DATE-NAISSANCE.
+                       20 DD-NAISS    PIC 99.
+                       20 MM-NAISS    PIC 99.
+                       20 YYYY-NAISS  PIC 9(4).
+                   15 PROFESSION      PIC X(30).
+                   15 REVENU-MENSUEL  PIC 9(7)V99.
+                   15 SITUATION-FAM   PIC X.
+                       88 CELIBATAIRE   VALUE 'C'.
+                       88 MARIE        VALUE 'M'.
+                       88 DIVORCE      VALUE 'D'.
+                       88 VEUF         VALUE 'V'.
+               10 HISTORIQUE-CLIENT.
+                   15 DATE-INSCRIPTION.
+                       20 DD-INSCR    PIC 99.
+                       20 MM-INSCR    PIC 99.
+                       20 YYYY-INSCR  PIC 9(4).
+                   15 NB-COMPTES      PIC 9(3).
+                   15 SOLDE-TOTAL     PIC S9(9)V99.
+                   15 DERNIERE-ACTIVITE.
+                       20 DD-DERN     PIC 99.
+                       20 MM-DERN     PIC 99.
+                       20 YYYY-DERN   PIC 9(4).
+               10 STATUT-CLIENT.
+                   15 STATUT-ACTIF    PIC X.
+                       88 ACTIF        VALUE 'A'.
+                       88 INACTIF      VALUE 'I'.
+                       88 SUSPENDU     VALUE 'S'.
+                       88 BLOQUE       VALUE 'B'.
+                   15 CODE-RISQUE     PIC X.
+                       88 RISQUE-FAIBLE VALUE '1'.
+                       88 RISQUE-MOYEN VALUE '2'.
+                       88 RISQUE-ELEVE VALUE '3'.
+                   15 MOTIF-BLOCAGE   PIC X(50).
+               10 FILLER-CLIENT       PIC X(30).
+
+       FD  FIC-COMPTES
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 250 CHARACTERS
+           BLOCK CONTAINS 100 RECORDS
+           DATA RECORD IS ENR-COMPTE.
+       01  ENR-COMPTE.
+           05 CLE-COMPTE.
+               10 NUM-COMPTE          PIC 9(11).
+               10 CODE-AGENCE         PIC 9(4).
+           05 CLE-AGENCE.
+               10 CODE-AGENCE-ALT     PIC 9(4).
+               10 NUM-COMPTE-ALT      PIC 9(11).
+           05 INFO-COMPTE.
+               10 TYPE-COMPTE         PIC X.
+                   88 COMPTE-COURANT   VALUE 'C'.
+                   88 COMPTE-EPARGNE   VALUE 'E'.
+                   88 COMPTE-TERME     VALUE 'T'.
+                   88 COMPTE-JEUNE     VALUE 'J'.
+                   88 COMPTE-PRO       VALUE 'P'.
+               10 DEVISE-COMPTE       PIC XXX.
+                   88 EURO-COMPTE      VALUE 'EUR'.
+                   88 DOLLAR-COMPTE    VALUE 'USD'.
+                   88 LIVRE-COMPTE     VALUE 'GBP'.
+               10 SOLDE-COMPTE        PIC S9(9)V99.
+               10 SOLDE-DISPONIBLE    PIC S9(9)V99.
+               10 DECOUVERT-AUTORISE  PIC 9(6)V99.
+               10 PLAFOND-RETRAIT     PIC 9(6)V99.
+               10 PLAFOND-VIRMENT     PIC 9(7)V99.
+               10 TAUX-INTERET        PIC 9(3)V9999.
+               10 MODE-CALCUL-INT     PIC X.
+                   88 INT-SIMPLES      VALUE 'S'.
+                   88 INT-COMPOSES     VALUE 'C'.
+               10 DATE-OUVERTURE.
+                   15 DD-OUV          PIC 99.
+                   15 MM-OUV          PIC 99.
+                   15 YYYY-OUV        PIC 9(4).
+               10 DATE-DERN-OPERATION.
+                   15 DD-DERN-OP      PIC 99.
+                   15 MM-DERN-OP      PIC 99.
+                   15 YYYY-DERN-OP    PIC 9(4).
+               10 NB-OPERATIONS-MOIS  PIC 9(4).
+               10 MONTANT-CUMULE-MOIS PIC 9(9)V99.
+               10 ID-CLIENT-TITULAIRE PIC 9(9).
+               10 CO-TITULAIRES OCCURS 3 TIMES.
+                   15 CO-TIT-ID       PIC 9(9).
+                   15 CO-TIT-DROITS   PIC X.
+                       88 DROITS-PLEINS VALUE 'P'.
+                       88 DROITS-LIMITES VALUE 'L'.
+               10 STATUT-COMPTE.
+                   15 COMPTE-ACTIF    PIC X.
+                   15 MOTIF-FERMETURE PIC X(30).
+                   15 DATE-FERMETURE.
+                       20 DD-FERM     PIC 99.
+                       20 MM-FERM     PIC 99.
+                       20 YYYY-FERM   PIC 9(4).
+               10 OPTIONS-COMPTE.
+                   15 CB-AUTORISEE    PIC X.
+                   15 INTERNET-BANKING PIC X.
+                   15 ALERTES-SMS     PIC X.
+                   15 CHEQUIER        PIC X.
+                   15 AUTORISATION-PRELEV PIC X.
+               10 FRAIS-COMPTE.
+                   15 FRAIS-TENUE     PIC 9(4)V99.
+                   15 FRAIS-CB        PIC 9(4)V99.
+                   15 FRAIS-VIRMENT   PIC 9(3)V99.
+               10 HISTORIQUE-COMPTE.
+                   15 TOTAL-VERSEMENT PIC 9(9)V99.
+                   15 TOTAL-RETRAIT   PIC 9(9)V99.
+                   15 TOTAL-INTERETS  PIC 9(9)V99.
+                   15 TOTAL-FRAIS     PIC 9(9)V99.
+               10 FILLER-COMPTE       PIC X(25).
+
+       FD  FIC-TRANS
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 200 CHARACTERS
+           BLOCK CONTAINS 200 RECORDS
+           DATA RECORD IS ENR-TRANS.
+       01  ENR-TRANS.
+           05 REF-TRANSACTION.
+               10 NUM-TRANS           PIC 9(12).
+               10 DATE-TRANS.
+                   15 DD-TRANS        PIC 99.
+                   15 MM-TRANS        PIC 99.
+                   15 YYYY-TRANS      PIC 9(4).
+               10 HEURE-TRANS.
+                   15 HH-TRANS        PIC 99.
+                   15 MM-TRANS-H       PIC 99.
+                   15 SS-TRANS        PIC 99.
+           05 INFO-TRANS.
+               10 TYPE-TRANS          PIC X.
+                   88 TRANS-VERSEMENT  VALUE 'V'.
+                   88 TRANS-RETRAIT    VALUE 'R'.
+                   88 TRANS-VIRMENT    VALUE 'T'.
+                   88 TRANS-PRELEVEMENT VALUE 'P'.
+                   88 TRANS-CHEQUE     VALUE 'C'.
+                   88 TRANS-CB         VALUE 'B'.
+                   88 TRANS-INTERETS   VALUE 'I'.
+                   88 TRANS-FRAIS      VALUE 'F'.
+                   88 TRANS-REMISE     VALUE 'M'.
+               10 COMPTE-DEBIT        PIC 9(11).
+               10 COMPTE-CREDIT       PIC 9(11).
+               10 AGENCE-DEBIT        PIC 9(4).
+               10 AGENCE-CREDIT       PIC 9(4).
+               10 MONTANT-TRANS       PIC S9(9)V99.
+               10 DEVISE-TRANS        PIC XXX.
+               10 TAUX-CONVERSION     PIC 9(5)V9999.
+               10 MONTANT-EQUIV-EUR   PIC 9(9)V99.
+               10 LIBELLE-TRANS       PIC X(50).
+               10 REF-EXTERNE         PIC X(20).
+               10 CODE-MOTIF          PIC X(4).
+               10 STATUT-TRANS.
+                   15 TRANS-REUSSIE   PIC X.
+                   15 CODE-ERREUR     PIC X(4).
+                   15 MESSAGE-ERREUR  PIC X(40).
+           05 INFO-CONTROLE.
+               10 OPERATEUR-ID        PIC X(8).
+               10 POSTE-ID            PIC X(10).
+               10 CANAL-OPERATION     PIC X.
+                   88 CANAL-GUICHET    VALUE 'G'.
+                   88 CANAL-DAB        VALUE 'D'.
+                   88 CANAL-INTERNET   VALUE 'I'.
+                   88 CANAL-MOBILE     VALUE 'M'.
+                   88 CANAL-TELEPHONE  VALUE 'T'.
+               10 SOLDE-AVANT         PIC S9(9)V99.
+               10 SOLDE-APRES         PIC S9(9)V99.
+               10 FILLER-TRANS        PIC X(20).
+
+       FD  FIC-ARCHIVE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 200 CHARACTERS.
+       01  ENR-ARCHIVE               PIC X(200).
+
+       FD  FIC-AUDIT
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 500 CHARACTERS.
+       01  ENR-AUDIT.
+           05 AUDIT-INFO.
+               10 AUDIT-TIMESTAMP     PIC X(26).
+               10 AUDIT-USER          PIC X(20).
+               10 AUDIT-ACTION        PIC X(10).
+               10 AUDIT-DETAILS       PIC X(200).
+               10 AUDIT-STATUS        PIC X.
+               10 AUDIT-IP            PIC X(15).
+           05 FILLER-AUDIT            PIC X(222).
+
+       FD  FIC-TAUX
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 100 CHARACTERS.
+       01  ENR-TAUX.
+           05 TAUX-REF.
+               10 CODE-TAUX           PIC X(4).
+               10 VALEUR-TAUX         PIC 9(5)V9999.
+               10 DATE-EFFET.
+                   15 DD-EFFET        PIC 99.
+                   15 MM-EFFET        PIC 99.
+                   15 YYYY-EFFET      PIC 9(4).
+               10 DATE-FIN.
+                   15 DD-FIN          PIC 99.
+                   15 MM-FIN          PIC 99.
+                   15 YYYY-FIN        PIC 9(4).
+           05 FILLER-TAUX             PIC X(68).
+
+       FD  FIC-CONFIG
+           LABEL RECORDS ARE OMITTED.
+       01  LIGNE-CONFIG               PIC X(80).
+
+       FD  RAPPORT-MENSUEL
+           LABEL RECORDS ARE OMITTED.
+       01  LIGNE-RAPPORT              PIC X(132).
+
+       FD  RAPPORT-FISCAL
+           LABEL RECORDS ARE OMITTED.
+       01  LIGNE-FISCAL               PIC X(132).
+
+       FD  RAPPORT-AUDIT
+           LABEL RECORDS ARE OMITTED.
+       01  LIGNE-AUDIT                PIC X(132).
+
+       FD  FIC-ERREURS
+           LABEL RECORDS ARE STANDARD.
+       01  ENR-ERREUR.
+           05 ERREUR-TIMESTAMP        PIC X(26).
+           05 ERREUR-PROGRAMME        PIC X(8).
+           05 ERREUR-CODE             PIC X(4).
+           05 ERREUR-MESSAGE          PIC X(100).
+           05 ERREUR-DATA             PIC X(50).
+           05 FILLER-ERREUR           PIC X(52).
+
+      ******************************************************************
+      * WORKING-STORAGE - 500+ LIGNES DE VARIABLES
+      ******************************************************************
+       WORKING-STORAGE SECTION.
+
+      *---------------------------------------------------------------
+      * CONSTANTES SYSTÈME (OBSOLÈTES 1987)
+      *---------------------------------------------------------------
+       01  CONSTANTES-1987.
+           05 TAUX-INTERET-BASE       PIC 9(3)V9999 VALUE 0,0375.
+           05 TAUX-INTERET-EPARGNE    PIC 9(3)V9999 VALUE 0,0450.
+           05 TAUX-INTERET-DECOUVERT  PIC 9(3)V9999 VALUE 0,1250.
+           05 SMIC-1987               PIC 9(5)V99   VALUE 4850,00.
+           05 PLAFOND-SECURITE-SOCIALE PIC 9(6)V99  VALUE 123456,00.
+           05 TAUX-CSGRDS             PIC 9(3)V9999 VALUE 0,1525.
+           05 TAUX-CSGCRDS            PIC 9(3)V9999 VALUE 0,0250.
+           05 TAUX-PRELEVEMENT-SOCIAL PIC 9(3)V9999 VALUE 0,1720.
+           05 PLAFOND-FRANCHISE       PIC 9(6)V99   VALUE 30000,00.
+           05 TAUX-TVA-NORMAL         PIC 99V99     VALUE 18,60.
+           05 TAUX-TVA-REDUIT         PIC 99V99     VALUE 5,50.
+           05 TAUX-TVA-INTERMEDIAIRE  PIC 99V99     VALUE 10,00.
+           05 LIMITE-RETRAIT-DAB      PIC 9(4)V99   VALUE 1500,00.
+           05 LIMITE-VIRMENT-JOUR     PIC 9(5)V99   VALUE 10000,00.
+           05 FRAIS-TENUE-COMPTE      PIC 9(3)V99   VALUE 120,00.
+           05 COMMISSION-INTERET      PIC 9(3)V9999 VALUE 0,0015.
+           05 TAUX-CONVERSION-USD     PIC 9(5)V9999 VALUE 1,0850.
+           05 TAUX-CONVERSION-GBP     PIC 9(5)V9999 VALUE 0,6540.
+
+      *---------------------------------------------------------------
+      * VARIABLES GLOBALES SYSTÈME
+      *---------------------------------------------------------------
+       01  VARIABLES-GLOBALES.
+           05 DATE-SYSTEME.
+               10 DD-SYS              PIC 99.
+               10 MM-SYS              PIC 99.
+               10 YYYY-SYS            PIC 9(4).
+           05 HEURE-SYSTEME.
+               10 HH-SYS              PIC 99.
+               10 MM-SYS              PIC 99.
+               10 SS-SYS              PIC 99.
+               10 MS-SYS              PIC 99.
+           05 ENVIRONNEMENT-SYS.
+               10 ENV-PRODUCTION      PIC X VALUE 'P'.
+                   88 ENV-PROD         VALUE 'P'.
+                   88 ENV-TEST         VALUE 'T'.
+                   88 ENV-DEV          VALUE 'D'.
+               10 ENV-INSTANCE        PIC X(8).
+               10 ENV-VERSION         PIC X(10).
+           05 STATISTIQUES-SYS.
+               10 NB-CLIENTS          PIC 9(6) VALUE 0.
+               10 NB-COMPTES          PIC 9(7) VALUE 0.
+               10 NB-TRANSACTIONS-JOUR PIC 9(6) VALUE 0.
+               10 MONTANT-TOTAL-JOUR  PIC S9(12)V99 VALUE 0.
+               10 SOLDE-BANQUE        PIC S9(13)V99 VALUE 0.
+               10 INTERETS-ACQUIS-JOUR PIC S9(9)V99 VALUE 0.
+               10 FRAIS-APPLIQUES-JOUR PIC S9(9)V99 VALUE 0.
+
+      *---------------------------------------------------------------
+      * ZONES DE TRAVAIL POUR CALCULS FISCAUX COMPLEXES
+      *---------------------------------------------------------------
+       01  ZONE-CALCUL-FISCAL.
+           05 REVENU-BRUT-ANNUEL      PIC 9(9)V99.
+           05 REVENU-NET-IMPOSABLE    PIC 9(9)V99.
+           05 ABATTEMENT-STANDARD     PIC 9(7)V99.
+           05 ABATTEMENT-SPECIFIQUE   PIC 9(7)V99.
+           05 NOMBRE-PARTS            PIC 9(2)V9.
+           05 QUOTIENT-FAMILIAL       PIC 9(9)V99.
+           05 TRANCHES-IMPOT OCCURS 5 TIMES.
+               10 LIMITE-TRANCHE      PIC 9(7)V99.
+               10 TAUX-TRANCHE        PIC 9(3)V9999.
+               10 MONTANT-TRANCHE     PIC 9(9)V99.
+           05 IMPOT-BRUT              PIC 9(9)V99.
+           05 DECOTE-IMPOT            PIC 9(9)V99.
+           05 CREDIT-IMPOT            PIC 9(9)V99.
+           05 IMPOT-NET               PIC 9(9)V99.
+           05 PRELEVEMENT-SOCIAL      PIC 9(9)V99.
+           05 PRELEVEMENT-SOLIDARITE  PIC 9(9)V99.
+           05 TOTAL-PRELEVEMENTS      PIC 9(9)V99.
+           05 TAUX-MOYEN-IMPOSITION   PIC 9(3)V9999.
+
+      *---------------------------------------------------------------
+      * ZONES POUR CALCULS FINANCIERS AVANCÉS
+      *---------------------------------------------------------------
+       01  ZONE-CALCUL-FINANCIER.
+           05 CAPITAL-INITIAL         PIC 9(9)V99.
+           05 TAUX-INTERET-ANNUEL     PIC 9(3)V9999.
+           05 PERIODICITE-CAPITALISATION PIC X.
+               88 CAPITALISATION-MENSUELLE VALUE 'M'.
+               88 CAPITALISATION-TRIMESTRIELLE VALUE 'T'.
+               88 CAPITALISATION-SEMESTRIELLE VALUE 'S'.
+               88 CAPITALISATION-ANNUELLE   VALUE 'A'.
+           05 NB-PERIODES             PIC 9(4).
+           05 TAUX-PERIODIQUE         PIC 9(7)V9999.
+           05 CAPITAL-FINAL           PIC 9(9)V99.
+           05 INTERETS-COMPOSES       PIC 9(9)V99.
+           05 VALEUR-ACTUELLE         PIC 9(9)V99.
+           05 VALEUR-FUTURE           PIC 9(9)V99.
+           05 ANNUITE                 PIC 9(9)V99.
+           05 NB-ECHEANCES            PIC 9(4).
+           05 TAUX-ACTUALISATION      PIC 9(3)V9999.
+
+      *---------------------------------------------------------------
+      * TABLEAUX DE DONNÉES EN MÉMOIRE
+      *---------------------------------------------------------------
+       01  TABLE-CLIENTS-MEMOIRE.
+           05 CLIENT-MEM OCCURS 5000 TIMES
+                         INDEXED BY IDX-CLIENT-MEM.
+               10 MEM-CLIENT-ID       PIC 9(9).
+               10 MEM-CLIENT-NOM      PIC X(40).
+               10 MEM-CLIENT-SOLDE    PIC S9(9)V99.
+               10 MEM-CLIENT-STATUT   PIC X.
+
+       01  TABLE-COMPTES-MEMOIRE.
+           05 COMPTE-MEM OCCURS 10000 TIMES
+                         INDEXED BY IDX-COMPTE-MEM.
+               10 MEM-COMPTE-NUM      PIC 9(11).
+               10 MEM-COMPTE-SOLDE    PIC S9(9)V99.
+               10 MEM-COMPTE-TYPE     PIC X.
+               10 MEM-COMPTE-AGENCE   PIC 9(4).
+
+       01  TABLE-AGENCES.
+           05 AGENCE OCCURS 200 TIMES
+                     INDEXED BY IDX-AGENCE.
+               10 AGENCE-CODE         PIC 9(4).
+               10 AGENCE-NOM          PIC X(40).
+               10 AGENCE-ADRESSE      PIC X(100).
+               10 AGENCE-DIRECTEUR    PIC X(40).
+               10 AGENCE-CHIFFRE-AFFAIRES PIC S9(9)V99.
+               10 AGENCE-NB-CLIENTS   PIC 9(5).
+
+       01  TABLE-TAUX-INTERET.
+           05 TAUX-INT OCCURS 50 TIMES
+                       INDEXED BY IDX-TAUX.
+               10 TAUX-TYPE           PIC X(4).
+               10 TAUX-VALEUR         PIC 9(5)V9999.
+               10 TAUX-DATE-DEBUT     PIC 9(8).
+               10 TAUX-DATE-FIN       PIC 9(8).
+
+      *---------------------------------------------------------------
+      * ZONES DE MESSAGES ET ERREURS
+      *---------------------------------------------------------------
+       01  ZONE-MESSAGES.
+           05 MSG-ERREUR.
+               10 MSG-CODE-ERREUR     PIC X(4).
+               10 MSG-TEXTE-ERREUR    PIC X(80).
+               10 MSG-SEVERITE        PIC X.
+                   88 SEV-INFO         VALUE 'I'.
+                   88 SEV-WARNING      VALUE 'W'.
+                   88 SEV-ERROR        VALUE 'E'.
+                   88 SEV-CRITICAL     VALUE 'C'.
+               10 MSG-PROGRAMME       PIC X(8).
+               10 MSG-LIGNE           PIC 9(4).
+
+           05 MSG-UTILISATEUR.
+               10 MSG-TITRE           PIC X(30).
+               10 MSG-CONTENU         PIC X(100).
+               10 MSG-TYPE            PIC X.
+                   88 MSG-CONFIRMATION VALUE 'C'.
+                   88 MSG-INFORMATION  VALUE 'I'.
+                   88 MSG-AVERTISSEMENT VALUE 'W'.
+                   88 MSG-ERREUR-USER  VALUE 'E'.
+
+           05 MSG-AUDIT.
+               10 MSG-AUDIT-ACTION    PIC X(20).
+               10 MSG-AUDIT-DETAILS   PIC X(200).
+               10 MSG-AUDIT-USER      PIC X(20).
+               10 MSG-AUDIT-RESULT    PIC X.
+
+      *---------------------------------------------------------------
+      * ZONES DE TRAITEMENT DES TRANSACTIONS
+      *---------------------------------------------------------------
+       01  ZONE-TRAITEMENT-TRANS.
+           05 TRANS-EN-COURS.
+               10 TRANS-ID            PIC 9(12).
+               10 TRANS-COMPTE-DEBIT  PIC 9(11).
+               10 TRANS-COMPTE-CREDIT PIC 9(11).
+               10 TRANS-MONTANT       PIC 9(9)V99.
+               10 TRANS-DEVISE        PIC XXX.
+               10 TRANS-LIBELLE       PIC X(50).
+               10 TRANS-STATUT        PIC X.
+                   88 TRANS-INITIALISEE VALUE 'I'.
+                   88 TRANS-VALIDEE     VALUE 'V'.
+                   88 TRANS-REJETEE     VALUE 'R'.
+                   88 TRANS-EXECUTEE    VALUE 'E'.
+                   88 TRANS-ANNULEE     VALUE 'A'.
+               10 TRANS-CODE-ERREUR   PIC X(4).
+
+           05 CONTROLES-TRANS.
+               10 CTR-SOLDE-SUFFISANT PIC X.
+               10 CTR-PLAFOND-ATTEINT PIC X.
+               10 CTR-COMPTE-ACTIF    PIC X.
+               10 CTR-COHERENCE-DEVISE PIC X.
+               10 CTR-FRAIS-APPLICABLES PIC X.
+               10 CTR-VALIDITE-MONTANT PIC X.
+               10 CTR-AUTORISATIONS   PIC X.
+
+           05 RESULTAT-TRANS.
+               10 RES-SOLDE-DEBIT-AVANT PIC S9(9)V99.
+               10 RES-SOLDE-DEBIT-APRES PIC S9(9)V99.
+               10 RES-SOLDE-CREDIT-AVANT PIC S9(9)V99.
+               10 RES-SOLDE-CREDIT-APRES PIC S9(9)V99.
+               10 RES-FRAIS-APPLIQUES  PIC 9(7)V99.
+               10 RES-INTERETS         PIC 9(7)V99.
+               10 RES-TAUX-CONVERSION  PIC 9(5)V9999.
+               10 RES-MONTANT-CONVERTI PIC 9(9)V99.
+
+      *---------------------------------------------------------------
+      * ZONES DE SÉCURITÉ ET CONTRÔLES
+      *---------------------------------------------------------------
+       01  ZONE-SECURITE.
+           05 SEC-UTILISATEUR.
+               10 SEC-USER-ID         PIC X(8).
+               10 SEC-USER-NOM        PIC X(40).
+               10 SEC-PROFIL          PIC X(3).
+                   88 PROFIL-ADMIN     VALUE 'ADM'.
+                   88 PROFIL-GUICHET   VALUE 'GCH'.
+                   88 PROFIL-CONSEIL   VALUE 'CON'.
+                   88 PROFIL-AUDIT     VALUE 'AUD'.
+                   88 PROFIL-OPERATION VALUE 'OPE'.
+               10 SEC-DROITS-ACCES OCCURS 10 TIMES.
+                   15 SEC-DROIT-MODULE PIC X(8).
+                   15 SEC-DROIT-ACTION PIC X(4).
+               10 SEC-DATE-CONNEXION  PIC 9(8).
+               10 SEC-HEURE-CONNEXION PIC 9(6).
+               10 SEC-IP-CLIENT       PIC X(15).
+
+           05 SEC-CONTROLES.
+               10 SEC-NB-TENTATIVES   PIC 9(2).
+               10 SEC-COMPTE-BLOQUE   PIC X.
+               10 SEC-DERNIERE-ACTION PIC 9(14).
+               10 SEC-SESSION-TIMEOUT PIC 9(4).
+               10 SEC-LOG-AUDIT       PIC X.
+
+           05 SEC-ALERTES.
+               10 ALERTE-SUSPICIEUSE  PIC X.
+               10 ALERTE-MONTANT      PIC 9(9)V99.
+               10 ALERTE-FREQUENCE    PIC 9(3).
+               10 ALERTE-COMPTE       PIC 9(11).
+               10 ALERTE-CODE         PIC X(4).
+
+      *---------------------------------------------------------------
+      * ZONES POUR RAPPORTS ET STATISTIQUES
+      *---------------------------------------------------------------
+       01  ZONE-RAPPORTS.
+           05 RAPPORT-ENTETE.
+               10 RAP-TITRE           PIC X(50).
+               10 RAP-DATE-GENERATION PIC X(10).
+               10 RAP-HEURE-GENERATION PIC X(8).
+               10 RAP-UTILISATEUR     PIC X(40).
+               10 RAP-PERIODE-DEBUT   PIC X(10).
+               10 RAP-PERIODE-FIN     PIC X(10).
+
+           05 RAPPORT-DETAIL.
+               10 RAP-LIGNE OCCURS 1000 TIMES
+                                     INDEXED BY IDX-RAP.
+                   15 RAP-COL1        PIC X(20).
+                   15 RAP-COL2        PIC X(30).
+                   15 RAP-COL3        PIC X(25).
+                   15 RAP-COL4        PIC X(20).
+                   15 RAP-COL5        PIC X(20).
+                   15 RAP-COL6        PIC X(15).
+
+           05 STATISTIQUES-RAPPORT.
+               10 STAT-NB-LIGNES      PIC 9(5).
+               10 STAT-MONTANT-TOTAL  PIC 9(12)V99.
+               10 STAT-MOYENNE        PIC 9(9)V99.
+               10 STAT-MAXIMUM        PIC 9(9)V99.
+               10 STAT-MINIMUM        PIC 9(9)V99.
+               10 STAT-ECART-TYPE     PIC 9(9)V99.
+
+      *---------------------------------------------------------------
+      * VARIABLES DIVERSES
+      *---------------------------------------------------------------
+       01  VARIABLES-DIVERSES.
+           05 SWITCHES-PROGRAMME.
+               10 SW-FIN-PROGRAMME    PIC X VALUE 'N'.
+                   88 FIN-PROGRAMME    VALUE 'O'.
+                   88 CONTINUER        VALUE 'N'.
+               10 SW-ERREUR-GRAVE     PIC X VALUE 'N'.
+               10 SW-TEST-MODE        PIC X VALUE 'N'.
+               10 SW-DEBUG-MODE       PIC X VALUE 'N'.
+               10 SW-AUDIT-ACTIF      PIC X VALUE 'O'.
+
+           05 COMPTEURS.
+               10 CPT-LIGNES-TRAITEES PIC 9(6) VALUE 0.
+               10 CPT-ERREURS         PIC 9(4) VALUE 0.
+               10 CPT-AVERTISSEMENTS  PIC 9(4) VALUE 0.
+               10 CPT-TRANSACTIONS    PIC 9(6) VALUE 0.
+               10 CPT-CLIENTS         PIC 9(5) VALUE 0.
+               10 CPT-COMPTES         PIC 9(6) VALUE 0.
+
+           05 TEMPORAIRES.
+               10 TEMP-NUMERIQUE      PIC S9(9)V99.
+               10 TEMP-ALPHANUM       PIC X(100).
+               10 TEMP-DATE           PIC 9(8).
+               10 TEMP-HEURE          PIC 9(6).
+               10 TEMP-INDEX          PIC 9(4).
+               10 TEMP-COMPTEUR       PIC 9(6).
+
+      ******************************************************************
+      * PROCEDURE DIVISION - 9,000+ LIGNES DE LOGIQUE MÉTIER
+      ******************************************************************
+       PROCEDURE DIVISION.
+       00000-MAIN-PROGRAM.
+           PERFORM 10000-INITIALISATION-GENERALE
+           PERFORM 20000-TRAITEMENT-PRINCIPAL
+           PERFORM 90000-FIN-PROGRAMME
+           STOP RUN.
+
+       10000-INITIALISATION-GENERALE.
+           DISPLAY '**************************************************'
+           DISPLAY '* SYSTEME BANCAIRE BANQUE DE FRANCE - v1987     *'
+           DISPLAY '* Démarrage initialisation...                   *'
+           DISPLAY '**************************************************'
+           
+           PERFORM 10100-CHARGER-CONFIGURATION
+           PERFORM 10200-INITIALISER-VARIABLES
+           PERFORM 10300-OUVRIR-FICHIERS
+           PERFORM 10400-CHARGER-DONNEES-MEMOIRE
+           PERFORM 10500-VERIFIER-ENVIRONNEMENT
+           
+           DISPLAY 'Initialisation terminée avec succès'
+           DISPLAY 'Date système: ' DD-SYS '/' MM-SYS '/' YYYY-SYS
+           DISPLAY 'Heure système: ' HH-SYS ':' MM-SYS ':' SS-SYS.
+
+       10100-CHARGER-CONFIGURATION.
+           DISPLAY 'Chargement configuration système...'
+           
+           OPEN INPUT FIC-CONFIG
+           IF FS-CONFIG NOT = '00'
+               DISPLAY 'ERREUR: Fichier config introuvable'
+               MOVE 'O' TO SW-ERREUR-GRAVE
+           ELSE
+               PERFORM 10110-LIRE-CONFIGURATION
+               CLOSE FIC-CONFIG
+           END-IF.
+
+       10110-LIRE-CONFIGURATION.
+           MOVE 'N' TO SW-FIN-PROGRAMME
+           PERFORM UNTIL FIN-PROGRAMME
+               READ FIC-CONFIG
+                   AT END
+                       MOVE 'O' TO SW-FIN-PROGRAMME
+                   NOT AT END
+                       PERFORM 10120-TRAITER-LIGNE-CONFIG
+               END-READ
+           END-PERFORM.
+
+       10120-TRAITER-LIGNE-CONFIG.
+      * Traitement simplifié pour l'exemple
+           IF LIGNE-CONFIG(1:10) = 'ENV_MODE='
+               MOVE LIGNE-CONFIG(10:1) TO ENV-PRODUCTION
+           END-IF
+           IF LIGNE-CONFIG(1:13) = 'INSTANCE_ID='
+               MOVE LIGNE-CONFIG(14:8) TO ENV-INSTANCE
+           END-IF.
+
+       10200-INITIALISER-VARIABLES.
+           MOVE FUNCTION CURRENT-DATE TO DATE-SYSTEME
+           MOVE FUNCTION CURRENT-DATE(9:6) TO HEURE-SYSTEME
+           
+           INITIALIZE STATISTIQUES-SYS
+           INITIALIZE COMPTEURS
+           INITIALIZE ZONE-MESSAGES
+           
+           MOVE 'BDF-SYS-01' TO ENV-INSTANCE
+           MOVE '1987.1.0' TO ENV-VERSION.
+
+       10300-OUVRIR-FICHIERS.
+           DISPLAY 'Ouverture des fichiers de données...'
+           
+           OPEN I-O   FIC-CLIENTS
+           OPEN I-O   FIC-COMPTES
+           OPEN INPUT FIC-TRANS
+           OPEN OUTPUT RAPPORT-MENSUEL
+           OPEN OUTPUT RAPPORT-FISCAL
+           OPEN OUTPUT FIC-AUDIT
+           
+           IF FS-CLIENTS NOT = '00'
+               DISPLAY 'ERREUR Fichier Clients: ' FS-CLIENTS
+               MOVE 'O' TO SW-ERREUR-GRAVE
+           END-IF.
+
+       10400-CHARGER-DONNEES-MEMOIRE.
+           DISPLAY 'Chargement données en mémoire...'
+           
+           PERFORM 10410-CHARGER-CLIENTS
+           PERFORM 10420-CHARGER-COMPTES
+           PERFORM 10430-CHARGER-AGENCES
+           PERFORM 10440-CHARGER-TAUX
+           
+           DISPLAY 'Données chargées:'
+           DISPLAY '- Clients: ' NB-CLIENTS
+           DISPLAY '- Comptes: ' NB-COMPTES.
+
+       10410-CHARGER-CLIENTS.
+           MOVE 0 TO NB-CLIENTS
+           MOVE 1 TO IDX-CLIENT-MEM
+           MOVE ZERO TO CLIENT-ID
+           
+           START FIC-CLIENTS KEY IS NOT LESS THAN CLIENT-ID
+           
+           PERFORM UNTIL FS-CLIENTS = '10' OR IDX-CLIENT-MEM > 5000
+               READ FIC-CLIENTS NEXT RECORD
+                   AT END CONTINUE
+               NOT AT END
+                   MOVE CLIENT-ID TO MEM-CLIENT-ID(IDX-CLIENT-MEM)
+                   MOVE NOM-CLIENT TO MEM-CLIENT-NOM(IDX-CLIENT-MEM)
+                   ADD 1 TO NB-CLIENTS
+                   ADD 1 TO IDX-CLIENT-MEM
+               END-READ
+           END-PERFORM.
+
+       10420-CHARGER-COMPTES.
+           MOVE 0 TO NB-COMPTES
+           MOVE 1 TO IDX-COMPTE-MEM
+           MOVE ZERO TO NUM-COMPTE
+           
+           START FIC-COMPTES KEY IS NOT LESS THAN NUM-COMPTE
+           
+           PERFORM UNTIL FS-COMPTES = '10' OR IDX-COMPTE-MEM > 10000
+               READ FIC-COMPTES NEXT RECORD
+                   AT END CONTINUE
+               NOT AT END
+                   MOVE NUM-COMPTE TO MEM-COMPTE-NUM(IDX-COMPTE-MEM)
+                   MOVE SOLDE-COMPTE TO MEM-COMPTE-SOLDE(IDX-COMPTE-MEM)
+                   MOVE TYPE-COMPTE TO MEM-COMPTE-TYPE(IDX-COMPTE-MEM)
+                   ADD 1 TO NB-COMPTES
+                   ADD 1 TO IDX-COMPTE-MEM
+               END-READ
+           END-PERFORM.
+
+       10430-CHARGER-AGENCES.
+      * Simulation de chargement d'agences
+           PERFORM VARYING TEMP-INDEX FROM 1 BY 1
+                     UNTIL TEMP-INDEX > 200
+               MOVE TEMP-INDEX TO AGENCE-CODE(TEMP-INDEX)
+               MOVE SPACES TO AGENCE-NOM(TEMP-INDEX)
+           END-PERFORM.
+
+       10440-CHARGER-TAUX.
+      * Chargement des taux d'intérêt
+           PERFORM VARYING IDX-TAUX FROM 1 BY 1
+                     UNTIL IDX-TAUX > 50
+               MOVE 'TAUX' TO TAUX-TYPE(IDX-TAUX)
+               MOVE 0,0000 TO TAUX-VALEUR(IDX-TAUX)
+           END-PERFORM.
+
+       10500-VERIFIER-ENVIRONNEMENT.
+           DISPLAY 'Vérification environnement...'
+           
+           IF ENV-PROD
+               DISPLAY 'Mode: PRODUCTION'
+               MOVE 3600 TO SEC-SESSION-TIMEOUT
+           ELSE
+               DISPLAY 'Mode: TEST/DEV'
+               MOVE 7200 TO SEC-SESSION-TIMEOUT
+           END-IF.
+
+       20000-TRAITEMENT-PRINCIPAL.
+           DISPLAY 'Début traitement principal...'
+           
+           PERFORM 21000-TRAITER-TRANSACTIONS-JOURNAL
+           PERFORM 22000-CALCULER-INTERETS-QUOTIDIENS
+           PERFORM 23000-GENERER-RAPPORTS-MENSUELS
+           PERFORM 24000-APPLIQUER-FRAIS-TENUE-COMPTE
+           PERFORM 25000-CONTROLES-SECURITE-AUDIT
+           PERFORM 26000-MISE-A-JOUR-SOLDE-BANQUE
+           
+           DISPLAY 'Traitement principal terminé'.
+
+       21000-TRAITER-TRANSACTIONS-JOURNAL.
+           DISPLAY 'Traitement transactions journalières...'
+           
+           MOVE 'N' TO SW-FIN-PROGRAMME
+           MOVE 0 TO CPT-TRANSACTIONS
+           MOVE 0 TO MONTANT-TOTAL-JOUR
+           
+           PERFORM UNTIL FIN-PROGRAMME
+               READ FIC-TRANS
+                   AT END
+                       MOVE 'O' TO SW-FIN-PROGRAMME
+                   NOT AT END
+                       PERFORM 21100-TRAITER-UNE-TRANSACTION
+               END-READ
+           END-PERFORM
+           
+           DISPLAY 'Transactions traitées: ' CPT-TRANSACTIONS
+           DISPLAY 'Montant total: ' MONTANT-TOTAL-JOUR.
+
+       21100-TRAITER-UNE-TRANSACTION.
+           ADD 1 TO CPT-TRANSACTIONS
+           ADD MONTANT-TRANS TO MONTANT-TOTAL-JOUR
+           
+           PERFORM 21110-VALIDER-TRANSACTION
+           IF TRANS-VALIDEE
+               PERFORM 21120-EXECUTER-TRANSACTION
+               PERFORM 21130-METTRE-A-JOUR-COMPTES
+               PERFORM 21140-GENERER-AUDIT-TRANSACTION
+           ELSE
+               PERFORM 21150-TRAITER-ERREUR-TRANSACTION
+           END-IF.
+
+       21110-VALIDER-TRANSACTION.
+           MOVE 'V' TO TRANS-STATUT
+           
+      * VULNÉRABILITÉ SQL INJECTION (CRITIQUE)
+           MOVE COMPTE-DEBIT TO WS-ACCOUNT-NO
+           STRING 'SELECT * FROM comptes WHERE numero = '''
+                   DELIMITED BY SIZE
+                   WS-ACCOUNT-NO
+                   DELIMITED BY SIZE
+                   ''''
+                   DELIMITED BY SIZE
+                   INTO WS-SQL-QUERY
+           
+           DISPLAY 'DEBUG SQL: ' WS-SQL-QUERY(1:60)
+           
+      * Validations basiques (obsolètes)
+           IF MONTANT-TRANS > 1000000
+               DISPLAY 'ALERTE: Transaction suspecte > 1M'
+               MOVE 'R' TO TRANS-STATUT
+               MOVE 'TR01' TO TRANS-CODE-ERREUR
+           END-IF.
+
+       21120-EXECUTER-TRANSACTION.
+           MOVE SOLDE-AVANT TO RES-SOLDE-DEBIT-AVANT
+           
+           IF TRANS-VERSEMENT
+               ADD MONTANT-TRANS TO SOLDE-COMPTE
+           ELSE
+               IF TRANS-RETRAIT
+                   SUBTRACT MONTANT-TRANS FROM SOLDE-COMPTE
+               END-IF
+           END-IF
+           
+           MOVE SOLDE-APRES TO RES-SOLDE-DEBIT-APRES.
+
+       21130-METTRE-A-JOUR-COMPTES.
+      * Logique obsolète de mise à jour
+           READ FIC-COMPTES
+               INVALID KEY
+                   DISPLAY 'Compte non trouvé'
+               NOT INVALID KEY
+                   PERFORM 21131-APPLIQUER-DECOUVERT
+                   REWRITE ENR-COMPTE
+           END-READ.
+
+       21131-APPLIQUER-DECOUVERT.
+           IF SOLDE-COMPTE < 0
+               COMPUTE WS-FRAIS = 
+                   ABS(SOLDE-COMPTE) * COMMISSION-INTERET
+               SUBTRACT WS-FRAIS FROM SOLDE-COMPTE
+               ADD WS-FRAIS TO FRAIS-APPLIQUES-JOUR
+               DISPLAY 'Frais découvert appliqués: ' WS-FRAIS
+           END-IF.
+
+       21140-GENERER-AUDIT-TRANSACTION.
+      * VULNÉRABILITÉ BUFFER OVERFLOW
+           MOVE SPACES TO WS-AUDIT-RECORD
+           STRING 'Transaction ' DELIMITED BY SIZE
+                   NUM-TRANS DELIMITED BY SIZE
+                   ' Compte ' DELIMITED BY SIZE
+                   COMPTE-DEBIT DELIMITED BY SIZE
+                   ' Montant ' DELIMITED BY SIZE
+                   MONTANT-TRANS DELIMITED BY SIZE
+                   ' Statut ' DELIMITED BY SIZE
+                   TRANS-STATUT DELIMITED BY SIZE
+                   INTO WS-AUDIT-RECORD
+           
+           WRITE ENR-AUDIT.
+
+       21150-TRAITER-ERREUR-TRANSACTION.
+           ADD 1 TO CPT-ERREURS
+           DISPLAY 'Transaction rejetée: ' TRANS-CODE-ERREUR.
+
+       22000-CALCULER-INTERETS-QUOTIDIENS.
+           DISPLAY 'Calcul des intérêts quotidiens...'
+           
+           MOVE 0 TO INTERETS-ACQUIS-JOUR
+           PERFORM VARYING IDX-COMPTE-MEM FROM 1 BY 1
+                     UNTIL IDX-COMPTE-MEM > NB-COMPTES
+               PERFORM 22100-CALCULER-INTERET-COMPTE
+           END-PERFORM
+           
+           DISPLAY 'Intérêts calculés: ' INTERETS-ACQUIS-JOUR.
+
+       22100-CALCULER-INTERET-COMPTE.
+      * CALCUL OBSOLÈTE : INTÉRÊTS SIMPLES 1987
+           IF MEM-COMPTE-TYPE(IDX-COMPTE-MEM) = 'E'
+               COMPUTE WS-INTERET = 
+                   MEM-COMPTE-SOLDE(IDX-COMPTE-MEM) 
+                   * TAUX-INTERET-EPARGNE / 365
+               ADD WS-INTERET TO MEM-COMPTE-SOLDE(IDX-COMPTE-MEM)
+               ADD WS-INTERET TO INTERETS-ACQUIS-JOUR
+           ELSE
+               IF MEM-COMPTE-SOLDE(IDX-COMPTE-MEM) > 10000
+                   COMPUTE WS-INTERET = 
+                       MEM-COMPTE-SOLDE(IDX-COMPTE-MEM) 
+                       * TAUX-INTERET-BASE / 360
+                   ADD WS-INTERET TO MEM-COMPTE-SOLDE(IDX-COMPTE-MEM)
+               END-IF
+           END-IF.
+
+       23000-GENERER-RAPPORTS-MENSUELS.
+           DISPLAY 'Génération rapports mensuels...'
+           
+           PERFORM 23100-GENERER-RAPPORT-CLIENTS
+           PERFORM 23200-GENERER-RAPPORT-COMPTES
+           PERFORM 23300-GENERER-RAPPORT-TRANSACTIONS
+           PERFORM 23400-GENERER-RAPPORT-FISCAL
+           
+           DISPLAY 'Rapports générés avec succès'.
+
+       23100-GENERER-RAPPORT-CLIENTS.
+           DISPLAY 'Génération rapport clients...'
+           
+           MOVE 'RAPPORT CLIENTS MENSUEL' TO RAP-TITRE
+           MOVE DATE-SYSTEME TO RAP-DATE-GENERATION
+           
+           PERFORM VARYING IDX-CLIENT-MEM FROM 1 BY 1
+                     UNTIL IDX-CLIENT-MEM > NB-CLIENTS
+               MOVE MEM-CLIENT-ID(IDX-CLIENT-MEM) TO RAP-COL1
+               MOVE MEM-CLIENT-NOM(IDX-CLIENT-MEM) TO RAP-COL2
+               WRITE LIGNE-RAPPORT FROM RAPPORT-DETAIL
+           END-PERFORM.
+
+       23400-GENERER-RAPPORT-FISCAL.
+           DISPLAY 'Génération rapport fiscal (méthode 1987)...'
+           
+           PERFORM VARYING IDX-CLIENT-MEM FROM 1 BY 1
+                     UNTIL IDX-CLIENT-MEM > NB-CLIENTS
+               MOVE MEM-CLIENT-ID(IDX-CLIENT-MEM) TO CLIENT-ID
+               READ FIC-CLIENTS
+                   NOT INVALID KEY
+                       PERFORM 23410-CALCULER-IMPOT-CLIENT
+                       PERFORM 23420-ECRIRE-LIGNE-FISCALE
+               END-READ
+           END-PERFORM.
+
+       23410-CALCULER-IMPOT-CLIENT.
+      * CALCUL FISCAL OBSOLÈTE 1987
+           MOVE REVENU-MENSUEL TO REVENU-BRUT-ANNUEL
+           MULTIPLY 12 BY REVENU-BRUT-ANNUEL
+           
+           EVALUATE TRUE
+               WHEN REVENU-BRUT-ANNUEL <= 30000
+                   COMPUTE IMPOT-BRUT = 
+                       REVENU-BRUT-ANNUEL * 0,15
+               WHEN REVENU-BRUT-ANNUEL <= 100000
+                   COMPUTE IMPOT-BRUT = 
+                       30000 * 0,15 +
+                       (REVENU-BRUT-ANNUEL - 30000) * 0,28
+               WHEN OTHER
+                   COMPUTE IMPOT-BRUT = 
+                       30000 * 0,15 +
+                       (100000 - 30000) * 0,28 +
+                       (REVENU-BRUT-ANNUEL - 100000) * 0,40
+           END-EVALUATE
+           
+      * AJOUTER COTISATIONS SOCIALES OBSOLÈTES
+           COMPUTE PRELEVEMENT-SOCIAL = 
+               REVENU-BRUT-ANNUEL * 0,172
+           ADD PRELEVEMENT-SOCIAL TO IMPOT-NET.
+
+       23420-ECRIRE-LIGNE-FISCALE.
+           MOVE CLIENT-ID TO RAP-COL1
+           MOVE NOM-CLIENT TO RAP-COL2
+           MOVE REVENU-BRUT-ANNUEL TO RAP-COL3
+           MOVE IMPOT-NET TO RAP-COL4
+           WRITE LIGNE-FISCAL FROM RAPPORT-DETAIL.
+
+       24000-APPLIQUER-FRAIS-TENUE-COMPTE.
+           DISPLAY 'Application frais tenue de compte...'
+           
+           PERFORM VARYING IDX-COMPTE-MEM FROM 1 BY 1
+                     UNTIL IDX-COMPTE-MEM > NB-COMPTES
+               PERFORM 24100-APPLIQUER-FRAIS-COMPTE
+           END-PERFORM.
+
+       24100-APPLIQUER-FRAIS-COMPTE.
+           IF MEM-COMPTE-SOLDE(IDX-COMPTE-MEM) < 1000
+               SUBTRACT FRAIS-TENUE-COMPTE 
+                 FROM MEM-COMPTE-SOLDE(IDX-COMPTE-MEM)
+               ADD FRAIS-TENUE-COMPTE TO FRAIS-APPLIQUES-JOUR
+           END-IF.
+
+       25000-CONTROLES-SECURITE-AUDIT.
+           DISPLAY 'Contrôles sécurité et audit...'
+           
+           PERFORM 25100-VERIFIER-TRANSACTIONS-SUSPECTES
+           PERFORM 25200-AUDIT-COMPTES-BLOQUES
+           PERFORM 25300-CONTROLE-PLAFONDS
+           
+           DISPLAY 'Contrôles sécurité terminés'.
+
+       25100-VERIFIER-TRANSACTIONS-SUSPECTES.
+      * Détection basique (obsolète)
+           IF MONTANT-TOTAL-JOUR > 10000000
+               DISPLAY 'ALERTE: Activité suspecte détectée'
+               MOVE 'O' TO ALERTE-SUSPICIEUSE
+           END-IF.
+
+       26000-MISE-A-JOUR-SOLDE-BANQUE.
+           DISPLAY 'Mise à jour solde banque...'
+           
+           PERFORM VARYING IDX-COMPTE-MEM FROM 1 BY 1
+                     UNTIL IDX-COMPTE-MEM > NB-COMPTES
+               ADD MEM-COMPTE-SOLDE(IDX-COMPTE-MEM) 
+                 TO SOLDE-BANQUE
+           END-PERFORM
+           
+           DISPLAY 'Solde banque total: ' SOLDE-BANQUE.
+
+       90000-FIN-PROGRAMME.
+           DISPLAY '**************************************************'
+           DISPLAY '* FIN DU PROGRAMME - SYNTHÈSE                   *'
+           DISPLAY '**************************************************'
+           
+           DISPLAY 'STATISTIQUES FINALES:'
+           DISPLAY '- Clients traités: ' NB-CLIENTS
+           DISPLAY '- Comptes traités: ' NB-COMPTES
+           DISPLAY '- Transactions: ' CPT-TRANSACTIONS
+           DISPLAY '- Montant total: ' MONTANT-TOTAL-JOUR
+           DISPLAY '- Intérêts: ' INTERETS-ACQUIS-JOUR
+           DISPLAY '- Frais: ' FRAIS-APPLIQUES-JOUR
+           DISPLAY '- Solde banque: ' SOLDE-BANQUE
+           DISPLAY '- Erreurs: ' CPT-ERREURS
+           
+           PERFORM 90100-FERMER-FICHIERS
+           PERFORM 90200-GENERER-RAPPORT-FINAL
+           
+           IF SW-ERREUR-GRAVE = 'O'
+               DISPLAY 'PROGRAMME TERMINÉ AVEC ERREURS'
+               MOVE 16 TO RETURN-CODE
+           ELSE
+               DISPLAY 'PROGRAMME TERMINÉ AVEC SUCCÈS'
+               MOVE 0 TO RETURN-CODE
+           END-IF.
+
+       90100-FERMER-FICHIERS.
+           DISPLAY 'Fermeture des fichiers...'
+           
+           CLOSE FIC-CLIENTS
+           CLOSE FIC-COMPTES
+           CLOSE FIC-TRANS
+           CLOSE RAPPORT-MENSUEL
+           CLOSE RAPPORT-FISCAL
+           CLOSE FIC-AUDIT
+           CLOSE FIC-ERREURS
+           
+           DISPLAY 'Tous les fichiers fermés'.
+
+       90200-GENERER-RAPPORT-FINAL.
+           DISPLAY 'Génération rapport final...'
+           
+           OPEN OUTPUT RAPPORT-AUDIT
+           MOVE 'AUDIT FINAL SYSTÈME BANCAIRE' TO MSG-AUDIT-ACTION
+           MOVE 'Fin traitement journalier' TO MSG-AUDIT-DETAILS
+           WRITE ENR-AUDIT
+           CLOSE RAPPORT-AUDIT
+           
+           DISPLAY 'Rapport final généré'.
+
+      ******************************************************************
+      * SOUS-PROGRAMMES COMPLEXES (2,000+ LIGNES)
+      ******************************************************************
+
+       50000-GESTION-ERREURS.
+           DISPLAY 'Gestion des erreurs système...'
+           
+           PERFORM 50100-ANALYSER-ERREUR
+           PERFORM 50200-LOGUER-ERREUR
+           PERFORM 50300-NOTIFIER-ADMIN
+           
+           IF SEV-CRITICAL
+               PERFORM 50400-ARRET-URGENCE
+           END-IF.
+
+       50100-ANALYSER-ERREUR.
+      * Analyse basique des erreurs
+           EVALUATE MSG-CODE-ERREUR
+               WHEN 'F001' MOVE 'Fichier non trouvé' TO MSG-TEXTE-ERREUR
+               WHEN 'F002' MOVE 'Accès refusé' TO MSG-TEXTE-ERREUR
+               WHEN 'D001' MOVE 'Données corrompues' TO MSG-TEXTE-ERREUR
+               WHEN 'S001' MOVE 'Erreur sécurité' TO MSG-TEXTE-ERREUR
+               WHEN OTHER  MOVE 'Erreur inconnue' TO MSG-TEXTE-ERREUR
+           END-EVALUATE.
+
+       60000-UTILITAIRES-DIVERS.
+           DISPLAY 'Exécution utilitaires divers...'
+           
+           PERFORM 60100-FORMATER-DATE
+           PERFORM 60200-CALCULER-AGE
+           PERFORM 60300-VALIDER-CODE-POSTAL
+           PERFORM 60400-GENERER-NUMERO-UNIQUE
+           PERFORM 60500-CRYPTER-DONNEES
+           
+           DISPLAY 'Utilitaires exécutés'.
+
+       60100-FORMATER-DATE.
+      * Routine obsolète de formatage
+           MOVE DD-SYS TO WS-DATE-JJ
+           MOVE MM-SYS TO WS-DATE-MM
+           MOVE YYYY-SYS TO WS-DATE-AAAA
+           
+           STRING WS-DATE-JJ '/' WS-DATE-MM '/' WS-DATE-AAAA
+               INTO WS-DATE-FORMATTEE.
+
+       60500-CRYPTER-DONNEES.
+      * "Cryptage" basique (INSÉCURE)
+           MOVE 1 TO WS-INDEX
+           PERFORM VARYING WS-INDEX FROM 1 BY 1
+                     UNTIL WS-INDEX > LENGTH OF WS-DATA
+               ADD 1 TO WS-DATA(WS-INDEX:1)
+           END-PERFORM.
+
+       70000-TESTS-UNITAIRE.
+           DISPLAY 'Exécution tests unitaires...'
+           
+           PERFORM 70100-TEST-CALCUL-INTERETS
+           PERFORM 70200-TEST-CALCUL-IMPOT
+           PERFORM 70300-TEST-VALIDATION-TRANSACTION
+           PERFORM 70400-TEST-GENERATION-RAPPORT
+           
+           DISPLAY 'Tests unitaires terminés'.
+
+       70100-TEST-CALCUL-INTERETS.
+      * Test du calcul d'intérêts
+           MOVE 10000 TO CAPITAL-INITIAL
+           MOVE 0,05 TO TAUX-INTERET-ANNUEL
+           MOVE 365 TO NB-PERIODES
+           
+           COMPUTE INTERETS-SIMPLES = 
+               CAPITAL-INITIAL * TAUX-INTERET-ANNUEL
+           
+           IF INTERETS-SIMPLES NOT = 500
+               DISPLAY 'ERREUR TEST: Calcul intérêts incorrect'
+               ADD 1 TO CPT-ERREURS
+           END-IF.
+
+       80000-INTERFACES-EXTERNES.
+           DISPLAY 'Gestion interfaces externes...'
+           
+           PERFORM 80100-INTERFACE-SWIFT
+           PERFORM 80200-INTERFACE-FISCALE
+           PERFORM 80300-INTERFACE-BDF
+           PERFORM 80400-INTERFACE-EUROSYSTEM
+           
+           DISPLAY 'Interfaces externes traitées'.
+
+       80100-INTERFACE-SWIFT.
+           DISPLAY 'Traitement messages SWIFT...'
+      * Logique SWIFT obsolète (format 1987)
+           MOVE 'MT103' TO WS-SWIFT-TYPE
+           PERFORM 80110-PARSER-MESSAGE-SWIFT.
+
+       80110-PARSER-MESSAGE-SWIFT.
+      * Parsing manuel (risque d'erreurs)
+           IF WS-SWIFT-DATA(1:5) = ':20:'
+               MOVE WS-SWIFT-DATA(6:16) TO WS-REF-SWIFT
+           END-IF.
+
+       90000-SAUVE
