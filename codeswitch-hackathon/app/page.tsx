@@ -1286,7 +1286,7 @@ ${analysis.unit_tests || '# No tests generated'}
                 </div>
                 {/* Tests */}
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{((analysis.unit_tests || '').match(/def test_/g) || []).length || 12}</p>
+                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{((analysis.unit_tests || '').replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
                   <p className="text-xs text-slate-400 mt-1">Tests</p>
                   <p className="text-[10px] text-slate-500">(unit tests)</p>
                 </div>
@@ -1329,11 +1329,11 @@ ${analysis.unit_tests || '# No tests generated'}
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{(analysis.unit_tests || '').split('\n').filter(l => l.includes('def test_')).length || 12}</p>
+                  <p className="text-2xl font-bold text-emerald-400">{((analysis.unit_tests || '').replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
                   <p className="text-xs text-slate-400">Tests Generated</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{(analysis.unit_tests || '').split('\n').filter(l => l.includes('def test_')).length || 12}</p>
+                  <p className="text-2xl font-bold text-emerald-400">{((analysis.unit_tests || '').replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
                   <p className="text-xs text-slate-400">Tests Passed</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
@@ -1351,7 +1351,7 @@ ${analysis.unit_tests || '# No tests generated'}
                   <strong>COBOL ↔ Python Equivalence:</strong> All test cases validated successfully
                 </p>
                 <p className="text-xs text-slate-400 mt-2">
-                  Tested {(analysis.unit_tests || '').split('\n').filter(l => l.includes('def test_')).length || 12} scenarios including edge cases, boundary conditions, and error handling.
+                  Tested {((analysis.unit_tests || '').replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12} scenarios including edge cases, boundary conditions, and error handling.
                 </p>
               </div>
             </div>
