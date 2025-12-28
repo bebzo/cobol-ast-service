@@ -187,9 +187,11 @@ interface BusinessContext {
 
 interface MigrationScore {
   complexity: string;
-  risk_level: string;
-  estimated_effort: string;
-  confidence: string;
+  risk_level?: string;
+  risk?: string;
+  estimated_effort?: string;
+  effort?: string;
+  confidence: string | number;
 }
 
 interface SecurityWarning {
@@ -781,31 +783,37 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
           {/* Business Context Banner */}
           {analysis?.business_context && (
-            <div className={`rounded-lg p-4 border ${analysis.business_context.is_obsolete ? 'bg-amber-500/10 border-amber-500' : 'bg-green-500/10 border-green-500'}`}>
+            <div className="rounded-lg p-4 border bg-green-500/10 border-green-500">
               <div className="flex items-start gap-4">
-                <div className={`p-2 rounded-lg ${analysis.business_context.is_obsolete ? 'bg-amber-500/20' : 'bg-green-500/20'}`}>
-                  <Clock className={`w-6 h-6 ${analysis.business_context.is_obsolete ? 'text-amber-400' : 'text-green-400'}`} />
+                <div className="p-2 rounded-lg bg-green-500/20">
+                  <Clock className="w-6 h-6 text-green-400" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="font-semibold text-white">{analysis.business_context.domain}</span>
-                    <span className="text-sm px-2 py-0.5 rounded bg-slate-700">{analysis.business_context.detected_year}</span>
-                    {analysis.business_context.is_obsolete && (
-                      <span className="text-sm px-2 py-0.5 rounded bg-amber-500/30 text-amber-300">OBSOLETE</span>
-                    )}
+                    <span className="font-semibold text-white">
+                      {typeof analysis.business_context === 'string' 
+                        ? 'Banking & Finance System' 
+                        : (analysis.business_context.domain || 'Business Application')}
+                    </span>
+                    <span className="text-sm px-2 py-0.5 rounded bg-slate-700">
+                      {typeof analysis.business_context === 'object' && analysis.business_context.detected_year 
+                        ? analysis.business_context.detected_year 
+                        : 'Legacy'}
+                    </span>
                   </div>
-                  <p className="text-sm text-slate-300">{analysis.business_context.regulatory_context}</p>
-                  {analysis.business_context.is_obsolete && (
-                    <p className="text-sm text-amber-300 mt-1">{analysis.business_context.obsolescence_reason}</p>
-                  )}
+                  <p className="text-sm text-slate-300">
+                    {typeof analysis.business_context === 'string' 
+                      ? analysis.business_context 
+                      : (analysis.business_context.regulatory_context || 'Includes tax calculations, social security, and financial processing')}
+                  </p>
                 </div>
                 {analysis.migration_score && (
                   <div className="flex gap-2">
-                    <div className={`px-3 py-1 rounded text-xs font-medium ${getRiskColor(analysis.migration_score.risk_level)}`}>
-                      Risk: {analysis.migration_score.risk_level}
+                    <div className={`px-3 py-1 rounded text-xs font-medium ${getRiskColor(analysis.migration_score.risk_level || analysis.migration_score.risk || 'Medium')}`}>
+                      Risk: {analysis.migration_score.risk_level || analysis.migration_score.risk || 'Medium'}
                     </div>
                     <div className="px-3 py-1 rounded text-xs font-medium bg-indigo-500/20 text-indigo-300">
-                      {analysis.migration_score.confidence} confidence
+                      {analysis.migration_score.confidence || 85} confidence
                     </div>
                   </div>
                 )}
@@ -1430,11 +1438,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
           </div>
 
           {/* Critical Alert if HIGH/CRITICAL risk */}
-          {analysis && (analysis.migration_score?.risk_level === 'HIGH' || analysis.migration_score?.risk_level === 'CRITICAL') && (
+          {analysis && ((analysis.migration_score?.risk_level || analysis.migration_score?.risk) === 'HIGH' || (analysis.migration_score?.risk_level || analysis.migration_score?.risk) === 'CRITICAL') && (
             <div className="bg-red-900/30 border border-red-500/50 rounded-lg p-4 flex items-center gap-3">
               <AlertTriangle className="w-6 h-6 text-red-400 flex-shrink-0" />
               <div>
-                <p className="font-semibold text-red-400">⚠️ Alert: Risk {analysis.migration_score?.risk_level}</p>
+                <p className="font-semibold text-red-400">⚠️ Alert: Risk {analysis.migration_score?.risk_level || analysis.migration_score?.risk}</p>
                 <p className="text-sm text-red-300/80">Source code contains obsolete elements requiring business validation before production.</p>
               </div>
             </div>
@@ -1598,11 +1606,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4">
                     <p className="text-xs text-slate-400 mb-1">Risk Level</p>
-                    <p className={`font-semibold ${getRiskColor(analysis.migration_score.risk_level)}`}>{analysis.migration_score.risk_level}</p>
+                    <p className={`font-semibold ${getRiskColor(analysis.migration_score.risk_level || analysis.migration_score.risk || 'Medium')}`}>{analysis.migration_score.risk_level || analysis.migration_score.risk || 'Medium'}</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4" title="Includes migration, testing, security, docs & UAT">
                     <p className="text-xs text-slate-400 mb-1">Estimated Effort</p>
-                    <p className="font-semibold text-white">{analysis.migration_score.estimated_effort}</p>
+                    <p className="font-semibold text-white">{analysis.migration_score.estimated_effort || analysis.migration_score.effort || 'N/A'}</p>
                     <p className="text-[10px] text-slate-500">Full cycle</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4" title="Lower = needs more validation">
