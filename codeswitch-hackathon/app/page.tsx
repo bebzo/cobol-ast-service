@@ -686,10 +686,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               <button
                 onClick={async () => {
                   try {
-                    const res = await fetch('/BANKING-SYSTEM.CBL');
+                    const res = await fetch('/ENTERPRISE-BANKING.CBL');
                     const text = await res.text();
                     setCobolCode(text);
-                    setFilename('BANKING-SYSTEM.CBL');
+                    setFilename('ENTERPRISE-BANKING.CBL');
                     setAnalysis(null);
                   } catch (e) {
                     console.error(e);
@@ -698,7 +698,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-lg transition text-sm font-medium"
               >
                 <FileCode className="w-4 h-4" />
-                <span>Load Demo (595 LOC)</span>
+                <span>Load Demo (3007 LOC)</span>
               </button>
               <div className="flex items-center gap-2 text-slate-400">
                 <FileCode className="w-4 h-4" />
