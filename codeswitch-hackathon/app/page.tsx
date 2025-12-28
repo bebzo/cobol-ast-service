@@ -307,9 +307,9 @@ export default function Home() {
       const improvementsCount = Array.isArray(analysis.improvements) ? analysis.improvements.length : 5;
       const securityCount = Array.isArray(analysis.security_warnings) ? analysis.security_warnings.length : 2;
       
-      // Parse confidence from "85%" string to number
-      const confidenceStr = analysis.migration_score?.confidence || '0%';
-      const confidenceNum = parseInt(confidenceStr.replace(/[^0-9]/g, '')) || 85;
+      // Parse confidence from number or string
+      const confValue = analysis.migration_score?.confidence;
+      const confidenceNum = typeof confValue === 'number' ? confValue : parseInt(String(confValue || '85').replace(/[^0-9]/g, '')) || 85;
       
       // Calculate code difference
       const diff = cobolLines - pythonLines;
@@ -1496,9 +1496,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 
                 {/* Confidence */}
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center" title="Based on code complexity and business logic clarity">
-                  <p className="text-2xl font-bold text-green-400 tabular-nums">{parseInt((analysis.migration_score?.confidence || '85%').replace(/[^0-9]/g, '')) || 85}%</p>
+                  <p className="text-2xl font-bold text-green-400 tabular-nums">{typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '85').replace(/[^0-9]/g, '')) || 85}%</p>
                   <p className="text-xs text-slate-400 mt-1">Confidence</p>
-                  <p className="text-[10px] text-slate-500">{parseInt((analysis.migration_score?.confidence || '80').replace(/[^0-9]/g, '')) < 70 ? '(needs review)' : '(validated)'}</p>
+                  <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '80').replace(/[^0-9]/g, ''))) < 70 ? '(needs review)' : '(validated)'}</p>
                 </div>
               </div>
             </div>
@@ -1614,7 +1614,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <div className="bg-slate-700/50 rounded-lg p-4" title="Lower = needs more validation">
                     <p className="text-xs text-slate-400 mb-1">Confidence</p>
                     <p className="font-semibold text-indigo-400">{analysis.migration_score.confidence}</p>
-                    <p className="text-[10px] text-slate-500">{parseInt((analysis.migration_score.confidence || '80').replace(/[^0-9]/g, '')) < 70 ? 'Expert review needed' : 'Ready for UAT'}</p>
+                    <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score.confidence || '80').replace(/[^0-9]/g, ''))) < 70 ? 'Expert review needed' : 'Ready for UAT'}</p>
                   </div>
                 </div>
               )}
