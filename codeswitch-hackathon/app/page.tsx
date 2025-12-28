@@ -285,10 +285,23 @@ export default function Home() {
       setApiKey(savedKey);
       setIsApiKeySet(true);
     }
-    const savedHistory = localStorage.getItem("codeswitch_history_v2");
-    if (savedHistory) {
-      setHistory(JSON.parse(savedHistory));
-    }
+    // Load history from Supabase
+    fetch('https://jcizfxniwgwfdmubapyb.supabase.co/rest/v1/analysis_history?order=created_at.desc&limit=10', {
+      headers: {
+        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c'
+      }
+    }).then(r => r.json()).then(data => {
+      if (Array.isArray(data)) {
+        setHistory(data.map((d: any) => ({
+          id: d.id,
+          filename: d.filename,
+          timestamp: new Date(d.created_at).getTime(),
+          cobolCode: '',
+          pythonCode: '',
+          analysis: { summary: d.summary, cobol_lines: d.cobol_lines, python_lines: d.python_lines } as any
+        })));
+      }
+    }).catch(() => {})
   }, []);
 
   const handleSaveApiKey = () => {
@@ -450,7 +463,7 @@ export default function Home() {
       };
       const newHistory = [newItem, ...history].slice(0, 10);
       setHistory(newHistory);
-      localStorage.setItem("codeswitch_history_v2", JSON.stringify(newHistory));
+      // History saved by backend to Supabase
 
     } catch (err: unknown) {
       console.error(err);
@@ -485,7 +498,11 @@ export default function Home() {
   const deleteFromHistory = (id: string) => {
     const newHistory = history.filter((h) => h.id !== id);
     setHistory(newHistory);
-    localStorage.setItem("codeswitch_history_v2", JSON.stringify(newHistory));
+    // Delete from Supabase
+    fetch(`https://jcizfxniwgwfdmubapyb.supabase.co/rest/v1/analysis_history?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c' }
+    }).catch(() => {});
   };
 
   // Voice Assistant Functions
