@@ -241,7 +241,8 @@ export default function Home() {
   const [filename, setFilename] = useState("sample.cbl");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "report">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "impact" | "report">("code");
+  const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -879,6 +880,15 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 >
                   <Layers className="w-4 h-4" />Modules
                   <span className="px-1.5 py-0.5 bg-pink-500/30 text-pink-300 text-[10px] rounded">NEW</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("impact")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "impact" ? "bg-orange-500/20 text-orange-400 border-b-2 border-orange-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4" />Impact
+                  <span className="px-1.5 py-0.5 bg-orange-500/30 text-orange-300 text-[10px] rounded">NEW</span>
                 </button>
                 <button
                   onClick={() => setActiveTab("report")}
