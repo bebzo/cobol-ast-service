@@ -206,8 +206,10 @@ interface AnalysisResult {
   summary: string;
   business_context: BusinessContext;
   python_code: string;
-  unit_tests: string | string[];
-  config_json: string;
+  unit_tests?: string | string[];
+  tests?: string | string[];
+  config_json?: string;
+  config?: Record<string, unknown>;
   issues: string[];
   improvements: string[];
   security_warnings: SecurityWarning[] | string[];
@@ -914,7 +916,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <Editor
                   height="400px"
                   defaultLanguage="python"
-                  value={analysis?.unit_tests ? (Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : analysis.unit_tests) : "# Unit tests will appear here..."}
+                  value={(() => {
+                    const t = analysis?.tests || analysis?.unit_tests;
+                    if (!t) return "# Run analysis to generate unit tests";
+                    return Array.isArray(t) ? t.join('\n') : t;
+                  })()}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
                 />
@@ -925,29 +931,17 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   height="400px"
                   defaultLanguage="json"
                   value={(() => {
-                    const cfg = analysis?.config_json || '';
-                    if (!cfg || cfg === '{}' || cfg.length < 5) {
-                      return JSON.stringify({
-                        "application": "CodeSwitch Banking System",
-                        "version": "2.0",
-                        "tax_year": 2025,
-                        "database": { "host": "localhost", "name": "bank_db" },
-                        "interest_rates": { "savings": 0.035, "checking": 0.001 },
-                        "overdraft_limit": 5000,
-                        "tax_brackets": [
-                          { "min": 0, "max": 30000, "rate": 0.15 },
-                          { "min": 30001, "max": 100000, "rate": 0.28 },
-                          { "min": 100001, "max": null, "rate": 0.40 }
-                        ],
-                        "security": { "max_transaction": 1000000, "audit_enabled": true }
-                      }, null, 2);
+                    const cfg = analysis?.config_json || analysis?.config;
+                    if (!cfg) return "// Run analysis to generate configuration";
+                    if (typeof cfg === 'string') {
+                      if (cfg === '{}' || cfg.length < 5) return "// Run analysis to generate configuration";
+                      try {
+                        return JSON.stringify(JSON.parse(cfg), null, 2);
+                      } catch {
+                        return cfg;
+                      }
                     }
-                    try {
-                      const parsed = typeof cfg === 'string' ? JSON.parse(cfg.replace(/\\n/g, '\n')) : cfg;
-                      return JSON.stringify(parsed, null, 2);
-                    } catch {
-                      return cfg.replace(/\\n/g, '\n');
-                    }
+                    return JSON.stringify(cfg, null, 2);
                   })()}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
