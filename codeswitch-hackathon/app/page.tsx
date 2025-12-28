@@ -1263,6 +1263,84 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
               )}
 
+              {activeTab === "impact" && (
+                <div className="h-[400px] overflow-y-auto p-4 bg-slate-900">
+                  {analysis?.modules && analysis.modules.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-orange-400 font-semibold">
+                        <TrendingUp className="w-5 h-5" />
+                        Change Impact Analyzer
+                      </div>
+                      <p className="text-sm text-slate-400">Select a module to see which other modules will be affected by changes.</p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <p className="text-xs text-slate-500 uppercase">Source Module</p>
+                          {analysis.modules.map((mod, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setSelectedImpactModule(mod.name)}
+                              className={`w-full text-left p-3 rounded-lg border transition ${
+                                selectedImpactModule === mod.name 
+                                  ? 'bg-orange-500/20 border-orange-500 text-orange-300' 
+                                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-orange-500/50'
+                              }`}
+                            >
+                              <div className="font-medium text-sm">{mod.name}</div>
+                              <div className="text-xs text-slate-500">{mod.lines} lines</div>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs text-slate-500 uppercase">Affected Modules</p>
+                          {selectedImpactModule ? (
+                            <div className="space-y-2">
+                              {analysis.modules
+                                .filter(m => m.name !== selectedImpactModule)
+                                .map((mod, idx) => {
+                                  const isDataDiv = selectedImpactModule.includes('DATA');
+                                  const isProcDiv = selectedImpactModule.includes('PROCEDURE');
+                                  const affected = isDataDiv || (isProcDiv && mod.name.includes('PROCEDURE'));
+                                  const impact = mod.name.includes('PROCEDURE') ? 'HIGH' : mod.name.includes('DATA') ? 'MEDIUM' : 'LOW';
+                                  const impactClass = impact === 'HIGH' ? 'border-red-500 bg-red-500/10' : impact === 'MEDIUM' ? 'border-yellow-500 bg-yellow-500/10' : 'border-green-500 bg-green-500/10';
+                                  const impactText = impact === 'HIGH' ? 'text-red-400' : impact === 'MEDIUM' ? 'text-yellow-400' : 'text-green-400';
+                                  return (
+                                    <div key={idx} className={`p-3 rounded-lg border ${affected ? impactClass : 'bg-slate-800 border-slate-700'}`}>
+                                      <div className="flex justify-between items-center">
+                                        <span className="font-medium text-sm text-slate-300">{mod.name}</span>
+                                        {affected && <span className={`text-xs px-2 py-0.5 rounded ${impactText}`}>{impact} IMPACT</span>}
+                                      </div>
+                                      <div className="text-xs text-slate-500 mt-1">
+                                        {affected ? `Changes may affect ${mod.lines} lines` : 'No direct dependency'}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              <div className="mt-4 p-3 bg-slate-800 rounded-lg border border-orange-500/30">
+                                <p className="text-xs text-orange-400 font-medium">Impact Summary</p>
+                                <p className="text-sm text-slate-300 mt-1">
+                                  Modifying <span className="text-orange-400">{selectedImpactModule}</span> will require review of {analysis.modules.filter(m => m.name !== selectedImpactModule && (selectedImpactModule.includes('DATA') || m.name.includes('PROCEDURE'))).length} dependent modules.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="h-full flex items-center justify-center text-slate-500 p-8">
+                              <p>← Select a module to analyze impact</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-400">
+                      <div className="text-center">
+                        <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Impact analysis available after code analysis</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {activeTab === "report" && analysis && (
                 <div className="h-[400px] overflow-y-auto p-4">
                   <div className="flex gap-2 mb-4 flex-wrap">
