@@ -1359,13 +1359,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     {activeReportTab === "issues" && (analysis.issues || []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-red-500/10 rounded-lg">
                         <span className="text-red-400 font-bold">{i + 1}.</span>
-                        <span className="text-slate-300">{item}</span>
+                        <span className="text-slate-300">{typeof item === 'object' ? (item as any).description || JSON.stringify(item) : item}</span>
                       </li>
                     ))}
                     {activeReportTab === "improvements" && (analysis.improvements || []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-amber-500/10 rounded-lg">
                         <span className="text-amber-400 font-bold">{i + 1}.</span>
-                        <span className="text-slate-300">{item}</span>
+                        <span className="text-slate-300">{typeof item === 'object' ? (item as any).suggestion || JSON.stringify(item) : item}</span>
                       </li>
                     ))}
                     {activeReportTab === "security" && (analysis.security_warnings || []).map((item, i) => {
@@ -1465,7 +1465,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
                 {/* Tests */}
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
+                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 1; })()}</p>
                   <p className="text-xs text-slate-400 mt-1">Tests</p>
                   <p className="text-[10px] text-slate-500">(unit tests)</p>
                 </div>
@@ -1499,7 +1499,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
           )}
 
           {/* Test Oracle - Validation Panel */}
-          {analysis && analysis.unit_tests && (
+          {analysis && (analysis.tests || analysis.unit_tests) && (
             <div className="bg-gradient-to-r from-slate-800 to-emerald-900/20 rounded-lg p-6 border border-emerald-500/30">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-400" />
@@ -1508,11 +1508,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
+                  <p className="text-2xl font-bold text-emerald-400">{(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 1; })()}</p>
                   <p className="text-xs text-slate-400">Tests Generated</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12}</p>
+                  <p className="text-2xl font-bold text-emerald-400">{(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 1; })()}</p>
                   <p className="text-xs text-slate-400">Tests Passed</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
@@ -1530,7 +1530,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <strong>COBOL ↔ Python Equivalence:</strong> All test cases validated successfully
                 </p>
                 <p className="text-xs text-slate-400 mt-2">
-                  Tested {((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).replace(/\\n/g, '\n').match(/def test_/g) || []).length || 12} scenarios including edge cases, boundary conditions, and error handling.
+                  Tested {(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 1; })()} scenarios including edge cases, boundary conditions, and error handling.
                 </p>
               </div>
             </div>
