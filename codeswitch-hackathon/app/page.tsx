@@ -1658,12 +1658,22 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 history.map((item) => (
                   <div key={item.id} className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium">{item.filename}</span>
+                      <span className="font-medium text-indigo-300">{item.filename}</span>
                       <button onClick={() => deleteFromHistory(item.id)} className="text-slate-400 hover:text-red-400">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                     <p className="text-sm text-slate-400 mb-2">{new Date(item.timestamp).toLocaleString()}</p>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div className="bg-amber-500/10 rounded px-2 py-1 text-center">
+                        <span className="text-amber-400 font-bold text-sm">{(item.analysis as any).cobol_lines || '?'}</span>
+                        <span className="text-xs text-slate-500 ml-1">COBOL</span>
+                      </div>
+                      <div className="bg-green-500/10 rounded px-2 py-1 text-center">
+                        <span className="text-green-400 font-bold text-sm">{(item.analysis as any).python_lines || '?'}</span>
+                        <span className="text-xs text-slate-500 ml-1">Python</span>
+                      </div>
+                    </div>
                     {item.analysis.business_context?.is_obsolete && (
                       <span className="text-xs px-2 py-0.5 rounded bg-amber-500/30 text-amber-300">OBSOLETE</span>
                     )}
