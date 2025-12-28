@@ -574,13 +574,13 @@ ${analysis.summary}
 - Confidence: ${analysis.migration_score?.confidence || 'N/A'}
 
 ## Issues Detected
-${analysis.issues.map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
+${(analysis.issues || []).map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
 
 ## Improvements
-${analysis.improvements.map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
+${(analysis.improvements || []).map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
 
 ## Security Warnings
-${analysis.security_warnings.map((w, idx) => `${idx + 1}. ${w}`).join('\n')}
+${(analysis.security_warnings || []).map((w, idx) => `${idx + 1}. ${w}`).join('\n')}
 
 ## Next Steps
 ${analysis.next_steps?.map((s, idx) => `${idx + 1}. ${s}`).join('\n') || 'N/A'}
@@ -1345,9 +1345,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <div className="h-[400px] overflow-y-auto p-4">
                   <div className="flex gap-2 mb-4 flex-wrap">
                     {[
-                      { key: "issues", label: "Issues", icon: AlertTriangle, count: analysis.issues.length },
-                      { key: "improvements", label: "Improvements", icon: Lightbulb, count: analysis.improvements.length },
-                      { key: "security", label: "Security", icon: Shield, count: analysis.security_warnings.length },
+                      { key: "issues", label: "Issues", icon: AlertTriangle, count: analysis.issues?.length || 0 },
+                      { key: "improvements", label: "Improvements", icon: Lightbulb, count: analysis.improvements?.length || 0 },
+                      { key: "security", label: "Security", icon: Shield, count: analysis.security_warnings?.length || 0 },
                       { key: "next", label: "Next Steps", icon: TrendingUp, count: analysis.next_steps?.length || 0 },
                     ].map(({ key, label, icon: Icon, count }) => (
                       <button
@@ -1362,19 +1362,19 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     ))}
                   </div>
                   <ul className="space-y-2">
-                    {activeReportTab === "issues" && analysis.issues.map((item, i) => (
+                    {activeReportTab === "issues" && (analysis.issues || []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-red-500/10 rounded-lg">
                         <span className="text-red-400 font-bold">{i + 1}.</span>
                         <span className="text-slate-300">{item}</span>
                       </li>
                     ))}
-                    {activeReportTab === "improvements" && analysis.improvements.map((item, i) => (
+                    {activeReportTab === "improvements" && (analysis.improvements || []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-amber-500/10 rounded-lg">
                         <span className="text-amber-400 font-bold">{i + 1}.</span>
                         <span className="text-slate-300">{item}</span>
                       </li>
                     ))}
-                    {activeReportTab === "security" && analysis.security_warnings.map((item, i) => {
+                    {activeReportTab === "security" && (analysis.security_warnings || []).map((item, i) => {
                       const isStructured = typeof item === 'object';
                       const warning = isStructured ? item as SecurityWarning : null;
                       const severity = warning?.severity || (i === 0 ? 'CRITICAL' : i < 2 ? 'HIGH' : 'MEDIUM');
@@ -1465,7 +1465,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
                 {/* Python Lines */}
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-green-400 tabular-nums">{analysis.python_code.split('\n').filter(l => l.trim()).length}</p>
+                  <p className="text-2xl font-bold text-green-400 tabular-nums">{(analysis.python_code || '').split('\n').filter(l => l.trim()).length}</p>
                   <p className="text-xs text-slate-400 mt-1">Python</p>
                   <p className="text-[10px] text-slate-500">(business code)</p>
                 </div>
@@ -1478,7 +1478,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 {/* Total */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-blue-400 tabular-nums">
-                    {analysis.python_code.split('\n').filter(l => l.trim()).length + ((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).split('\n').filter(l => l.trim()).length || 24)}
+                    {(analysis.python_code || '').split('\n').filter(l => l.trim()).length + ((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).split('\n').filter(l => l.trim()).length || 0)}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Total</p>
                   <p className="text-[10px] text-slate-500">(delivered)</p>
