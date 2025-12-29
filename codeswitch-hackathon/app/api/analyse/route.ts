@@ -104,8 +104,9 @@ export async function POST(request: NextRequest) {
     });
 
     // === CHUNKED TRANSLATION ===
-    // Split COBOL into chunks of ~300 lines for parallel translation
-    const CHUNK_SIZE = 300;
+    // Split COBOL into chunks - max 8 chunks to stay under 60s timeout
+    const MAX_CHUNKS = 8;
+    const CHUNK_SIZE = Math.max(500, Math.ceil(lines.length / MAX_CHUNKS));
     const chunks: string[] = [];
     for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
       chunks.push(lines.slice(i, i + CHUNK_SIZE).join('\n'));
@@ -126,15 +127,10 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // Run translations in batches of 5
-    const allPythonCode: string[] = [];
-    for (let i = 0; i < chunks.length; i += 5) {
-      const batch = chunks.slice(i, i + 5);
-      const batchResults = await Promise.all(
-        batch.map((chunk, idx) => translateChunk(chunk, i + idx))
-      );
-      allPythonCode.push(...batchResults);
-    }
+    // Run ALL translations in parallel (max 8 chunks)
+    const allPythonCode = await Promise.all(
+      chunks.map((chunk, idx) => translateChunk(chunk, idx))
+    );
 
     // Combine all Python code
     const combinedPythonCode = `"""
