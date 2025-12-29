@@ -113,11 +113,13 @@ export async function POST(request: NextRequest) {
 
     // Parse Gemini response
     let parsed;
+    let usedFallback = false;
     try {
       parsed = JSON.parse(text);
     } catch (parseError) {
       console.error('[Gemini] JSON parse error, using fallback');
       parsed = generateFallbackFromAST(ast, filename);
+      usedFallback = true;
     }
 
     // Enrich with AST metrics
@@ -125,6 +127,8 @@ export async function POST(request: NextRequest) {
       ...parsed,
       cobol_lines: ast.metrics.totalLines,
       python_lines: (parsed.python_code || '').split(/\\n|\n/).length,
+      _debug_used_fallback: usedFallback,
+      _debug_gemini_response_length: text.length,
       filename: filename || `${ast.programId}.cbl`,
       confidence: parsed.migration_score?.confidence || 85,
       category: parsed.business_context?.domain || 'Enterprise Application',
