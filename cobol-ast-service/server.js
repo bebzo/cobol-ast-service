@@ -80,8 +80,8 @@ app.post('/analyse', async (req, res) => {
       // Detailed analysis - use report data
       issues: report.issues,
       improvements: report.improvements,
-      security_analysis: report.security,
-      next_steps: report.nextSteps,
+      security_warnings: report.security.map(s => `[${s.severity}] ${s.title}: ${s.description}`),
+      next_steps: report.nextSteps.map(s => `Phase ${s.phase}: ${s.title} - ${s.description} (${s.duration})`),
       
       // Other enrichment data
       tests: enrichment.tests || generateDefaultTests(ast),
