@@ -177,15 +177,17 @@ function generateDefaultReport(ast, stats) {
   const nextSteps = [];
 
   // Analyze variables for patterns
-  const variables = ast.variables || [];
+  const variables = ast.variables || ast.dataStructures || [];
   const procedures = ast.procedures || [];
-  const hasDateFields = variables.some(v => /DATE|DT|YY|MM|DD/i.test(v.name));
-  const hasAmountFields = variables.some(v => /AMT|AMOUNT|PRICE|TOTAL|BAL|MONEY|COST/i.test(v.name));
-  const hasPasswordFields = variables.some(v => /PASS|PWD|SECRET|KEY|TOKEN|CRED/i.test(v.name));
-  const hasFileOps = procedures.some(p => /READ|WRITE|OPEN|CLOSE|FILE/i.test(p.name));
-  const hasSqlOps = procedures.some(p => /SQL|EXEC|CURSOR|FETCH|SELECT|INSERT|UPDATE|DELETE/i.test(p.name));
-  const hasNetworkOps = procedures.some(p => /SOCKET|TCP|HTTP|SEND|RECEIVE/i.test(p.name));
-  const hasErrorHandling = procedures.some(p => /ERROR|EXCEPTION|ABORT|INVALID/i.test(p.name));
+  const variableNames = variables.map(v => v.name || '').join(' ');
+  const procedureNames = procedures.map(p => p.name || '').join(' ');
+  const hasDateFields = /DATE|DT-|YY|MM-|DD-/i.test(variableNames);
+  const hasAmountFields = /AMT|AMOUNT|PRICE|TOTAL|BAL|MONEY|COST/i.test(variableNames);
+  const hasPasswordFields = /PASS|PWD|SECRET|KEY|TOKEN|CRED/i.test(variableNames);
+  const hasFileOps = /READ|WRITE|OPEN|CLOSE|FILE/i.test(procedureNames) || (ast.files && ast.files.length > 0);
+  const hasSqlOps = /SQL|EXEC|CURSOR|FETCH/i.test(procedureNames);
+  const hasNetworkOps = /SOCKET|TCP|HTTP|SEND|RECEIVE/i.test(procedureNames);
+  const hasErrorHandling = /ERROR|EXCEPTION|ABORT|INVALID/i.test(procedureNames);
 
   // ========== ISSUES - Detected Problems ==========
   
