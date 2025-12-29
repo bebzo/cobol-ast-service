@@ -97,7 +97,10 @@ app.post('/analyse', async (req, res) => {
         files: stats.files,
         parsing_method: 'AST',
         ast_time_ms: astTime
-      }
+      },
+      
+      // Dependency graph for impact analysis
+      dependencies: ast.dependencies || { calls: {}, calledBy: {} }
     };
 
     res.json(result);
@@ -662,6 +665,7 @@ ${ast.files.map(f => `  • ${f.name}: File-based data exchange`).join('\n') || 
 // Generate default modules (format expected by frontend)
 function generateDefaultModules(ast) {
   const modules = [];
+  const deps = ast.dependencies || { calls: {}, calledBy: {} };
   
   // Group procedures by prefix
   const groups = {};
@@ -676,6 +680,23 @@ function generateDefaultModules(ast) {
 
   for (const [prefix, procs] of Object.entries(groups)) {
     const lines = procs.length * 25;
+    
+    // Calculate dependencies for this module
+    const moduleDeps = new Set();
+    const moduleCalledBy = new Set();
+    for (const procName of procs) {
+      const calls = deps.calls[procName] || [];
+      const calledBy = deps.calledBy[procName] || [];
+      calls.forEach(c => {
+        const cPrefix = c.split('-')[0];
+        if (cPrefix !== prefix) moduleDeps.add(`${cPrefix}-MODULE`);
+      });
+      calledBy.forEach(c => {
+        const cPrefix = c.split('-')[0];
+        if (cPrefix !== prefix) moduleCalledBy.add(`${cPrefix}-MODULE`);
+      });
+    }
+    
     modules.push({
       name: `${prefix}-MODULE`,
       lines: lines,
@@ -683,7 +704,9 @@ function generateDefaultModules(ast) {
       description: `Handles ${prefix.toLowerCase()} operations (${procs.length} procedures)`,
       complexity: lines > 200 ? 'HIGH' : lines > 100 ? 'MEDIUM' : 'LOW',
       pythonTarget: `${prefix.toLowerCase()}_module.py`,
-      risk: procs.length > 10 ? 'HIGH' : procs.length > 5 ? 'MEDIUM' : 'LOW'
+      risk: procs.length > 10 ? 'HIGH' : procs.length > 5 ? 'MEDIUM' : 'LOW',
+      dependencies: Array.from(moduleDeps),
+      dependents: Array.from(moduleCalledBy)
     });
     i++;
   }
@@ -693,9 +716,59 @@ function generateDefaultModules(ast) {
 
 // Generate default impact analysis
 function generateDefaultImpact(ast) {
+  const deps = ast.dependencies || { calls: {}, calledBy: {} };
+  
+  // Build module-level dependency map
+  const moduleDependencies = {};
+  const groups = {};
+  
+  for (const proc of ast.procedures) {
+    const prefix = proc.name.split('-')[0];
+    if (!groups[prefix]) groups[prefix] = [];
+    groups[prefix].push(proc.name);
+  }
+  
+  for (const [prefix, procs] of Object.entries(groups)) {
+    const moduleName = `${prefix}-MODULE`;
+    moduleDependencies[moduleName] = {
+      calls: new Set(),
+      calledBy: new Set()
+    };
+    
+    for (const procName of procs) {
+      const calls = deps.calls[procName] || [];
+      const calledBy = deps.calledBy[procName] || [];
+      
+      calls.forEach(c => {
+        const cPrefix = c.split('-')[0];
+        if (cPrefix !== prefix) {
+          moduleDependencies[moduleName].calls.add(`${cPrefix}-MODULE`);
+        }
+      });
+      
+      calledBy.forEach(c => {
+        const cPrefix = c.split('-')[0];
+        if (cPrefix !== prefix) {
+          moduleDependencies[moduleName].calledBy.add(`${cPrefix}-MODULE`);
+        }
+      });
+    }
+  }
+  
+  // Convert Sets to Arrays for JSON serialization
+  const moduleGraph = {};
+  for (const [mod, data] of Object.entries(moduleDependencies)) {
+    moduleGraph[mod] = {
+      calls: Array.from(data.calls),
+      calledBy: Array.from(data.calledBy),
+      impactCount: data.calledBy.size
+    };
+  }
+  
   return {
     affected_systems: ast.files.map(f => f.name),
     data_dependencies: ast.variables.filter(v => v.level === 1).map(v => v.name),
+    module_dependencies: moduleGraph,
     integration_points: ast.files.map(f => ({
       system: f.name,
       type: 'file',

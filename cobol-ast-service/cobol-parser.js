@@ -444,5 +444,43 @@ export function generatePython(ast) { return new PythonGenerator(ast).generate()
 export function cobolToPython(source) {
   const { ast, stats } = parseCobol(source);
   const pythonCode = generatePython(ast);
+  
+  // Build dependency graph from PERFORM statements
+  const dependencies = buildDependencyGraph(ast);
+  ast.dependencies = dependencies;
+  
   return { pythonCode, ast, stats: { ...stats, pythonLines: pythonCode.split('\n').length, cobolLines: source.split('\n').length } };
+}
+
+// Build a dependency graph showing which procedures call which other procedures
+export function buildDependencyGraph(ast) {
+  const graph = {};  // procedureName -> [called procedures]
+  const reverseGraph = {};  // procedureName -> [procedures that call it]
+  const procedureNames = new Set(ast.procedures.map(p => p.name));
+  
+  // Initialize graphs
+  for (const proc of ast.procedures) {
+    graph[proc.name] = [];
+    reverseGraph[proc.name] = [];
+  }
+  
+  // Analyze each procedure for PERFORM calls
+  for (const proc of ast.procedures) {
+    for (const stmt of proc.statements) {
+      if (stmt.type === 'PERFORM' && stmt.target) {
+        // Check if target exists as a procedure
+        const target = stmt.target.toUpperCase();
+        if (procedureNames.has(target)) {
+          if (!graph[proc.name].includes(target)) {
+            graph[proc.name].push(target);
+          }
+          if (!reverseGraph[target].includes(proc.name)) {
+            reverseGraph[target].push(proc.name);
+          }
+        }
+      }
+    }
+  }
+  
+  return { calls: graph, calledBy: reverseGraph };
 }
