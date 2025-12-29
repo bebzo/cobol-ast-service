@@ -852,8 +852,5 @@ function generateDefaultImpact(ast) {
   };
 }
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`COBOL AST Service running on port ${PORT}`);
-  console.log(`Gemini integration: ${model ? 'enabled' : 'disabled'}`);
-});
+// Export for Vercel
+export default app;
