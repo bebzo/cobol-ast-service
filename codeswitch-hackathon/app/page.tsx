@@ -234,7 +234,7 @@ export default function Home() {
   const [apiKey, setApiKey] = useState(""); // Only for voice assistant
   const [showApiKey, setShowApiKey] = useState(false);
   const [isApiKeySet, setIsApiKeySet] = useState(true); // API is server-side
-  const [cobolCode, setCobolCode] = useState(SAMPLE_COBOL);
+  const [cobolCode, setCobolCode] = useState("");
   const [pythonCode, setPythonCode] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analyzedCobolCode, setAnalyzedCobolCode] = useState('');
@@ -242,7 +242,7 @@ export default function Home() {
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisStatus, setAnalysisStatus] = useState("");
   const [error, setError] = useState("");
-  const [filename, setFilename] = useState("sample.cbl");
+  const [filename, setFilename] = useState("MEGA-ENTERPRISE.CBL");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "impact" | "report">("code");
@@ -278,6 +278,17 @@ export default function Home() {
     confidence: 0 
   });
   const [metricsAnimated, setMetricsAnimated] = useState(false);
+
+  // Load MEGA-ENTERPRISE.CBL on startup
+  useEffect(() => {
+    fetch('/MEGA-ENTERPRISE.CBL')
+      .then(res => res.text())
+      .then(text => {
+        setCobolCode(text);
+        setFilename('MEGA-ENTERPRISE.CBL');
+      })
+      .catch(() => setCobolCode(SAMPLE_COBOL));
+  }, []);
 
   useEffect(() => {
     const savedKey = sessionStorage.getItem("gemini_api_key");
