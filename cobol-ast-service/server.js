@@ -80,7 +80,14 @@ app.post('/analyse', async (req, res) => {
       // Detailed analysis - use report data
       issues: report.issues,
       improvements: report.improvements,
-      security_warnings: report.security.map(s => `[${s.severity}] ${s.title}: ${s.description} | Recommendation: ${s.recommendation}`),
+      security_warnings: report.security.map(s => ({
+        severity: s.severity,
+        title: `${s.title}: ${s.description}`,
+        description: s.description,
+        recommendation: s.recommendation,
+        location: `${s.location} | Fix: ${s.recommendation}`,
+        cvss_score: s.severity === 'CRITICAL' ? 9.1 : s.severity === 'HIGH' ? 7.5 : s.severity === 'MEDIUM' ? 5.3 : 3.0
+      })),
       next_steps: report.nextSteps.map(s => `Phase ${s.phase}: ${s.title} - ${s.description} (${s.duration})`),
       
       // Other enrichment data
