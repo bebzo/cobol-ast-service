@@ -282,10 +282,17 @@ export default function Home() {
   // Load MEGA-ENTERPRISE.CBL on startup
   useEffect(() => {
     fetch('/MEGA-ENTERPRISE.CBL')
-      .then(res => res.text())
+      .then(res => {
+        if (!res.ok) throw new Error('File not found');
+        return res.text();
+      })
       .then(text => {
-        setCobolCode(text);
-        setFilename('MEGA-ENTERPRISE.CBL');
+        if (text && text.includes('IDENTIFICATION DIVISION') || text.includes('PROGRAM-ID')) {
+          setCobolCode(text);
+          setFilename('MEGA-ENTERPRISE.CBL');
+        } else {
+          setCobolCode(SAMPLE_COBOL);
+        }
       })
       .catch(() => setCobolCode(SAMPLE_COBOL));
   }, []);
@@ -301,7 +308,10 @@ export default function Home() {
       headers: {
         'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c'
       }
-    }).then(r => r.json()).then(data => {
+    }).then(r => {
+      if (!r.ok) return [];
+      return r.json();
+    }).then(data => {
       if (Array.isArray(data)) {
         setHistory(data.map((d: any) => ({
           id: d.id,
