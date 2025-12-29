@@ -1,0 +1,2287 @@
+CodeSwitch
+Intelligent COBOL Refactoring
+
+
+Voice Assistant
+
+History
+10
+Gemini API Connected
+Upload .cbl
+
+Load Demo (3007 LOC)
+ENTERPRISE-BANKING.CBL
+Export ▾
+Refactor with Gemini
+COBOL (Source)
+1234567891011121314151617181920212223
+Python
+Tests
+Config
+Diff
+Architecture
+Modules
+NEW
+Impact
+NEW
+Report
+Smart Module Splitting (273 modules detected)
+Low
+Medium
+High
+1000-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles 1000 operations (1 procedures)
+
+25 lines
+→ 1000_module.py.py
+1100-MODULE
+Data Access
+Ready
+LOW complexity
+Handles 1100 operations (1 procedures)
+
+25 lines
+→ 1100_module.py.py
+1200-MODULE
+Validation
+Ready
+LOW complexity
+Handles 1200 operations (1 procedures)
+
+25 lines
+→ 1200_module.py.py
+1300-MODULE
+Processing
+Ready
+LOW complexity
+Handles 1300 operations (1 procedures)
+
+25 lines
+→ 1300_module.py.py
+1400-MODULE
+Reporting
+Ready
+LOW complexity
+Handles 1400 operations (1 procedures)
+
+25 lines
+→ 1400_module.py.py
+1500-MODULE
+Utilities
+Ready
+LOW complexity
+Handles 1500 operations (1 procedures)
+
+25 lines
+→ 1500_module.py.py
+2000-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles 2000 operations (1 procedures)
+
+25 lines
+→ 2000_module.py.py
+2100-MODULE
+Data Access
+Ready
+LOW complexity
+Handles 2100 operations (1 procedures)
+
+25 lines
+→ 2100_module.py.py
+2110-MODULE
+Validation
+Ready
+LOW complexity
+Handles 2110 operations (1 procedures)
+
+25 lines
+→ 2110_module.py.py
+2120-MODULE
+Processing
+Ready
+LOW complexity
+Handles 2120 operations (1 procedures)
+
+25 lines
+→ 2120_module.py.py
+2200-MODULE
+Reporting
+Ready
+LOW complexity
+Handles 2200 operations (1 procedures)
+
+25 lines
+→ 2200_module.py.py
+2300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles 2300 operations (2 procedures)
+
+50 lines
+→ 2300_module.py.py
+2400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles 2400 operations (2 procedures)
+
+50 lines
+→ 2400_module.py.py
+2410-MODULE
+Data Access
+Ready
+LOW complexity
+Handles 2410 operations (1 procedures)
+
+25 lines
+→ 2410_module.py.py
+2500-MODULE
+Validation
+Ready
+LOW complexity
+Handles 2500 operations (2 procedures)
+
+50 lines
+→ 2500_module.py.py
+2600-MODULE
+Processing
+Ready
+LOW complexity
+Handles 2600 operations (2 procedures)
+
+50 lines
+→ 2600_module.py.py
+2610-MODULE
+Reporting
+Ready
+LOW complexity
+Handles 2610 operations (1 procedures)
+
+25 lines
+→ 2610_module.py.py
+2620-MODULE
+Utilities
+Ready
+LOW complexity
+Handles 2620 operations (1 procedures)
+
+25 lines
+→ 2620_module.py.py
+2630-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles 2630 operations (1 procedures)
+
+25 lines
+→ 2630_module.py.py
+2640-MODULE
+Data Access
+Ready
+LOW complexity
+Handles 2640 operations (1 procedures)
+
+25 lines
+→ 2640_module.py.py
+2700-MODULE
+Validation
+Ready
+LOW complexity
+Handles 2700 operations (2 procedures)
+
+50 lines
+→ 2700_module.py.py
+2800-MODULE
+Processing
+Ready
+LOW complexity
+Handles 2800 operations (2 procedures)
+
+50 lines
+→ 2800_module.py.py
+2810-MODULE
+Reporting
+Ready
+LOW complexity
+Handles 2810 operations (1 procedures)
+
+25 lines
+→ 2810_module.py.py
+2850-MODULE
+Utilities
+Ready
+LOW complexity
+Handles 2850 operations (2 procedures)
+
+50 lines
+→ 2850_module.py.py
+2900-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles 2900 operations (1 procedures)
+
+25 lines
+→ 2900_module.py.py
+3000-MODULE
+Data Access
+Ready
+LOW complexity
+Handles 3000 operations (1 procedures)
+
+25 lines
+→ 3000_module.py.py
+3100-MODULE
+Validation
+Ready
+LOW complexity
+Handles 3100 operations (1 procedures)
+
+25 lines
+→ 3100_module.py.py
+3200-MODULE
+Processing
+Ready
+LOW complexity
+Handles 3200 operations (1 procedures)
+
+25 lines
+→ 3200_module.py.py
+3300-MODULE
+Reporting
+Ready
+LOW complexity
+Handles 3300 operations (1 procedures)
+
+25 lines
+→ 3300_module.py.py
+3400-MODULE
+Utilities
+Ready
+LOW complexity
+Handles 3400 operations (1 procedures)
+
+25 lines
+→ 3400_module.py.py
+4000-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles 4000 operations (1 procedures)
+
+25 lines
+→ 4000_module.py.py
+9100-MODULE
+Data Access
+Ready
+LOW complexity
+Handles 9100 operations (1 procedures)
+
+25 lines
+→ 9100_module.py.py
+9200-MODULE
+Validation
+Ready
+LOW complexity
+Handles 9200 operations (1 procedures)
+
+25 lines
+→ 9200_module.py.py
+9300-MODULE
+Processing
+Ready
+LOW complexity
+Handles 9300 operations (1 procedures)
+
+25 lines
+→ 9300_module.py.py
+9400-MODULE
+Reporting
+Ready
+LOW complexity
+Handles 9400 operations (1 procedures)
+
+25 lines
+→ 9400_module.py.py
+9500-MODULE
+Utilities
+Ready
+LOW complexity
+Handles 9500 operations (1 procedures)
+
+25 lines
+→ 9500_module.py.py
+9600-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles 9600 operations (1 procedures)
+
+25 lines
+→ 9600_module.py.py
+9700-MODULE
+Data Access
+Ready
+LOW complexity
+Handles 9700 operations (1 procedures)
+
+25 lines
+→ 9700_module.py.py
+9800-MODULE
+Validation
+Ready
+LOW complexity
+Handles 9800 operations (1 procedures)
+
+25 lines
+→ 9800_module.py.py
+9900-MODULE
+Processing
+Ready
+LOW complexity
+Handles 9900 operations (1 procedures)
+
+25 lines
+→ 9900_module.py.py
+0000-MODULE
+Reporting
+Ready
+LOW complexity
+Handles 0000 operations (1 procedures)
+
+25 lines
+→ 0000_module.py.py
+A1000-MODULE
+Utilities
+Ready
+LOW complexity
+Handles a1000 operations (1 procedures)
+
+25 lines
+→ a1000_module.py.py
+A1100-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles a1100 operations (1 procedures)
+
+25 lines
+→ a1100_module.py.py
+A1200-MODULE
+Data Access
+Ready
+LOW complexity
+Handles a1200 operations (1 procedures)
+
+25 lines
+→ a1200_module.py.py
+A1300-MODULE
+Validation
+Ready
+LOW complexity
+Handles a1300 operations (1 procedures)
+
+25 lines
+→ a1300_module.py.py
+A1400-MODULE
+Processing
+Ready
+LOW complexity
+Handles a1400 operations (1 procedures)
+
+25 lines
+→ a1400_module.py.py
+B1000-MODULE
+Reporting
+Ready
+LOW complexity
+Handles b1000 operations (1 procedures)
+
+25 lines
+→ b1000_module.py.py
+B1100-MODULE
+Utilities
+Ready
+LOW complexity
+Handles b1100 operations (1 procedures)
+
+25 lines
+→ b1100_module.py.py
+B1200-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles b1200 operations (1 procedures)
+
+25 lines
+→ b1200_module.py.py
+B1300-MODULE
+Data Access
+Ready
+LOW complexity
+Handles b1300 operations (1 procedures)
+
+25 lines
+→ b1300_module.py.py
+B1400-MODULE
+Validation
+Ready
+LOW complexity
+Handles b1400 operations (1 procedures)
+
+25 lines
+→ b1400_module.py.py
+B1500-MODULE
+Processing
+Ready
+LOW complexity
+Handles b1500 operations (1 procedures)
+
+25 lines
+→ b1500_module.py.py
+C1000-MODULE
+Reporting
+Ready
+LOW complexity
+Handles c1000 operations (1 procedures)
+
+25 lines
+→ c1000_module.py.py
+C1100-MODULE
+Utilities
+Ready
+LOW complexity
+Handles c1100 operations (1 procedures)
+
+25 lines
+→ c1100_module.py.py
+C1200-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles c1200 operations (1 procedures)
+
+25 lines
+→ c1200_module.py.py
+C1300-MODULE
+Data Access
+Ready
+LOW complexity
+Handles c1300 operations (1 procedures)
+
+25 lines
+→ c1300_module.py.py
+C1400-MODULE
+Validation
+Ready
+LOW complexity
+Handles c1400 operations (1 procedures)
+
+25 lines
+→ c1400_module.py.py
+C1500-MODULE
+Processing
+Ready
+LOW complexity
+Handles c1500 operations (1 procedures)
+
+25 lines
+→ c1500_module.py.py
+D1000-MODULE
+Reporting
+Ready
+LOW complexity
+Handles d1000 operations (1 procedures)
+
+25 lines
+→ d1000_module.py.py
+D1100-MODULE
+Utilities
+Ready
+LOW complexity
+Handles d1100 operations (1 procedures)
+
+25 lines
+→ d1100_module.py.py
+D1200-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles d1200 operations (1 procedures)
+
+25 lines
+→ d1200_module.py.py
+D1300-MODULE
+Data Access
+Ready
+LOW complexity
+Handles d1300 operations (1 procedures)
+
+25 lines
+→ d1300_module.py.py
+D1400-MODULE
+Validation
+Ready
+LOW complexity
+Handles d1400 operations (1 procedures)
+
+25 lines
+→ d1400_module.py.py
+D1500-MODULE
+Processing
+Ready
+LOW complexity
+Handles d1500 operations (1 procedures)
+
+25 lines
+→ d1500_module.py.py
+D1600-MODULE
+Reporting
+Ready
+LOW complexity
+Handles d1600 operations (1 procedures)
+
+25 lines
+→ d1600_module.py.py
+E1000-MODULE
+Utilities
+Ready
+LOW complexity
+Handles e1000 operations (1 procedures)
+
+25 lines
+→ e1000_module.py.py
+E1100-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles e1100 operations (1 procedures)
+
+25 lines
+→ e1100_module.py.py
+E1110-MODULE
+Data Access
+Ready
+LOW complexity
+Handles e1110 operations (1 procedures)
+
+25 lines
+→ e1110_module.py.py
+E1200-MODULE
+Validation
+Ready
+LOW complexity
+Handles e1200 operations (1 procedures)
+
+25 lines
+→ e1200_module.py.py
+E1300-MODULE
+Processing
+Ready
+LOW complexity
+Handles e1300 operations (1 procedures)
+
+25 lines
+→ e1300_module.py.py
+E1400-MODULE
+Reporting
+Ready
+LOW complexity
+Handles e1400 operations (1 procedures)
+
+25 lines
+→ e1400_module.py.py
+E1410-MODULE
+Utilities
+Ready
+LOW complexity
+Handles e1410 operations (1 procedures)
+
+25 lines
+→ e1410_module.py.py
+E1500-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles e1500 operations (1 procedures)
+
+25 lines
+→ e1500_module.py.py
+F1000-MODULE
+Data Access
+Ready
+LOW complexity
+Handles f1000 operations (1 procedures)
+
+25 lines
+→ f1000_module.py.py
+F1100-MODULE
+Validation
+Ready
+LOW complexity
+Handles f1100 operations (1 procedures)
+
+25 lines
+→ f1100_module.py.py
+F1200-MODULE
+Processing
+Ready
+LOW complexity
+Handles f1200 operations (1 procedures)
+
+25 lines
+→ f1200_module.py.py
+F1300-MODULE
+Reporting
+Ready
+LOW complexity
+Handles f1300 operations (1 procedures)
+
+25 lines
+→ f1300_module.py.py
+F1400-MODULE
+Utilities
+Ready
+LOW complexity
+Handles f1400 operations (1 procedures)
+
+25 lines
+→ f1400_module.py.py
+F1500-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles f1500 operations (1 procedures)
+
+25 lines
+→ f1500_module.py.py
+G1000-MODULE
+Data Access
+Ready
+LOW complexity
+Handles g1000 operations (1 procedures)
+
+25 lines
+→ g1000_module.py.py
+G1100-MODULE
+Validation
+Ready
+LOW complexity
+Handles g1100 operations (1 procedures)
+
+25 lines
+→ g1100_module.py.py
+G1200-MODULE
+Processing
+Ready
+LOW complexity
+Handles g1200 operations (1 procedures)
+
+25 lines
+→ g1200_module.py.py
+G1300-MODULE
+Reporting
+Ready
+LOW complexity
+Handles g1300 operations (1 procedures)
+
+25 lines
+→ g1300_module.py.py
+G1310-MODULE
+Utilities
+Ready
+LOW complexity
+Handles g1310 operations (1 procedures)
+
+25 lines
+→ g1310_module.py.py
+G1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles g1400 operations (1 procedures)
+
+25 lines
+→ g1400_module.py.py
+G1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles g1500 operations (1 procedures)
+
+25 lines
+→ g1500_module.py.py
+H1000-MODULE
+Validation
+Ready
+LOW complexity
+Handles h1000 operations (1 procedures)
+
+25 lines
+→ h1000_module.py.py
+H1100-MODULE
+Processing
+Ready
+LOW complexity
+Handles h1100 operations (1 procedures)
+
+25 lines
+→ h1100_module.py.py
+H1200-MODULE
+Reporting
+Ready
+LOW complexity
+Handles h1200 operations (1 procedures)
+
+25 lines
+→ h1200_module.py.py
+H1300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles h1300 operations (1 procedures)
+
+25 lines
+→ h1300_module.py.py
+H1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles h1400 operations (1 procedures)
+
+25 lines
+→ h1400_module.py.py
+H1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles h1500 operations (1 procedures)
+
+25 lines
+→ h1500_module.py.py
+I1000-MODULE
+Validation
+Ready
+LOW complexity
+Handles i1000 operations (1 procedures)
+
+25 lines
+→ i1000_module.py.py
+I1100-MODULE
+Processing
+Ready
+LOW complexity
+Handles i1100 operations (1 procedures)
+
+25 lines
+→ i1100_module.py.py
+I1200-MODULE
+Reporting
+Ready
+LOW complexity
+Handles i1200 operations (1 procedures)
+
+25 lines
+→ i1200_module.py.py
+I1300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles i1300 operations (1 procedures)
+
+25 lines
+→ i1300_module.py.py
+I1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles i1400 operations (1 procedures)
+
+25 lines
+→ i1400_module.py.py
+I1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles i1500 operations (1 procedures)
+
+25 lines
+→ i1500_module.py.py
+WS-MODULE
+Validation
+Needs review
+HIGH complexity
+Handles ws operations (40 procedures)
+
+1000 lines
+→ ws_module.py.py
+J1000-MODULE
+Processing
+Ready
+LOW complexity
+Handles j1000 operations (1 procedures)
+
+25 lines
+→ j1000_module.py.py
+J1100-MODULE
+Reporting
+Ready
+LOW complexity
+Handles j1100 operations (1 procedures)
+
+25 lines
+→ j1100_module.py.py
+J1200-MODULE
+Utilities
+Ready
+LOW complexity
+Handles j1200 operations (1 procedures)
+
+25 lines
+→ j1200_module.py.py
+J1300-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles j1300 operations (1 procedures)
+
+25 lines
+→ j1300_module.py.py
+J1400-MODULE
+Data Access
+Ready
+LOW complexity
+Handles j1400 operations (1 procedures)
+
+25 lines
+→ j1400_module.py.py
+J1500-MODULE
+Validation
+Ready
+LOW complexity
+Handles j1500 operations (1 procedures)
+
+25 lines
+→ j1500_module.py.py
+K1000-MODULE
+Processing
+Ready
+LOW complexity
+Handles k1000 operations (1 procedures)
+
+25 lines
+→ k1000_module.py.py
+K1100-MODULE
+Reporting
+Ready
+LOW complexity
+Handles k1100 operations (1 procedures)
+
+25 lines
+→ k1100_module.py.py
+K1200-MODULE
+Utilities
+Ready
+LOW complexity
+Handles k1200 operations (1 procedures)
+
+25 lines
+→ k1200_module.py.py
+K1300-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles k1300 operations (1 procedures)
+
+25 lines
+→ k1300_module.py.py
+K1400-MODULE
+Data Access
+Ready
+LOW complexity
+Handles k1400 operations (1 procedures)
+
+25 lines
+→ k1400_module.py.py
+K1500-MODULE
+Validation
+Ready
+LOW complexity
+Handles k1500 operations (1 procedures)
+
+25 lines
+→ k1500_module.py.py
+K1510-MODULE
+Processing
+Ready
+LOW complexity
+Handles k1510 operations (1 procedures)
+
+25 lines
+→ k1510_module.py.py
+K1520-MODULE
+Reporting
+Ready
+LOW complexity
+Handles k1520 operations (1 procedures)
+
+25 lines
+→ k1520_module.py.py
+K1530-MODULE
+Utilities
+Ready
+LOW complexity
+Handles k1530 operations (1 procedures)
+
+25 lines
+→ k1530_module.py.py
+K1540-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles k1540 operations (1 procedures)
+
+25 lines
+→ k1540_module.py.py
+K1550-MODULE
+Data Access
+Ready
+LOW complexity
+Handles k1550 operations (1 procedures)
+
+25 lines
+→ k1550_module.py.py
+L1000-MODULE
+Validation
+Ready
+LOW complexity
+Handles l1000 operations (1 procedures)
+
+25 lines
+→ l1000_module.py.py
+L1100-MODULE
+Processing
+Ready
+LOW complexity
+Handles l1100 operations (1 procedures)
+
+25 lines
+→ l1100_module.py.py
+L1200-MODULE
+Reporting
+Ready
+LOW complexity
+Handles l1200 operations (1 procedures)
+
+25 lines
+→ l1200_module.py.py
+L1300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles l1300 operations (1 procedures)
+
+25 lines
+→ l1300_module.py.py
+L1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles l1400 operations (1 procedures)
+
+25 lines
+→ l1400_module.py.py
+L1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles l1500 operations (1 procedures)
+
+25 lines
+→ l1500_module.py.py
+M1000-MODULE
+Validation
+Ready
+LOW complexity
+Handles m1000 operations (1 procedures)
+
+25 lines
+→ m1000_module.py.py
+M1100-MODULE
+Processing
+Ready
+LOW complexity
+Handles m1100 operations (1 procedures)
+
+25 lines
+→ m1100_module.py.py
+M1200-MODULE
+Reporting
+Ready
+LOW complexity
+Handles m1200 operations (1 procedures)
+
+25 lines
+→ m1200_module.py.py
+M1300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles m1300 operations (1 procedures)
+
+25 lines
+→ m1300_module.py.py
+M1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles m1400 operations (1 procedures)
+
+25 lines
+→ m1400_module.py.py
+M1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles m1500 operations (1 procedures)
+
+25 lines
+→ m1500_module.py.py
+N1000-MODULE
+Validation
+Ready
+LOW complexity
+Handles n1000 operations (1 procedures)
+
+25 lines
+→ n1000_module.py.py
+N1100-MODULE
+Processing
+Ready
+LOW complexity
+Handles n1100 operations (1 procedures)
+
+25 lines
+→ n1100_module.py.py
+N1200-MODULE
+Reporting
+Ready
+LOW complexity
+Handles n1200 operations (1 procedures)
+
+25 lines
+→ n1200_module.py.py
+N1300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles n1300 operations (1 procedures)
+
+25 lines
+→ n1300_module.py.py
+N1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles n1400 operations (1 procedures)
+
+25 lines
+→ n1400_module.py.py
+N1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles n1500 operations (1 procedures)
+
+25 lines
+→ n1500_module.py.py
+N1510-MODULE
+Validation
+Ready
+LOW complexity
+Handles n1510 operations (1 procedures)
+
+25 lines
+→ n1510_module.py.py
+O1000-MODULE
+Processing
+Ready
+LOW complexity
+Handles o1000 operations (1 procedures)
+
+25 lines
+→ o1000_module.py.py
+O1100-MODULE
+Reporting
+Ready
+LOW complexity
+Handles o1100 operations (1 procedures)
+
+25 lines
+→ o1100_module.py.py
+O1200-MODULE
+Utilities
+Ready
+LOW complexity
+Handles o1200 operations (1 procedures)
+
+25 lines
+→ o1200_module.py.py
+O1300-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles o1300 operations (1 procedures)
+
+25 lines
+→ o1300_module.py.py
+O1400-MODULE
+Data Access
+Ready
+LOW complexity
+Handles o1400 operations (1 procedures)
+
+25 lines
+→ o1400_module.py.py
+O1500-MODULE
+Validation
+Ready
+LOW complexity
+Handles o1500 operations (1 procedures)
+
+25 lines
+→ o1500_module.py.py
+P1000-MODULE
+Processing
+Ready
+LOW complexity
+Handles p1000 operations (1 procedures)
+
+25 lines
+→ p1000_module.py.py
+P1100-MODULE
+Reporting
+Ready
+LOW complexity
+Handles p1100 operations (1 procedures)
+
+25 lines
+→ p1100_module.py.py
+P1200-MODULE
+Utilities
+Ready
+LOW complexity
+Handles p1200 operations (1 procedures)
+
+25 lines
+→ p1200_module.py.py
+P1300-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles p1300 operations (1 procedures)
+
+25 lines
+→ p1300_module.py.py
+P1400-MODULE
+Data Access
+Ready
+LOW complexity
+Handles p1400 operations (1 procedures)
+
+25 lines
+→ p1400_module.py.py
+P1500-MODULE
+Validation
+Ready
+LOW complexity
+Handles p1500 operations (1 procedures)
+
+25 lines
+→ p1500_module.py.py
+Q1000-MODULE
+Processing
+Ready
+LOW complexity
+Handles q1000 operations (1 procedures)
+
+25 lines
+→ q1000_module.py.py
+Q1100-MODULE
+Reporting
+Ready
+LOW complexity
+Handles q1100 operations (1 procedures)
+
+25 lines
+→ q1100_module.py.py
+Q1200-MODULE
+Utilities
+Ready
+LOW complexity
+Handles q1200 operations (1 procedures)
+
+25 lines
+→ q1200_module.py.py
+Q1300-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles q1300 operations (1 procedures)
+
+25 lines
+→ q1300_module.py.py
+Q1400-MODULE
+Data Access
+Ready
+LOW complexity
+Handles q1400 operations (1 procedures)
+
+25 lines
+→ q1400_module.py.py
+Q1500-MODULE
+Validation
+Ready
+LOW complexity
+Handles q1500 operations (1 procedures)
+
+25 lines
+→ q1500_module.py.py
+Q1600-MODULE
+Processing
+Ready
+LOW complexity
+Handles q1600 operations (1 procedures)
+
+25 lines
+→ q1600_module.py.py
+Q1700-MODULE
+Reporting
+Ready
+LOW complexity
+Handles q1700 operations (1 procedures)
+
+25 lines
+→ q1700_module.py.py
+Q1800-MODULE
+Utilities
+Ready
+LOW complexity
+Handles q1800 operations (1 procedures)
+
+25 lines
+→ q1800_module.py.py
+R1000-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles r1000 operations (1 procedures)
+
+25 lines
+→ r1000_module.py.py
+R1100-MODULE
+Data Access
+Ready
+LOW complexity
+Handles r1100 operations (1 procedures)
+
+25 lines
+→ r1100_module.py.py
+R1200-MODULE
+Validation
+Ready
+LOW complexity
+Handles r1200 operations (1 procedures)
+
+25 lines
+→ r1200_module.py.py
+R1300-MODULE
+Processing
+Ready
+LOW complexity
+Handles r1300 operations (1 procedures)
+
+25 lines
+→ r1300_module.py.py
+R1400-MODULE
+Reporting
+Ready
+LOW complexity
+Handles r1400 operations (1 procedures)
+
+25 lines
+→ r1400_module.py.py
+R1410-MODULE
+Utilities
+Ready
+LOW complexity
+Handles r1410 operations (1 procedures)
+
+25 lines
+→ r1410_module.py.py
+R1420-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles r1420 operations (1 procedures)
+
+25 lines
+→ r1420_module.py.py
+R1430-MODULE
+Data Access
+Ready
+LOW complexity
+Handles r1430 operations (1 procedures)
+
+25 lines
+→ r1430_module.py.py
+R1440-MODULE
+Validation
+Ready
+LOW complexity
+Handles r1440 operations (1 procedures)
+
+25 lines
+→ r1440_module.py.py
+R1450-MODULE
+Processing
+Ready
+LOW complexity
+Handles r1450 operations (1 procedures)
+
+25 lines
+→ r1450_module.py.py
+R1500-MODULE
+Reporting
+Ready
+LOW complexity
+Handles r1500 operations (1 procedures)
+
+25 lines
+→ r1500_module.py.py
+R1600-MODULE
+Utilities
+Ready
+LOW complexity
+Handles r1600 operations (1 procedures)
+
+25 lines
+→ r1600_module.py.py
+R1700-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles r1700 operations (1 procedures)
+
+25 lines
+→ r1700_module.py.py
+S1000-MODULE
+Data Access
+Ready
+LOW complexity
+Handles s1000 operations (1 procedures)
+
+25 lines
+→ s1000_module.py.py
+S1100-MODULE
+Validation
+Ready
+LOW complexity
+Handles s1100 operations (1 procedures)
+
+25 lines
+→ s1100_module.py.py
+S1200-MODULE
+Processing
+Ready
+LOW complexity
+Handles s1200 operations (1 procedures)
+
+25 lines
+→ s1200_module.py.py
+S1300-MODULE
+Reporting
+Ready
+LOW complexity
+Handles s1300 operations (1 procedures)
+
+25 lines
+→ s1300_module.py.py
+S1400-MODULE
+Utilities
+Ready
+LOW complexity
+Handles s1400 operations (1 procedures)
+
+25 lines
+→ s1400_module.py.py
+S1500-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles s1500 operations (1 procedures)
+
+25 lines
+→ s1500_module.py.py
+T1000-MODULE
+Data Access
+Ready
+LOW complexity
+Handles t1000 operations (1 procedures)
+
+25 lines
+→ t1000_module.py.py
+T1100-MODULE
+Validation
+Ready
+LOW complexity
+Handles t1100 operations (1 procedures)
+
+25 lines
+→ t1100_module.py.py
+T1200-MODULE
+Processing
+Ready
+LOW complexity
+Handles t1200 operations (1 procedures)
+
+25 lines
+→ t1200_module.py.py
+T1300-MODULE
+Reporting
+Ready
+LOW complexity
+Handles t1300 operations (1 procedures)
+
+25 lines
+→ t1300_module.py.py
+T1400-MODULE
+Utilities
+Ready
+LOW complexity
+Handles t1400 operations (1 procedures)
+
+25 lines
+→ t1400_module.py.py
+T1500-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles t1500 operations (1 procedures)
+
+25 lines
+→ t1500_module.py.py
+U1000-MODULE
+Data Access
+Ready
+LOW complexity
+Handles u1000 operations (1 procedures)
+
+25 lines
+→ u1000_module.py.py
+U1100-MODULE
+Validation
+Ready
+LOW complexity
+Handles u1100 operations (1 procedures)
+
+25 lines
+→ u1100_module.py.py
+U1200-MODULE
+Processing
+Ready
+LOW complexity
+Handles u1200 operations (1 procedures)
+
+25 lines
+→ u1200_module.py.py
+U1300-MODULE
+Reporting
+Ready
+LOW complexity
+Handles u1300 operations (1 procedures)
+
+25 lines
+→ u1300_module.py.py
+U1400-MODULE
+Utilities
+Ready
+LOW complexity
+Handles u1400 operations (1 procedures)
+
+25 lines
+→ u1400_module.py.py
+U1500-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles u1500 operations (1 procedures)
+
+25 lines
+→ u1500_module.py.py
+V1000-MODULE
+Data Access
+Ready
+LOW complexity
+Handles v1000 operations (1 procedures)
+
+25 lines
+→ v1000_module.py.py
+V1100-MODULE
+Validation
+Ready
+LOW complexity
+Handles v1100 operations (1 procedures)
+
+25 lines
+→ v1100_module.py.py
+V1200-MODULE
+Processing
+Ready
+LOW complexity
+Handles v1200 operations (1 procedures)
+
+25 lines
+→ v1200_module.py.py
+V1300-MODULE
+Reporting
+Ready
+LOW complexity
+Handles v1300 operations (1 procedures)
+
+25 lines
+→ v1300_module.py.py
+V1400-MODULE
+Utilities
+Ready
+LOW complexity
+Handles v1400 operations (1 procedures)
+
+25 lines
+→ v1400_module.py.py
+V1500-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles v1500 operations (1 procedures)
+
+25 lines
+→ v1500_module.py.py
+W1000-MODULE
+Data Access
+Ready
+LOW complexity
+Handles w1000 operations (1 procedures)
+
+25 lines
+→ w1000_module.py.py
+W1100-MODULE
+Validation
+Ready
+LOW complexity
+Handles w1100 operations (1 procedures)
+
+25 lines
+→ w1100_module.py.py
+W1200-MODULE
+Processing
+Ready
+LOW complexity
+Handles w1200 operations (1 procedures)
+
+25 lines
+→ w1200_module.py.py
+W1210-MODULE
+Reporting
+Ready
+LOW complexity
+Handles w1210 operations (1 procedures)
+
+25 lines
+→ w1210_module.py.py
+W1300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles w1300 operations (1 procedures)
+
+25 lines
+→ w1300_module.py.py
+W1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles w1400 operations (1 procedures)
+
+25 lines
+→ w1400_module.py.py
+W1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles w1500 operations (1 procedures)
+
+25 lines
+→ w1500_module.py.py
+X1000-MODULE
+Validation
+Ready
+LOW complexity
+Handles x1000 operations (1 procedures)
+
+25 lines
+→ x1000_module.py.py
+X1100-MODULE
+Processing
+Ready
+LOW complexity
+Handles x1100 operations (1 procedures)
+
+25 lines
+→ x1100_module.py.py
+X1200-MODULE
+Reporting
+Ready
+LOW complexity
+Handles x1200 operations (1 procedures)
+
+25 lines
+→ x1200_module.py.py
+X1300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles x1300 operations (1 procedures)
+
+25 lines
+→ x1300_module.py.py
+X1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles x1400 operations (1 procedures)
+
+25 lines
+→ x1400_module.py.py
+X1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles x1500 operations (1 procedures)
+
+25 lines
+→ x1500_module.py.py
+Y1000-MODULE
+Validation
+Ready
+LOW complexity
+Handles y1000 operations (1 procedures)
+
+25 lines
+→ y1000_module.py.py
+Y1100-MODULE
+Processing
+Ready
+LOW complexity
+Handles y1100 operations (1 procedures)
+
+25 lines
+→ y1100_module.py.py
+Y1200-MODULE
+Reporting
+Ready
+LOW complexity
+Handles y1200 operations (1 procedures)
+
+25 lines
+→ y1200_module.py.py
+Y1300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles y1300 operations (1 procedures)
+
+25 lines
+→ y1300_module.py.py
+Y1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles y1400 operations (1 procedures)
+
+25 lines
+→ y1400_module.py.py
+Y1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles y1500 operations (1 procedures)
+
+25 lines
+→ y1500_module.py.py
+Z1000-MODULE
+Validation
+Ready
+LOW complexity
+Handles z1000 operations (1 procedures)
+
+25 lines
+→ z1000_module.py.py
+Z1100-MODULE
+Processing
+Ready
+LOW complexity
+Handles z1100 operations (1 procedures)
+
+25 lines
+→ z1100_module.py.py
+Z1200-MODULE
+Reporting
+Ready
+LOW complexity
+Handles z1200 operations (1 procedures)
+
+25 lines
+→ z1200_module.py.py
+Z1300-MODULE
+Utilities
+Ready
+LOW complexity
+Handles z1300 operations (1 procedures)
+
+25 lines
+→ z1300_module.py.py
+Z1400-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles z1400 operations (1 procedures)
+
+25 lines
+→ z1400_module.py.py
+Z1500-MODULE
+Data Access
+Ready
+LOW complexity
+Handles z1500 operations (1 procedures)
+
+25 lines
+→ z1500_module.py.py
+ZZ9999-MODULE
+Validation
+Ready
+LOW complexity
+Handles zz9999 operations (1 procedures)
+
+25 lines
+→ zz9999_module.py.py
+AA1000-MODULE
+Processing
+Ready
+LOW complexity
+Handles aa1000 operations (1 procedures)
+
+25 lines
+→ aa1000_module.py.py
+AA1100-MODULE
+Reporting
+Ready
+LOW complexity
+Handles aa1100 operations (1 procedures)
+
+25 lines
+→ aa1100_module.py.py
+AA1200-MODULE
+Utilities
+Ready
+LOW complexity
+Handles aa1200 operations (1 procedures)
+
+25 lines
+→ aa1200_module.py.py
+AA1210-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles aa1210 operations (1 procedures)
+
+25 lines
+→ aa1210_module.py.py
+AA1300-MODULE
+Data Access
+Ready
+LOW complexity
+Handles aa1300 operations (1 procedures)
+
+25 lines
+→ aa1300_module.py.py
+AA1400-MODULE
+Validation
+Ready
+LOW complexity
+Handles aa1400 operations (1 procedures)
+
+25 lines
+→ aa1400_module.py.py
+AA1500-MODULE
+Processing
+Ready
+LOW complexity
+Handles aa1500 operations (1 procedures)
+
+25 lines
+→ aa1500_module.py.py
+AB1000-MODULE
+Reporting
+Ready
+LOW complexity
+Handles ab1000 operations (1 procedures)
+
+25 lines
+→ ab1000_module.py.py
+AB1100-MODULE
+Utilities
+Ready
+LOW complexity
+Handles ab1100 operations (1 procedures)
+
+25 lines
+→ ab1100_module.py.py
+AB1110-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles ab1110 operations (1 procedures)
+
+25 lines
+→ ab1110_module.py.py
+AB1200-MODULE
+Data Access
+Ready
+LOW complexity
+Handles ab1200 operations (1 procedures)
+
+25 lines
+→ ab1200_module.py.py
+AB1300-MODULE
+Validation
+Ready
+LOW complexity
+Handles ab1300 operations (1 procedures)
+
+25 lines
+→ ab1300_module.py.py
+AB1400-MODULE
+Processing
+Ready
+LOW complexity
+Handles ab1400 operations (1 procedures)
+
+25 lines
+→ ab1400_module.py.py
+AB1500-MODULE
+Reporting
+Ready
+LOW complexity
+Handles ab1500 operations (1 procedures)
+
+25 lines
+→ ab1500_module.py.py
+AC1000-MODULE
+Utilities
+Ready
+LOW complexity
+Handles ac1000 operations (1 procedures)
+
+25 lines
+→ ac1000_module.py.py
+AC1100-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles ac1100 operations (1 procedures)
+
+25 lines
+→ ac1100_module.py.py
+AC1200-MODULE
+Data Access
+Ready
+LOW complexity
+Handles ac1200 operations (1 procedures)
+
+25 lines
+→ ac1200_module.py.py
+AC1300-MODULE
+Validation
+Ready
+LOW complexity
+Handles ac1300 operations (1 procedures)
+
+25 lines
+→ ac1300_module.py.py
+AC1400-MODULE
+Processing
+Ready
+LOW complexity
+Handles ac1400 operations (1 procedures)
+
+25 lines
+→ ac1400_module.py.py
+AC1500-MODULE
+Reporting
+Ready
+LOW complexity
+Handles ac1500 operations (1 procedures)
+
+25 lines
+→ ac1500_module.py.py
+AD1000-MODULE
+Utilities
+Ready
+LOW complexity
+Handles ad1000 operations (1 procedures)
+
+25 lines
+→ ad1000_module.py.py
+AD1100-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles ad1100 operations (1 procedures)
+
+25 lines
+→ ad1100_module.py.py
+AD1200-MODULE
+Data Access
+Ready
+LOW complexity
+Handles ad1200 operations (1 procedures)
+
+25 lines
+→ ad1200_module.py.py
+AD1300-MODULE
+Validation
+Ready
+LOW complexity
+Handles ad1300 operations (1 procedures)
+
+25 lines
+→ ad1300_module.py.py
+AD1400-MODULE
+Processing
+Ready
+LOW complexity
+Handles ad1400 operations (1 procedures)
+
+25 lines
+→ ad1400_module.py.py
+AD1500-MODULE
+Reporting
+Ready
+LOW complexity
+Handles ad1500 operations (1 procedures)
+
+25 lines
+→ ad1500_module.py.py
+AE1000-MODULE
+Utilities
+Ready
+LOW complexity
+Handles ae1000 operations (1 procedures)
+
+25 lines
+→ ae1000_module.py.py
+AE1100-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles ae1100 operations (1 procedures)
+
+25 lines
+→ ae1100_module.py.py
+AE1200-MODULE
+Data Access
+Ready
+LOW complexity
+Handles ae1200 operations (1 procedures)
+
+25 lines
+→ ae1200_module.py.py
+AE1300-MODULE
+Validation
+Ready
+LOW complexity
+Handles ae1300 operations (1 procedures)
+
+25 lines
+→ ae1300_module.py.py
+AE1400-MODULE
+Processing
+Ready
+LOW complexity
+Handles ae1400 operations (1 procedures)
+
+25 lines
+→ ae1400_module.py.py
+AE1500-MODULE
+Reporting
+Ready
+LOW complexity
+Handles ae1500 operations (1 procedures)
+
+25 lines
+→ ae1500_module.py.py
+AF1000-MODULE
+Utilities
+Ready
+LOW complexity
+Handles af1000 operations (1 procedures)
+
+25 lines
+→ af1000_module.py.py
+AF1100-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles af1100 operations (1 procedures)
+
+25 lines
+→ af1100_module.py.py
+AF1200-MODULE
+Data Access
+Ready
+LOW complexity
+Handles af1200 operations (1 procedures)
+
+25 lines
+→ af1200_module.py.py
+AF1300-MODULE
+Validation
+Ready
+LOW complexity
+Handles af1300 operations (1 procedures)
+
+25 lines
+→ af1300_module.py.py
+AF1400-MODULE
+Processing
+Ready
+LOW complexity
+Handles af1400 operations (1 procedures)
+
+25 lines
+→ af1400_module.py.py
+AF1500-MODULE
+Reporting
+Ready
+LOW complexity
+Handles af1500 operations (1 procedures)
+
+25 lines
+→ af1500_module.py.py
+AG1000-MODULE
+Utilities
+Ready
+LOW complexity
+Handles ag1000 operations (1 procedures)
+
+25 lines
+→ ag1000_module.py.py
+AG1100-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles ag1100 operations (1 procedures)
+
+25 lines
+→ ag1100_module.py.py
+AG1200-MODULE
+Data Access
+Ready
+LOW complexity
+Handles ag1200 operations (1 procedures)
+
+25 lines
+→ ag1200_module.py.py
+AG1300-MODULE
+Validation
+Ready
+LOW complexity
+Handles ag1300 operations (1 procedures)
+
+25 lines
+→ ag1300_module.py.py
+AG1400-MODULE
+Processing
+Ready
+LOW complexity
+Handles ag1400 operations (1 procedures)
+
+25 lines
+→ ag1400_module.py.py
+AG1500-MODULE
+Reporting
+Ready
+LOW complexity
+Handles ag1500 operations (1 procedures)
+
+25 lines
+→ ag1500_module.py.py
+AH1000-MODULE
+Utilities
+Ready
+LOW complexity
+Handles ah1000 operations (1 procedures)
+
+25 lines
+→ ah1000_module.py.py
+AH1100-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles ah1100 operations (1 procedures)
+
+25 lines
+→ ah1100_module.py.py
+AH1200-MODULE
+Data Access
+Ready
+LOW complexity
+Handles ah1200 operations (1 procedures)
+
+25 lines
+→ ah1200_module.py.py
+AH1300-MODULE
+Validation
+Ready
+LOW complexity
+Handles ah1300 operations (1 procedures)
+
+25 lines
+→ ah1300_module.py.py
+AH1400-MODULE
+Processing
+Ready
+LOW complexity
+Handles ah1400 operations (1 procedures)
+
+25 lines
+→ ah1400_module.py.py
+AI1000-MODULE
+Reporting
+Ready
+LOW complexity
+Handles ai1000 operations (1 procedures)
+
+25 lines
+→ ai1000_module.py.py
+AI1100-MODULE
+Utilities
+Ready
+LOW complexity
+Handles ai1100 operations (1 procedures)
+
+25 lines
+→ ai1100_module.py.py
+AI1200-MODULE
+Business Logic
+Ready
+LOW complexity
+Handles ai1200 operations (1 procedures)
+
+25 lines
+→ ai1200_module.py.py
+AI1300-MODULE
+Data Access
+Ready
+LOW complexity
+Handles ai1300 operations (1 procedures)
+
+25 lines
+→ ai1300_module.py.py
+AI1400-MODULE
+Validation
+Ready
+LOW complexity
+Handles ai1400 operations (1 procedures)
+
+25 lines
+→ ai1400_module.py.py
+Transformation Metrics
+LIVE
+2560
+
+COBOL
+
+2140
+
+Python
+
+(business code)
+
+12
+
+Tests
+
+(unit tests)
+
+2140
+
+Total
+
+(delivered)
+
+2
+
+Issues
+
+2
+
+Improvements
+
+85%
+
+Confidence
+
+(validated)
+
+Test Oracle - Equivalence Validation
+PASSED
+12
+
+Tests Generated
+
+12
+
+Tests Passed
+
+0
+
+Tests Failed
+
+100%
+
+Coverage
+
+COBOL ↔ Python Equivalence:
+All test cases validated successfully
+
+Tested 12 scenarios including edge cases, boundary conditions, and error handling.
+
+Gemini Live Chat
+ONLINE
+Ask Gemini about the code, security issues, or migration...
+
+Ask about this COBOL code...
+
+Migration Summary
+COBOL program ENTERPRISE-BANKING-SYSTEM converted to Python using AST parsing. Contains 319 procedures and 251 variables.
+
+CodeSwitch Pro - Gemini Voice Assistant AI
+Hackathon Gemini 3
