@@ -99,11 +99,12 @@ export async function POST(request: NextRequest) {
       model: 'gemini-2.0-flash',
       generationConfig: {
         responseMimeType: "application/json",
+        maxOutputTokens: 65536, // Maximum output for complete code generation
       }
     });
 
     const prompt = GEMINI_PROMPT + astSummary;
-    console.log(`[Gemini] Calling API with ${prompt.length} character prompt...`);
+    console.log(`[Gemini] Calling API with ${prompt.length} character prompt, maxTokens: 65536...`);
     
     const result = await model.generateContent(prompt);
     const response = await result.response;
