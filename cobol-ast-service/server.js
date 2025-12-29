@@ -667,6 +667,31 @@ function generateDefaultModules(ast) {
   const modules = [];
   const deps = ast.dependencies || { calls: {}, calledBy: {} };
   
+  // Module name mapping based on common COBOL patterns
+  const moduleNames = {
+    '0000': 'Main Control', '1000': 'Initialization', '1100': 'Setup', '1200': 'Config Load',
+    '1300': 'Parameter Init', '1400': 'File Open', '1500': 'Header Process',
+    '2000': 'Main Processing', '2100': 'Input Validation', '2200': 'Data Transform',
+    '2300': 'Business Rules', '2400': 'Calculation Engine', '2500': 'Account Process',
+    '2600': 'Transaction Handler', '2700': 'Balance Update', '2800': 'Interest Calc',
+    '2900': 'Fee Processing', '3000': 'Output Generation', '3100': 'Report Format',
+    '3200': 'Print Handler', '3300': 'File Write', '3400': 'Summary Build',
+    '4000': 'Database Access', '5000': 'External Interface', '6000': 'Audit Trail',
+    '7000': 'Security Check', '8000': 'Error Recovery', '9000': 'Cleanup',
+    '9100': 'File Close', '9200': 'Summary Output', '9300': 'Stats Report',
+    '9400': 'Audit Write', '9500': 'Log Finalize', '9600': 'Memory Release',
+    '9700': 'Connection Close', '9800': 'Final Validation', '9900': 'Program Exit',
+    'A': 'Account Management', 'B': 'Balance Operations', 'C': 'Customer Service',
+    'D': 'Data Validation', 'E': 'Event Processing', 'F': 'File Handler',
+    'G': 'General Ledger', 'H': 'History Tracking', 'I': 'Interest Calculation',
+    'J': 'Journal Entry', 'K': 'Key Generation', 'L': 'Loan Processing',
+    'M': 'Money Transfer', 'N': 'Notification', 'O': 'Output Format',
+    'P': 'Payment Process', 'Q': 'Query Handler', 'R': 'Report Generator',
+    'S': 'Security Module', 'T': 'Transaction Log', 'U': 'User Interface',
+    'V': 'Validation Rules', 'W': 'Workflow Engine', 'X': 'External API',
+    'Y': 'Year-End Process', 'Z': 'Zero Balance Check', 'WS': 'Working Storage'
+  };
+  
   // Group procedures by prefix
   const groups = {};
   for (const proc of ast.procedures) {
@@ -681,6 +706,10 @@ function generateDefaultModules(ast) {
   for (const [prefix, procs] of Object.entries(groups)) {
     const lines = procs.length * 25;
     
+    // Get meaningful module name
+    let moduleName = moduleNames[prefix] || moduleNames[prefix.charAt(0)] || 'Processing';
+    const displayName = `${prefix}: ${moduleName}`;
+    
     // Calculate dependencies for this module
     const moduleDeps = new Set();
     const moduleCalledBy = new Set();
@@ -689,24 +718,25 @@ function generateDefaultModules(ast) {
       const calledBy = deps.calledBy[procName] || [];
       calls.forEach(c => {
         const cPrefix = c.split('-')[0];
-        if (cPrefix !== prefix) moduleDeps.add(`${cPrefix}-MODULE`);
+        if (cPrefix !== prefix) moduleDeps.add(cPrefix);
       });
       calledBy.forEach(c => {
         const cPrefix = c.split('-')[0];
-        if (cPrefix !== prefix) moduleCalledBy.add(`${cPrefix}-MODULE`);
+        if (cPrefix !== prefix) moduleCalledBy.add(cPrefix);
       });
     }
     
     modules.push({
-      name: `${prefix}-MODULE`,
+      name: displayName,
+      prefix: prefix,
       lines: lines,
       type: types[i % types.length],
-      description: `Handles ${prefix.toLowerCase()} operations (${procs.length} procedures)`,
+      description: `${moduleName} - ${procs.length} procedures`,
       complexity: lines > 200 ? 'HIGH' : lines > 100 ? 'MEDIUM' : 'LOW',
-      pythonTarget: `${prefix.toLowerCase()}_module.py`,
+      pythonTarget: `${prefix.toLowerCase()}_${moduleName.toLowerCase().replace(/\s+/g, '_')}.py`,
       risk: procs.length > 10 ? 'HIGH' : procs.length > 5 ? 'MEDIUM' : 'LOW',
-      dependencies: Array.from(moduleDeps),
-      dependents: Array.from(moduleCalledBy)
+      dependencies: Array.from(moduleDeps).map(p => `${p}: ${moduleNames[p] || moduleNames[p.charAt(0)] || 'Module'}`),
+      dependents: Array.from(moduleCalledBy).map(p => `${p}: ${moduleNames[p] || moduleNames[p.charAt(0)] || 'Module'}`)
     });
     i++;
   }
@@ -717,6 +747,35 @@ function generateDefaultModules(ast) {
 // Generate default impact analysis
 function generateDefaultImpact(ast) {
   const deps = ast.dependencies || { calls: {}, calledBy: {} };
+  
+  // Module name mapping
+  const moduleNames = {
+    '0000': 'Main Control', '1000': 'Initialization', '1100': 'Setup', '1200': 'Config Load',
+    '1300': 'Parameter Init', '1400': 'File Open', '1500': 'Header Process',
+    '2000': 'Main Processing', '2100': 'Input Validation', '2200': 'Data Transform',
+    '2300': 'Business Rules', '2400': 'Calculation Engine', '2500': 'Account Process',
+    '2600': 'Transaction Handler', '2700': 'Balance Update', '2800': 'Interest Calc',
+    '2900': 'Fee Processing', '3000': 'Output Generation', '3100': 'Report Format',
+    '3200': 'Print Handler', '3300': 'File Write', '3400': 'Summary Build',
+    '4000': 'Database Access', '5000': 'External Interface', '6000': 'Audit Trail',
+    '7000': 'Security Check', '8000': 'Error Recovery', '9000': 'Cleanup',
+    '9100': 'File Close', '9200': 'Summary Output', '9300': 'Stats Report',
+    '9400': 'Audit Write', '9500': 'Log Finalize', '9600': 'Memory Release',
+    '9700': 'Connection Close', '9800': 'Final Validation', '9900': 'Program Exit',
+    'A': 'Account Management', 'B': 'Balance Operations', 'C': 'Customer Service',
+    'D': 'Data Validation', 'E': 'Event Processing', 'F': 'File Handler',
+    'G': 'General Ledger', 'H': 'History Tracking', 'I': 'Interest Calculation',
+    'J': 'Journal Entry', 'K': 'Key Generation', 'L': 'Loan Processing',
+    'M': 'Money Transfer', 'N': 'Notification', 'O': 'Output Format',
+    'P': 'Payment Process', 'Q': 'Query Handler', 'R': 'Report Generator',
+    'S': 'Security Module', 'T': 'Transaction Log', 'U': 'User Interface',
+    'V': 'Validation Rules', 'W': 'Workflow Engine', 'X': 'External API',
+    'Y': 'Year-End Process', 'Z': 'Zero Balance Check', 'WS': 'Working Storage'
+  };
+  
+  const getModuleName = (prefix) => {
+    return `${prefix}: ${moduleNames[prefix] || moduleNames[prefix.charAt(0)] || 'Processing'}`;
+  };
   
   // Build module-level dependency map
   const moduleDependencies = {};
@@ -729,8 +788,9 @@ function generateDefaultImpact(ast) {
   }
   
   for (const [prefix, procs] of Object.entries(groups)) {
-    const moduleName = `${prefix}-MODULE`;
+    const moduleName = getModuleName(prefix);
     moduleDependencies[moduleName] = {
+      prefix: prefix,
       calls: new Set(),
       calledBy: new Set()
     };
@@ -742,14 +802,14 @@ function generateDefaultImpact(ast) {
       calls.forEach(c => {
         const cPrefix = c.split('-')[0];
         if (cPrefix !== prefix) {
-          moduleDependencies[moduleName].calls.add(`${cPrefix}-MODULE`);
+          moduleDependencies[moduleName].calls.add(getModuleName(cPrefix));
         }
       });
       
       calledBy.forEach(c => {
         const cPrefix = c.split('-')[0];
         if (cPrefix !== prefix) {
-          moduleDependencies[moduleName].calledBy.add(`${cPrefix}-MODULE`);
+          moduleDependencies[moduleName].calledBy.add(getModuleName(cPrefix));
         }
       });
     }
