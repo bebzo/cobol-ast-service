@@ -103,8 +103,9 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    const prompt = GEMINI_PROMPT + astSummary;
-    console.log(`[Gemini] Calling API with ${prompt.length} character prompt, maxTokens: 65536...`);
+    // Send BOTH AST summary AND actual COBOL code for complete translation
+    const prompt = GEMINI_PROMPT + "\n\n=== AST ANALYSIS ===\n" + astSummary + "\n\n=== ORIGINAL COBOL CODE (translate ALL of this) ===\n" + cobolCode;
+    console.log(`[Gemini] Calling API with ${prompt.length} character prompt (AST: ${astSummary.length}, Code: ${cobolCode.length}), maxTokens: 65536...`);
     
     const result = await model.generateContent(prompt);
     const response = await result.response;
