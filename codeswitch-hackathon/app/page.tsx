@@ -456,13 +456,10 @@ export default function Home() {
     try {
       setAnalysisStatus("Calling CodeSwitch API...");
       
-      const response = await fetch('https://jcizfxniwgwfdmubapyb.supabase.co/functions/v1/analyse', {
+      const response = await fetch('/api/analyse', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c'
-        },
-        body: JSON.stringify({ cobolCode })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cobolCode, filename })
       });
       
       const data = await response.json();
