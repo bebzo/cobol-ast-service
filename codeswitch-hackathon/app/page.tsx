@@ -281,6 +281,7 @@ export default function Home() {
 
   // Load MEGA-ENTERPRISE.CBL on startup
   useEffect(() => {
+    setError(""); // Clear any previous errors
     fetch('/MEGA-ENTERPRISE.CBL')
       .then(res => {
         if (!res.ok) throw new Error('File not found');
