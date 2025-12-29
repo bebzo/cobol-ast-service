@@ -93,8 +93,8 @@ export async function POST(request: NextRequest) {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
-    // Limit code size for Gemini (max ~50KB to avoid truncation)
-    const limitedCode = cobolCode.length > 50000 ? cobolCode.substring(0, 50000) + '\n... (truncated)' : cobolCode;
+    // Limit code size for Gemini (max ~15KB for good response quality)
+    const limitedCode = cobolCode.length > 15000 ? cobolCode.substring(0, 15000) + '\n... (truncated for analysis - full file has ' + cobolCode.split('\n').length + ' lines)' : cobolCode;
     const prompt = GEMINI_PROMPT + limitedCode;
     const result = await model.generateContent(prompt);
     const response = await result.response;
