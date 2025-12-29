@@ -71,11 +71,13 @@ app.post('/analyse', async (req, res) => {
       python_lines: stats.pythonLines,
       ratio: ((stats.pythonLines / stats.cobolLines) * 100).toFixed(1),
       confidence: enrichment.confidence || 85,
-      complexity: enrichment.complexity || 'MEDIUM',
-      category: enrichment.category || 'Business',
+      complexity: stats.procedures > 50 ? 'HIGH' : stats.procedures > 20 ? 'MEDIUM' : 'LOW',
+      category: enrichment.category || 'Banking',
       year_detected: enrichment.year_detected || 1990,
-      risk_level: enrichment.risk_level || 'MEDIUM',
-      summary: enrichment.summary || `Converted ${ast.name} from COBOL to Python using AST parsing.`,
+      risk_level: stats.procedures > 100 ? 'HIGH' : stats.procedures > 30 ? 'MEDIUM' : 'LOW',
+      estimated_effort: `${Math.ceil(stats.procedures / 25)} weeks`,
+      effort_details: 'Full migration cycle including testing, validation and deployment',
+      summary: enrichment.summary || `Converted ${ast.name} from COBOL to Python using AST parsing. Contains ${stats.procedures} procedures and ${stats.variables} variables.`,
       
       // Detailed analysis - use report data
       issues: report.issues,
