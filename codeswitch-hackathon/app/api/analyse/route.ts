@@ -110,17 +110,25 @@ export async function POST(request: NextRequest) {
     const response = await result.response;
     const text = response.text();
 
-    // Parse JSON - should be native JSON now
+    // Parse JSON - fix common issues
     let parsed;
     try {
-      parsed = JSON.parse(text);
-    } catch (parseError) {
-      // Try to extract JSON from response
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('Failed to parse Gemini response as JSON');
+      // Fix unescaped newlines in strings
+      const fixedText = text.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+      parsed = JSON.parse(fixedText);
+    } catch (e1) {
+      try {
+        // Try raw parse
+        parsed = JSON.parse(text);
+      } catch (e2) {
+        // Extract JSON and fix
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const fixed = jsonMatch[0].replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+          parsed = JSON.parse(fixed);
+        } else {
+          throw new Error('Failed to parse Gemini response');
+        }
       }
     }
 
