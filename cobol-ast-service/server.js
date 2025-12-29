@@ -304,7 +304,7 @@ ${ast.files.map(f => `  • ${f.name}: File-based data exchange`).join('\n') || 
 `;
 }
 
-// Generate default modules
+// Generate default modules (format expected by frontend)
 function generateDefaultModules(ast) {
   const modules = [];
   
@@ -316,14 +316,23 @@ function generateDefaultModules(ast) {
     groups[prefix].push(proc.name);
   }
 
+  const types = ['Business Logic', 'Data Access', 'Validation', 'Processing', 'Reporting', 'Utilities'];
+  const complexities = ['LOW', 'MEDIUM', 'HIGH'];
+  const risks = ['LOW', 'MEDIUM', 'HIGH'];
+  let i = 0;
+
   for (const [prefix, procs] of Object.entries(groups)) {
+    const lines = procs.length * 25;
     modules.push({
-      name: prefix,
-      responsibility: `Handles ${prefix.toLowerCase()} operations`,
-      procedures: procs,
-      dependencies: [],
-      loc: procs.length * 20
+      name: `${prefix}-MODULE`,
+      lines: lines,
+      type: types[i % types.length],
+      description: `Handles ${prefix.toLowerCase()} operations (${procs.length} procedures)`,
+      complexity: lines > 200 ? 'HIGH' : lines > 100 ? 'MEDIUM' : 'LOW',
+      pythonTarget: `${prefix.toLowerCase()}_module.py`,
+      risk: procs.length > 10 ? 'HIGH' : procs.length > 5 ? 'MEDIUM' : 'LOW'
     });
+    i++;
   }
 
   return modules;
