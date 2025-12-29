@@ -79,13 +79,15 @@ app.post('/analyse', async (req, res) => {
       effort_details: 'Full migration cycle including testing, validation and deployment',
       summary: enrichment.summary || `Converted ${ast.name} from COBOL to Python using AST parsing. Contains ${stats.procedures} procedures and ${stats.variables} variables.`,
       
-      // Migration Summary fields
-      complexity: stats.procedures > 100 ? 'CRITICAL' : stats.procedures > 50 ? 'HIGH' : stats.procedures > 20 ? 'MEDIUM' : 'LOW',
-      risk_level: stats.procedures > 100 ? 'CRITICAL' : stats.procedures > 50 ? 'HIGH' : stats.procedures > 20 ? 'MEDIUM' : 'LOW',
-      estimated_effort: `${Math.ceil(stats.procedures / 25)} weeks`,
-      effort_details: 'Full migration cycle including testing, validation and deployment',
-      confidence: Math.max(65, Math.min(95, 95 - Math.floor(stats.procedures / 20))),
-      confidence_note: stats.procedures > 50 ? 'Expert review needed' : 'Automated validation sufficient',
+      // Migration Summary object for frontend
+      migration_summary: {
+        complexity: stats.procedures > 100 ? 'CRITICAL' : stats.procedures > 50 ? 'HIGH' : stats.procedures > 20 ? 'MEDIUM' : 'LOW',
+        risk_level: stats.procedures > 100 ? 'CRITICAL' : stats.procedures > 50 ? 'HIGH' : stats.procedures > 20 ? 'MEDIUM' : 'LOW',
+        estimated_effort: `${Math.ceil(stats.procedures / 25)} weeks`,
+        effort_details: 'Full cycle',
+        confidence: Math.max(65, Math.min(95, 95 - Math.floor(stats.procedures / 20))),
+        confidence_note: stats.procedures > 50 ? 'Expert review needed' : 'Automated validation sufficient'
+      },
       
       // Detailed analysis - use report data
       issues: report.issues,
