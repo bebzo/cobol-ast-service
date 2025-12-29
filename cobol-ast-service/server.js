@@ -61,6 +61,9 @@ app.post('/analyse', async (req, res) => {
       }
     }
 
+    // Generate detailed report
+    const report = generateDefaultReport(ast, stats);
+
     // Combine AST results with Gemini enrichment
     const result = {
       python_code: pythonCode,
@@ -74,15 +77,18 @@ app.post('/analyse', async (req, res) => {
       risk_level: enrichment.risk_level || 'MEDIUM',
       summary: enrichment.summary || `Converted ${ast.name} from COBOL to Python using AST parsing.`,
       
-      // Detailed analysis from Gemini
-      issues: enrichment.issues || [],
-      improvements: enrichment.improvements || [],
+      // Detailed analysis - use report data
+      issues: report.issues,
+      improvements: report.improvements,
+      security_analysis: report.security,
+      next_steps: report.nextSteps,
+      
+      // Other enrichment data
       tests: enrichment.tests || generateDefaultTests(ast),
       config: enrichment.config || generateDefaultConfig(ast),
       architecture_diagram: enrichment.architecture_diagram || generateDefaultArchitecture(ast),
       modules: enrichment.modules || generateDefaultModules(ast),
       impact_analysis: enrichment.impact_analysis || generateDefaultImpact(ast),
-      security_analysis: enrichment.security_analysis || [],
       
       // AST-specific metadata
       ast_stats: {
@@ -130,14 +136,11 @@ Provide JSON with:
   "year_detected": 1980-2000,
   "risk_level": "LOW|MEDIUM|HIGH|CRITICAL",
   "summary": "2-3 sentence description of what this program does",
-  "issues": [{"severity":"HIGH|MEDIUM|LOW","description":"issue","recommendation":"fix"}],
-  "improvements": [{"priority":"HIGH|MEDIUM|LOW","description":"improvement","benefit":"benefit"}],
   "tests": "Complete pytest test code with at least 15 test cases covering all procedures",
   "config": "YAML configuration for deployment (database, logging, env vars)",
   "architecture_diagram": "ASCII diagram showing system components and data flow",
-  "modules": [{"name":"module","responsibility":"what it does","dependencies":["deps"]}],
-  "impact_analysis": {"affected_systems":[],"data_dependencies":[],"integration_points":[],"migration_risks":[]},
-  "security_analysis": [{"finding":"issue","severity":"HIGH|MEDIUM|LOW","mitigation":"fix"}]
+  "modules": [{"name":"module","lines":100,"type":"Business Logic","description":"what it does","complexity":"MEDIUM","pythonTarget":"file.py","risk":"LOW"}],
+  "impact_analysis": {"affected_systems":[],"data_dependencies":[],"integration_points":[],"migration_risks":[],"estimated_effort":"X weeks"}
 }
 
 IMPORTANT: Generate COMPLETE, DETAILED content for each field. The tests should have 15+ test cases. The config should be production-ready. Return ONLY valid JSON.`;
@@ -162,15 +165,365 @@ function getDefaultEnrichment(ast, stats) {
     category: 'Business',
     year_detected: 1990,
     risk_level: 'MEDIUM',
-    summary: `COBOL program ${ast.name} converted to Python using AST parsing. Contains ${stats.procedures} procedures and ${stats.variables} variables.`,
-    issues: [
-      { severity: 'MEDIUM', description: 'Legacy date handling detected', recommendation: 'Use datetime module' },
-      { severity: 'LOW', description: 'Fixed-length string fields', recommendation: 'Consider using Python str type' }
-    ],
-    improvements: [
-      { priority: 'HIGH', description: 'Add type hints', benefit: 'Better IDE support and error detection' },
-      { priority: 'MEDIUM', description: 'Implement logging', benefit: 'Easier debugging and monitoring' }
-    ]
+    summary: `COBOL program ${ast.name} converted to Python using AST parsing. Contains ${stats.procedures} procedures and ${stats.variables} variables.`
+  };
+}
+
+// Generate comprehensive report
+function generateDefaultReport(ast, stats) {
+  const issues = [];
+  const improvements = [];
+  const security = [];
+  const nextSteps = [];
+
+  // Analyze variables for patterns
+  const variables = ast.variables || [];
+  const procedures = ast.procedures || [];
+  const hasDateFields = variables.some(v => /DATE|DT|YY|MM|DD/i.test(v.name));
+  const hasAmountFields = variables.some(v => /AMT|AMOUNT|PRICE|TOTAL|BAL|MONEY|COST/i.test(v.name));
+  const hasPasswordFields = variables.some(v => /PASS|PWD|SECRET|KEY|TOKEN|CRED/i.test(v.name));
+  const hasFileOps = procedures.some(p => /READ|WRITE|OPEN|CLOSE|FILE/i.test(p.name));
+  const hasSqlOps = procedures.some(p => /SQL|EXEC|CURSOR|FETCH|SELECT|INSERT|UPDATE|DELETE/i.test(p.name));
+  const hasNetworkOps = procedures.some(p => /SOCKET|TCP|HTTP|SEND|RECEIVE/i.test(p.name));
+  const hasErrorHandling = procedures.some(p => /ERROR|EXCEPTION|ABORT|INVALID/i.test(p.name));
+
+  // ========== ISSUES - Detected Problems ==========
+  
+  if (hasDateFields) {
+    issues.push({
+      id: 'DATE-001',
+      severity: 'MEDIUM',
+      title: 'Legacy date handling detected',
+      description: 'COBOL date fields use fixed formats (YYMMDD, PIC 9(6)). Python migration should use datetime objects with proper timezone handling.',
+      location: 'DATA DIVISION',
+      recommendation: 'Use Python datetime.strptime() with explicit format strings. Consider using pendulum or arrow libraries for timezone support.'
+    });
+  }
+
+  issues.push({
+    id: 'STR-001',
+    severity: 'LOW',
+    title: 'Fixed-length string fields',
+    description: 'COBOL PIC X fields have fixed lengths with space padding. Python strings are dynamic.',
+    location: 'DATA DIVISION',
+    recommendation: 'Use .strip() on string fields and validate max lengths with len() checks.'
+  });
+
+  if (stats.procedures > 50) {
+    issues.push({
+      id: 'COMPLEX-001',
+      severity: 'HIGH',
+      title: 'High procedural complexity',
+      description: `${stats.procedures} procedures detected. Complex control flow may require careful refactoring to maintain business logic.`,
+      location: 'PROCEDURE DIVISION',
+      recommendation: 'Group related procedures into Python classes. Consider using design patterns like Strategy or Command.'
+    });
+  }
+
+  if (stats.procedures > 20 && stats.procedures <= 50) {
+    issues.push({
+      id: 'COMPLEX-002',
+      severity: 'MEDIUM',
+      title: 'Moderate procedural complexity',
+      description: `${stats.procedures} procedures require careful organization in Python modules.`,
+      location: 'PROCEDURE DIVISION',
+      recommendation: 'Create logical groupings based on business functionality.'
+    });
+  }
+
+  if (hasFileOps) {
+    issues.push({
+      id: 'FILE-001',
+      severity: 'MEDIUM',
+      title: 'Legacy file I/O operations',
+      description: 'COBOL sequential/indexed file operations detected. Requires migration to modern file handling or database.',
+      location: 'PROCEDURE DIVISION',
+      recommendation: 'Consider migrating to SQLite, PostgreSQL, or pandas DataFrames for structured data.'
+    });
+  }
+
+  if (hasSqlOps) {
+    issues.push({
+      id: 'SQL-001',
+      severity: 'MEDIUM',
+      title: 'Embedded SQL detected',
+      description: 'EXEC SQL statements found. Requires database connection refactoring for Python.',
+      location: 'PROCEDURE DIVISION',
+      recommendation: 'Use SQLAlchemy ORM or psycopg2/pymysql for Python database access.'
+    });
+  }
+
+  if (stats.variables > 100) {
+    issues.push({
+      id: 'DATA-001',
+      severity: 'MEDIUM',
+      title: 'Large data structure complexity',
+      description: `${stats.variables} variables detected. Consider using dataclasses or Pydantic models.`,
+      location: 'DATA DIVISION',
+      recommendation: 'Use Python dataclasses with type hints for structured data.'
+    });
+  }
+
+  if (hasAmountFields) {
+    issues.push({
+      id: 'NUM-001',
+      severity: 'HIGH',
+      title: 'Financial calculations detected',
+      description: 'Amount/price fields found. COBOL COMP-3 decimals require careful handling to avoid floating-point errors.',
+      location: 'DATA DIVISION',
+      recommendation: 'Use Python Decimal class for all financial calculations. Never use float for money.'
+    });
+  }
+
+  if (!hasErrorHandling) {
+    issues.push({
+      id: 'ERR-001',
+      severity: 'MEDIUM',
+      title: 'Limited error handling detected',
+      description: 'No explicit error handling procedures found. Python version needs robust exception handling.',
+      location: 'PROCEDURE DIVISION',
+      recommendation: 'Implement try/except blocks with specific exception types and proper logging.'
+    });
+  }
+
+  // ========== IMPROVEMENTS - Enhancement Suggestions ==========
+  
+  improvements.push({
+    id: 'IMP-001',
+    priority: 'HIGH',
+    title: 'Add comprehensive type hints',
+    description: 'Python code should use type hints (PEP 484) for better IDE support, maintainability, and early error detection.',
+    benefit: 'Catches type errors at development time, improves code documentation',
+    effort: '2-4 hours'
+  });
+
+  improvements.push({
+    id: 'IMP-002',
+    priority: 'HIGH',
+    title: 'Implement unit test suite',
+    description: 'Create pytest test suite covering all converted procedures with at least 80% code coverage.',
+    benefit: 'Ensures conversion accuracy and prevents regression',
+    effort: '1-2 days'
+  });
+
+  improvements.push({
+    id: 'IMP-003',
+    priority: 'MEDIUM',
+    title: 'Add structured logging',
+    description: 'Replace DISPLAY statements with Python logging module for production monitoring and debugging.',
+    benefit: 'Better debugging, audit trails, and production monitoring',
+    effort: '2-4 hours'
+  });
+
+  improvements.push({
+    id: 'IMP-004',
+    priority: 'MEDIUM',
+    title: 'Implement exception handling',
+    description: 'Add try/except blocks with proper exception hierarchy and error recovery.',
+    benefit: 'Graceful error handling and improved reliability',
+    effort: '4-8 hours'
+  });
+
+  improvements.push({
+    id: 'IMP-005',
+    priority: 'MEDIUM',
+    title: 'Create configuration management',
+    description: 'Externalize all hardcoded values to configuration files or environment variables.',
+    benefit: 'Easier deployment across environments',
+    effort: '2-4 hours'
+  });
+
+  if (hasAmountFields) {
+    improvements.push({
+      id: 'IMP-006',
+      priority: 'HIGH',
+      title: 'Use Decimal for financial calculations',
+      description: 'COBOL COMP-3 packed decimals should use Python Decimal class to avoid floating-point precision errors.',
+      benefit: 'Accurate financial calculations without rounding errors',
+      effort: '2-4 hours'
+    });
+  }
+
+  improvements.push({
+    id: 'IMP-007',
+    priority: 'LOW',
+    title: 'Add API documentation',
+    description: 'Create OpenAPI/Swagger documentation for any exposed interfaces.',
+    benefit: 'Better developer experience and integration support',
+    effort: '4-8 hours'
+  });
+
+  improvements.push({
+    id: 'IMP-008',
+    priority: 'MEDIUM',
+    title: 'Implement input validation',
+    description: 'Add Pydantic models or marshmallow schemas for input validation.',
+    benefit: 'Data integrity and security',
+    effort: '4-6 hours'
+  });
+
+  // ========== SECURITY - Vulnerabilities & Recommendations ==========
+  
+  if (hasPasswordFields) {
+    security.push({
+      id: 'SEC-001',
+      severity: 'CRITICAL',
+      title: 'Hardcoded credentials detected',
+      description: 'Password/secret fields found in DATA DIVISION. Credentials should never be hardcoded in source code.',
+      location: 'DATA DIVISION',
+      recommendation: 'Use environment variables or a secrets manager (AWS Secrets Manager, HashiCorp Vault, Azure Key Vault).'
+    });
+  }
+
+  if (hasSqlOps) {
+    security.push({
+      id: 'SEC-002',
+      severity: 'HIGH',
+      title: 'SQL injection vulnerability risk',
+      description: 'Dynamic SQL detected. String concatenation for SQL queries can lead to injection attacks.',
+      location: 'PROCEDURE DIVISION',
+      recommendation: 'Use parameterized queries: cursor.execute("SELECT * FROM x WHERE id = %s", (id,)). Never use f-strings or concatenation for SQL.'
+    });
+  }
+
+  security.push({
+    id: 'SEC-003',
+    severity: 'MEDIUM',
+    title: 'Input validation required',
+    description: 'COBOL ACCEPT statements need comprehensive input validation in Python to prevent injection attacks.',
+    location: 'PROCEDURE DIVISION',
+    recommendation: 'Implement input sanitization functions and use validation libraries like Pydantic or Cerberus.'
+  });
+
+  if (hasFileOps) {
+    security.push({
+      id: 'SEC-004',
+      severity: 'MEDIUM',
+      title: 'File path traversal risk',
+      description: 'File operations should validate paths to prevent directory traversal attacks (../../../etc/passwd).',
+      location: 'PROCEDURE DIVISION',
+      recommendation: 'Use pathlib and validate paths against an allowed directory whitelist. Use os.path.realpath() to resolve symlinks.'
+    });
+  }
+
+  security.push({
+    id: 'SEC-005',
+    severity: 'LOW',
+    title: 'Implement audit logging',
+    description: 'Add audit logging for sensitive operations to support compliance and forensics.',
+    location: 'All procedures',
+    recommendation: 'Log user actions, data access, and modifications with timestamps and user identifiers.'
+  });
+
+  if (hasNetworkOps) {
+    security.push({
+      id: 'SEC-006',
+      severity: 'HIGH',
+      title: 'Network security considerations',
+      description: 'Network operations detected. Ensure TLS/SSL is used for all communications.',
+      location: 'PROCEDURE DIVISION',
+      recommendation: 'Use HTTPS, verify SSL certificates, and implement proper timeout handling.'
+    });
+  }
+
+  security.push({
+    id: 'SEC-007',
+    severity: 'MEDIUM',
+    title: 'Error message information disclosure',
+    description: 'Ensure error messages do not expose sensitive system information or stack traces to end users.',
+    location: 'Error handling',
+    recommendation: 'Use generic error messages for users, detailed logs for developers. Implement proper exception handling.'
+  });
+
+  // ========== NEXT STEPS - Migration Plan ==========
+  
+  nextSteps.push({
+    id: 'STEP-001',
+    phase: 1,
+    title: 'Code review & validation',
+    description: 'Review generated Python code for accuracy and business logic preservation. Verify all COBOL constructs are correctly translated.',
+    duration: '1-2 days',
+    deliverables: ['Code review report', 'Issue list', 'Sign-off document']
+  });
+
+  nextSteps.push({
+    id: 'STEP-002',
+    phase: 2,
+    title: 'Test suite creation',
+    description: 'Create comprehensive pytest test cases based on existing COBOL test data and business requirements.',
+    duration: '2-3 days',
+    deliverables: ['Unit tests', 'Integration tests', 'Test data files']
+  });
+
+  nextSteps.push({
+    id: 'STEP-003',
+    phase: 3,
+    title: 'Integration testing',
+    description: 'Test Python code with real database connections, file systems, and external services.',
+    duration: '2-3 days',
+    deliverables: ['Integration test results', 'Environment configuration', 'Connection validation']
+  });
+
+  nextSteps.push({
+    id: 'STEP-004',
+    phase: 4,
+    title: 'Performance benchmarking',
+    description: 'Compare Python execution time and resource usage with original COBOL program. Optimize critical paths.',
+    duration: '1-2 days',
+    deliverables: ['Performance report', 'Benchmark results', 'Optimization recommendations']
+  });
+
+  nextSteps.push({
+    id: 'STEP-005',
+    phase: 5,
+    title: 'Security audit',
+    description: 'Conduct security review of the converted code. Address all identified vulnerabilities.',
+    duration: '1-2 days',
+    deliverables: ['Security assessment', 'Vulnerability fixes', 'Compliance checklist']
+  });
+
+  nextSteps.push({
+    id: 'STEP-006',
+    phase: 6,
+    title: 'Staging deployment',
+    description: 'Deploy to staging environment and run parallel testing with COBOL system.',
+    duration: '3-5 days',
+    deliverables: ['Staging environment', 'Parallel test results', 'Discrepancy report']
+  });
+
+  nextSteps.push({
+    id: 'STEP-007',
+    phase: 7,
+    title: 'Production migration',
+    description: 'Execute production deployment with rollback plan. Monitor for issues.',
+    duration: '1-2 weeks',
+    deliverables: ['Production deployment', 'Monitoring dashboards', 'Rollback procedures']
+  });
+
+  nextSteps.push({
+    id: 'STEP-008',
+    phase: 8,
+    title: 'Documentation & training',
+    description: 'Create technical documentation and train team on the new Python codebase.',
+    duration: '3-5 days',
+    deliverables: ['Technical docs', 'API documentation', 'Training materials']
+  });
+
+  return {
+    issues,
+    improvements,
+    security,
+    nextSteps,
+    summary: {
+      totalIssues: issues.length,
+      totalImprovements: improvements.length,
+      totalSecurityFindings: security.length,
+      totalNextSteps: nextSteps.length,
+      critical: issues.filter(i => i.severity === 'CRITICAL').length + security.filter(s => s.severity === 'CRITICAL').length,
+      high: issues.filter(i => i.severity === 'HIGH').length + security.filter(s => s.severity === 'HIGH').length,
+      medium: issues.filter(i => i.severity === 'MEDIUM').length + security.filter(s => s.severity === 'MEDIUM').length,
+      low: issues.filter(i => i.severity === 'LOW').length + security.filter(s => s.severity === 'LOW').length
+    }
   };
 }
 
@@ -317,8 +670,6 @@ function generateDefaultModules(ast) {
   }
 
   const types = ['Business Logic', 'Data Access', 'Validation', 'Processing', 'Reporting', 'Utilities'];
-  const complexities = ['LOW', 'MEDIUM', 'HIGH'];
-  const risks = ['LOW', 'MEDIUM', 'HIGH'];
   let i = 0;
 
   for (const [prefix, procs] of Object.entries(groups)) {
@@ -350,7 +701,8 @@ function generateDefaultImpact(ast) {
     })),
     migration_risks: [
       { risk: 'Data format changes', impact: 'MEDIUM', mitigation: 'Implement data validation layer' },
-      { risk: 'Performance differences', impact: 'LOW', mitigation: 'Benchmark critical paths' }
+      { risk: 'Performance differences', impact: 'LOW', mitigation: 'Benchmark critical paths' },
+      { risk: 'Character encoding', impact: 'LOW', mitigation: 'Use UTF-8 consistently' }
     ],
     estimated_effort: `${Math.ceil(ast.procedures.length / 5)} weeks`
   };
