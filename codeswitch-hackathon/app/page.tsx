@@ -471,6 +471,14 @@ export default function Home() {
       }
       const parsed: AnalysisResult = data;
       
+      // Convert escaped newlines to real newlines
+      if (parsed.python_code) {
+        parsed.python_code = parsed.python_code.replace(/\\n/g, '\n');
+      }
+      if (parsed.unit_tests && typeof parsed.unit_tests === 'string') {
+        parsed.unit_tests = parsed.unit_tests.replace(/\\n/g, '\n');
+      }
+      
       setPythonCode(parsed.python_code);
       setAnalysis(parsed);
       setAnalyzedCobolCode(cobolCode);
