@@ -496,7 +496,7 @@ export default function Home() {
           setError("API quota exhausted. Wait or use a new key.");
         } else if (err.message.includes("JSON")) {
           setError("Parsing error. Please try again.");
-        } else {
+        } else if (!err.message.includes("405") && !err.message.includes("AST")) {
           setError(`Error: ${err.message}`);
         }
       } else {
