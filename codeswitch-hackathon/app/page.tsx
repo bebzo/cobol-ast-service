@@ -39,75 +39,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
-const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
-       PROGRAM-ID.  PAYROLL01.
-       AUTHOR.      GLOBAL-BANKING-LEGACY-1987.
-      *================================================================*
-      * PAYROLL SYSTEM - GROSS/NET CALCULATION MODULE                  *
-      * WARNING: 1995 TAX RATES - OBSOLETE - REQUIRES UPDATE           *
-      *================================================================*
-       
-       DATA DIVISION.
-       WORKING-STORAGE SECTION.
-       
-       01  EMP-HOURLY-RATE         PIC S9(5)V99 COMP-3.
-       01  EMP-STATUS              PIC X(1).
-           88  EMP-ACTIVE          VALUE 'A'.
-           88  EMP-TERMINATED      VALUE 'T'.
-       
-      * 1995 TAX RATES - NOT COMPLIANT WITH 2025 REGULATIONS
-       01  WS-TAX-BRACKETS-1995.
-           05  WS-BRACKET-1-LIMIT  PIC 9(7) VALUE 23350.
-           05  WS-BRACKET-2-LIMIT  PIC 9(7) VALUE 56550.
-           05  WS-RATE-BRACKET-1   PIC V999 VALUE .150.
-           05  WS-RATE-BRACKET-2   PIC V999 VALUE .280.
-       
-       01  WS-FICA-RATES.
-           05  WS-SS-RATE          PIC V9999 VALUE .0620.
-           05  WS-MEDICARE-RATE    PIC V9999 VALUE .0145.
-           05  WS-SS-WAGE-BASE     PIC 9(7) VALUE 61200.
-       
-       01  WS-CALC-FIELDS.
-           05  WS-GROSS-PAY        PIC S9(7)V99 COMP-3.
-           05  WS-FEDERAL-TAX      PIC S9(7)V99 COMP-3.
-           05  WS-FICA-TAX         PIC S9(7)V99 COMP-3.
-           05  WS-NET-PAY          PIC S9(7)V99 COMP-3.
-       
-       PROCEDURE DIVISION.
-       
-       0000-MAIN.
-           MOVE 25.50 TO EMP-HOURLY-RATE
-           PERFORM 4000-CALC-GROSS
-           PERFORM 5100-CALC-FED-TAX
-           PERFORM 5200-CALC-FICA
-           PERFORM 6000-CALC-NET
-           DISPLAY "GROSS: " WS-GROSS-PAY
-           DISPLAY "NET:   " WS-NET-PAY
-           STOP RUN.
-       
-       4000-CALC-GROSS.
-           COMPUTE WS-GROSS-PAY = EMP-HOURLY-RATE * 40.
-       
-       5100-CALC-FED-TAX.
-      * OBSOLETE CALCULATION - 1995 TAX RATES
-           IF WS-GROSS-PAY * 52 <= WS-BRACKET-1-LIMIT
-               COMPUTE WS-FEDERAL-TAX = 
-                   WS-GROSS-PAY * WS-RATE-BRACKET-1
-           ELSE
-               COMPUTE WS-FEDERAL-TAX = 
-                   WS-BRACKET-1-LIMIT * WS-RATE-BRACKET-1 / 52 +
-                   (WS-GROSS-PAY - WS-BRACKET-1-LIMIT / 52) 
-                   * WS-RATE-BRACKET-2
-           END-IF.
-       
-       5200-CALC-FICA.
-      * OBSOLETE SS CAP: $61,200 (1995) VS $168,600 (2025)
-           COMPUTE WS-FICA-TAX = 
-               WS-GROSS-PAY * (WS-SS-RATE + WS-MEDICARE-RATE).
-       
-       6000-CALC-NET.
-           COMPUTE WS-NET-PAY = 
-               WS-GROSS-PAY - WS-FEDERAL-TAX - WS-FICA-TAX.`;
+
 
 // Enhanced CodeSwitch Pro prompt - Advanced Architecture
 const GEMINI_PROMPT = `You are CodeSwitch Pro, a senior legacy migration architect with 25 years of experience.
@@ -288,14 +220,12 @@ export default function Home() {
         return res.text();
       })
       .then(text => {
-        if (text && text.includes('IDENTIFICATION DIVISION') || text.includes('PROGRAM-ID')) {
+        if (text && (text.includes('IDENTIFICATION DIVISION') || text.includes('PROGRAM-ID'))) {
           setCobolCode(text);
           setFilename('MEGA-ENTERPRISE.CBL');
-        } else {
-          setCobolCode(SAMPLE_COBOL);
         }
       })
-      .catch(() => setCobolCode(SAMPLE_COBOL));
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -742,23 +672,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <span>Upload .cbl</span>
                 <input type="file" accept=".cbl,.cob,.txt" onChange={handleFileUpload} className="hidden" />
               </label>
-              <button
-                onClick={async () => {
-                  try {
-                    const res = await fetch('/MEGA-ENTERPRISE.CBL');
-                    const text = await res.text();
-                    setCobolCode(text);
-                    setFilename('MEGA-ENTERPRISE.CBL');
-                    setAnalysis(null);
-                  } catch (e) {
-                    console.error(e);
-                  }
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-lg transition text-sm font-medium"
-              >
-                <FileCode className="w-4 h-4" />
-                <span>Load Demo (10K LOC)</span>
-              </button>
+
               <div className="flex items-center gap-2 text-slate-400">
                 <FileCode className="w-4 h-4" />
                 <span className="text-sm">{filename}</span>
