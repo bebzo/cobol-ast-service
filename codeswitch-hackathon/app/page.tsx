@@ -245,6 +245,7 @@ export default function Home() {
   const [filename, setFilename] = useState("MEGA-ENTERPRISE.CBL");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [modulesLimit, setModulesLimit] = useState(50);
   const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "impact" | "report">("code");
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
@@ -1301,7 +1302,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         </div>
                       </div>
                       <div className="grid gap-3">
-                        {enrichedModules.map((mod, idx) => (
+                        {enrichedModules.slice(0, showAllModules ? enrichedModules.length : 20).map((mod, idx) => (
                           <div key={idx} className="bg-slate-800 p-4 rounded-lg border border-pink-500/30 hover:border-pink-400/50 transition">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -1328,6 +1329,14 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                           </div>
                         ))}
                       </div>
+                      {enrichedModules.length > 20 && !showAllModules && (
+                        <button
+                          onClick={() => setShowAllModules(true)}
+                          className="mt-4 w-full py-2 bg-pink-600/20 hover:bg-pink-600/40 text-pink-300 rounded-lg border border-pink-500/30 transition"
+                        >
+                          Show all {enrichedModules.length} modules
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-center text-slate-400">
