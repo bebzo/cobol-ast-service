@@ -10,33 +10,21 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Prompt for translating a chunk of COBOL code - HIGH QUALITY
-const CHUNK_PROMPT = `You are an expert COBOL-to-Python migration specialist. Translate this COBOL code section to production-quality Python.
+// Prompt for translating a chunk of COBOL code
+const CHUNK_PROMPT = `You are a COBOL-to-Python translator. Translate this COBOL code section to Python.
 
-CRITICAL RULES:
-1. DO NOT include import statements (imports are handled separately)
-2. DO NOT wrap code in markdown (\`\`\`python or \`\`\`)
-3. COMPLETE every function - never leave functions truncated
-4. Use @dataclass for COBOL record structures (01 level)
-5. Use Decimal for all PIC 9 with V (decimal positions)
-6. Use proper Python type hints (str, int, Decimal, Optional, List)
-7. Add docstring with COBOL paragraph name for each function
-8. PERFORM → method/function calls
-9. EVALUATE TRUE → match/case statements
-10. WORKING-STORAGE → class attributes in __init__
-11. Preserve original COBOL comments as Python comments
+RULES:
+- DO NOT include import statements (imports are handled separately)
+- Use @dataclass for record structures
+- Use Decimal for numeric PIC 9 with V (decimal)
+- Use type hints
+- Include docstrings with original COBOL line numbers
+- PERFORM → method calls
+- EVALUATE → match/case
+- Generate complete, executable Python code
+- Return ONLY raw Python code (no markdown, no code blocks)
 
-NAMING CONVENTIONS:
-- COBOL hyphens → Python underscores (CUST-NAME → cust_name)
-- Paragraph names → function names (1000-INIT → init_1000 or initialization)
-- Keep business logic readable
-
-OUTPUT FORMAT:
-- Return ONLY raw Python code
-- NO markdown, NO \`\`\`, NO explanations
-- Start directly with class or function definitions
-
-COBOL CODE TO TRANSLATE:
+COBOL CODE:
 `;
 
 // Prompt for generating analysis metadata
