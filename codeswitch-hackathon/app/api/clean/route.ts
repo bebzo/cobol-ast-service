@@ -43,19 +43,15 @@ export async function POST(request: NextRequest) {
     let cleanedCode = pythonCode;
 
     // Clean in chunks to handle large files
-    const CLEAN_PROMPT = `You are a Python syntax fixer. Fix ALL syntax errors in this code.
+    const CLEAN_PROMPT = `Fix Python syntax errors. CRITICAL: Preserve EXACT indentation of each line.
 
-CRITICAL RULES:
-1. PRESERVE LINE COUNT - never delete lines, convert broken ones to comments or pass
-2. Close unclosed parentheses (), brackets [], braces {}
-3. Close unclosed strings " and docstrings """
-4. Add 'pass' to empty function/class bodies
-5. Fix truncated statements by adding 'None' or 'pass'
-6. Remove COBOL keywords (PERFORM, MOVE, etc) - replace with 'pass  # COBOL'
-7. Fix malformed operators (+= not + =)
-8. Return ONLY valid Python code (no markdown, no explanation)
+RULES:
+1. Keep same indentation for each line
+2. Close unclosed strings/docstrings
+3. Add 'pass' to empty blocks
+4. Return ONLY Python code (no markdown)
 
-CODE TO FIX:
+CODE:
 `;
 
     // Process start, middle, and end
@@ -83,13 +79,20 @@ CODE TO FIX:
       }
     }
 
-    // Final regex cleanup
+    // Comprehensive regex cleanup
     cleanedCode = cleanedCode.replace(/\+\s+=/g, '+=');
     cleanedCode = cleanedCode.replace(/-\s+=/g, '-=');
-    cleanedCode = cleanedCode.replace(/^(\s*).*""".*""".*""".*$/gm, '$1    """TODO"""');
+    cleanedCode = cleanedCode.replace(/\*\s+=/g, '*=');
+    cleanedCode = cleanedCode.replace(/\/\s+=/g, '/=');
+    // Fix corrupted docstrings
+    cleanedCode = cleanedCode.replace(/^(\s*).*""".*""".*""".*$/gm, '$1"""TODO"""');
     cleanedCode = cleanedCode.replace(/"""([^"]{0,200})"""TODO"""/g, '"""$1"""');
+    // Remove COBOL remnants
     cleanedCode = cleanedCode.replace(/^\s+\d{2}\s+[\w-]+\.?"""\s*$/gm, '');
     cleanedCode = cleanedCode.replace(/^\s+\d{2}\s+[\w-]+\.\s*$/gm, '');
+    // Fix over-indented docstrings (8 spaces -> 4 spaces)
+    cleanedCode = cleanedCode.replace(/^(\s{4}def\s+\w+.*:\s*\n)\s{12}(""")/gm, '$1        $2');
+    cleanedCode = cleanedCode.replace(/^(\s*)        ("""TODO""")\n\s{4}(self\.)/gm, '$1    $2\n$1    $3');
 
     const cleanedLineCount = cleanedCode.split('\n').length;
 
