@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     // === CHUNKED TRANSLATION ===
     // Split COBOL into chunks - max 15
-    const MAX_CHUNKS = 40;
+    const MAX_CHUNKS = 35;
     const CHUNK_SIZE = Math.max(800, Math.ceil(lines.length / MAX_CHUNKS));
     const chunks: string[] = [];
     for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
