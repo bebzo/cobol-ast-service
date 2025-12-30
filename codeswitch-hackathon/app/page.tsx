@@ -1622,7 +1622,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </div>
                   </div>
                 ) : (
-                  <p className="text-slate-500 text-sm text-center">Ask Gemini about the code, security issues, or migration...</p>
+                  <div className="flex items-start gap-2">
+                      <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs">G</div>
+                      <div className="bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200">Any questions about this analysis? I can help with security, migration strategy, or code details.</div>
+                    </div>
                 )}
               </div>
               <div className="flex gap-2">
