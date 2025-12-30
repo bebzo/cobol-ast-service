@@ -505,15 +505,16 @@ export default function Home() {
       setAnalysis(parsed);
       setAnalyzedCobolCode(cobolCode);
 
+      // Save only summary to avoid localStorage quota
       const newItem: HistoryItem = {
         id: Date.now().toString(),
         filename,
         timestamp: Date.now(),
-        cobolCode,
-        pythonCode: parsed.python_code,
-        analysis: parsed,
+        cobolCode: cobolCode.slice(0, 2000) + (cobolCode.length > 2000 ? '\n... [truncated]' : ''),
+        pythonCode: parsed.python_code.slice(0, 2000) + (parsed.python_code.length > 2000 ? '\n... [truncated]' : ''),
+        analysis: { ...parsed, python_code: '[stored separately]', unit_tests: '[stored separately]' },
       };
-      const newHistory = [newItem, ...history].slice(0, 10); // Keep last 10
+      const newHistory = [newItem, ...history].slice(0, 3); // Keep last 3 only
       setHistory(newHistory);
       // Save to localStorage
       try {

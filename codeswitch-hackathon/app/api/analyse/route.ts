@@ -104,9 +104,9 @@ export async function POST(request: NextRequest) {
     });
 
     // === CHUNKED TRANSLATION ===
-    // Split COBOL into chunks - max 15 chunks for maximum coverage
-    const MAX_CHUNKS = 15;
-    const CHUNK_SIZE = Math.max(500, Math.ceil(lines.length / MAX_CHUNKS));
+    // Split COBOL into chunks - max 8 chunks for speed (Vercel 60s timeout)
+    const MAX_CHUNKS = 8;
+    const CHUNK_SIZE = Math.max(800, Math.ceil(lines.length / MAX_CHUNKS));
     const chunks: string[] = [];
     for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
       chunks.push(lines.slice(i, i + CHUNK_SIZE).join('\n'));
