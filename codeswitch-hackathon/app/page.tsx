@@ -564,13 +564,10 @@ export default function Home() {
     setIsListening(false);
     
     try {
-      const res = await fetch('https://jcizfxniwgwfdmubapyb.supabase.co/functions/v1/analyse', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c'
-        },
-        body: JSON.stringify({ action: 'voice', query, cobolCode: cobolCode.substring(0, 500), pythonCode: pythonCode.substring(0, 500) })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, cobolCode: cobolCode.substring(0, 500), pythonCode: pythonCode.substring(0, 500) })
       });
       const data = await res.json();
       const response = data.response || "Sorry, I couldn't process your request.";
