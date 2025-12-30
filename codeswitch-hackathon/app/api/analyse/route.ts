@@ -463,6 +463,28 @@ export async function POST(request: NextRequest) {
     };
 
     // Translate chunks in parallel - inject chunk index for unique naming
+    // Quick syntax fix for a single chunk
+    const fixChunkSyntax = async (code: string, chunkIdx: number): Promise<string> => {
+      try {
+        const fixPrompt = `Fix Python syntax errors. Return ONLY valid Python code (no markdown).
+RULES: Close unclosed (), [], {}, strings, docstrings. Add 'pass' to empty blocks. Keep ALL lines.
+
+CODE:
+${code}`;
+        const result = await model.generateContent(fixPrompt);
+        let fixed = result.response.text()
+          .replace(/```python\s*/gi, '').replace(/```\s*/g, '').trim();
+        // Accept if line count similar
+        if (fixed.length > 100 && fixed.split('\n').length >= code.split('\n').length * 0.9) {
+          console.log(`[Chunk ${chunkIdx}] Syntax fixed`);
+          return fixed;
+        }
+      } catch (e: any) {
+        console.log(`[Chunk ${chunkIdx}] Fix skipped: ${e.message}`);
+      }
+      return code;
+    };
+
     const translateChunk = async (chunk: string, index: number): Promise<string> => {
       try {
         // Replace CHUNK_IDX with actual chunk number
@@ -470,7 +492,9 @@ export async function POST(request: NextRequest) {
         const result = await model.generateContent(promptWithIndex + chunk);
         let code = result.response.text();
         code = cleanPythonCode(code);
-        console.log(`[Chunk ${index + 1}/${chunks.length}] Translated: ${code.length} chars`);
+        // Fix syntax immediately after translation
+        code = await fixChunkSyntax(code, index + 1);
+        console.log(`[Chunk ${index + 1}/${chunks.length}] Translated+Fixed: ${code.length} chars`);
         return code;
       } catch (e: any) {
         console.error(`[Chunk ${index + 1}] Error:`, e.message);
