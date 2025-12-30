@@ -246,65 +246,146 @@ export async function POST(request: NextRequest) {
       return parts.join('\n\n').replace(/\n{3,}/g, '\n\n');
     };
 
-    // Validate and fix Python syntax issues
+    // Comprehensive Python syntax validation and repair
     const validateAndFixPython = (code: string): { code: string; issues: string[] } => {
       const issues: string[] = [];
-      let fixed = code;
+      let lines = code.split('\n');
       
-      // Fix 1: Remove incomplete lines at end of blocks
-      fixed = fixed.replace(/\n\s*(def|class|if|for|while|try|except|with)\s+\w*\s*$/gm, '');
-      
-      // Fix 2: Remove lines with unclosed parentheses at end
-      fixed = fixed.replace(/\n[^#\n]*\([^)\n]*$/gm, (match) => {
-        issues.push('Removed truncated line with unclosed parenthesis');
-        return '';
-      });
-      
-      // Fix 3: Ensure all def/class have colons
-      fixed = fixed.replace(/^(def\s+\w+\s*\([^)]*\))\s*$/gm, '$1:');
-      fixed = fixed.replace(/^(class\s+\w+[^:]*)\s*$/gm, '$1:');
-      
-      // Fix 4: Remove orphan "self." references
-      fixed = fixed.replace(/^\s*self\.\w*\s*$/gm, '');
-      
-      // Fix 5: Check bracket balance per function/class
-      const lines = fixed.split('\n');
-      const cleanedLines: string[] = [];
-      let parenCount = 0;
-      let bracketCount = 0;
-      let braceCount = 0;
-      
-      for (const line of lines) {
-        // Count brackets
-        for (const char of line) {
-          if (char === '(') parenCount++;
-          if (char === ')') parenCount--;
-          if (char === '[') bracketCount++;
-          if (char === ']') bracketCount--;
-          if (char === '{') braceCount++;
-          if (char === '}') braceCount--;
+      // === PHASE 1: Line-level fixes ===
+      lines = lines.map((line, idx) => {
+        // Remove markdown artifacts
+        if (line.trim().startsWith('```')) return '';
+        
+        // Fix incomplete def/class declarations
+        if (line.match(/^\s*(def|class)\s+\w+\s*$/) && !line.includes(':')) {
+          issues.push(`Line ${idx + 1}: Added missing colon`);
+          return line + ':';
         }
         
-        // Skip lines that would cause severe imbalance
-        if (parenCount < -2 || bracketCount < -2 || braceCount < -2) {
-          issues.push('Skipped line with bracket imbalance');
-          parenCount = Math.max(0, parenCount);
-          bracketCount = Math.max(0, bracketCount);
-          braceCount = Math.max(0, braceCount);
+        // Remove orphan self references
+        if (line.match(/^\s*self\.\s*$/)) {
+          issues.push(`Line ${idx + 1}: Removed orphan self`);
+          return '';
+        }
+        
+        // Remove truncated assignments
+        if (line.match(/^\s*\w+\s*=\s*$/) || line.match(/^\s*self\.\w+\s*=\s*$/)) {
+          issues.push(`Line ${idx + 1}: Removed truncated assignment`);
+          return '';
+        }
+        
+        return line;
+      });
+      
+      // === PHASE 2: Block-level analysis ===
+      const result: string[] = [];
+      let i = 0;
+      
+      while (i < lines.length) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        
+        // Skip empty lines
+        if (!trimmed) {
+          result.push(line);
+          i++;
           continue;
         }
         
-        cleanedLines.push(line);
+        // Check for def/class with body
+        if (trimmed.match(/^(def|class)\s+\w+.*:\s*$/)) {
+          result.push(line);
+          i++;
+          
+          // Check if next non-empty line is indented (has body)
+          let hasBody = false;
+          let j = i;
+          while (j < lines.length && !lines[j].trim()) {
+            result.push(lines[j]);
+            j++;
+          }
+          
+          if (j < lines.length) {
+            const nextLine = lines[j];
+            const currentIndent = line.match(/^(\s*)/)?.[1]?.length || 0;
+            const nextIndent = nextLine.match(/^(\s*)/)?.[1]?.length || 0;
+            
+            if (nextIndent > currentIndent) {
+              hasBody = true;
+            }
+          }
+          
+          // Add pass if no body
+          if (!hasBody) {
+            const indent = line.match(/^(\s*)/)?.[1] || '';
+            result.push(indent + '    pass');
+            issues.push(`Added pass to empty ${trimmed.startsWith('def') ? 'function' : 'class'}`);
+          }
+          
+          i = j;
+          continue;
+        }
+        
+        // Check bracket balance
+        let parenBalance = 0;
+        let bracketBalance = 0;
+        let braceBalance = 0;
+        let inString = false;
+        let stringChar = '';
+        
+        for (let c = 0; c < line.length; c++) {
+          const char = line[c];
+          
+          // Track string state
+          if ((char === '"' || char === "'") && (c === 0 || line[c-1] !== '\\')) {
+            if (!inString) {
+              inString = true;
+              stringChar = char;
+            } else if (char === stringChar) {
+              inString = false;
+            }
+          }
+          
+          if (!inString) {
+            if (char === '(') parenBalance++;
+            if (char === ')') parenBalance--;
+            if (char === '[') bracketBalance++;
+            if (char === ']') bracketBalance--;
+            if (char === '{') braceBalance++;
+            if (char === '}') braceBalance--;
+          }
+        }
+        
+        // Skip severely unbalanced lines
+        if (parenBalance < -3 || bracketBalance < -3 || braceBalance < -3) {
+          issues.push(`Line ${i + 1}: Removed severely unbalanced line`);
+          i++;
+          continue;
+        }
+        
+        // Fix unclosed brackets at end of code
+        if (i === lines.length - 1) {
+          if (parenBalance > 0) line.concat(')'.repeat(parenBalance));
+          if (bracketBalance > 0) line.concat(']'.repeat(bracketBalance));
+          if (braceBalance > 0) line.concat('}'.repeat(braceBalance));
+        }
+        
+        result.push(line);
+        i++;
       }
       
-      // Fix 6: Add pass to empty class/def bodies
-      fixed = cleanedLines.join('\n');
-      fixed = fixed.replace(/(class\s+\w+[^:]*:\s*\n)(\s*)((?:@|class|def|\n|$))/gm, '$1$2    pass\n$2$3');
-      fixed = fixed.replace(/(def\s+\w+[^:]*:\s*\n)(\s*)((?:@|class|def|\n|$))/gm, '$1$2    pass\n$2$3');
+      // === PHASE 3: Final cleanup ===
+      let fixed = result.join('\n');
       
-      if (issues.length > 0) {
-        console.log(`[Validation] Fixed ${issues.length} issues`);
+      // Remove multiple consecutive blank lines
+      fixed = fixed.replace(/\n{3,}/g, '\n\n');
+      
+      // Ensure file ends with newline
+      if (!fixed.endsWith('\n')) {
+        fixed += '\n';
       }
+      
+      console.log(`[Validation] Completed with ${issues.length} fixes applied`);
       
       return { code: fixed, issues };
     };
