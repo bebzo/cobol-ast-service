@@ -513,9 +513,10 @@ export async function POST(request: NextRequest) {
       chunks.map((chunk, idx) => translateChunk(chunk, idx))
     );
 
-    // Simple merge + light validation
+    // Simple merge + FULL validation (heavy)
     const mergedCode = intelligentMerge(allPythonCode);
-    const { code: validatedCode } = validateAndFixPython(mergedCode);
+    const { code: validatedCode, issues: validationIssues } = validateAndFixPythonHeavy(mergedCode);
+    console.log(`[Validation] ${validationIssues.length} issues fixed`);
     const combinedPythonCode = `"""
 ${ast.programId} - Migrated from COBOL
 Original: ${ast.metrics.totalLines} lines COBOL | Variables: ${ast.metrics.variables} | Paragraphs: ${ast.metrics.paragraphs}
