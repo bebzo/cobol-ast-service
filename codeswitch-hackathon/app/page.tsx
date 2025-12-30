@@ -1224,19 +1224,32 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         <GitCompare className="w-5 h-5" />
                         COBOL → Python Architecture Map
                       </div>
-                      <div className="bg-white p-4 rounded-lg border border-cyan-500/30 flex justify-center">
-                        <img 
-                          src={`https://mermaid.ink/img/${btoa(analysis.architecture_diagram)}`}
-                          alt="Architecture Diagram"
-                          className="max-w-full h-auto"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                          }}
-                        />
-                        <pre className="hidden text-sm text-slate-800 font-mono whitespace-pre-wrap">{analysis.architecture_diagram}</pre>
+                      <div className="flex items-center justify-center gap-4 p-6">
+                        {/* COBOL Legacy */}
+                        <div className="bg-gradient-to-b from-red-600 to-red-800 rounded-xl p-4 border border-red-400/50 shadow-lg shadow-red-500/20">
+                          <div className="text-white font-bold text-center mb-3">Legacy COBOL</div>
+                          <div className="space-y-2">
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">Main Program</div>
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">Data Division</div>
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">Procedures</div>
+                          </div>
+                        </div>
+                        {/* Arrow */}
+                        <div className="flex flex-col items-center">
+                          <div className="text-cyan-400 text-2xl animate-pulse">→→→</div>
+                          <div className="text-cyan-400 text-xs mt-1">Migration</div>
+                        </div>
+                        {/* Python Modern */}
+                        <div className="bg-gradient-to-b from-blue-600 to-blue-800 rounded-xl p-4 border border-blue-400/50 shadow-lg shadow-blue-500/20">
+                          <div className="text-white font-bold text-center mb-3">Python Modern</div>
+                          <div className="space-y-2">
+                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">REST API</div>
+                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">DataClasses</div>
+                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">Unit Tests</div>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-xs text-slate-500">Visual architecture showing COBOL to Python transformation</p>
+                      <p className="text-xs text-slate-500 text-center">Visual architecture showing COBOL to Python transformation</p>
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-center text-slate-400">
