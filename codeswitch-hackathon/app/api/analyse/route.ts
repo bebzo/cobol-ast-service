@@ -463,38 +463,13 @@ export async function POST(request: NextRequest) {
     };
 
     // Translate chunks in parallel - inject chunk index for unique naming
-    // Quick syntax fix for a single chunk
-    const fixChunkSyntax = async (code: string, chunkIdx: number): Promise<string> => {
-      try {
-        const fixPrompt = `Fix Python syntax errors. Return ONLY valid Python code (no markdown).
-RULES: Close unclosed (), [], {}, strings, docstrings. Add 'pass' to empty blocks. Keep ALL lines.
-
-CODE:
-${code}`;
-        const result = await model.generateContent(fixPrompt);
-        let fixed = result.response.text()
-          .replace(/```python\s*/gi, '').replace(/```\s*/g, '').trim();
-        // Accept if line count similar
-        if (fixed.length > 100 && fixed.split('\n').length >= code.split('\n').length * 0.9) {
-          console.log(`[Chunk ${chunkIdx}] Syntax fixed`);
-          return fixed;
-        }
-      } catch (e: any) {
-        console.log(`[Chunk ${chunkIdx}] Fix skipped: ${e.message}`);
-      }
-      return code;
-    };
-
     const translateChunk = async (chunk: string, index: number): Promise<string> => {
       try {
-        // Replace CHUNK_IDX with actual chunk number
         const promptWithIndex = CHUNK_PROMPT.replace(/CHUNK_IDX/g, `C${index + 1}`);
         const result = await model.generateContent(promptWithIndex + chunk);
         let code = result.response.text();
         code = cleanPythonCode(code);
-        // Fix syntax immediately after translation
-        code = await fixChunkSyntax(code, index + 1);
-        console.log(`[Chunk ${index + 1}/${chunks.length}] Translated+Fixed: ${code.length} chars`);
+        console.log(`[Chunk ${index + 1}/${chunks.length}] Translated: ${code.length} chars`);
         return code;
       } catch (e: any) {
         console.error(`[Chunk ${index + 1}] Error:`, e.message);
@@ -621,65 +596,26 @@ ${code}`;
     
     validatedCode = ensureValidEnding(validatedCode);
     
-    // AI-powered iterative syntax fix until code compiles
-    const aiFixPythonIterative = async (code: string): Promise<string> => {
-      const FIX_PROMPT = `You are a Python syntax fixer. Fix ALL syntax errors in this code snippet.
-
-CRITICAL RULES:
-1. PRESERVE LINE COUNT - never delete lines, convert to 'pass' or comments
-2. Close unclosed parentheses, brackets, braces
-3. Close unclosed strings and docstrings with """ or "
-4. Add 'pass' to empty blocks
-5. Fix truncated statements: incomplete = None
-6. Return ONLY raw Python code (no markdown, no explanation)
-
-CODE SNIPPET:
-`;
-      
-      const chunkSize = 4000;
-      const lines = code.split('\n');
-      const lineCount = lines.length;
-      
-      // Fix code in overlapping chunks to catch errors at boundaries
-      let fixedCode = code;
-      
-      for (let pass = 0; pass < 2; pass++) {
-        try {
-          // Fix beginning (first 4000 chars)
-          const startChunk = fixedCode.slice(0, chunkSize);
-          const startResult = await model.generateContent(FIX_PROMPT + startChunk);
-          let fixedStart = startResult.response.text()
-            .replace(/```python\s*/gi, '').replace(/```\s*/g, '').trim();
-          if (fixedStart.length > 500) {
-            fixedCode = fixedStart + fixedCode.slice(chunkSize);
-          }
-          
-          // Fix end (last 4000 chars) 
-          const endChunk = fixedCode.slice(-chunkSize);
-          const endResult = await model.generateContent(FIX_PROMPT + endChunk);
-          let fixedEnd = endResult.response.text()
-            .replace(/```python\s*/gi, '').replace(/```\s*/g, '').trim();
-          if (fixedEnd.length > 500) {
-            fixedCode = fixedCode.slice(0, -chunkSize) + fixedEnd;
-          }
-          
-          console.log(`[AI Fix] Pass ${pass + 1} completed`);
-        } catch (e: any) {
-          console.log(`[AI Fix] Pass ${pass + 1} error: ${e.message}`);
+    // Single AI fix pass on end of code (where truncation happens)
+    const aiFixEnd = async (code: string): Promise<string> => {
+      try {
+        const endChunk = code.slice(-3000);
+        const result = await model.generateContent(
+          `Fix Python syntax errors. Close unclosed (), [], strings. Add pass to empty blocks. Return ONLY Python code:\n${endChunk}`
+        );
+        let fixed = result.response.text()
+          .replace(/```python\s*/gi, '').replace(/```\s*/g, '').trim();
+        if (fixed.length > 500) {
+          console.log(`[AI Fix] End fixed`);
+          return code.slice(0, -3000) + fixed;
         }
+      } catch (e: any) {
+        console.log(`[AI Fix] Skipped: ${e.message}`);
       }
-      
-      // Ensure line count preserved
-      const newLines = fixedCode.split('\n');
-      if (newLines.length < lineCount * 0.9) {
-        console.log(`[AI Fix] Rejected: line count dropped too much`);
-        return code;
-      }
-      
-      return fixedCode;
+      return code;
     };
     
-    validatedCode = await aiFixPythonIterative(validatedCode);
+    validatedCode = await aiFixEnd(validatedCode);
     console.log(`[Validation] ${validationIssues.length} issues fixed`);
     const combinedPythonCode = `"""
 ${ast.programId} - Migrated from COBOL
