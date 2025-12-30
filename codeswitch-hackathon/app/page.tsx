@@ -930,8 +930,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <button
                   onClick={async () => {
                     setActiveTab("cleaned");
-                    if (!cleanedCode && pythonCode && !isCleaningCode) {
+                    // Always re-clean when clicked
+                    if (pythonCode && !isCleaningCode) {
                       setIsCleaningCode(true);
+                      setCleanedCode(""); // Reset
                       try {
                         const res = await fetch('/api/clean', {
                           method: 'POST',
