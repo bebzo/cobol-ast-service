@@ -1224,10 +1224,19 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         <GitCompare className="w-5 h-5" />
                         COBOL → Python Architecture Map
                       </div>
-                      <div className="bg-slate-800 p-4 rounded-lg border border-cyan-500/30">
-                        <pre className="text-sm text-slate-300 font-mono whitespace-pre-wrap">{analysis.architecture_diagram}</pre>
+                      <div className="bg-white p-4 rounded-lg border border-cyan-500/30 flex justify-center">
+                        <img 
+                          src={`https://mermaid.ink/img/${btoa(analysis.architecture_diagram)}`}
+                          alt="Architecture Diagram"
+                          className="max-w-full h-auto"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                        <pre className="hidden text-sm text-slate-800 font-mono whitespace-pre-wrap">{analysis.architecture_diagram}</pre>
                       </div>
-                      <p className="text-xs text-slate-500">Mermaid diagram showing the transformation from COBOL modules to Python classes</p>
+                      <p className="text-xs text-slate-500">Visual architecture showing COBOL to Python transformation</p>
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-center text-slate-400">
