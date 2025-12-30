@@ -36,6 +36,7 @@ import {
   Link2,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -306,18 +307,19 @@ export default function Home() {
       setApiKey(savedKey);
       setIsApiKeySet(true);
     }
-    // Load history from localStorage
-    try {
-      const saved = localStorage.getItem('codeswitch_history');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setHistory(parsed);
-        }
+    // Load history from Supabase
+    loadHistory(10).then((data) => {
+      if (data.length > 0) {
+        setHistory(data.map(item => ({
+          id: item.id || Date.now().toString(),
+          filename: item.filename,
+          timestamp: new Date(item.timestamp).getTime(),
+          cobolCode: item.cobol_code,
+          pythonCode: item.python_code,
+          analysis: item.analysis,
+        })));
       }
-    } catch (e) {
-      console.error('Failed to load history:', e);
-    }
+    });
   }, []);
 
   // Memoize enriched modules to avoid recalculation on each render
@@ -505,23 +507,28 @@ export default function Home() {
       setAnalysis(parsed);
       setAnalyzedCobolCode(cobolCode);
 
-      // Save only summary to avoid localStorage quota
-      const newItem: HistoryItem = {
-        id: Date.now().toString(),
+      // Save to Supabase (full code, no truncation)
+      const historyItem: AnalysisHistory = {
         filename,
-        timestamp: Date.now(),
-        cobolCode: cobolCode.slice(0, 2000) + (cobolCode.length > 2000 ? '\n... [truncated]' : ''),
-        pythonCode: parsed.python_code.slice(0, 2000) + (parsed.python_code.length > 2000 ? '\n... [truncated]' : ''),
-        analysis: { ...parsed, python_code: '[stored separately]', unit_tests: '[stored separately]' },
+        timestamp: new Date().toISOString(),
+        cobol_lines: cobolCode.split('\n').length,
+        python_lines: parsed.python_code.split('\n').length,
+        cobol_code: cobolCode,
+        python_code: parsed.python_code,
+        analysis: parsed,
       };
-      const newHistory = [newItem, ...history].slice(0, 3); // Keep last 3 only
-      setHistory(newHistory);
-      // Save to localStorage
-      try {
-        localStorage.setItem('codeswitch_history', JSON.stringify(newHistory));
-      } catch (e) {
-        console.error('Failed to save history:', e);
-      }
+      saveAnalysis(historyItem).then(() => {
+        loadHistory(10).then((data) => {
+          setHistory(data.map(item => ({
+            id: item.id || Date.now().toString(),
+            filename: item.filename,
+            timestamp: new Date(item.timestamp).getTime(),
+            cobolCode: item.cobol_code,
+            pythonCode: item.python_code,
+            analysis: item.analysis,
+          })));
+        });
+      });
 
     } catch (err: unknown) {
       console.error(err);
@@ -554,14 +561,9 @@ export default function Home() {
   };
 
   const deleteFromHistory = (id: string) => {
-    const newHistory = history.filter((h) => h.id !== id);
-    setHistory(newHistory);
-    // Save to localStorage
-    try {
-      localStorage.setItem('codeswitch_history', JSON.stringify(newHistory));
-    } catch (e) {
-      console.error('Delete failed:', e);
-    }
+    deleteAnalysis(id).then(() => {
+      setHistory(history.filter((h) => h.id !== id));
+    });
   };
 
   // Voice Assistant Functions
