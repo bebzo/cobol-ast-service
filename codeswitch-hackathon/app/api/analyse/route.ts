@@ -514,8 +514,11 @@ export async function POST(request: NextRequest) {
         code = code.replace(/^(\s+.+)\s+(\+|\-|\*|\/)\s*$/gm, '$1 $2 0  # TODO');
         code = code.replace(/^(\s+)([A-Z][A-Z0-9_]+)\s*$/gm, '$1$2 = None  # TODO');
         
-        // === COBOL REMNANTS (minimal - only periods) ===
+        // === COBOL REMNANTS ===
         code = code.replace(/^(\s*)\.\s*$/gm, '$1pass  # period');
+        // Remove orphan COBOL-like lines (01, 05, etc. level numbers)
+        code = code.replace(/^\s+\d{2}\s+[\w-]+\.?"""\s*$/gm, '');
+        code = code.replace(/^\s+\d{2}\s+[\w-]+\.\s*$/gm, '');
         
         // === BLOCK FIXES ===
         // Empty except before class/def
