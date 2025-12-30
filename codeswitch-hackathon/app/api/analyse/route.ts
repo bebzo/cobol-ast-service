@@ -319,22 +319,31 @@ export async function POST(request: NextRequest) {
           return line + '")';
         }
         
-        // Fix lines ending with unclosed constructor/function call
-        if (line.match(/=\s*\w+\s*\(\s*$/)) {
-          issues.push(`Line ${idx + 1}: Fixed unclosed constructor`);
-          return line + ')';
+        // Remove orphan closing parentheses on their own line
+        if (line.match(/^\s*\)\s*$/) && idx > 0) {
+          // Check if previous non-empty line ends with ) - if so, this is orphan
+          let prevIdx = idx - 1;
+          while (prevIdx >= 0 && !lines[prevIdx].trim()) prevIdx--;
+          if (prevIdx >= 0) {
+            const prevLine = lines[prevIdx];
+            if (prevLine.match(/\)\s*$/) || prevLine.match(/\)\s*,\s*$/)) {
+              issues.push(`Line ${idx + 1}: Removed orphan closing paren`);
+              return '';
+            }
+          }
         }
         
-        // Remove lines that are just an open parenthesis continuation
-        if (line.match(/^\s*\w+\s*=\s*$/) || line.match(/,\s*$/)) {
-          // Keep lines ending with comma (valid multiline)
-        } else if (line.match(/\(\s*$/) && !line.includes('def ') && !line.includes('class ')) {
-          // Count parens - if unbalanced, close it
-          const opens = (line.match(/\(/g) || []).length;
-          const closes = (line.match(/\)/g) || []).length;
-          if (opens > closes) {
-            issues.push(`Line ${idx + 1}: Closed unclosed parentheses`);
-            return line + ')'.repeat(opens - closes);
+        // Remove orphan named arguments (indented lines starting with word=)
+        if (line.match(/^\s{8,}\w+\s*=\s*\w+\(/) && idx > 0) {
+          let prevIdx = idx - 1;
+          while (prevIdx >= 0 && !lines[prevIdx].trim()) prevIdx--;
+          if (prevIdx >= 0) {
+            const prevLine = lines[prevIdx];
+            // If prev line ends with () it's closed, these args are orphan
+            if (prevLine.match(/\(\)\s*$/)) {
+              issues.push(`Line ${idx + 1}: Removed orphan argument`);
+              return '';
+            }
           }
         }
         
