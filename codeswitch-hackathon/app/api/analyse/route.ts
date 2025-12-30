@@ -49,7 +49,7 @@ Return ONLY a valid JSON object:
     "estimated_effort": "80 person-days",
     "confidence": 70
   },
-  "architecture_diagram": "graph TB; subgraph COBOL[Legacy COBOL]; A[Main Program]-->B[Data Division]; A-->C[Procedure Division]; C-->D[Paragraphs]; end; subgraph Python[Modern Python]; E[Main Class]-->F[DataClasses]; E-->G[Methods]; G-->H[Unit Tests]; end; A-.Migration.->E; B-.Transform.->F; D-.Convert.->G",
+  "architecture_diagram": "flowchart LR; subgraph Legacy[COBOL Legacy System]; direction TB; M[Main Program]:::cobol; D[Data Division]:::cobol; P[Procedure Division]:::cobol; M --> D; M --> P; end; subgraph Modern[Python Microservices]; direction TB; API[REST API]:::python; SVC[Business Logic]:::python; DB[(Database)]:::python; TEST[Unit Tests]:::python; API --> SVC; SVC --> DB; SVC --> TEST; end; Legacy ==>|Migration| Modern; classDef cobol fill:#e74c3c,stroke:#c0392b,color:white; classDef python fill:#3498db,stroke:#2980b9,color:white",
   "next_steps": ["Step 1", "Step 2"]
 }
 
