@@ -133,69 +133,99 @@ export async function POST(request: NextRequest) {
       return cleaned;
     };
 
-    // Intelligent merge: deduplicate dataclasses and functions
+    // Intelligent merge: deduplicate and clean code
     const intelligentMerge = (chunks: string[]): string => {
-      const combined = chunks.join('\n');
+      let combined = chunks.join('\n');
       
-      // Extract all dataclass definitions
-      const dataclassMap = new Map<string, string>();
-      const dataclassRegex = /@dataclass\s*\nclass\s+(\w+)[^@]*?(?=\n@dataclass|\ndef\s|\nclass\s(?!.*@dataclass)|$)/gs;
-      let match;
-      while ((match = dataclassRegex.exec(combined)) !== null) {
-        const className = match[1];
-        const fullDef = match[0];
-        const existing = dataclassMap.get(className);
-        // Keep the longest (most complete) definition
-        if (!existing || fullDef.length > existing.length) {
-          dataclassMap.set(className, fullDef.trim());
-        }
-      }
-
-      // Extract all function definitions (outside classes)
-      const funcMap = new Map<string, string>();
-      const funcRegex = /^def\s+(\w+)\s*\([^)]*\)[^:]*:[\s\S]*?(?=\ndef\s|\n@dataclass|\nclass\s|$)/gm;
-      while ((match = funcRegex.exec(combined)) !== null) {
-        const funcName = match[1];
-        const fullDef = match[0];
-        const existing = funcMap.get(funcName);
-        if (!existing || fullDef.length > existing.length) {
-          funcMap.set(funcName, fullDef.trim());
-        }
-      }
-
-      // Extract regular classes (non-dataclass)
-      const classMap = new Map<string, string>();
-      const classRegex = /^class\s+(\w+)[^:]*:[\s\S]*?(?=\nclass\s|\n@dataclass|$)/gm;
-      while ((match = classRegex.exec(combined)) !== null) {
-        const className = match[1];
-        if (!dataclassMap.has(className)) {
-          const fullDef = match[0];
-          const existing = classMap.get(className);
-          if (!existing || fullDef.length > existing.length) {
-            classMap.set(className, fullDef.trim());
+      // Remove chunk markers
+      combined = combined.replace(/^#\s*===\s*CHUNK\s+\d+.*===\s*$/gm, '');
+      
+      // Split into lines for processing
+      const lines = combined.split('\n');
+      const dataclasses = new Map<string, string[]>();
+      const classes = new Map<string, string[]>();
+      const functions = new Map<string, string[]>();
+      const globalVars: string[] = [];
+      
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        
+        // Detect @dataclass
+        if (line.trim() === '@dataclass') {
+          const classLine = lines[i + 1] || '';
+          const classMatch = classLine.match(/^class\s+(\w+)/);
+          if (classMatch) {
+            const name = classMatch[1];
+            const block: string[] = [line, classLine];
+            i += 2;
+            while (i < lines.length && (lines[i].startsWith('    ') || lines[i].trim() === '')) {
+              block.push(lines[i]);
+              i++;
+            }
+            const existing = dataclasses.get(name);
+            if (!existing || block.join('\n').length > existing.join('\n').length) {
+              dataclasses.set(name, block);
+            }
+            continue;
           }
         }
+        
+        // Detect regular class
+        if (line.match(/^class\s+\w+/)) {
+          const classMatch = line.match(/^class\s+(\w+)/);
+          if (classMatch) {
+            const name = classMatch[1];
+            const block: string[] = [line];
+            i++;
+            while (i < lines.length && (lines[i].startsWith('    ') || lines[i].trim() === '')) {
+              block.push(lines[i]);
+              i++;
+            }
+            const existing = classes.get(name);
+            if (!existing || block.join('\n').length > existing.join('\n').length) {
+              classes.set(name, block);
+            }
+            continue;
+          }
+        }
+        
+        // Detect function
+        if (line.match(/^def\s+\w+/)) {
+          const funcMatch = line.match(/^def\s+(\w+)/);
+          if (funcMatch) {
+            const name = funcMatch[1];
+            const block: string[] = [line];
+            i++;
+            while (i < lines.length && (lines[i].startsWith('    ') || lines[i].trim() === '')) {
+              block.push(lines[i]);
+              i++;
+            }
+            const existing = functions.get(name);
+            if (!existing || block.join('\n').length > existing.join('\n').length) {
+              functions.set(name, block);
+            }
+            continue;
+          }
+        }
+        
+        // Global variables (non-empty, non-comment, at column 0)
+        if (line.trim() && !line.startsWith('#') && !line.startsWith(' ') && !line.startsWith('\t')) {
+          if (line.includes('=') || line.includes(':')) {
+            globalVars.push(line);
+          }
+        }
+        i++;
       }
-
-      // Rebuild: dataclasses first, then classes, then functions
+      
+      // Rebuild cleanly
       const parts: string[] = [];
       
-      if (dataclassMap.size > 0) {
-        parts.push('# === DATA STRUCTURES ===');
-        dataclassMap.forEach(def => parts.push(def));
-      }
+      dataclasses.forEach((block) => parts.push(block.join('\n')));
+      classes.forEach((block) => parts.push(block.join('\n')));
+      functions.forEach((block) => parts.push(block.join('\n')));
       
-      if (classMap.size > 0) {
-        parts.push('\n# === BUSINESS LOGIC CLASSES ===');
-        classMap.forEach(def => parts.push(def));
-      }
-      
-      if (funcMap.size > 0) {
-        parts.push('\n# === UTILITY FUNCTIONS ===');
-        funcMap.forEach(def => parts.push(def));
-      }
-
-      return parts.join('\n\n');
+      return parts.join('\n\n').replace(/\n{3,}/g, '\n\n');
     };
 
     // Translate chunks in parallel with quality post-processing
