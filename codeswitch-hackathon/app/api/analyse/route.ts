@@ -256,6 +256,18 @@ export async function POST(request: NextRequest) {
         // Remove markdown artifacts
         if (line.trim().startsWith('```')) return '';
         
+        // Remove raw COBOL lines (start with line numbers like 000010)
+        if (line.match(/^\s*\d{6}\s+/)) {
+          issues.push(`Line ${idx + 1}: Removed raw COBOL line`);
+          return '';
+        }
+        
+        // Remove COBOL keywords that weren't translated
+        if (line.match(/^\s*(PERFORM|MOVE|IF|ELSE|END-IF|EVALUATE|END-EVALUATE|COMPUTE|ADD|SUBTRACT|MULTIPLY|DIVIDE|DISPLAY|READ|WRITE|OPEN|CLOSE|STOP\s+RUN)\s/i)) {
+          issues.push(`Line ${idx + 1}: Removed untranslated COBOL`);
+          return '';
+        }
+        
         // Fix incomplete def/class declarations
         if (line.match(/^\s*(def|class)\s+\w+\s*$/) && !line.includes(':')) {
           issues.push(`Line ${idx + 1}: Added missing colon`);
