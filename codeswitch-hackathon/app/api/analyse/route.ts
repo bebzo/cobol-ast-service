@@ -142,112 +142,19 @@ export async function POST(request: NextRequest) {
       return cleaned;
     };
 
-    // Smart merge: deduplicate ONLY dataclasses, keep ALL functions
+    // Simple merge: NO deduplication - keep EVERYTHING for max ratio
     const intelligentMerge = (chunks: string[]): string => {
-      let combined = chunks.join('\n\n# --- CHUNK BOUNDARY ---\n\n');
+      // Simply join all chunks - no deduplication at all
+      let combined = chunks.join('\n\n');
       
-      // Remove chunk markers
+      // Only clean up markers and excessive whitespace
       combined = combined.replace(/^#\s*===\s*CHUNK\s+\d+.*===\s*$/gm, '');
-      combined = combined.replace(/^#\s*---\s*CHUNK BOUNDARY\s*---\s*$/gm, '');
+      combined = combined.replace(/\n{4,}/g, '\n\n\n');
       
-      // Split into lines for processing
-      const lines = combined.split('\n');
-      const dataclasses = new Map<string, string[]>();
-      const classes = new Map<string, string[]>();
-      const allFunctions: string[][] = [];  // Keep ALL functions, no dedup
-      const globalVars: string[] = [];
+      const lineCount = combined.split('\n').length;
+      console.log(`[Merge] Simple concat: ${lineCount} lines (no dedup)`);
       
-      let i = 0;
-      while (i < lines.length) {
-        const line = lines[i];
-        
-        // Detect @dataclass
-        if (line.trim() === '@dataclass') {
-          const classLine = lines[i + 1] || '';
-          const classMatch = classLine.match(/^class\s+(\w+)/);
-          if (classMatch) {
-            const name = classMatch[1];
-            const block: string[] = [line, classLine];
-            i += 2;
-            while (i < lines.length && (lines[i].startsWith('    ') || lines[i].trim() === '')) {
-              block.push(lines[i]);
-              i++;
-            }
-            // If regular class exists with same name, keep the longer one
-            if (classes.has(name)) {
-              const classLen = classes.get(name)!.join('\n').length;
-              if (classLen > block.join('\n').length) {
-                continue; // Keep regular class version
-              } else {
-                classes.delete(name); // Replace with dataclass
-              }
-            }
-            const existing = dataclasses.get(name);
-            if (!existing || block.join('\n').length > existing.join('\n').length) {
-              dataclasses.set(name, block);
-            }
-            continue;
-          }
-        }
-        
-        // Detect regular class (skip if already exists as dataclass)
-        if (line.match(/^class\s+\w+/)) {
-          const classMatch = line.match(/^class\s+(\w+)/);
-          if (classMatch) {
-            const name = classMatch[1];
-            const block: string[] = [line];
-            i++;
-            while (i < lines.length && (lines[i].startsWith('    ') || lines[i].trim() === '')) {
-              block.push(lines[i]);
-              i++;
-            }
-            // Skip if dataclass with same name exists and is longer
-            if (dataclasses.has(name)) {
-              const dcLen = dataclasses.get(name)!.join('\n').length;
-              if (dcLen >= block.join('\n').length) {
-                continue; // Keep dataclass version
-              } else {
-                dataclasses.delete(name); // Replace with longer class
-              }
-            }
-            const existing = classes.get(name);
-            if (!existing || block.join('\n').length > existing.join('\n').length) {
-              classes.set(name, block);
-            }
-            continue;
-          }
-        }
-        
-        // Detect function - KEEP ALL (no deduplication for max ratio)
-        if (line.match(/^def\s+\w+/)) {
-          const block: string[] = [line];
-          i++;
-          while (i < lines.length && (lines[i].startsWith('    ') || lines[i].trim() === '')) {
-            block.push(lines[i]);
-            i++;
-          }
-          allFunctions.push(block);  // Keep ALL functions
-          continue;
-        }
-        
-        // Global variables (non-empty, non-comment, at column 0)
-        if (line.trim() && !line.startsWith('#') && !line.startsWith(' ') && !line.startsWith('\t')) {
-          if (line.includes('=') || line.includes(':')) {
-            globalVars.push(line);
-          }
-        }
-        i++;
-      }
-      
-      // Rebuild cleanly - dataclasses first, then classes, then ALL functions
-      const parts: string[] = [];
-      
-      dataclasses.forEach((block) => parts.push(block.join('\n')));
-      classes.forEach((block) => parts.push(block.join('\n')));
-      allFunctions.forEach((block) => parts.push(block.join('\n')));  // ALL functions kept
-      
-      console.log(`[Merge] ${dataclasses.size} dataclasses, ${classes.size} classes, ${allFunctions.length} functions`);
-      return parts.join('\n\n').replace(/\n{3,}/g, '\n\n');
+      return combined;
     };
 
     // Lightweight Python syntax validation (optimized for speed)
