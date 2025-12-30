@@ -297,6 +297,14 @@ export async function POST(request: NextRequest) {
           return '';
         }
         
+        // Remove lines with unterminated triple-quotes containing COBOL
+        if (line.match(/"""\s*[A-Z]{2,}/) || line.match(/'''\s*[A-Z]{2,}/)) {
+          if (line.match(/(WRITE|READ|MOVE|PERFORM|FROM|TO)\s/i)) {
+            issues.push(`Line ${idx + 1}: Removed docstring with COBOL`);
+            return '';
+          }
+        }
+        
         // Fix unterminated strings - improved detection
         if (!line.includes('"""') && !line.includes("'''")) {
           // Check for string that ends with \n or similar escape but no closing quote
