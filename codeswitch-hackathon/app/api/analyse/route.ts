@@ -429,8 +429,17 @@ export async function POST(request: NextRequest) {
       // Fix incomplete function calls
       fixed = fixed.replace(/^(\s+\w+)\s*\(\s*$/gm, '$1()');
       
-      // Fix lines ending with operators
-      fixed = fixed.replace(/^(.+[+\-*/=])\s*$/gm, '$1 None  # TODO');
+      // Fix lines ending with compound operators (+=, -=, etc.)
+      fixed = fixed.replace(/^(.+\s*[+\-*\/]=)\s*$/gm, '$1 0  # TODO');
+      
+      // Fix lines ending with simple operators (but not compound)
+      fixed = fixed.replace(/^(.+[^+\-*\/=])\s*([+\-*\/])\s*$/gm, '$1$2 0  # TODO');
+      
+      // Fix malformed compound operators with spaces (+ = -> +=)
+      fixed = fixed.replace(/\+ =/g, '+=');
+      fixed = fixed.replace(/- =/g, '-=');
+      fixed = fixed.replace(/\* =/g, '*=');
+      fixed = fixed.replace(/\/ =/g, '/=');
       
       // Remove lines with only COBOL keywords
       fixed = fixed.replace(/^\s*(PERFORM|MOVE|COMPUTE|IF|ELSE|END-IF|EVALUATE|WHEN|END-EVALUATE|READ|WRITE|REWRITE|DELETE|START|OPEN|CLOSE|CALL|GOBACK|STOP RUN)\.?\s*$/gmi, '');
