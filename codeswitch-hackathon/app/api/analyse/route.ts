@@ -494,30 +494,28 @@ export async function POST(request: NextRequest) {
       return { code: fixed, issues };
     };
 
-    // Translate AND validate each chunk individually (distributed load)
-    const translateAndValidateChunk = async (chunk: string, index: number): Promise<string> => {
+    // Translate chunks in parallel (simple, fast)
+    const translateChunk = async (chunk: string, index: number): Promise<string> => {
       try {
         const result = await model.generateContent(CHUNK_PROMPT + chunk);
         let code = result.response.text();
         code = cleanPythonCode(code);
-        // Validate THIS chunk only (fast, distributed)
-        const { code: validated } = validateAndFixPythonHeavy(code);
-        console.log(`[Chunk ${index + 1}/${chunks.length}] Translated+Validated: ${validated.length} chars`);
-        return validated;
+        console.log(`[Chunk ${index + 1}/${chunks.length}] Translated: ${code.length} chars`);
+        return code;
       } catch (e: any) {
         console.error(`[Chunk ${index + 1}] Error:`, e.message);
         return `# === CHUNK ${index + 1} ERROR: ${e.message} ===`;
       }
     };
 
-    // Run ALL translations+validations in parallel (max 8 chunks)
+    // Run translations in parallel
     const allPythonCode = await Promise.all(
-      chunks.map((chunk, idx) => translateAndValidateChunk(chunk, idx))
+      chunks.map((chunk, idx) => translateChunk(chunk, idx))
     );
 
-    // Merge validated chunks (dedup only, no heavy validation needed)
+    // Simple merge + light validation
     const mergedCode = intelligentMerge(allPythonCode);
-    const validatedCode = mergedCode; // Already validated per-chunk
+    const { code: validatedCode } = validateAndFixPython(mergedCode);
     const combinedPythonCode = `"""
 ${ast.programId} - Migrated from COBOL
 Original: ${ast.metrics.totalLines} lines COBOL | Variables: ${ast.metrics.variables} | Paragraphs: ${ast.metrics.paragraphs}
