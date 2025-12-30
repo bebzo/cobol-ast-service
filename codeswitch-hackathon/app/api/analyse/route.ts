@@ -163,6 +163,15 @@ export async function POST(request: NextRequest) {
               block.push(lines[i]);
               i++;
             }
+            // If regular class exists with same name, keep the longer one
+            if (classes.has(name)) {
+              const classLen = classes.get(name)!.join('\n').length;
+              if (classLen > block.join('\n').length) {
+                continue; // Keep regular class version
+              } else {
+                classes.delete(name); // Replace with dataclass
+              }
+            }
             const existing = dataclasses.get(name);
             if (!existing || block.join('\n').length > existing.join('\n').length) {
               dataclasses.set(name, block);
@@ -171,7 +180,7 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Detect regular class
+        // Detect regular class (skip if already exists as dataclass)
         if (line.match(/^class\s+\w+/)) {
           const classMatch = line.match(/^class\s+(\w+)/);
           if (classMatch) {
@@ -181,6 +190,15 @@ export async function POST(request: NextRequest) {
             while (i < lines.length && (lines[i].startsWith('    ') || lines[i].trim() === '')) {
               block.push(lines[i]);
               i++;
+            }
+            // Skip if dataclass with same name exists and is longer
+            if (dataclasses.has(name)) {
+              const dcLen = dataclasses.get(name)!.join('\n').length;
+              if (dcLen >= block.join('\n').length) {
+                continue; // Keep dataclass version
+              } else {
+                dataclasses.delete(name); // Replace with longer class
+              }
             }
             const existing = classes.get(name);
             if (!existing || block.join('\n').length > existing.join('\n').length) {
