@@ -597,49 +597,65 @@ export async function POST(request: NextRequest) {
     
     validatedCode = ensureValidEnding(validatedCode);
     
-    // AI-powered syntax validation: ask Gemini to fix any remaining errors
-    const aiFixPython = async (code: string): Promise<string> => {
-      try {
-        const fixPrompt = `Fix ALL Python syntax errors in this code. Return ONLY the corrected Python code, no explanations.
+    // AI-powered iterative syntax fix until code compiles
+    const aiFixPythonIterative = async (code: string): Promise<string> => {
+      const FIX_PROMPT = `You are a Python syntax fixer. Fix ALL syntax errors in this code snippet.
 
-CRITICAL - PRESERVE LINE COUNT:
-- DO NOT delete any lines
-- Convert broken lines to valid Python (use pass, None, or comments)
-- Keep the same number of lines as input
+CRITICAL RULES:
+1. PRESERVE LINE COUNT - never delete lines, convert to 'pass' or comments
+2. Close unclosed parentheses, brackets, braces
+3. Close unclosed strings and docstrings with """ or "
+4. Add 'pass' to empty blocks
+5. Fix truncated statements: incomplete = None
+6. Return ONLY raw Python code (no markdown, no explanation)
 
-RULES:
-- Close any unclosed docstrings with """
-- Add 'pass' to empty function/class bodies  
-- Fix incomplete statements (add None or pass)
-- Convert COBOL keywords to 'pass  # COBOL' (not delete!)
-- Fix malformed operators (+= not + =)
-- Ensure all blocks have proper bodies
-- DO NOT change logic, only fix syntax
-- Return raw Python code only (no markdown)
-
-CODE TO FIX:
-${code.slice(-3000)}`;  // Only send last 3000 chars to fix end-of-file issues
-        
-        const result = await model.generateContent(fixPrompt);
-        let fixedEnd = result.response.text()
-          .replace(/```python\s*/gi, '')
-          .replace(/```\s*/g, '')
-          .trim();
-        
-        // If the fix is valid, replace the end of the code
-        if (fixedEnd.length > 100 && !fixedEnd.includes('PERFORM') && !fixedEnd.includes('MOVE')) {
-          // Replace last 3000 chars with fixed version
-          const codeStart = code.slice(0, -3000);
-          console.log(`[AI Fix] Applied Gemini syntax fix to end of file`);
-          return codeStart + fixedEnd;
+CODE SNIPPET:
+`;
+      
+      const chunkSize = 4000;
+      const lines = code.split('\n');
+      const lineCount = lines.length;
+      
+      // Fix code in overlapping chunks to catch errors at boundaries
+      let fixedCode = code;
+      
+      for (let pass = 0; pass < 2; pass++) {
+        try {
+          // Fix beginning (first 4000 chars)
+          const startChunk = fixedCode.slice(0, chunkSize);
+          const startResult = await model.generateContent(FIX_PROMPT + startChunk);
+          let fixedStart = startResult.response.text()
+            .replace(/```python\s*/gi, '').replace(/```\s*/g, '').trim();
+          if (fixedStart.length > 500) {
+            fixedCode = fixedStart + fixedCode.slice(chunkSize);
+          }
+          
+          // Fix end (last 4000 chars) 
+          const endChunk = fixedCode.slice(-chunkSize);
+          const endResult = await model.generateContent(FIX_PROMPT + endChunk);
+          let fixedEnd = endResult.response.text()
+            .replace(/```python\s*/gi, '').replace(/```\s*/g, '').trim();
+          if (fixedEnd.length > 500) {
+            fixedCode = fixedCode.slice(0, -chunkSize) + fixedEnd;
+          }
+          
+          console.log(`[AI Fix] Pass ${pass + 1} completed`);
+        } catch (e: any) {
+          console.log(`[AI Fix] Pass ${pass + 1} error: ${e.message}`);
         }
-      } catch (e: any) {
-        console.log(`[AI Fix] Skipped: ${e.message}`);
       }
-      return code;
+      
+      // Ensure line count preserved
+      const newLines = fixedCode.split('\n');
+      if (newLines.length < lineCount * 0.9) {
+        console.log(`[AI Fix] Rejected: line count dropped too much`);
+        return code;
+      }
+      
+      return fixedCode;
     };
     
-    validatedCode = await aiFixPython(validatedCode);
+    validatedCode = await aiFixPythonIterative(validatedCode);
     console.log(`[Validation] ${validationIssues.length} issues fixed`);
     const combinedPythonCode = `"""
 ${ast.programId} - Migrated from COBOL
