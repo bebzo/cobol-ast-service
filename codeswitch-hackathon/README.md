@@ -42,32 +42,57 @@ Over **220 billion lines of COBOL** power critical banking, insurance, and gover
 
 ## Architecture
 
+CodeSwitch uses a **modern microservices architecture** deployed globally on edge networks:
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      Frontend (Next.js)                      │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │
-│  │ Monaco  │ │ Tabs UI │ │ Metrics │ │ Voice   │            │
-│  │ Editor  │ │ System  │ │ Display │ │ Input   │            │
-│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘            │
-└───────┼──────────┼──────────┼──────────┼────────────────────┘
-        │          │          │          │
-        ▼          ▼          ▼          ▼
+│                    🎨 FRONTEND (Next.js)                     │
+│         React + TypeScript + Monaco Editor + Voice          │
+│                   Deployed on Vercel Edge                    │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+           ┌───────────────┼───────────────┐
+           ▼               ▼               ▼
+┌──────────────────┐ ┌──────────────┐ ┌──────────────────────┐
+│ 🔧 ANALYSE API   │ │ 💬 CHAT API  │ │ 📊 HEALTH API        │
+│ /api/analyse     │ │ /api/chat    │ │ /api/health          │
+│                  │ │              │ │                      │
+│ • COBOL Parsing  │ │ • Q&A about  │ │ • Service status     │
+│ • ANTLR4 AST     │ │   analysis   │ │ • Uptime monitoring  │
+│ • Chunked        │ │ • Gemini     │ │ • Capabilities       │
+│   Translation    │ │   powered    │ │                      │
+└────────┬─────────┘ └──────┬───────┘ └──────────────────────┘
+         │                  │
+         └────────┬─────────┘
+                  ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              Supabase Edge Function (/analyse)               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
-│  │ Code Router  │──│Module Split  │──│ Gemini Call  │       │
-│  └──────────────┘  └──────────────┘  └──────────────┘       │
-└─────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Google Gemini 2.0 Flash                     │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │
-│  │ Analyze │ │Translate│ │  Test   │ │Security │            │
-│  │  COBOL  │ │   Code  │ │  Gen    │ │  Scan   │            │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘            │
+│               🧠 GOOGLE GEMINI 2.0 FLASH                     │
+│                                                              │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐    │
+│  │ Parallel    │ │ Security    │ │ Business Context    │    │
+│  │ Chunk       │ │ Analysis    │ │ Extraction          │    │
+│  │ Translation │ │ (CVE/CVSS)  │ │                     │    │
+│  └─────────────┘ └─────────────┘ └─────────────────────┘    │
+│                                                              │
+│            2M Token Context • 65K Output Tokens              │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Services
+
+| Service | URL | Purpose |
+|---------|-----|---------|
+| **Frontend** | cobol-ast-service.vercel.app | React UI with Monaco Editor |
+| **Analyse API** | /api/analyse | COBOL parsing + Python generation |
+| **Chat API** | /api/chat | Gemini-powered Q&A |
+| **Health API** | /api/health | Service monitoring |
+
+### Key Features
+
+- **Global Edge Deployment**: <100ms latency worldwide
+- **Parallel Processing**: 15 chunks processed simultaneously  
+- **Auto-scaling**: 0 to 1M requests with no configuration
+- **ANTLR4 Parser**: Full COBOL85 grammar support
 
 ---
 
