@@ -49,7 +49,7 @@ Return ONLY a valid JSON object:
     "estimated_effort": "80 person-days",
     "confidence": 70
   },
-  "architecture_diagram": "graph LR; A-->B",
+  "architecture_diagram": "graph TB; subgraph COBOL[Legacy COBOL]; A[Main Program]-->B[Data Division]; A-->C[Procedure Division]; C-->D[Paragraphs]; end; subgraph Python[Modern Python]; E[Main Class]-->F[DataClasses]; E-->G[Methods]; G-->H[Unit Tests]; end; A-.Migration.->E; B-.Transform.->F; D-.Convert.->G",
   "next_steps": ["Step 1", "Step 2"]
 }
 
