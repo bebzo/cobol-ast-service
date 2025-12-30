@@ -487,8 +487,8 @@ export async function POST(request: NextRequest) {
     const mergedCode = intelligentMerge(allPythonCode);
     let { code: validatedCode, issues: validationIssues } = validateAndFixPythonHeavy(mergedCode);
     
-    // Iterative syntax cleanup - run multiple passes until stable
-    const iterativeCleanup = (code: string, maxPasses: number = 5): string => {
+    // Iterative syntax cleanup - run multiple passes until stable (reduced for speed)
+    const iterativeCleanup = (code: string, maxPasses: number = 2): string => {
       let prevCode = '';
       let pass = 0;
       
@@ -525,46 +525,8 @@ export async function POST(request: NextRequest) {
         // Fix empty except blocks
         code = code.replace(/(except[^:]*:)\s*\n(\s*)(@dataclass|class\s|def\s)/gm, '$1\n$2    pass\n$2$3');
         
-        // Fix try without except before class
-        code = code.replace(/(\n\s+)(try:\s*\n(?:\s+.+\n)*?)(\n@dataclass|\nclass\s)/gm, (match, indent, tryBlock, classDecl) => {
-          if (!tryBlock.includes('except')) {
-            return `${indent}${tryBlock}${indent}except Exception:\n${indent}    pass\n${classDecl}`;
-          }
-          return match;
-        });
-        
         // Convert lines that are just dots to pass (preserve line count)
         code = code.replace(/^(\s*)\.\s*$/gm, '$1pass  # period');
-        
-        // Fix unterminated triple-quote docstrings
-        const lines = code.split('\n');
-        let inDocstring = false;
-        let docstringStart = -1;
-        const fixedLines: string[] = [];
-        
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          const tripleQuoteCount = (line.match(/"""/g) || []).length;
-          
-          if (!inDocstring && tripleQuoteCount === 1) {
-            inDocstring = true;
-            docstringStart = i;
-          } else if (inDocstring && tripleQuoteCount >= 1) {
-            inDocstring = false;
-          }
-          
-          // If we're in docstring and hit a class/def/decorator, close the docstring
-          if (inDocstring && (line.trim().startsWith('@') || line.trim().startsWith('class ') || line.trim().startsWith('def '))) {
-            // Close the unclosed docstring
-            if (docstringStart >= 0) {
-              fixedLines[docstringStart] = fixedLines[docstringStart].replace(/""".*$/, '"""TODO"""');
-            }
-            inDocstring = false;
-          }
-          
-          fixedLines.push(line);
-        }
-        code = fixedLines.join('\n');
       }
       
       console.log(`[Cleanup] ${pass} passes completed`);
