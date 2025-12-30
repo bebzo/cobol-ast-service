@@ -534,6 +534,32 @@ export async function POST(request: NextRequest) {
     };
     
     validatedCode = iterativeCleanup(validatedCode);
+    
+    // Final pass: ensure file ends properly (close any open docstrings/blocks)
+    const ensureValidEnding = (code: string): string => {
+      const lines = code.split('\n');
+      
+      // Check last 20 lines for unclosed docstrings
+      let openDocstring = false;
+      for (let i = Math.max(0, lines.length - 20); i < lines.length; i++) {
+        const count = (lines[i].match(/"""/g) || []).length;
+        if (count % 2 === 1) openDocstring = !openDocstring;
+      }
+      
+      // If docstring is open, close it and add pass
+      if (openDocstring) {
+        code = code.trimEnd() + '\n    """\n    pass\n';
+      }
+      
+      // Ensure file ends with newline
+      if (!code.endsWith('\n')) {
+        code += '\n';
+      }
+      
+      return code;
+    };
+    
+    validatedCode = ensureValidEnding(validatedCode);
     console.log(`[Validation] ${validationIssues.length} issues fixed`);
     const combinedPythonCode = `"""
 ${ast.programId} - Migrated from COBOL
