@@ -246,19 +246,31 @@ export async function POST(request: NextRequest) {
       return parts.join('\n\n').replace(/\n{3,}/g, '\n\n');
     };
 
-    // Comprehensive Python syntax validation and repair
+    // Lightweight Python syntax validation (optimized for speed)
     const validateAndFixPython = (code: string): { code: string; issues: string[] } => {
+      const issues: string[] = [];
+      
+      // Fast regex-based cleanup only
+      let fixed = code
+        .replace(/```python\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .replace(/^\s*\d{6}\s+.*$/gm, '') // Remove COBOL line numbers
+        .replace(/^\s*(PERFORM|MOVE|IF|ELSE|END-IF|EVALUATE).*$/gmi, '') // Remove untranslated COBOL
+        .replace(/([A-Z]{2,}(?:-[A-Z0-9]+)+)/g, (m) => m.toLowerCase().replace(/-/g, '_')) // Fix COBOL vars
+        .replace(/\n{3,}/g, '\n\n');
+      
+      console.log(`[Validation] Quick cleanup applied`);
+      return { code: fixed, issues };
+    };
+
+    // DISABLED: Heavy validation for debugging
+    const validateAndFixPythonHeavy = (code: string): { code: string; issues: string[] } => {
       const issues: string[] = [];
       let lines = code.split('\n');
       
-      // === PHASE 1: Line-level fixes ===
       lines = lines.map((line, idx) => {
-        // Remove markdown artifacts
         if (line.trim().startsWith('```')) return '';
-        
-        // Remove raw COBOL lines (start with line numbers like 000010)
         if (line.match(/^\s*\d{6}\s+/)) {
-          issues.push(`Line ${idx + 1}: Removed raw COBOL line`);
           return '';
         }
         
