@@ -206,7 +206,7 @@ ${allPythonCode.join('\n')}
 
 # === MAIN ENTRY POINT ===
 if __name__ == '__main__':
-    logger.info(f'Starting {PROGRAM_NAME} v{VERSION}')
+    logger.info(f'Starting ' + PROGRAM_NAME + ' v' + VERSION)
     # Initialize and run main program
     try:
         program = MegaEnterpriseSystem() if 'MegaEnterpriseSystem' in dir() else None
