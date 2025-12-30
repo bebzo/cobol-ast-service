@@ -304,26 +304,18 @@ export default function Home() {
       setApiKey(savedKey);
       setIsApiKeySet(true);
     }
-    // Load history from Supabase
-    fetch('https://jcizfxniwgwfdmubapyb.supabase.co/rest/v1/analysis_history?order=created_at.desc&limit=50', {
-      headers: {
-        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c'
+    // Load history from localStorage
+    try {
+      const saved = localStorage.getItem('codeswitch_history');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setHistory(parsed);
+        }
       }
-    }).then(r => {
-      if (!r.ok) return [];
-      return r.json();
-    }).then(data => {
-      if (Array.isArray(data)) {
-        setHistory(data.map((d: any) => ({
-          id: d.id,
-          filename: d.filename,
-          timestamp: new Date(d.created_at).getTime(),
-          cobolCode: '',
-          pythonCode: '',
-          analysis: { summary: d.summary, cobol_lines: d.cobol_lines, python_lines: d.python_lines } as any
-        })));
-      }
-    }).catch(() => {})
+    } catch (e) {
+      console.error('Failed to load history:', e);
+    }
   }, []);
 
   const handleSaveApiKey = () => {
@@ -497,9 +489,14 @@ export default function Home() {
         pythonCode: parsed.python_code,
         analysis: parsed,
       };
-      const newHistory = [newItem, ...history].slice(0, 50);
+      const newHistory = [newItem, ...history].slice(0, 10); // Keep last 10
       setHistory(newHistory);
-      // History saved by backend to Supabase
+      // Save to localStorage
+      try {
+        localStorage.setItem('codeswitch_history', JSON.stringify(newHistory));
+      } catch (e) {
+        console.error('Failed to save history:', e);
+      }
 
     } catch (err: unknown) {
       console.error(err);
@@ -531,19 +528,12 @@ export default function Home() {
     setShowHistory(false);
   };
 
-  const deleteFromHistory = async (id: string) => {
+  const deleteFromHistory = (id: string) => {
     const newHistory = history.filter((h) => h.id !== id);
     setHistory(newHistory);
-    // Delete from Supabase
+    // Save to localStorage
     try {
-      await fetch(`https://jcizfxniwgwfdmubapyb.supabase.co/rest/v1/analysis_history?id=eq.${id}`, {
-        method: 'DELETE',
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c',
-          'Prefer': 'return=minimal'
-        }
-      });
+      localStorage.setItem('codeswitch_history', JSON.stringify(newHistory));
     } catch (e) {
       console.error('Delete failed:', e);
     }
