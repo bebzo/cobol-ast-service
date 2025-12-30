@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, startTransition } from "react";
 import dynamic from "next/dynamic";
 import {
   Upload,
@@ -954,7 +954,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <GitCompare className="w-4 h-4" />Architecture
                 </button>
                 <button
-                  onClick={() => setActiveTab("modules")}
+                  onClick={() => startTransition(() => setActiveTab("modules"))}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
                     activeTab === "modules" ? "bg-pink-500/20 text-pink-400 border-b-2 border-pink-400" : "text-slate-400 hover:text-white"
                   }`}
@@ -1333,7 +1333,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       </div>
                       {totalModulesCount > 20 && !showAllModules && (
                         <button
-                          onClick={() => setShowAllModules(true)}
+                          onClick={() => startTransition(() => setShowAllModules(true))}
                           className="mt-4 w-full py-2 bg-pink-600/20 hover:bg-pink-600/40 text-pink-300 rounded-lg border border-pink-500/30 transition"
                         >
                           Show all {totalModulesCount} modules
