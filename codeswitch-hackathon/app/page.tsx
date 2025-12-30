@@ -462,7 +462,14 @@ export default function Home() {
         body: JSON.stringify({ cobolCode, filename })
       });
       
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('Response was not JSON:', text.substring(0, 500));
+        throw new Error('Server returned invalid response. May have timed out.');
+      }
       if (!response.ok || data.error) {
         throw new Error(data.error || 'Analysis failed');
       }
