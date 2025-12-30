@@ -318,6 +318,26 @@ export default function Home() {
     }
   }, []);
 
+  // Memoize enriched modules to avoid recalculation on each render
+  const enrichedModules = useMemo(() => {
+    if (!analysis?.modules) return [];
+    return analysis.modules.map((mod: any) => {
+      const complexity = mod.complexity || (mod.lines > 100 ? 'HIGH' : mod.lines > 50 ? 'MEDIUM' : 'LOW');
+      const complexityClass = complexity === 'HIGH' ? 'bg-red-500/20 text-red-400' : complexity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400';
+      const pythonTarget = mod.pythonTarget || mod.name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+      const modCode = (mod.code || mod.name || '').toUpperCase();
+      const risks: { label: string; color: string }[] = [];
+      if (modCode.includes('EXEC SQL') || modCode.includes('EXECUTE')) risks.push({ label: 'SQL', color: 'bg-red-500/30 text-red-300' });
+      if (modCode.includes('CRYPT') || modCode.includes('ENCRYPT') || modCode.includes('PASSWORD')) risks.push({ label: 'Security', color: 'bg-orange-500/30 text-orange-300' });
+      if (modCode.includes('DATE') || modCode.includes('TIME') || modCode.includes('TIMESTAMP')) risks.push({ label: 'Date Logic', color: 'bg-yellow-500/30 text-yellow-300' });
+      if (modCode.includes('FILE') || modCode.includes('FD ') || modCode.includes('SELECT')) risks.push({ label: 'File I/O', color: 'bg-blue-500/30 text-blue-300' });
+      if (mod.name.includes('PROCEDURE')) risks.push({ label: 'Business Logic', color: 'bg-purple-500/30 text-purple-300' });
+      const status = complexity === 'LOW' ? 'Ready' : complexity === 'MEDIUM' ? 'To migrate' : 'Needs review';
+      const statusClass = complexity === 'LOW' ? 'bg-emerald-500/20 text-emerald-400' : complexity === 'MEDIUM' ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400';
+      return { ...mod, complexity, complexityClass, pythonTarget, risks, status, statusClass };
+    });
+  }, [analysis?.modules]);
+
   const handleSaveApiKey = () => {
     if (apiKey.trim()) {
       sessionStorage.setItem("gemini_api_key", apiKey);
@@ -1281,46 +1301,32 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         </div>
                       </div>
                       <div className="grid gap-3">
-                        {analysis.modules.map((mod: { name: string; lines: number; type: string; description: string; complexity?: string; pythonTarget?: string; risk?: string; code?: string }, idx: number) => {
-                          const complexity = mod.complexity || (mod.lines > 100 ? 'HIGH' : mod.lines > 50 ? 'MEDIUM' : 'LOW');
-                          const complexityClass = complexity === 'HIGH' ? 'bg-red-500/20 text-red-400' : complexity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400';
-                          const pythonTarget = mod.pythonTarget || mod.name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
-                          const modCode = (mod.code || mod.name || '').toUpperCase();
-                          const risks = [];
-                          if (modCode.includes('EXEC SQL') || modCode.includes('EXECUTE')) risks.push({ label: 'SQL', color: 'bg-red-500/30 text-red-300' });
-                          if (modCode.includes('CRYPT') || modCode.includes('ENCRYPT') || modCode.includes('PASSWORD')) risks.push({ label: 'Security', color: 'bg-orange-500/30 text-orange-300' });
-                          if (modCode.includes('DATE') || modCode.includes('TIME') || modCode.includes('TIMESTAMP')) risks.push({ label: 'Date Logic', color: 'bg-yellow-500/30 text-yellow-300' });
-                          if (modCode.includes('FILE') || modCode.includes('FD ') || modCode.includes('SELECT')) risks.push({ label: 'File I/O', color: 'bg-blue-500/30 text-blue-300' });
-                          if (mod.name.includes('PROCEDURE')) risks.push({ label: 'Business Logic', color: 'bg-purple-500/30 text-purple-300' });
-                          const status = complexity === 'LOW' ? 'Ready' : complexity === 'MEDIUM' ? 'To migrate' : 'Needs review';
-                          const statusClass = complexity === 'LOW' ? 'bg-emerald-500/20 text-emerald-400' : complexity === 'MEDIUM' ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400';
-                          return (
-                            <div key={idx} className="bg-slate-800 p-4 rounded-lg border border-pink-500/30 hover:border-pink-400/50 transition">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-pink-300 font-semibold">{mod.name}</span>
-                                  <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded">{mod.type}</span>
-                                  <span className={`text-xs px-2 py-0.5 rounded ${statusClass}`}>{status}</span>
-                                </div>
-                                <span className={`text-xs px-2 py-1 rounded ${complexityClass}`}>
-                                  {complexity} complexity
-                                </span>
+                        {enrichedModules.map((mod, idx) => (
+                          <div key={idx} className="bg-slate-800 p-4 rounded-lg border border-pink-500/30 hover:border-pink-400/50 transition">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-pink-300 font-semibold">{mod.name}</span>
+                                <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded">{mod.type}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded ${mod.statusClass}`}>{mod.status}</span>
                               </div>
-                              {risks.length > 0 && (
-                                <div className="flex gap-1 mb-2 flex-wrap">
-                                  {risks.map((r, i) => (
-                                    <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded ${r.color}`}>{r.label}</span>
-                                  ))}
-                                </div>
-                              )}
-                              <p className="text-sm text-slate-400 mb-2">{mod.description || `Handles ${mod.type.toLowerCase()} logic and data processing`}</p>
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-slate-500">{mod.lines} lines</span>
-                                <span className="text-cyan-400">→ {pythonTarget}.py</span>
-                              </div>
+                              <span className={`text-xs px-2 py-1 rounded ${mod.complexityClass}`}>
+                                {mod.complexity} complexity
+                              </span>
                             </div>
-                          );
-                        })}
+                            {mod.risks.length > 0 && (
+                              <div className="flex gap-1 mb-2 flex-wrap">
+                                {mod.risks.map((r: { label: string; color: string }, i: number) => (
+                                  <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded ${r.color}`}>{r.label}</span>
+                                ))}
+                              </div>
+                            )}
+                            <p className="text-sm text-slate-400 mb-2">{mod.description || `Handles ${mod.type.toLowerCase()} logic and data processing`}</p>
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-slate-500">{mod.lines} lines</span>
+                              <span className="text-cyan-400">→ {mod.pythonTarget}.py</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ) : (
