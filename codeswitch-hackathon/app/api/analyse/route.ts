@@ -268,6 +268,49 @@ export async function POST(request: NextRequest) {
         return line;
       });
       
+      // PHASE 1.5: Fix truncated functions with incomplete docstrings
+      // Pattern: def xxx(): \n """incomplete... \n @dataclass or def
+      const fixedLines: string[] = [];
+      let inTruncatedFunc = false;
+      let funcIndent = '';
+      
+      for (let idx = 0; idx < lines.length; idx++) {
+        const line = lines[idx];
+        const trimmed = line.trim();
+        const nextLine = lines[idx + 1]?.trim() || '';
+        const nextNextLine = lines[idx + 2]?.trim() || '';
+        
+        // Detect start of truncated function: def followed by incomplete docstring
+        if (trimmed.match(/^def\s+\w+.*:\s*$/) && nextLine.startsWith('"""') && !nextLine.endsWith('"""')) {
+          // Check if docstring is followed by @dataclass or def (truncated)
+          if (nextNextLine.startsWith('@') || nextNextLine.startsWith('def ') || nextNextLine.startsWith('class ')) {
+            funcIndent = line.match(/^(\s*)/)?.[1] || '';
+            fixedLines.push(line);
+            fixedLines.push(funcIndent + '    """TODO: Implement"""');
+            fixedLines.push(funcIndent + '    pass');
+            issues.push(`Fixed truncated function at line ${idx + 1}`);
+            idx++; // Skip the incomplete docstring
+            continue;
+          }
+        }
+        
+        // Detect orphan docstring start that's not closed
+        if (trimmed.startsWith('"""') && !trimmed.endsWith('"""') && trimmed.length > 3) {
+          // Check if this is followed immediately by def/class/@
+          if (nextLine.startsWith('@') || nextLine.startsWith('def ') || nextLine.startsWith('class ')) {
+            // This is a truncated docstring - close it
+            const indent = line.match(/^(\s*)/)?.[1] || '';
+            fixedLines.push(indent + '"""TODO"""');
+            issues.push(`Fixed truncated docstring at line ${idx + 1}`);
+            continue;
+          }
+        }
+        
+        fixedLines.push(line);
+      }
+      
+      lines = fixedLines;
+      
       // PHASE 2: Block-level analysis - add pass to empty blocks
       const result: string[] = [];
       let i = 0;
