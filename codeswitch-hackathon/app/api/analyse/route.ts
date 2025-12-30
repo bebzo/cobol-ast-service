@@ -117,24 +117,85 @@ export async function POST(request: NextRequest) {
     // Post-process Python code to clean up artifacts
     const cleanPythonCode = (code: string): string => {
       let cleaned = code
-        // Remove markdown code blocks
         .replace(/```python\s*/gi, '')
         .replace(/```\s*/g, '')
-        // Remove duplicate imports (we add them at the top)
         .replace(/^from dataclasses import.*$/gm, '')
         .replace(/^from decimal import.*$/gm, '')
         .replace(/^from typing import.*$/gm, '')
         .replace(/^from datetime import.*$/gm, '')
         .replace(/^import logging.*$/gm, '')
         .replace(/^import random.*$/gm, '')
-        // Clean up excessive blank lines
         .replace(/\n{4,}/g, '\n\n\n')
-        // Remove trailing incomplete lines (truncation fix)
         .replace(/\n\s*self\.\w*\s*$/g, '')
         .replace(/\n\s*def\s+\w+\s*$/g, '')
         .replace(/\n\s*class\s+\w+\s*$/g, '')
         .trim();
       return cleaned;
+    };
+
+    // Intelligent merge: deduplicate dataclasses and functions
+    const intelligentMerge = (chunks: string[]): string => {
+      const combined = chunks.join('\n');
+      
+      // Extract all dataclass definitions
+      const dataclassMap = new Map<string, string>();
+      const dataclassRegex = /@dataclass\s*\nclass\s+(\w+)[^@]*?(?=\n@dataclass|\ndef\s|\nclass\s(?!.*@dataclass)|$)/gs;
+      let match;
+      while ((match = dataclassRegex.exec(combined)) !== null) {
+        const className = match[1];
+        const fullDef = match[0];
+        const existing = dataclassMap.get(className);
+        // Keep the longest (most complete) definition
+        if (!existing || fullDef.length > existing.length) {
+          dataclassMap.set(className, fullDef.trim());
+        }
+      }
+
+      // Extract all function definitions (outside classes)
+      const funcMap = new Map<string, string>();
+      const funcRegex = /^def\s+(\w+)\s*\([^)]*\)[^:]*:[\s\S]*?(?=\ndef\s|\n@dataclass|\nclass\s|$)/gm;
+      while ((match = funcRegex.exec(combined)) !== null) {
+        const funcName = match[1];
+        const fullDef = match[0];
+        const existing = funcMap.get(funcName);
+        if (!existing || fullDef.length > existing.length) {
+          funcMap.set(funcName, fullDef.trim());
+        }
+      }
+
+      // Extract regular classes (non-dataclass)
+      const classMap = new Map<string, string>();
+      const classRegex = /^class\s+(\w+)[^:]*:[\s\S]*?(?=\nclass\s|\n@dataclass|$)/gm;
+      while ((match = classRegex.exec(combined)) !== null) {
+        const className = match[1];
+        if (!dataclassMap.has(className)) {
+          const fullDef = match[0];
+          const existing = classMap.get(className);
+          if (!existing || fullDef.length > existing.length) {
+            classMap.set(className, fullDef.trim());
+          }
+        }
+      }
+
+      // Rebuild: dataclasses first, then classes, then functions
+      const parts: string[] = [];
+      
+      if (dataclassMap.size > 0) {
+        parts.push('# === DATA STRUCTURES ===');
+        dataclassMap.forEach(def => parts.push(def));
+      }
+      
+      if (classMap.size > 0) {
+        parts.push('\n# === BUSINESS LOGIC CLASSES ===');
+        classMap.forEach(def => parts.push(def));
+      }
+      
+      if (funcMap.size > 0) {
+        parts.push('\n# === UTILITY FUNCTIONS ===');
+        funcMap.forEach(def => parts.push(def));
+      }
+
+      return parts.join('\n\n');
     };
 
     // Translate chunks in parallel with quality post-processing
@@ -156,7 +217,8 @@ export async function POST(request: NextRequest) {
       chunks.map((chunk, idx) => translateChunk(chunk, idx))
     );
 
-    // Combine all Python code with proper header
+    // Combine all Python code with intelligent merging
+    const mergedCode = intelligentMerge(allPythonCode);
     const combinedPythonCode = `"""
 ${ast.programId} - Migrated from COBOL
 Original: ${ast.metrics.totalLines} lines COBOL | Variables: ${ast.metrics.variables} | Paragraphs: ${ast.metrics.paragraphs}
@@ -170,7 +232,7 @@ import logging
 
 logger = logging.getLogger('${ast.programId}')
 
-${allPythonCode.join('\n')}
+${mergedCode}
 `;
 
     console.log(`[Translation] Combined Python: ${combinedPythonCode.split('\n').length} lines`);
