@@ -502,6 +502,8 @@ export async function POST(request: NextRequest) {
         code = code.replace(/\/\s+=/g, '/=');
         
         // === DOCSTRINGS ===
+        // Clean corrupted docstrings with multiple TODO
+        code = code.replace(/"""([^"]*?)"""(TODO""")+/g, '"""$1"""');
         // Fix unclosed docstrings (single """ without closing)
         code = code.replace(/^(\s*)"""([^"]*)$/gm, '$1"""$2"""');
         // Fix incomplete docstrings before @dataclass/class (only if not already fixed)
