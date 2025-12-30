@@ -487,74 +487,24 @@ export async function POST(request: NextRequest) {
     let { code: validatedCode, issues: validationIssues } = validateAndFixPythonHeavy(mergedCode);
     
     // Comprehensive iterative syntax cleanup - fix ALL patterns until code stabilizes
-    const iterativeCleanup = (code: string, maxPasses: number = 3): string => {
-      let prevCode = '';
-      let pass = 0;
+    const quickCleanup = (code: string): string => {
+      // === OPERATORS ===
+      code = code.replace(/\+\s+=/g, '+=');
+      code = code.replace(/-\s+=/g, '-=');
       
-      while (code !== prevCode && pass < maxPasses) {
-        prevCode = code;
-        pass++;
-        
-        // === OPERATORS ===
-        code = code.replace(/\+\s+=/g, '+=');
-        code = code.replace(/-\s+=/g, '-=');
-        code = code.replace(/\*\s+=/g, '*=');
-        code = code.replace(/\/\s+=/g, '/=');
-        
-        // === DOCSTRINGS ===
-        // Clean corrupted docstrings with TODO (multiple patterns)
-        code = code.replace(/"""([^"]{0,200})"""TODO"""/g, '"""$1"""');
-        code = code.replace(/"""([^"]{0,200})"""(TODO""")+/g, '"""$1"""');
-        // Fix unclosed docstrings (single """ without closing)
-        code = code.replace(/^(\s*)"""([^"]*)$/gm, '$1"""$2"""');
-        // Fix incomplete docstrings before @dataclass/class (only if not already fixed)
-        code = code.replace(/"""(?!TODO)[^"]{0,100}\n(\s*)(@dataclass|class\s)/gm, '"""TODO"""\n\n$1$2');
-        
-        // === TRUNCATED STATEMENTS ===
-        code = code.replace(/^(\s+\w[\w.]*\s*=)\s*$/gm, '$1 None  # TODO');
-        code = code.replace(/^(\s+.+)\s+(\+|\-|\*|\/)\s*$/gm, '$1 $2 0  # TODO');
-        code = code.replace(/^(\s+)([A-Z][A-Z0-9_]+)\s*$/gm, '$1$2 = None  # TODO');
-        
-        // === COBOL REMNANTS ===
-        code = code.replace(/^(\s*)\.\s*$/gm, '$1pass  # period');
-        // Remove orphan COBOL-like lines (01, 05, etc. level numbers)
-        code = code.replace(/^\s+\d{2}\s+[\w-]+\.?"""\s*$/gm, '');
-        code = code.replace(/^\s+\d{2}\s+[\w-]+\.\s*$/gm, '');
-        
-        // === BLOCK FIXES ===
-        // Empty except before class/def
-        code = code.replace(/(except[^:]*:)\s*\n(\s*)(@dataclass|class\s|def\s)/gm, '$1\n$2    pass\n\n$2$3');
-        // Empty try before class
-        code = code.replace(/(\n\s*)(try:\s*)\n(\s*)(@dataclass|class\s)/gm, '$1$2\n$3    pass\n$3except:\n$3    pass\n\n$3$4');
-        
-        // === FUNCTION FIXES ===
-        // Incomplete function (def name without body before next def/class)
-        code = code.replace(/^(def\s+\w+\([^)]*\)\s*(?:->.*?)?\s*:)\s*\n(\s*)(@dataclass|class\s|def\s)/gm, 
-          '$1\n    pass\n\n$2$3');
-        // Function with only truncated docstring
-        code = code.replace(/^(def\s+\w+\([^)]*\)\s*(?:->.*?)?\s*:)\s*\n\s*"""[^"]*\n(\s*)(@dataclass|class\s|def\s)/gm, 
-          '$1\n    """TODO"""\n    pass\n\n$2$3');
-        
-        // === STRING FIXES ===  
-        // Lines with odd number of quotes (unterminated strings)
-        const lines = code.split('\n');
-        const fixedLines = lines.map(line => {
-          if (!line.includes('"""') && !line.includes("'''")) {
-            const dq = (line.match(/(?<!\\)"/g) || []).length;
-            const sq = (line.match(/(?<!\\)'/g) || []).length;
-            if (dq % 2 === 1) return line + '"';
-            if (sq % 2 === 1) return line + "'";
-          }
-          return line;
-        });
-        code = fixedLines.join('\n');
-      }
+      // === DOCSTRINGS - fix corrupted TODO patterns ===
+      code = code.replace(/"""([^"]{0,200})"""TODO"""/g, '"""$1"""');
+      code = code.replace(/"""([^"]{0,200})"""(TODO""")+/g, '"""$1"""');
       
-      console.log(`[Cleanup] ${pass} passes completed`);
+      // === COBOL REMNANTS ===
+      code = code.replace(/^\s+\d{2}\s+[\w-]+\.?"""\s*$/gm, '');
+      code = code.replace(/^\s+\d{2}\s+[\w-]+\.\s*$/gm, '');
+      
+      console.log(`[Cleanup] Quick pass completed`);
       return code;
     };
     
-    validatedCode = iterativeCleanup(validatedCode);
+    validatedCode = quickCleanup(validatedCode);
     
     // Final pass: ensure file ends properly (close any open docstrings/blocks)
     const ensureValidEnding = (code: string): string => {
