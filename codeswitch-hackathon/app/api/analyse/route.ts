@@ -515,11 +515,12 @@ export async function POST(request: NextRequest) {
         // Fix lines ending with incomplete operators
         code = code.replace(/^(\s+.+)\s+(\+|\-|\*|\/)\s*$/gm, '$1 $2 0  # TODO');
         
-        // Fix lines with just variable names (incomplete statements)
-        code = code.replace(/^(\s+)([A-Z][A-Z0-9_]+)\s*$/gm, '$1# $2');
+        // Fix lines with just variable names (incomplete statements) - convert to assignment
+        code = code.replace(/^(\s+)([A-Z][A-Z0-9_]+)\s*$/gm, '$1$2 = None  # TODO');
         
-        // Remove COBOL keywords that weren't translated
-        code = code.replace(/^\s*(PERFORM|MOVE|COMPUTE|ADD|SUBTRACT|MULTIPLY|DIVIDE|IF|ELSE|END-IF|EVALUATE|WHEN|END-EVALUATE|READ|WRITE)\s+.*$/gmi, '');
+        // Convert COBOL keywords to Python pass (preserve line count)
+        code = code.replace(/^(\s*)(PERFORM|MOVE|COMPUTE|ADD|SUBTRACT|MULTIPLY|DIVIDE)\s+.*$/gmi, '$1pass  # COBOL');
+        code = code.replace(/^(\s*)(IF|ELSE|END-IF|EVALUATE|WHEN|END-EVALUATE|READ|WRITE)\s*.*$/gmi, '$1pass  # COBOL');
         
         // Fix empty except blocks
         code = code.replace(/(except[^:]*:)\s*\n(\s*)(@dataclass|class\s|def\s)/gm, '$1\n$2    pass\n$2$3');
@@ -532,8 +533,8 @@ export async function POST(request: NextRequest) {
           return match;
         });
         
-        // Remove lines that are just dots or periods
-        code = code.replace(/^\s*\.\s*$/gm, '');
+        // Convert lines that are just dots to pass (preserve line count)
+        code = code.replace(/^(\s*)\.\s*$/gm, '$1pass  # period');
         
         // Fix unterminated triple-quote docstrings
         const lines = code.split('\n');
