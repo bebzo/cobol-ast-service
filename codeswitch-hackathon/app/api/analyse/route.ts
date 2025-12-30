@@ -246,6 +246,69 @@ export async function POST(request: NextRequest) {
       return parts.join('\n\n').replace(/\n{3,}/g, '\n\n');
     };
 
+    // Validate and fix Python syntax issues
+    const validateAndFixPython = (code: string): { code: string; issues: string[] } => {
+      const issues: string[] = [];
+      let fixed = code;
+      
+      // Fix 1: Remove incomplete lines at end of blocks
+      fixed = fixed.replace(/\n\s*(def|class|if|for|while|try|except|with)\s+\w*\s*$/gm, '');
+      
+      // Fix 2: Remove lines with unclosed parentheses at end
+      fixed = fixed.replace(/\n[^#\n]*\([^)\n]*$/gm, (match) => {
+        issues.push('Removed truncated line with unclosed parenthesis');
+        return '';
+      });
+      
+      // Fix 3: Ensure all def/class have colons
+      fixed = fixed.replace(/^(def\s+\w+\s*\([^)]*\))\s*$/gm, '$1:');
+      fixed = fixed.replace(/^(class\s+\w+[^:]*)\s*$/gm, '$1:');
+      
+      // Fix 4: Remove orphan "self." references
+      fixed = fixed.replace(/^\s*self\.\w*\s*$/gm, '');
+      
+      // Fix 5: Check bracket balance per function/class
+      const lines = fixed.split('\n');
+      const cleanedLines: string[] = [];
+      let parenCount = 0;
+      let bracketCount = 0;
+      let braceCount = 0;
+      
+      for (const line of lines) {
+        // Count brackets
+        for (const char of line) {
+          if (char === '(') parenCount++;
+          if (char === ')') parenCount--;
+          if (char === '[') bracketCount++;
+          if (char === ']') bracketCount--;
+          if (char === '{') braceCount++;
+          if (char === '}') braceCount--;
+        }
+        
+        // Skip lines that would cause severe imbalance
+        if (parenCount < -2 || bracketCount < -2 || braceCount < -2) {
+          issues.push('Skipped line with bracket imbalance');
+          parenCount = Math.max(0, parenCount);
+          bracketCount = Math.max(0, bracketCount);
+          braceCount = Math.max(0, braceCount);
+          continue;
+        }
+        
+        cleanedLines.push(line);
+      }
+      
+      // Fix 6: Add pass to empty class/def bodies
+      fixed = cleanedLines.join('\n');
+      fixed = fixed.replace(/(class\s+\w+[^:]*:\s*\n)(\s*)((?:@|class|def|\n|$))/gm, '$1$2    pass\n$2$3');
+      fixed = fixed.replace(/(def\s+\w+[^:]*:\s*\n)(\s*)((?:@|class|def|\n|$))/gm, '$1$2    pass\n$2$3');
+      
+      if (issues.length > 0) {
+        console.log(`[Validation] Fixed ${issues.length} issues`);
+      }
+      
+      return { code: fixed, issues };
+    };
+
     // Translate chunks in parallel with quality post-processing
     const translateChunk = async (chunk: string, index: number): Promise<string> => {
       try {
@@ -265,8 +328,9 @@ export async function POST(request: NextRequest) {
       chunks.map((chunk, idx) => translateChunk(chunk, idx))
     );
 
-    // Combine all Python code with intelligent merging
+    // Combine all Python code with intelligent merging and validation
     const mergedCode = intelligentMerge(allPythonCode);
+    const { code: validatedCode, issues: syntaxIssues } = validateAndFixPython(mergedCode);
     const combinedPythonCode = `"""
 ${ast.programId} - Migrated from COBOL
 Original: ${ast.metrics.totalLines} lines COBOL | Variables: ${ast.metrics.variables} | Paragraphs: ${ast.metrics.paragraphs}
@@ -280,7 +344,7 @@ import logging
 
 logger = logging.getLogger('${ast.programId}')
 
-${mergedCode}
+${validatedCode}
 `;
 
     console.log(`[Translation] Combined Python: ${combinedPythonCode.split('\n').length} lines`);
