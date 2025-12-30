@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
@@ -24,62 +21,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: 'GEMINI_API_KEY not configured' },
-        { status: 500, headers: corsHeaders }
-      );
-    }
-
-    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.0-flash-exp',
-      generationConfig: { maxOutputTokens: 65536 }
-    });
-
     const lines = pythonCode.split('\n');
     const lineCount = lines.length;
-    const chunkSize = 4000;
     let cleanedCode = pythonCode;
 
-    // Clean in chunks to handle large files
-    const CLEAN_PROMPT = `Fix Python syntax errors. CRITICAL: Preserve EXACT indentation of each line.
-
-RULES:
-1. Keep same indentation for each line
-2. Close unclosed strings/docstrings
-3. Add 'pass' to empty blocks
-4. Return ONLY Python code (no markdown)
-
-CODE:
-`;
-
-    // Process start, middle, and end
-    const sections = [
-      { start: 0, end: chunkSize, name: 'start' },
-      { start: Math.floor(lineCount / 2) * 50, end: Math.floor(lineCount / 2) * 50 + chunkSize, name: 'middle' },
-      { start: Math.max(0, pythonCode.length - chunkSize), end: pythonCode.length, name: 'end' }
-    ];
-
-    for (const section of sections) {
-      try {
-        const chunk = cleanedCode.slice(section.start, section.end);
-        const result = await model.generateContent(CLEAN_PROMPT + chunk);
-        let fixed = result.response.text()
-          .replace(/```python\s*/gi, '')
-          .replace(/```\s*/g, '')
-          .trim();
-
-        if (fixed.length > 500) {
-          cleanedCode = cleanedCode.slice(0, section.start) + fixed + cleanedCode.slice(section.end);
-          console.log(`[Clean] Fixed ${section.name} section`);
-        }
-      } catch (e: any) {
-        console.log(`[Clean] ${section.name} error: ${e.message}`);
-      }
-    }
-
-    // Comprehensive regex cleanup
+    // Fast regex-only cleanup (no AI to avoid timeout)
     cleanedCode = cleanedCode.replace(/\+\s+=/g, '+=');
     cleanedCode = cleanedCode.replace(/-\s+=/g, '-=');
     cleanedCode = cleanedCode.replace(/\*\s+=/g, '*=');
