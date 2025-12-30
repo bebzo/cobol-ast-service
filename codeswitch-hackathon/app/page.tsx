@@ -320,9 +320,11 @@ export default function Home() {
   }, []);
 
   // Memoize enriched modules to avoid recalculation on each render
+  const totalModulesCount = analysis?.modules?.length || 0;
   const enrichedModules = useMemo(() => {
     if (!analysis?.modules) return [];
-    return analysis.modules.map((mod: any) => {
+    const modulesToProcess = showAllModules ? analysis.modules : analysis.modules.slice(0, 20);
+    return modulesToProcess.map((mod: any) => {
       const complexity = mod.complexity || (mod.lines > 100 ? 'HIGH' : mod.lines > 50 ? 'MEDIUM' : 'LOW');
       const complexityClass = complexity === 'HIGH' ? 'bg-red-500/20 text-red-400' : complexity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400';
       const pythonTarget = mod.pythonTarget || mod.name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
@@ -337,7 +339,7 @@ export default function Home() {
       const statusClass = complexity === 'LOW' ? 'bg-emerald-500/20 text-emerald-400' : complexity === 'MEDIUM' ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400';
       return { ...mod, complexity, complexityClass, pythonTarget, risks, status, statusClass };
     });
-  }, [analysis?.modules]);
+  }, [analysis?.modules, showAllModules]);
 
   const handleSaveApiKey = () => {
     if (apiKey.trim()) {
@@ -1302,7 +1304,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         </div>
                       </div>
                       <div className="grid gap-3">
-                        {enrichedModules.slice(0, showAllModules ? enrichedModules.length : 20).map((mod, idx) => (
+                        {enrichedModules.map((mod, idx) => (
                           <div key={idx} className="bg-slate-800 p-4 rounded-lg border border-pink-500/30 hover:border-pink-400/50 transition">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
@@ -1329,12 +1331,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                           </div>
                         ))}
                       </div>
-                      {enrichedModules.length > 20 && !showAllModules && (
+                      {totalModulesCount > 20 && !showAllModules && (
                         <button
                           onClick={() => setShowAllModules(true)}
                           className="mt-4 w-full py-2 bg-pink-600/20 hover:bg-pink-600/40 text-pink-300 rounded-lg border border-pink-500/30 transition"
                         >
-                          Show all {enrichedModules.length} modules
+                          Show all {totalModulesCount} modules
                         </button>
                       )}
                     </div>
