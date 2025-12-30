@@ -513,9 +513,7 @@ export async function POST(request: NextRequest) {
         code = code.replace(/^(\s+.+)\s+(\+|\-|\*|\/)\s*$/gm, '$1 $2 0  # TODO');
         code = code.replace(/^(\s+)([A-Z][A-Z0-9_]+)\s*$/gm, '$1$2 = None  # TODO');
         
-        // === COBOL REMNANTS (convert to pass, not delete) ===
-        code = code.replace(/^(\s*)(PERFORM|MOVE|COMPUTE|ADD|SUBTRACT|MULTIPLY|DIVIDE)\s+.*$/gmi, '$1pass  # COBOL');
-        code = code.replace(/^(\s*)(END-IF|END-PERFORM|END-EVALUATE|END-READ|END-WRITE)\.?\s*$/gmi, '$1pass  # COBOL-end');
+        // === COBOL REMNANTS (minimal - only periods) ===
         code = code.replace(/^(\s*)\.\s*$/gm, '$1pass  # period');
         
         // === BLOCK FIXES ===
