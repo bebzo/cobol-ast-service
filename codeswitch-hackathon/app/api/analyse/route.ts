@@ -364,6 +364,49 @@ export async function POST(request: NextRequest) {
       // PHASE 3: Final cleanup and syntax fixes for compilation
       let fixed = result.join('\n');
       
+      // Close unclosed blocks before @dataclass or top-level class/def
+      // This handles cases where a function's try/with block isn't properly closed
+      fixed = fixed.replace(/(\n\s+pass\s*\n)(@dataclass)/gm, '$1\n$2');
+      fixed = fixed.replace(/(\n\s+except.*:\s*\n\s*\n\s*pass\s*\n)(@dataclass)/gm, '$1\n$2');
+      
+      // Ensure proper closure: add missing except for unclosed try before @dataclass
+      const fixUnclosedBlocks = (code: string): string => {
+        const lines = code.split('\n');
+        const fixedLines: string[] = [];
+        let openTry = 0;
+        let openWith = 0;
+        let lastIndent = 0;
+        
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const trimmed = line.trim();
+          const indent = (line.match(/^(\s*)/)?.[1] || '').length;
+          
+          // Detect @dataclass or top-level class - close any open blocks first
+          if (trimmed.startsWith('@dataclass') || (trimmed.startsWith('class ') && indent === 0)) {
+            // Add closures for any open try/with blocks
+            while (openTry > 0) {
+              fixedLines.push('    except Exception:\n        pass');
+              openTry--;
+              issues.push('Closed unclosed try block');
+            }
+          }
+          
+          // Track try/with blocks
+          if (trimmed.startsWith('try:')) openTry++;
+          if (trimmed.startsWith('except') || trimmed.startsWith('finally:')) {
+            if (openTry > 0) openTry--;
+          }
+          
+          fixedLines.push(line);
+          lastIndent = indent;
+        }
+        
+        return fixedLines.join('\n');
+      };
+      
+      fixed = fixUnclosedBlocks(fixed);
+      
       // Fix truncated lines ending with incomplete expressions
       fixed = fixed.replace(/^(.+)\s*=\s*([A-Z_][A-Z0-9_]*)$/gm, (match, left, right) => {
         // If right side looks incomplete (just a variable fragment), complete it
