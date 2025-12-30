@@ -268,6 +268,17 @@ export async function POST(request: NextRequest) {
           return '';
         }
         
+        // Convert COBOL variable names (WS-VAR-NAME) to Python (ws_var_name)
+        if (line.match(/[A-Z]{2,}-[A-Z0-9-]+/)) {
+          let converted = line.replace(/([A-Z]{2,}(?:-[A-Z0-9]+)+)/g, (match) => {
+            return match.toLowerCase().replace(/-/g, '_');
+          });
+          if (converted !== line) {
+            issues.push(`Line ${idx + 1}: Converted COBOL variable names`);
+            line = converted;
+          }
+        }
+        
         // Fix incomplete def/class declarations
         if (line.match(/^\s*(def|class)\s+\w+\s*$/) && !line.includes(':')) {
           issues.push(`Line ${idx + 1}: Added missing colon`);
