@@ -427,6 +427,7 @@ export default function Home() {
     setAnalysisProgress(0);
     setAnalysisStatus("Parsing COBOL structure...");
     setVoiceResponse("");  // Reset chat for new analysis
+    setVoiceTranscript("");  // Reset user message too
     
     // Animate progress bar with status updates
     const statusMessages = [
