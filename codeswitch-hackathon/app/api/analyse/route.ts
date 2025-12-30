@@ -492,7 +492,9 @@ export async function POST(request: NextRequest) {
       code = code.replace(/\+\s+=/g, '+=');
       code = code.replace(/-\s+=/g, '-=');
       
-      // === DOCSTRINGS - fix corrupted TODO patterns ===
+      // === DOCSTRINGS - fix corrupted patterns ===
+      // Replace lines with 3+ triple quotes (severely corrupted)
+      code = code.replace(/^(\s*).*""".*""".*""".*$/gm, '$1    """TODO"""');
       code = code.replace(/"""([^"]{0,200})"""TODO"""/g, '"""$1"""');
       code = code.replace(/"""([^"]{0,200})"""(TODO""")+/g, '"""$1"""');
       
