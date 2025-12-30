@@ -636,10 +636,10 @@ ${(analysis.issues || []).map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
 ${(analysis.improvements || []).map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
 
 ## Security Warnings
-${(analysis.security_warnings || []).map((w, idx) => `${idx + 1}. ${w}`).join('\n')}
+${(analysis.security_warnings || []).map((w: any, idx) => `${idx + 1}. ${w.title || w}: ${w.description || ''}`).join('\n')}
 
 ## Next Steps
-${analysis.next_steps?.map((s, idx) => `${idx + 1}. ${s}`).join('\n') || 'N/A'}
+${(analysis.next_steps || []).map((s, idx) => `${idx + 1}. ${s}`).join('\n') || 'N/A'}
 
 ---
 
@@ -1419,13 +1419,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     {activeReportTab === "issues" && (analysis.issues || []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-red-500/10 rounded-lg">
                         <span className="text-red-400 font-bold">{i + 1}.</span>
-                        <span className="text-slate-300">{typeof item === 'object' ? (item as any).description || JSON.stringify(item) : item}</span>
+                        <span className="text-slate-300">{typeof item === 'string' ? item : JSON.stringify(item)}</span>
                       </li>
                     ))}
                     {activeReportTab === "improvements" && (analysis.improvements || []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-amber-500/10 rounded-lg">
                         <span className="text-amber-400 font-bold">{i + 1}.</span>
-                        <span className="text-slate-300">{typeof item === 'object' ? (item as any).suggestion || JSON.stringify(item) : item}</span>
+                        <span className="text-slate-300">{typeof item === 'string' ? item : JSON.stringify(item)}</span>
                       </li>
                     ))}
                     {activeReportTab === "security" && (analysis.security_warnings || []).map((item, i) => {

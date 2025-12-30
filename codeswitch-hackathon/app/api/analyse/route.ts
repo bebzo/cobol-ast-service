@@ -41,7 +41,7 @@ Return ONLY a valid JSON object:
     "obsolescence_reason": "Reason"
   },
   "issues": ["Issue 1", "Issue 2"],
-  "improvements": ["Improvement 1"],
+  "improvements": ["Improvement 1", "Improvement 2"],
   "security_warnings": [{"title": "Warning", "severity": "HIGH", "cvss_score": 7.0, "location": "Location", "description": "Desc", "vulnerable_code": "Code", "fix": "Fix"}],
   "migration_score": {
     "complexity": "HIGH",
@@ -186,7 +186,32 @@ ${combinedPythonCode.substring(0, 5000)}`;
       ...metadata,
       python_code: combinedPythonCode,
       unit_tests: unitTests,
-      config_json: JSON.stringify({ program: ast.programId, version: '1.0.0' }, null, 2),
+      config_json: JSON.stringify({
+        program: ast.programId,
+        version: '1.0.0',
+        migration: {
+          source: 'COBOL85',
+          target: 'Python 3.10+',
+          parser: 'ANTLR4',
+          timestamp: new Date().toISOString()
+        },
+        metrics: {
+          original_lines: ast.metrics.totalLines,
+          variables: ast.metrics.variables,
+          paragraphs: ast.metrics.paragraphs,
+          cyclomatic_complexity: ast.metrics.cyclomaticComplexity,
+          maintainability_index: ast.metrics.maintainabilityIndex
+        },
+        dependencies: {
+          python: ['dataclasses', 'decimal', 'typing', 'logging'],
+          testing: ['pytest', 'pytest-cov'],
+          optional: ast.metrics.sqlStatements > 0 ? ['sqlalchemy'] : []
+        },
+        runtime: {
+          min_python_version: '3.10',
+          recommended_python_version: '3.11'
+        }
+      }, null, 2),
       cobol_lines: ast.metrics.totalLines,
       python_lines: combinedPythonCode.split('\n').length,
       filename: filename || `${ast.programId}.cbl`,
