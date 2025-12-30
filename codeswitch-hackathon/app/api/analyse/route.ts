@@ -487,8 +487,8 @@ export async function POST(request: NextRequest) {
     const mergedCode = intelligentMerge(allPythonCode);
     let { code: validatedCode, issues: validationIssues } = validateAndFixPythonHeavy(mergedCode);
     
-    // Iterative syntax cleanup - run multiple passes until stable (reduced for speed)
-    const iterativeCleanup = (code: string, maxPasses: number = 2): string => {
+    // Comprehensive iterative syntax cleanup - fix ALL patterns until code stabilizes
+    const iterativeCleanup = (code: string, maxPasses: number = 3): string => {
       let prevCode = '';
       let pass = 0;
       
@@ -496,37 +496,55 @@ export async function POST(request: NextRequest) {
         prevCode = code;
         pass++;
         
-        // Fix compound operators with spaces
+        // === OPERATORS ===
         code = code.replace(/\+\s+=/g, '+=');
         code = code.replace(/-\s+=/g, '-=');
         code = code.replace(/\*\s+=/g, '*=');
         code = code.replace(/\/\s+=/g, '/=');
         
-        // Fix incomplete docstrings before @dataclass or class
-        code = code.replace(/"""[^"]{0,50}\n(@dataclass|class\s)/gm, '"""TODO"""\n\n$1');
+        // === DOCSTRINGS ===
+        // Fix unclosed docstrings (single """ without closing)
+        code = code.replace(/^(\s*)"""([^"]*)$/gm, '$1"""$2"""');
+        // Fix docstrings before @dataclass/class
+        code = code.replace(/"""[^"]{0,100}\n(\s*)(@dataclass|class\s)/gm, '"""TODO"""\n\n$1$2');
         
-        // Fix functions with only incomplete docstring
-        code = code.replace(/def\s+(\w+)\([^)]*\)\s*(?:->.*?)?\s*:\s*\n\s*"""[^"]*\n(@dataclass|class\s)/gm, 
-          'def $1() -> None:\n    """TODO"""\n    pass\n\n$2');
-        
-        // Fix truncated lines ending with = and nothing else
+        // === TRUNCATED STATEMENTS ===
         code = code.replace(/^(\s+\w[\w.]*\s*=)\s*$/gm, '$1 None  # TODO');
-        
-        // Fix lines ending with incomplete operators
         code = code.replace(/^(\s+.+)\s+(\+|\-|\*|\/)\s*$/gm, '$1 $2 0  # TODO');
-        
-        // Fix lines with just variable names (incomplete statements) - convert to assignment
         code = code.replace(/^(\s+)([A-Z][A-Z0-9_]+)\s*$/gm, '$1$2 = None  # TODO');
         
-        // Convert COBOL keywords to Python pass (preserve line count)
+        // === COBOL REMNANTS (convert to pass, not delete) ===
         code = code.replace(/^(\s*)(PERFORM|MOVE|COMPUTE|ADD|SUBTRACT|MULTIPLY|DIVIDE)\s+.*$/gmi, '$1pass  # COBOL');
-        code = code.replace(/^(\s*)(IF|ELSE|END-IF|EVALUATE|WHEN|END-EVALUATE|READ|WRITE)\s*.*$/gmi, '$1pass  # COBOL');
-        
-        // Fix empty except blocks
-        code = code.replace(/(except[^:]*:)\s*\n(\s*)(@dataclass|class\s|def\s)/gm, '$1\n$2    pass\n$2$3');
-        
-        // Convert lines that are just dots to pass (preserve line count)
+        code = code.replace(/^(\s*)(END-IF|END-PERFORM|END-EVALUATE|END-READ|END-WRITE)\.?\s*$/gmi, '$1pass  # COBOL-end');
         code = code.replace(/^(\s*)\.\s*$/gm, '$1pass  # period');
+        
+        // === BLOCK FIXES ===
+        // Empty except before class/def
+        code = code.replace(/(except[^:]*:)\s*\n(\s*)(@dataclass|class\s|def\s)/gm, '$1\n$2    pass\n\n$2$3');
+        // Empty try before class
+        code = code.replace(/(\n\s*)(try:\s*)\n(\s*)(@dataclass|class\s)/gm, '$1$2\n$3    pass\n$3except:\n$3    pass\n\n$3$4');
+        
+        // === FUNCTION FIXES ===
+        // Incomplete function (def name without body before next def/class)
+        code = code.replace(/^(def\s+\w+\([^)]*\)\s*(?:->.*?)?\s*:)\s*\n(\s*)(@dataclass|class\s|def\s)/gm, 
+          '$1\n    pass\n\n$2$3');
+        // Function with only truncated docstring
+        code = code.replace(/^(def\s+\w+\([^)]*\)\s*(?:->.*?)?\s*:)\s*\n\s*"""[^"]*\n(\s*)(@dataclass|class\s|def\s)/gm, 
+          '$1\n    """TODO"""\n    pass\n\n$2$3');
+        
+        // === STRING FIXES ===  
+        // Lines with odd number of quotes (unterminated strings)
+        const lines = code.split('\n');
+        const fixedLines = lines.map(line => {
+          if (!line.includes('"""') && !line.includes("'''")) {
+            const dq = (line.match(/(?<!\\)"/g) || []).length;
+            const sq = (line.match(/(?<!\\)'/g) || []).length;
+            if (dq % 2 === 1) return line + '"';
+            if (sq % 2 === 1) return line + "'";
+          }
+          return line;
+        });
+        code = fixedLines.join('\n');
       }
       
       console.log(`[Cleanup] ${pass} passes completed`);
@@ -539,16 +557,36 @@ export async function POST(request: NextRequest) {
     const ensureValidEnding = (code: string): string => {
       const lines = code.split('\n');
       
-      // Check last 20 lines for unclosed docstrings
+      // Track open structures in last 50 lines
       let openDocstring = false;
-      for (let i = Math.max(0, lines.length - 20); i < lines.length; i++) {
-        const count = (lines[i].match(/"""/g) || []).length;
+      let openDef = false;
+      let lastDefIndent = 0;
+      
+      for (let i = Math.max(0, lines.length - 50); i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        const indent = (line.match(/^(\s*)/)?.[1] || '').length;
+        
+        // Track docstrings
+        const count = (line.match(/"""/g) || []).length;
         if (count % 2 === 1) openDocstring = !openDocstring;
+        
+        // Track function definitions
+        if (trimmed.startsWith('def ') && trimmed.endsWith(':')) {
+          openDef = true;
+          lastDefIndent = indent;
+        }
+        // Check if function has body
+        if (openDef && indent > lastDefIndent && trimmed && !trimmed.startsWith('"""')) {
+          openDef = false;
+        }
       }
       
-      // If docstring is open, close it and add pass
+      // Fix open structures
       if (openDocstring) {
         code = code.trimEnd() + '\n    """\n    pass\n';
+      } else if (openDef) {
+        code = code.trimEnd() + '\n    pass\n';
       }
       
       // Ensure file ends with newline
