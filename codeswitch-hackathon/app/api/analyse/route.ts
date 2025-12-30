@@ -494,28 +494,30 @@ export async function POST(request: NextRequest) {
       return { code: fixed, issues };
     };
 
-    // Translate chunks in parallel with quality post-processing
-    const translateChunk = async (chunk: string, index: number): Promise<string> => {
+    // Translate AND validate each chunk individually (distributed load)
+    const translateAndValidateChunk = async (chunk: string, index: number): Promise<string> => {
       try {
         const result = await model.generateContent(CHUNK_PROMPT + chunk);
         let code = result.response.text();
         code = cleanPythonCode(code);
-        console.log(`[Chunk ${index + 1}/${chunks.length}] Translated: ${code.length} chars`);
-        return `\n# === CHUNK ${index + 1} (lines ${index * CHUNK_SIZE + 1}-${Math.min((index + 1) * CHUNK_SIZE, lines.length)}) ===\n${code}`;
+        // Validate THIS chunk only (fast, distributed)
+        const { code: validated } = validateAndFixPythonHeavy(code);
+        console.log(`[Chunk ${index + 1}/${chunks.length}] Translated+Validated: ${validated.length} chars`);
+        return validated;
       } catch (e: any) {
         console.error(`[Chunk ${index + 1}] Error:`, e.message);
-        return `\n# === CHUNK ${index + 1} ERROR: ${e.message} ===`;
+        return `# === CHUNK ${index + 1} ERROR: ${e.message} ===`;
       }
     };
 
-    // Run ALL translations in parallel (max 8 chunks)
+    // Run ALL translations+validations in parallel (max 8 chunks)
     const allPythonCode = await Promise.all(
-      chunks.map((chunk, idx) => translateChunk(chunk, idx))
+      chunks.map((chunk, idx) => translateAndValidateChunk(chunk, idx))
     );
 
-    // Combine all Python code with intelligent merging and validation
+    // Merge validated chunks (dedup only, no heavy validation needed)
     const mergedCode = intelligentMerge(allPythonCode);
-    const { code: validatedCode, issues: syntaxIssues } = validateAndFixPython(mergedCode);
+    const validatedCode = mergedCode; // Already validated per-chunk
     const combinedPythonCode = `"""
 ${ast.programId} - Migrated from COBOL
 Original: ${ast.metrics.totalLines} lines COBOL | Variables: ${ast.metrics.variables} | Paragraphs: ${ast.metrics.paragraphs}
