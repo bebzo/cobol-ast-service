@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-2.0-flash',
       generationConfig: {
-        maxOutputTokens: 8192,
+        maxOutputTokens: 65536,
       }
     });
     const jsonModel = genAI.getGenerativeModel({ 
