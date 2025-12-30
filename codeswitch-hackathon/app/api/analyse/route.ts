@@ -10,19 +10,28 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Prompt for translating a chunk of COBOL code
-const CHUNK_PROMPT = `You are a COBOL-to-Python translator. Translate this COBOL code section to Python.
+// Prompt for translating a chunk of COBOL code - MAXIMIZED OUTPUT
+const CHUNK_PROMPT = `You are a COBOL-to-Python translator. Translate ALL of this COBOL code to Python.
 
-RULES:
-- DO NOT include import statements (imports are handled separately)
-- Use @dataclass for record structures
-- Use Decimal for numeric PIC 9 with V (decimal)
-- Use type hints
-- Include docstrings with original COBOL line numbers
-- PERFORM → method calls
-- EVALUATE → match/case
-- Generate complete, executable Python code
-- Return ONLY raw Python code (no markdown, no code blocks)
+CRITICAL - MAXIMIZE CODE OUTPUT:
+- Translate EVERY line of COBOL to Python equivalent
+- DO NOT skip or summarize any code
+- Each COBOL paragraph = one Python function
+- Each COBOL PERFORM = method call
+- Each data item = Python variable/field
+- Generate COMPLETE implementation, not stubs
+
+NAMING (IMPORTANT - use chunk prefix to avoid duplicates):
+- Add CHUNK_IDX suffix to function names that might conflict
+- Example: process_customer_CHUNK_IDX instead of just process_customer
+
+SYNTAX RULES:
+- @dataclass for 01-level records
+- Decimal for PIC 9 with V
+- match/case for EVALUATE
+- Type hints on all functions
+- Docstrings with COBOL line references
+- Return ONLY raw Python code (no markdown)
 
 COBOL CODE:
 `;
@@ -133,18 +142,19 @@ export async function POST(request: NextRequest) {
       return cleaned;
     };
 
-    // Intelligent merge: deduplicate and clean code
+    // Smart merge: deduplicate ONLY dataclasses, keep ALL functions
     const intelligentMerge = (chunks: string[]): string => {
-      let combined = chunks.join('\n');
+      let combined = chunks.join('\n\n# --- CHUNK BOUNDARY ---\n\n');
       
       // Remove chunk markers
       combined = combined.replace(/^#\s*===\s*CHUNK\s+\d+.*===\s*$/gm, '');
+      combined = combined.replace(/^#\s*---\s*CHUNK BOUNDARY\s*---\s*$/gm, '');
       
       // Split into lines for processing
       const lines = combined.split('\n');
       const dataclasses = new Map<string, string[]>();
       const classes = new Map<string, string[]>();
-      const functions = new Map<string, string[]>();
+      const allFunctions: string[][] = [];  // Keep ALL functions, no dedup
       const globalVars: string[] = [];
       
       let i = 0;
@@ -208,23 +218,16 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        // Detect function
+        // Detect function - KEEP ALL (no deduplication for max ratio)
         if (line.match(/^def\s+\w+/)) {
-          const funcMatch = line.match(/^def\s+(\w+)/);
-          if (funcMatch) {
-            const name = funcMatch[1];
-            const block: string[] = [line];
+          const block: string[] = [line];
+          i++;
+          while (i < lines.length && (lines[i].startsWith('    ') || lines[i].trim() === '')) {
+            block.push(lines[i]);
             i++;
-            while (i < lines.length && (lines[i].startsWith('    ') || lines[i].trim() === '')) {
-              block.push(lines[i]);
-              i++;
-            }
-            const existing = functions.get(name);
-            if (!existing || block.join('\n').length > existing.join('\n').length) {
-              functions.set(name, block);
-            }
-            continue;
           }
+          allFunctions.push(block);  // Keep ALL functions
+          continue;
         }
         
         // Global variables (non-empty, non-comment, at column 0)
@@ -236,13 +239,14 @@ export async function POST(request: NextRequest) {
         i++;
       }
       
-      // Rebuild cleanly
+      // Rebuild cleanly - dataclasses first, then classes, then ALL functions
       const parts: string[] = [];
       
       dataclasses.forEach((block) => parts.push(block.join('\n')));
       classes.forEach((block) => parts.push(block.join('\n')));
-      functions.forEach((block) => parts.push(block.join('\n')));
+      allFunctions.forEach((block) => parts.push(block.join('\n')));  // ALL functions kept
       
+      console.log(`[Merge] ${dataclasses.size} dataclasses, ${classes.size} classes, ${allFunctions.length} functions`);
       return parts.join('\n\n').replace(/\n{3,}/g, '\n\n');
     };
 
@@ -420,10 +424,12 @@ export async function POST(request: NextRequest) {
       return { code: fixed, issues };
     };
 
-    // Translate chunks in parallel (simple, fast)
+    // Translate chunks in parallel - inject chunk index for unique naming
     const translateChunk = async (chunk: string, index: number): Promise<string> => {
       try {
-        const result = await model.generateContent(CHUNK_PROMPT + chunk);
+        // Replace CHUNK_IDX with actual chunk number
+        const promptWithIndex = CHUNK_PROMPT.replace(/CHUNK_IDX/g, `C${index + 1}`);
+        const result = await model.generateContent(promptWithIndex + chunk);
         let code = result.response.text();
         code = cleanPythonCode(code);
         console.log(`[Chunk ${index + 1}/${chunks.length}] Translated: ${code.length} chars`);
