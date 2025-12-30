@@ -104,8 +104,8 @@ export async function POST(request: NextRequest) {
     });
 
     // === CHUNKED TRANSLATION ===
-    // Split COBOL into chunks - max 8 chunks for full coverage
-    const MAX_CHUNKS = 8;
+    // Split COBOL into chunks - max 12 chunks for maximum coverage
+    const MAX_CHUNKS = 12;
     const CHUNK_SIZE = Math.max(500, Math.ceil(lines.length / MAX_CHUNKS));
     const chunks: string[] = [];
     for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
