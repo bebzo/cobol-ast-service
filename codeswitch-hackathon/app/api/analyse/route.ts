@@ -604,11 +604,16 @@ export async function POST(request: NextRequest) {
       try {
         const fixPrompt = `Fix ALL Python syntax errors in this code. Return ONLY the corrected Python code, no explanations.
 
+CRITICAL - PRESERVE LINE COUNT:
+- DO NOT delete any lines
+- Convert broken lines to valid Python (use pass, None, or comments)
+- Keep the same number of lines as input
+
 RULES:
 - Close any unclosed docstrings with """
-- Add 'pass' to empty function/class bodies
+- Add 'pass' to empty function/class bodies  
 - Fix incomplete statements (add None or pass)
-- Remove any COBOL keywords (PERFORM, MOVE, etc)
+- Convert COBOL keywords to 'pass  # COBOL' (not delete!)
 - Fix malformed operators (+= not + =)
 - Ensure all blocks have proper bodies
 - DO NOT change logic, only fix syntax
