@@ -504,8 +504,8 @@ export async function POST(request: NextRequest) {
         // === DOCSTRINGS ===
         // Fix unclosed docstrings (single """ without closing)
         code = code.replace(/^(\s*)"""([^"]*)$/gm, '$1"""$2"""');
-        // Fix docstrings before @dataclass/class
-        code = code.replace(/"""[^"]{0,100}\n(\s*)(@dataclass|class\s)/gm, '"""TODO"""\n\n$1$2');
+        // Fix incomplete docstrings before @dataclass/class (only if not already fixed)
+        code = code.replace(/"""(?!TODO)[^"]{0,100}\n(\s*)(@dataclass|class\s)/gm, '"""TODO"""\n\n$1$2');
         
         // === TRUNCATED STATEMENTS ===
         code = code.replace(/^(\s+\w[\w.]*\s*=)\s*$/gm, '$1 None  # TODO');
