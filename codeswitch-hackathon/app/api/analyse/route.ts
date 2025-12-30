@@ -10,28 +10,32 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Prompt for translating a chunk of COBOL code - MAXIMIZED OUTPUT
-const CHUNK_PROMPT = `You are a COBOL-to-Python translator. Translate ALL of this COBOL code to Python.
+// Prompt for translating a chunk of COBOL code - MAXIMIZED OUTPUT + VALID SYNTAX
+const CHUNK_PROMPT = `You are a COBOL-to-Python translator. Generate VALID, COMPILABLE Python.
 
-CRITICAL - MAXIMIZE CODE OUTPUT:
-- Translate EVERY line of COBOL to Python equivalent
-- DO NOT skip or summarize any code
-- Each COBOL paragraph = one Python function
-- Each COBOL PERFORM = method call
-- Each data item = Python variable/field
-- Generate COMPLETE implementation, not stubs
+CRITICAL SYNTAX RULES (MUST FOLLOW):
+1. Every function MUST have a body (use 'pass' if empty)
+2. Every docstring MUST be properly closed with """
+3. Use consistent 4-space indentation
+4. Close ALL parentheses, brackets, braces
+5. Complete ALL statements (no truncated lines)
+6. NO COBOL keywords in output (no PERFORM, MOVE, etc)
 
-NAMING (IMPORTANT - use chunk prefix to avoid duplicates):
-- Add CHUNK_IDX suffix to function names that might conflict
-- Example: process_customer_CHUNK_IDX instead of just process_customer
-
-SYNTAX RULES:
+TRANSLATION RULES:
+- Each COBOL paragraph = one Python function with body
+- Each data item = Python variable
 - @dataclass for 01-level records
 - Decimal for PIC 9 with V
-- match/case for EVALUATE
 - Type hints on all functions
-- Docstrings with COBOL line references
+- Short docstrings: """Brief description."""
+
+NAMING:
+- Add CHUNK_IDX suffix to avoid duplicates
+- Example: process_customer_CHUNK_IDX
+
+OUTPUT:
 - Return ONLY raw Python code (no markdown)
+- Code must pass: python -m py_compile
 
 COBOL CODE:
 `;
