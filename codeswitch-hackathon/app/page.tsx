@@ -247,6 +247,7 @@ export default function Home() {
   const [showHistory, setShowHistory] = useState(false);
   const [modulesLimit, setModulesLimit] = useState(50);
   const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "impact" | "report">("code");
+  const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
