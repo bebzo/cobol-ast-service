@@ -286,25 +286,30 @@ export async function POST(request: NextRequest) {
           return '';
         }
         
-        // Fix unterminated strings - count quotes
-        const singleQuotes = (line.match(/'/g) || []).length;
-        const doubleQuotes = (line.match(/"/g) || []).length;
-        const tripleDouble = (line.match(/"""/g) || []).length;
-        const tripleSingle = (line.match(/'''/g) || []).length;
-        
-        // Remove lines with odd number of quotes (unterminated string)
+        // Fix unterminated strings - improved detection
         if (!line.includes('"""') && !line.includes("'''")) {
-          if ((singleQuotes % 2 !== 0 && !line.includes('"')) || 
-              (doubleQuotes % 2 !== 0 && !line.includes("'"))) {
-            // Try to fix by closing the string
-            if (doubleQuotes % 2 !== 0) {
-              issues.push(`Line ${idx + 1}: Fixed unterminated double quote`);
-              return line + '"';
+          // Check for string that ends with \n or similar escape but no closing quote
+          if (line.match(/['"][^'"]*\\n\s*$/) || line.match(/['"][^'"]*\s*\+\s*$/)) {
+            issues.push(`Line ${idx + 1}: Fixed truncated string with escape`);
+            if (line.includes('"') && !line.match(/"[^"]*"[^"]*$/)) {
+              return line + '")';
             }
-            if (singleQuotes % 2 !== 0) {
-              issues.push(`Line ${idx + 1}: Fixed unterminated single quote`);
-              return line + "'";
+            if (line.includes("'") && !line.match(/'[^']*'[^']*$/)) {
+              return line + "')";
             }
+          }
+          
+          // Count unescaped quotes
+          const unescapedDouble = line.replace(/\\"/g, '').match(/"/g) || [];
+          const unescapedSingle = line.replace(/\\'/g, '').match(/'/g) || [];
+          
+          if (unescapedDouble.length % 2 !== 0) {
+            issues.push(`Line ${idx + 1}: Fixed unterminated double quote`);
+            return line + '"';
+          }
+          if (unescapedSingle.length % 2 !== 0 && unescapedDouble.length === 0) {
+            issues.push(`Line ${idx + 1}: Fixed unterminated single quote`);
+            return line + "'";
           }
         }
         
