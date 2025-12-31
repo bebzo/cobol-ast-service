@@ -91,6 +91,14 @@ def validate_and_fix(code: str) -> dict:
                 fixes_applied += 1
                 continue
             
+            # Skip if already fixed (avoid infinite loop)
+            if lines[line_num - 1].strip().startswith('# FIXED:'):
+                # Try removing the line entirely
+                lines[line_num - 1] = ''
+                code = '\n'.join(lines)
+                fixes_applied += 1
+                continue
+            
             # Comment out the problematic line
             lines[line_num - 1] = '# FIXED: ' + lines[line_num - 1]
             code = '\n'.join(lines)
