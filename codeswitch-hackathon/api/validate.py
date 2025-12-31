@@ -46,6 +46,24 @@ def validate_and_fix(code: str) -> dict:
         code += '\n"""'
         fixes_applied += 1
     
+    # Fix lines with unbalanced quotes (truncated strings)
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        # Skip lines with triple quotes
+        if '"""' in line or "'''" in line:
+            continue
+        # Count quotes (excluding escaped)
+        clean_line = line.replace('\\"', '').replace("\\'", '')
+        if clean_line.count('"') % 2 == 1:
+            # Unbalanced double quote - close it
+            lines[i] = line.rstrip() + '"'
+            fixes_applied += 1
+        elif clean_line.count("'") % 2 == 1:
+            # Unbalanced single quote - close it
+            lines[i] = line.rstrip() + "'"
+            fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # Fix strings with literal newlines (should use \n)
     lines = code.split('\n')
     i = 0
