@@ -98,6 +98,53 @@ def check_syntax(code):
   }
 }
 
+// Correct Python code using Pyodide validation + Gemini fixes
+async function correctPythonCode(
+  code: string,
+  maxAttempts: number,
+  onProgress: (attempt: number, error: string) => void
+): Promise<{ code: string; success: boolean; attempts: number }> {
+  let currentCode = code;
+  let attempts = 0;
+  
+  while (attempts < maxAttempts) {
+    const validation = await validatePythonSyntax(currentCode);
+    
+    if (validation.valid) {
+      return { code: currentCode, success: true, attempts };
+    }
+    
+    attempts++;
+    onProgress(attempts, validation.error || 'Unknown error');
+    
+    try {
+      const response = await fetch('/api/clean', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pythonCode: currentCode,
+          syntaxError: validation.error,
+          errorLine: validation.line
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.cleanedCode) {
+          currentCode = data.cleanedCode;
+        }
+      }
+    } catch (e) {
+      console.error('Correction API error:', e);
+      break;
+    }
+  }
+  
+  // Final check
+  const finalValidation = await validatePythonSyntax(currentCode);
+  return { code: currentCode, success: finalValidation.valid, attempts };
+}
+
 const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
        PROGRAM-ID.  PAYROLL01.
        AUTHOR.      GLOBAL-BANKING-LEGACY-1987.
@@ -319,6 +366,9 @@ export default function Home() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [showMagicDiff, setShowMagicDiff] = useState(false);
   const [diffMode, setDiffMode] = useState<"animation" | "realcode">("animation");
+  const [isCorrectingCode, setIsCorrectingCode] = useState(false);
+  const [correctionStatus, setCorrectionStatus] = useState("");
+  const [correctionAttempt, setCorrectionAttempt] = useState(0);
   const [animatedMetrics, setAnimatedMetrics] = useState<{
     cobolLines: number;
     pythonLines: number;
