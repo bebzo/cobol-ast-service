@@ -40,6 +40,64 @@ import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } 
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
+// Pyodide for Python syntax validation
+declare global {
+  interface Window {
+    loadPyodide: () => Promise<any>;
+    pyodide: any;
+  }
+}
+
+let pyodideReady: Promise<any> | null = null;
+
+async function getPyodide() {
+  if (typeof window === 'undefined') return null;
+  if (window.pyodide) return window.pyodide;
+  if (!pyodideReady) {
+    pyodideReady = window.loadPyodide().then((py: any) => {
+      window.pyodide = py;
+      return py;
+    });
+  }
+  return pyodideReady;
+}
+
+async function validatePythonSyntax(code: string): Promise<{ valid: boolean; error?: string; line?: number }> {
+  try {
+    const pyodide = await getPyodide();
+    if (!pyodide) return { valid: true }; // Skip if Pyodide not available
+    
+    // Use compile() to check syntax without executing
+    pyodide.runPython(`
+import sys
+from io import StringIO
+
+def check_syntax(code):
+    try:
+        compile(code, '<string>', 'exec')
+        return None
+    except SyntaxError as e:
+        return f"Line {e.lineno}: {e.msg}"
+`);
+    
+    const result = pyodide.runPython(`check_syntax(${JSON.stringify(code)})`);
+    
+    if (result === null || result === 'None' || result === undefined) {
+      return { valid: true };
+    }
+    
+    // Parse error message
+    const match = String(result).match(/Line (\d+): (.+)/);
+    if (match) {
+      return { valid: false, error: match[2], line: parseInt(match[1]) };
+    }
+    return { valid: false, error: String(result) };
+  } catch (e) {
+    console.error('Pyodide validation error:', e);
+    return { valid: true }; // Assume valid if Pyodide fails
+  }
+}
+
 const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
        PROGRAM-ID.  PAYROLL01.
        AUTHOR.      GLOBAL-BANKING-LEGACY-1987.
@@ -503,24 +561,58 @@ export default function Home() {
         parsed.unit_tests = parsed.unit_tests.replace(/\\n/g, '\n');
       }
       
-      // Auto-clean the Python code
+      // Auto-clean with Pyodide validation loop
       let finalPythonCode = parsed.python_code;
+      const maxAttempts = 10;
+      let attempts = 0;
+      
       try {
-        console.log('Calling clean API...');
+        // First call to clean API for quick fixes
+        console.log('Initial clean API call...');
         const cleanRes = await fetch('/api/clean', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pythonCode: parsed.python_code })
         });
-        console.log('Clean response status:', cleanRes.status);
         if (cleanRes.ok) {
           const cleanData = await cleanRes.json();
           if (cleanData.cleanedCode) {
             finalPythonCode = cleanData.cleanedCode;
-            console.log('Clean successful, lines:', cleanData.stats?.cleanedLines);
           }
         }
-      } catch (e) { console.error('Clean failed:', e); }
+        
+        // Pyodide validation loop
+        console.log('Starting Pyodide validation loop...');
+        let validation = await validatePythonSyntax(finalPythonCode);
+        
+        while (!validation.valid && attempts < maxAttempts) {
+          attempts++;
+          console.log(`Validation attempt ${attempts}: Error - ${validation.error} at line ${validation.line}`);
+          
+          // Call clean API with the specific error
+          const fixRes = await fetch('/api/clean', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              pythonCode: finalPythonCode,
+              syntaxError: validation.error,
+              errorLine: validation.line
+            })
+          });
+          
+          if (fixRes.ok) {
+            const fixData = await fixRes.json();
+            if (fixData.cleanedCode) {
+              finalPythonCode = fixData.cleanedCode;
+            }
+          }
+          
+          // Revalidate
+          validation = await validatePythonSyntax(finalPythonCode);
+        }
+        
+        console.log(`Validation complete after ${attempts} attempts. Valid: ${validation.valid}`);
+      } catch (e) { console.error('Clean/validate failed:', e); }
       
       setPythonCode(finalPythonCode);
       // Create new object to trigger React state update

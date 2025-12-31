@@ -152,9 +152,51 @@ Return the complete Python code:`;
   return { code: response.trim(), isValid };
 }
 
+// Fix specific syntax error with Gemini
+async function fixSpecificError(code: string, error: string, line: number): Promise<string> {
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ 
+    model: 'gemini-2.0-flash',
+    generationConfig: { maxOutputTokens: 65536 }
+  });
+  
+  const lines = code.split('\n');
+  const contextStart = Math.max(0, line - 10);
+  const contextEnd = Math.min(lines.length, line + 10);
+  const context = lines.slice(contextStart, contextEnd).map((l, i) => 
+    `${contextStart + i + 1}: ${l}`
+  ).join('\n');
+  
+  const prompt = `Fix this Python syntax error. Return the COMPLETE corrected Python code.
+
+ERROR at line ${line}: ${error}
+
+Context around error:
+${context}
+
+FULL CODE:
+\`\`\`python
+${code}
+\`\`\`
+
+Return ONLY the complete fixed Python code, no explanations:`;
+
+  const result = await model.generateContent(prompt);
+  let response = result.response.text();
+  
+  const codeMatch = response.match(/```python\n([\s\S]*?)```/);
+  if (codeMatch) {
+    response = codeMatch[1];
+  } else {
+    response = response.replace(/^```python\n?/gm, '').replace(/```$/gm, '');
+  }
+  
+  return response.trim();
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { pythonCode } = await request.json();
+    const { pythonCode, syntaxError, errorLine } = await request.json();
 
     if (!pythonCode) {
       return NextResponse.json(
@@ -168,30 +210,13 @@ export async function POST(request: NextRequest) {
     // Step 1: Apply quick regex fixes
     let cleanedCode = applyQuickFixes(pythonCode);
     
-    // Step 2: Validate and fix with Gemini (loop until valid or max attempts)
-    let attempts = 0;
-    let isValid = false;
-    const maxAttempts = 10;
-    
-    if (GEMINI_API_KEY) {
-      while (!isValid && attempts < maxAttempts) {
-        attempts++;
-        console.log(`Validation attempt ${attempts}/${maxAttempts}`);
-        
-        try {
-          const result = await validateAndFixWithGemini(cleanedCode, attempts);
-          cleanedCode = result.code;
-          isValid = result.isValid;
-          
-          if (isValid) {
-            console.log(`Code validated after ${attempts} attempt(s)`);
-            break;
-          }
-        } catch (aiError) {
-          console.error(`AI validation attempt ${attempts} failed:`, aiError);
-          // Continue with current code
-          break;
-        }
+    // Step 2: If specific error provided (from Pyodide), fix it directly
+    if (syntaxError && errorLine && GEMINI_API_KEY) {
+      console.log(`Fixing specific error at line ${errorLine}: ${syntaxError}`);
+      try {
+        cleanedCode = await fixSpecificError(cleanedCode, syntaxError, errorLine);
+      } catch (e) {
+        console.error('Specific fix failed:', e);
       }
     }
 
@@ -203,8 +228,7 @@ export async function POST(request: NextRequest) {
         originalLines: originalLineCount,
         cleanedLines: cleanedLineCount,
         preserved: Math.round((cleanedLineCount / originalLineCount) * 100),
-        validationAttempts: attempts,
-        isValid
+        hadError: !!(syntaxError && errorLine)
       }
     }, { headers: corsHeaders });
 

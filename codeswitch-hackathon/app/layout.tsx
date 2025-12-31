@@ -24,6 +24,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+      </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-slate-900 text-slate-50`}>
         {children}
       </body>
