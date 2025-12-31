@@ -83,6 +83,18 @@ def validate_and_fix(code: str) -> dict:
     # Fix broken docstrings on multiple lines
     code = re.sub(r'"""([^"]*)\n([^"]*representing[^"]*""")', r'"""\1 \2', code)
     
+    # Fix truncated docstrings (line has """ but no closing """)
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.strip()
+        # Docstring starts but doesn't close on same line
+        if s.startswith('"""') and s.count('"""') == 1:
+            # Check if next line is def/class (means this docstring is orphaned)
+            if i + 1 < len(lines) and (lines[i+1].strip().startswith('def ') or lines[i+1].strip().startswith('class ')):
+                lines[i] = line.rstrip() + '"""'
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # Remove orphaned docstring fragments
     code = re.sub(r'^\s*[a-z_]+\s+representing\s+\w+\.\s*"""', '', code, flags=re.MULTILINE)
     
