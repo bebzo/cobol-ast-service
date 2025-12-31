@@ -68,6 +68,16 @@ export async function POST(request: NextRequest) {
         line = line.trimEnd() + ') -> None:';  // Complete the truncated signature
       }
       
+      // Fix merged lines: docstring followed by def on same line
+      if (line.match(/"""[^"]*def \w+/)) {
+        const parts = line.split(/(?=def \w+)/);
+        if (parts.length >= 2) {
+          // Close first docstring and add def on new line
+          fixedLines.push(parts[0].replace(/"""[^"]*$/, '"""TODO"""'));
+          line = parts.slice(1).join('');
+        }
+      }
+      
       // Check if current line is a docstring and next line has less indent
       if (line.match(/^\s+""".*"""$/) && nextLine.trim().length > 0) {
         const docIndent = (line.match(/^(\s*)/)?.[1] || '').length;
