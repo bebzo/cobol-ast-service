@@ -70,6 +70,21 @@ def validate_and_fix(code: str) -> dict:
     # Pre-fix: Remove lines that look like orphaned docstring fragments
     code = re.sub(r'^\s*[a-z_]+\s+representing\s+\w+\.\s*"""', '# REMOVED orphan docstring', code, flags=re.MULTILINE)
     
+    # Pre-fix: Complete truncated function definitions (def xxx( without closing ) -> :)
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        stripped = line.rstrip()
+        if stripped.startswith('def ') and '(' in stripped and not stripped.endswith(':'):
+            # Check if line is truncated (no closing paren or colon)
+            if ')' not in stripped or not stripped.endswith(':'):
+                # Complete the function signature
+                if ')' not in stripped:
+                    lines[i] = stripped + ') -> None:'
+                elif not stripped.endswith(':'):
+                    lines[i] = stripped + ':'
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
     for iteration in range(max_iterations):
         try:
             ast.parse(code)
