@@ -10,76 +10,39 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Prompt for translating a chunk of COBOL code - PRODUCTION QUALITY (1:1 ratio target)
-const CHUNK_PROMPT = `You are a senior Python developer migrating COBOL to PRODUCTION-READY Python.
+// Prompt for translating COBOL to Python - MINIMAL AND CORRECT
+const CHUNK_PROMPT = `Convert this COBOL code to Python. Output ONLY valid Python code.
 
-**TARGET: Generate Python code that is EQUAL or LONGER than COBOL input.**
+RULES:
+1. Each COBOL paragraph → Python function with pass if empty
+2. Each 01-level → @dataclass  
+3. PIC 9 → Decimal, PIC X → str
+4. PERFORM → function call
+5. Add logger.info() at function start
 
-REQUIRED FOR EVERY FUNCTION:
-1. **Simple docstring**: One line only, like: """Calculate interest for account."""
-2. **Type hints**: Full typing on all params and return
-3. **Logging**: logger.info() at function start
-4. **Comments**: Brief inline comments for complex logic
+CRITICAL - MUST FOLLOW:
+- Complete ALL statements on ONE line
+- Close ALL parentheses and quotes
+- Every function needs a body (use pass if needed)
+- NO multi-line strings except docstrings
+- Docstring format: """One line description."""
 
-CRITICAL SYNTAX RULES:
-- NEVER use """TODO""" - write actual descriptions
-- NEVER split strings across lines
-- ALWAYS close all parentheses, brackets, quotes
-- ALWAYS complete try blocks with except
-
-=== COBOL VARIABLE HANDLING ===
-- PIC 9(n) / PIC 9(n)V9(m) → Decimal with proper precision
-- PIC X(n) → str with max length validation
-- PIC S9(n) COMP / COMP-3 → int or Decimal
-- OCCURS n TIMES → List[Type] with bounds checking
-- REDEFINES → Union type or property accessor
-- Level 88 → Enum or boolean property
-- Group levels (01-49) → @dataclass with nested structure
-
-=== CICS COMMAND TRANSLATION ===
-- EXEC CICS SEND MAP → def send_map(map_name, mapset): screen.render(map_name)
-- EXEC CICS RECEIVE MAP → def receive_map(map_name): return screen.get_input()
-- EXEC CICS LINK PROGRAM → def link_program(pgm, commarea): return call_program(pgm, commarea)
-- EXEC CICS XCTL PROGRAM → def transfer_control(pgm, commarea): raise TransferControl(pgm, commarea)
-- EXEC CICS READ FILE → def read_file(dataset, ridfld, into): return db.read(dataset, ridfld)
-- EXEC CICS WRITE FILE → def write_file(dataset, from_data): db.write(dataset, from_data)
-- EXEC CICS RETURN → return (with optional TRANSID for pseudo-conversational)
-- DFHCOMMAREA → commarea: Dict[str, Any] passed between programs
-
-=== FILE HANDLING ===
-- OPEN INPUT/OUTPUT → with open(file_path, mode) as f:
-- READ file INTO → record = f.readline() or next(reader)
-- WRITE record FROM → f.write(record) or writer.writerow()
-- CLOSE file → context manager handles this
-- FILE STATUS → try/except with specific error codes
-
-EXAMPLE - SIMPLE AND CORRECT:
+EXAMPLE:
 \`\`\`python
-def calculate_interest_CHUNK_IDX(account_balance: Decimal, interest_rate: Decimal) -> Decimal:
-    """Calculate interest for an account based on daily rate."""
-    logger.info(f"Calculating interest for balance {account_balance}")
-    try:
-        daily_rate = interest_rate / Decimal('365')
-        interest = account_balance * daily_rate * Decimal('30')
-        return interest.quantize(Decimal('0.01'))
-    except Exception as e:
-        logger.error(f"Interest calculation failed: {e}")
-        raise
+@dataclass
+class CustomerRecord:
+    """Customer data structure."""
+    cust_id: str = ""
+    balance: Decimal = Decimal("0")
+
+def process_customer() -> None:
+    """Process customer record."""
+    logger.info("Processing customer")
+    validate_customer()
+    update_balance()
 \`\`\`
 
-TRANSLATION RULES:
-- PERFORM X → call function x()
-- MOVE A TO B → b = a (with validation)
-- COMPUTE → Decimal arithmetic with rounding
-- IF/EVALUATE → if/elif with logging
-- Each 01-level → @dataclass with __post_init__ validation
-- Each paragraph → complete function as shown above
-
-NAMING: Add CHUNK_IDX suffix. Convert WS-VAR-NAME to ws_var_name.
-
-OUTPUT: Raw Python only, no markdown. Make it LONGER than input.
-
-COBOL:
+Convert this COBOL:
 `;
 
 // Prompt for generating analysis metadata
