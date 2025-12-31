@@ -732,8 +732,7 @@ ${cleanedValidatedCode}
     // === PYTHON VALIDATION (real py_compile) ===
     try {
       console.log('[Validation] Calling Python validator...');
-      const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
-      const validateResponse = await fetch(`${baseUrl}/api/validate`, {
+      const validateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: combinedPythonCode })
@@ -741,16 +740,13 @@ ${cleanedValidatedCode}
       
       if (validateResponse.ok) {
         const validateResult = await validateResponse.json();
-        if (validateResult.valid) {
-          console.log(`[Validation] Code is valid! ${validateResult.fixes} fixes applied`);
-          combinedPythonCode = validateResult.code;
-        } else {
-          console.log(`[Validation] Code partially fixed: ${validateResult.fixes} fixes, still has errors`);
-          combinedPythonCode = validateResult.code;
-        }
+        console.log(`[Validation] Result: valid=${validateResult.valid}, fixes=${validateResult.fixes}`);
+        combinedPythonCode = validateResult.code;
+      } else {
+        console.log(`[Validation] Failed: ${validateResponse.status}`);
       }
-    } catch (e) {
-      console.log('[Validation] Python validator not available, skipping');
+    } catch (e: any) {
+      console.log(`[Validation] Error: ${e.message}`);
     }
 
     // === ANALYSIS METADATA (generated locally to avoid timeout) ===
