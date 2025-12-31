@@ -228,6 +228,22 @@ def validate_and_fix(code: str) -> dict:
             fixes_applied += 1
     code = '\n'.join(lines)
     
+    # Fix class/def with wrong indentation after decorator
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith('@') and i + 1 < len(lines):
+            decorator_indent = len(line) - len(line.lstrip())
+            next_line = lines[i + 1]
+            next_stripped = next_line.strip()
+            if next_stripped.startswith('class ') or next_stripped.startswith('def '):
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent != decorator_indent:
+                    # Fix indentation to match decorator
+                    lines[i + 1] = ' ' * decorator_indent + next_stripped
+                    fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # Fix orphaned decorators (@ without following def/class)
     lines = code.split('\n')
     for i, line in enumerate(lines):
