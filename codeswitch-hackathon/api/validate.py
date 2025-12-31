@@ -79,6 +79,29 @@ def validate_and_fix(code: str) -> dict:
                 fixes_applied += 1
     code = '\n'.join(lines)
     
+    # Fix empty class/function bodies (add pass)
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.rstrip()
+        if (s.startswith('class ') or s.startswith('def ')) and s.endswith(':'):
+            # Check if next non-comment line is at same or lower indent
+            indent = len(line) - len(line.lstrip())
+            j = i + 1
+            needs_pass = True
+            while j < len(lines):
+                next_line = lines[j]
+                if next_line.strip() == '' or next_line.strip().startswith('#'):
+                    j += 1
+                    continue
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent > indent:
+                    needs_pass = False
+                break
+            if needs_pass:
+                lines.insert(i + 1, ' ' * (indent + 4) + 'pass')
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # === PHASE 2: Iterative AST-based fixing ===
     max_iterations = 200
     fixed_lines_set = set()
