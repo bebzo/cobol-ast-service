@@ -30,9 +30,13 @@ export async function POST(request: NextRequest) {
     const lineCount = lines.length;
 
     // Fast regex-only cleanup (no AI to avoid timeout)
-    // Fix split string literals ending with unclosed quote + newline
+    // Fix split string literals ending with unclosed quote + newline (double and single quotes)
     cleanedCode = cleanedCode.replace(/ \+ "\n"\)/gm, ' + "\\n")');
+    cleanedCode = cleanedCode.replace(/ \+ '\n'\)/gm, " + '\\n')");
     cleanedCode = cleanedCode.replace(/\.write\("[^"]*\n"\)/gm, (match: string) => {
+      return match.replace(/\n/g, '\\n');
+    });
+    cleanedCode = cleanedCode.replace(/\.write\('[^']*\n'\)/gm, (match: string) => {
       return match.replace(/\n/g, '\\n');
     });
     cleanedCode = cleanedCode.replace(/\+\s+=/g, '+=');
