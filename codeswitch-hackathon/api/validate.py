@@ -82,6 +82,29 @@ def validate_and_fix(code: str) -> dict:
         i += 1
     code = '\n'.join(lines)
     
+    # Fix imports merged into function/class definitions
+    lines = code.split('\n')
+    imports_to_add = []
+    for i, line in enumerate(lines):
+        # Check if line has both def/class and import statement merged
+        if ('def ' in line or 'class ' in line) and ('from ' in line and ' import ' in line):
+            # Extract the import part
+            match = re.search(r'(from\s+\w+\s+import\s+\w+)', line)
+            if match:
+                import_stmt = match.group(1)
+                imports_to_add.append(import_stmt)
+                # Remove import from the line
+                clean_line = line.replace(import_stmt, '')
+                # Fix any broken type hints (e.g., WsIncidentRecor -> str)
+                clean_line = re.sub(r':\s*\w*\)', ': str)', clean_line)
+                lines[i] = clean_line
+                fixes_applied += 1
+    # Add imports at top
+    if imports_to_add:
+        for imp in imports_to_add:
+            lines.insert(0, imp)
+    code = '\n'.join(lines)
+    
     # Fix truncated function definitions
     lines = code.split('\n')
     for i, line in enumerate(lines):
