@@ -107,10 +107,15 @@ def validate_and_fix(code: str) -> dict:
         s = line.strip()
         # Docstring starts but doesn't close on same line
         if s.startswith('"""') and s.count('"""') == 1:
-            # Check if next line is def/class (means this docstring is orphaned)
-            if i + 1 < len(lines) and (lines[i+1].strip().startswith('def ') or lines[i+1].strip().startswith('class ')):
-                lines[i] = line.rstrip() + '"""'
-                fixes_applied += 1
+            # Check if next non-empty line is def/class (means this docstring is orphaned)
+            for j in range(i + 1, min(i + 5, len(lines))):
+                next_s = lines[j].strip()
+                if next_s == '':
+                    continue
+                if next_s.startswith('def ') or next_s.startswith('class ') or next_s.startswith('@'):
+                    lines[i] = line.rstrip() + '"""'
+                    fixes_applied += 1
+                break
     code = '\n'.join(lines)
     
     # Remove orphaned docstring fragments
