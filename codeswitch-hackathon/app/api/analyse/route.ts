@@ -147,6 +147,7 @@ export async function POST(request: NextRequest) {
         .replace(/\n\s*self\.\w*\s*$/g, '')
         .replace(/\n\s*def\s+\w+\s*$/g, '')
         .replace(/\n\s*class\s+\w+\s*$/g, '')
+        .replace(/^\s*def\s*$/gm, '')  // Remove standalone 'def' lines
         .trim();
       
       // FIX BROKEN DOCSTRINGS: """TODO"""\n    Real text... → """Real text..."""
