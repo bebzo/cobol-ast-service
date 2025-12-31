@@ -334,10 +334,19 @@ def validate_and_fix(code: str) -> dict:
                 fixes_applied += 1
             
             elif 'expected an indented block' in error_msg:
-                # Add pass statement to empty block
-                indent = len(error_line) - len(error_line.lstrip())
-                lines.insert(line_num - 1, ' ' * (indent + 4) + 'pass')
-                fixes_applied += 1
+                # Find the class/def that needs the pass
+                for j in range(line_num - 2, -1, -1):
+                    prev = lines[j].rstrip()
+                    if prev.endswith(':') and not prev.strip().startswith('#'):
+                        indent = len(lines[j]) - len(lines[j].lstrip())
+                        lines.insert(j + 1, ' ' * (indent + 4) + 'pass')
+                        fixes_applied += 1
+                        break
+                else:
+                    # Fallback: add pass at current position
+                    indent = len(error_line) - len(error_line.lstrip())
+                    lines.insert(line_num - 1, ' ' * (indent + 4) + 'pass')
+                    fixes_applied += 1
             
             elif "expected 'except' or 'finally'" in error_msg:
                 # Find the try block and add except
