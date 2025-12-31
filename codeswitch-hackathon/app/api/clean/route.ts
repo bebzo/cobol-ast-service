@@ -44,6 +44,10 @@ function applyQuickFixes(code: string): string {
   // Fix truncated Decimal
   cleaned = cleaned.replace(/Decimal\("[^"]*$/gm, 'Decimal("0")');
   
+  // Fix merged lines (def/class appearing mid-line after truncation)
+  cleaned = cleaned.replace(/([^\n])(def \w+\()/g, '$1\n$2');
+  cleaned = cleaned.replace(/([^\n])(class \w+)/g, '$1\n$2');
+  
   // Line-by-line fixes
   const lines = cleaned.split('\n');
   const fixedLines: string[] = [];
