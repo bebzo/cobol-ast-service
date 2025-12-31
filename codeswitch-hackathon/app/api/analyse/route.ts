@@ -103,13 +103,13 @@ export async function POST(request: NextRequest) {
     
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         maxOutputTokens: 65536,
       }
     });
     const jsonModel = genAI.getGenerativeModel({ 
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: "application/json",
         maxOutputTokens: 4096,
