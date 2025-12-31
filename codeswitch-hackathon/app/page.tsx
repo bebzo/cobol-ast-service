@@ -102,16 +102,31 @@ def check_syntax(code):
 async function correctPythonCode(
   code: string,
   maxAttempts: number,
-  onProgress: (attempt: number, error: string) => void
-): Promise<{ code: string; success: boolean; attempts: number }> {
+  onProgress: (attempt: number, error: string, stopped?: boolean) => void
+): Promise<{ code: string; success: boolean; attempts: number; stoppedReason?: string }> {
   let currentCode = code;
   let attempts = 0;
+  let lastError = '';
+  let sameErrorCount = 0;
   
   while (attempts < maxAttempts) {
     const validation = await validatePythonSyntax(currentCode);
     
     if (validation.valid) {
       return { code: currentCode, success: true, attempts };
+    }
+    
+    // Detect infinite loop (same error 3 times)
+    const currentError = `${validation.line}:${validation.error}`;
+    if (currentError === lastError) {
+      sameErrorCount++;
+      if (sameErrorCount >= 3) {
+        onProgress(attempts, `Boucle détectée: ${validation.error}`, true);
+        return { code: currentCode, success: false, attempts, stoppedReason: 'loop_detected' };
+      }
+    } else {
+      sameErrorCount = 1;
+      lastError = currentError;
     }
     
     attempts++;
@@ -142,7 +157,7 @@ async function correctPythonCode(
   
   // Final check
   const finalValidation = await validatePythonSyntax(currentCode);
-  return { code: currentCode, success: finalValidation.valid, attempts };
+  return { code: currentCode, success: false, attempts, stoppedReason: 'max_attempts' };
 }
 
 const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
@@ -1120,7 +1135,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       {isCorrectingCode ? (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs">
                           <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Correction {correctionAttempt}/30: {correctionStatus}</span>
+                          <span>Correction {correctionAttempt}/100: {correctionStatus}</span>
                         </div>
                       ) : (
                         <button
@@ -1132,7 +1147,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                             try {
                               const result = await correctPythonCode(
                                 pythonCode,
-                                30,
+                                100,
                                 (attempt, error) => {
                                   setCorrectionAttempt(attempt);
                                   setCorrectionStatus(error.substring(0, 40) + (error.length > 40 ? '...' : ''));
@@ -1144,7 +1159,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                                 setAnalysis({ ...analysis, python_code: result.code });
                               }
                               
-                              setCorrectionStatus(result.success ? "✓ Code valide!" : "Corrections appliquées");
+                              setCorrectionStatus(
+                              result.success 
+                                ? "✓ Code valide!" 
+                                : result.stoppedReason === 'loop_detected'
+                                  ? "⚠️ Boucle détectée - correction manuelle requise"
+                                  : "Limite atteinte - cliquez pour continuer"
+                            );
                             } catch (e) {
                               console.error('Correction failed:', e);
                               setCorrectionStatus("Erreur de correction");
