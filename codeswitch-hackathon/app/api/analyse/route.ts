@@ -227,7 +227,50 @@ export async function POST(request: NextRequest) {
         .replace(/\n\s*def\s+\w+\s*$/g, '')
         .replace(/\n\s*class\s+\w+\s*$/g, '')
         .trim();
-      return cleaned;
+      
+      // FIX BROKEN DOCSTRINGS: """TODO"""\n    Real text... → """Real text..."""
+      // Pattern: docstring with TODO followed by unquoted text on next lines
+      const lines = cleaned.split('\n');
+      const fixedLines: string[] = [];
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        // Detect """TODO""" pattern
+        if (line.trim() === '"""TODO"""') {
+          const indent = line.match(/^(\s*)/)?.[1] || '';
+          // Collect following lines until next def/class/@dataclass or empty docstring content
+          let docContent: string[] = [];
+          let j = i + 1;
+          while (j < lines.length) {
+            const nextLine = lines[j];
+            const nextTrimmed = nextLine.trim();
+            // Stop if we hit a new definition or closing pattern
+            if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || 
+                nextTrimmed.startsWith('@') || nextTrimmed === '"""' ||
+                nextTrimmed.startsWith('logger.') || nextTrimmed.startsWith('try:') ||
+                nextTrimmed.startsWith('global ') || nextTrimmed.startsWith('if ') ||
+                nextTrimmed.startsWith('return ') || nextTrimmed.startsWith('raise ')) {
+              break;
+            }
+            docContent.push(nextLine);
+            j++;
+          }
+          // Build proper docstring
+          if (docContent.length > 0) {
+            fixedLines.push(indent + '"""');
+            docContent.forEach(l => fixedLines.push(l));
+            fixedLines.push(indent + '"""');
+          } else {
+            fixedLines.push(indent + '"""TODO"""');
+          }
+          i = j;
+        } else {
+          fixedLines.push(line);
+          i++;
+        }
+      }
+      
+      return fixedLines.join('\n');
     };
 
     // Simple merge: NO deduplication - keep EVERYTHING for max ratio
