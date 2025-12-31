@@ -48,6 +48,9 @@ function applyQuickFixes(code: string): string {
   cleaned = cleaned.replace(/([^\n])(def \w+\()/g, '$1\n$2');
   cleaned = cleaned.replace(/([^\n])(class \w+)/g, '$1\n$2');
   
+  // Fix truncated global statements (just "global" with nothing after)
+  cleaned = cleaned.replace(/^(\s*)global\s*$/gm, '$1pass  # truncated global');
+  
   // Line-by-line fixes
   const lines = cleaned.split('\n');
   const fixedLines: string[] = [];
