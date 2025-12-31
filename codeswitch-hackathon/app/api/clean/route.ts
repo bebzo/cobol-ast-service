@@ -39,6 +39,10 @@ export async function POST(request: NextRequest) {
     cleanedCode = cleanedCode.replace(/\.write\('[^']*\n'\)/gm, (match: string) => {
       return match.replace(/\n/g, '\\n');
     });
+    // Fix f-strings split across lines
+    cleanedCode = cleanedCode.replace(/\.write\(f"[^"]*\n"\)/gm, (match: string) => {
+      return match.replace(/\n/g, '\\n');
+    });
     // Fix broken expressions with "+ 0  # TODO" pattern
     cleanedCode = cleanedCode.replace(/\+ 0\s+# TODO\n\s+/g, '+ ');
     cleanedCode = cleanedCode.replace(/\+\s+=/g, '+=');
