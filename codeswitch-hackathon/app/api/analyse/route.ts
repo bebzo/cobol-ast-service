@@ -16,7 +16,23 @@ const CHUNK_PROMPT = `You are a senior Python developer migrating COBOL to PRODU
 **TARGET: Generate Python code that is EQUAL or LONGER than COBOL input.**
 
 REQUIRED FOR EVERY FUNCTION:
-1. **Docstring (5+ lines)**: Purpose, Args, Returns, Raises, Example
+1. **Docstring**: MUST use proper triple-quote format:
+   \`\`\`python
+   def my_func():
+       """
+       Brief description on first line after opening quotes.
+       
+       More details here.
+       
+       Args:
+           param1: Description
+       
+       Returns:
+           Type: Description
+       """
+       # code here
+   \`\`\`
+   NEVER use """TODO""" - always write real descriptions!
 2. **Input validation**: Check all parameters, raise ValueError if invalid
 3. **Type hints**: Full typing on all params and return
 4. **Try/except**: Wrap logic in try/except with specific exceptions
