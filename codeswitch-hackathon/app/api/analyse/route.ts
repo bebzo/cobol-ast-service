@@ -10,34 +10,48 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Prompt for translating a chunk of COBOL code - MAXIMIZED OUTPUT + VALID SYNTAX
-const CHUNK_PROMPT = `You are a COBOL-to-Python translator. Generate VALID, COMPILABLE Python.
+// Prompt for translating a chunk of COBOL code - FULL LOGIC TRANSLATION
+const CHUNK_PROMPT = `You are an expert COBOL-to-Python translator. Your task is to FULLY TRANSLATE the business logic.
 
-CRITICAL SYNTAX RULES (MUST FOLLOW):
-1. Every function MUST have a body (use 'pass' if empty)
-2. Every docstring MUST be properly closed with """
-3. Use consistent 4-space indentation
-4. Close ALL parentheses, brackets, braces
-5. Complete ALL statements (no truncated lines)
-6. NO COBOL keywords in output (no PERFORM, MOVE, etc)
+**CRITICAL: TRANSLATE THE LOGIC, NOT JUST THE STRUCTURE**
 
-TRANSLATION RULES:
-- Each COBOL paragraph = one Python function with body
-- Each data item = Python variable
-- @dataclass for 01-level records
-- Decimal for PIC 9 with V
-- Type hints on all functions
-- Short docstrings: """Brief description."""
+For each COBOL paragraph, you MUST:
+1. Translate EVERY statement into equivalent Python code
+2. PERFORM X → call function x()
+3. MOVE A TO B → b = a
+4. COMPUTE X = A + B → x = a + b
+5. IF condition → if condition:
+6. EVALUATE → match/case or if/elif chain
+7. READ/WRITE → file operations or logging
+
+EXAMPLE TRANSLATION:
+COBOL:
+       2420-COMPUTE-INTEREST.
+           COMPUTE WS-CALC-INTEREST = 
+               ACCT-BALANCE * WS-CALC-RATE / 12.
+
+Python:
+def compute_interest_CHUNK_IDX() -> None:
+    """Calculate monthly interest on account balance."""
+    global ws_calc_interest, acct_balance, ws_calc_rate
+    ws_calc_interest = acct_balance * ws_calc_rate / Decimal('12')
+
+SYNTAX RULES:
+1. Every function MUST have a real body with logic (NO pass unless truly empty in COBOL)
+2. Use 'global' for working storage variables
+3. Decimal for all monetary calculations
+4. Type hints on all functions
+5. Close ALL parentheses, brackets, strings
 
 NAMING:
 - Add CHUNK_IDX suffix to avoid duplicates
-- Example: process_customer_CHUNK_IDX
+- Convert COBOL-NAMES to python_names
 
 OUTPUT:
-- Return ONLY raw Python code (no markdown)
-- Code must pass: python -m py_compile
+- Return ONLY raw Python code (no markdown, no \`\`\`)
+- Code must compile with: python -m py_compile
 
-COBOL CODE:
+COBOL CODE TO TRANSLATE:
 `;
 
 // Prompt for generating analysis metadata
