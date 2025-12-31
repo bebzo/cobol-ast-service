@@ -63,6 +63,11 @@ export async function POST(request: NextRequest) {
         line = line + 'TODO"""';  // Close the orphan docstring
       }
       
+      // Fix truncated function definitions (def ... without closing paren and colon)
+      if (line.match(/^def \w+\([^)]*$/) && !line.includes(':')) {
+        line = line.trimEnd() + ') -> None:';  // Complete the truncated signature
+      }
+      
       // Check if current line is a docstring and next line has less indent
       if (line.match(/^\s+""".*"""$/) && nextLine.trim().length > 0) {
         const docIndent = (line.match(/^(\s*)/)?.[1] || '').length;
