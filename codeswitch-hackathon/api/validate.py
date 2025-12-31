@@ -41,7 +41,27 @@ def validate_and_fix(code: str) -> dict:
     
     # === PHASE 1: Pre-processing fixes ===
     
-    # Fix unbalanced triple quotes (must be even)
+    # Fix unbalanced triple quotes - more robust approach
+    # Find lines with only one """ and close them
+    lines = code.split('\n')
+    in_docstring = False
+    for i, line in enumerate(lines):
+        count = line.count('"""')
+        if count == 1:
+            if not in_docstring:
+                in_docstring = True
+            else:
+                in_docstring = False
+        elif count == 2:
+            # Self-contained docstring, no change
+            pass
+    # If still in docstring at end, close it
+    if in_docstring:
+        lines.append('"""')
+        fixes_applied += 1
+    code = '\n'.join(lines)
+    
+    # Also check global balance
     if code.count('"""') % 2 == 1:
         code += '\n"""'
         fixes_applied += 1
