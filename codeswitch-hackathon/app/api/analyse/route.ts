@@ -16,28 +16,16 @@ const CHUNK_PROMPT = `You are a senior Python developer migrating COBOL to PRODU
 **TARGET: Generate Python code that is EQUAL or LONGER than COBOL input.**
 
 REQUIRED FOR EVERY FUNCTION:
-1. **Docstring**: MUST use proper triple-quote format:
-   \`\`\`python
-   def my_func():
-       """
-       Brief description on first line after opening quotes.
-       
-       More details here.
-       
-       Args:
-           param1: Description
-       
-       Returns:
-           Type: Description
-       """
-       # code here
-   \`\`\`
-   NEVER use """TODO""" - always write real descriptions!
-2. **Input validation**: Check all parameters, raise ValueError if invalid
-3. **Type hints**: Full typing on all params and return
-4. **Try/except**: Wrap logic in try/except with specific exceptions
-5. **Logging**: logger.info() at start, logger.debug() for steps, logger.error() for exceptions
-6. **Comments**: Explain business logic inline
+1. **Simple docstring**: One line only, like: """Calculate interest for account."""
+2. **Type hints**: Full typing on all params and return
+3. **Logging**: logger.info() at function start
+4. **Comments**: Brief inline comments for complex logic
+
+CRITICAL SYNTAX RULES:
+- NEVER use """TODO""" - write actual descriptions
+- NEVER split strings across lines
+- ALWAYS close all parentheses, brackets, quotes
+- ALWAYS complete try blocks with except
 
 === COBOL VARIABLE HANDLING ===
 - PIC 9(n) / PIC 9(n)V9(m) → Decimal with proper precision
@@ -65,61 +53,15 @@ REQUIRED FOR EVERY FUNCTION:
 - CLOSE file → context manager handles this
 - FILE STATUS → try/except with specific error codes
 
-EXAMPLE - ONE COBOL PARAGRAPH BECOMES:
+EXAMPLE - SIMPLE AND CORRECT:
 \`\`\`python
-def calculate_interest_CHUNK_IDX(
-    account_balance: Decimal,
-    interest_rate: Decimal,
-    days_in_period: int = 30
-) -> Decimal:
-    """
-    Calculate interest for an account based on daily rate.
-    
-    This implements the standard daily interest calculation used for
-    all savings and money market accounts per Federal Reserve Reg D.
-    
-    Args:
-        account_balance: Current account balance (must be >= 0)
-        interest_rate: Annual interest rate as decimal (e.g., 0.0225 for 2.25%)
-        days_in_period: Number of days to calculate interest for
-        
-    Returns:
-        Decimal: Calculated interest amount, rounded to 2 decimal places
-        
-    Raises:
-        ValueError: If account_balance is negative
-        ValueError: If interest_rate is negative or > 1
-        
-    Example:
-        >>> calculate_interest(Decimal('10000'), Decimal('0.0225'), 30)
-        Decimal('18.49')
-    """
+def calculate_interest_CHUNK_IDX(account_balance: Decimal, interest_rate: Decimal) -> Decimal:
+    """Calculate interest for an account based on daily rate."""
     logger.info(f"Calculating interest for balance {account_balance}")
-    
-    # Validate inputs
-    if account_balance < Decimal('0'):
-        logger.error(f"Negative balance not allowed: {account_balance}")
-        raise ValueError(f"Account balance cannot be negative: {account_balance}")
-    
-    if interest_rate < Decimal('0') or interest_rate > Decimal('1'):
-        logger.error(f"Invalid interest rate: {interest_rate}")
-        raise ValueError(f"Interest rate must be between 0 and 1: {interest_rate}")
-    
     try:
-        # Calculate daily rate from annual rate
         daily_rate = interest_rate / Decimal('365')
-        logger.debug(f"Daily rate: {daily_rate}")
-        
-        # Calculate interest: principal * daily_rate * days
-        interest = account_balance * daily_rate * Decimal(str(days_in_period))
-        logger.debug(f"Raw interest: {interest}")
-        
-        # Round to 2 decimal places (standard banking practice)
-        interest = interest.quantize(Decimal('0.01'))
-        logger.info(f"Final interest calculated: {interest}")
-        
-        return interest
-        
+        interest = account_balance * daily_rate * Decimal('30')
+        return interest.quantize(Decimal('0.01'))
     except Exception as e:
         logger.error(f"Interest calculation failed: {e}")
         raise
