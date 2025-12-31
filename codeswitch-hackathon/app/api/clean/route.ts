@@ -37,6 +37,10 @@ function applyQuickFixes(code: string): string {
   cleaned = cleaned.replace(/\+"\n\s+'/gm, "+ '");
   cleaned = cleaned.replace(/\+'\n\s+"/gm, '+ "');
   
+  // Fix split '\n' strings (newline literal split across lines)
+  cleaned = cleaned.replace(/'\\n\n\s*'/gm, "'\\n'");
+  cleaned = cleaned.replace(/"\\n\n\s*"/gm, '"\\n"');
+  
   // Fix truncated Decimal
   cleaned = cleaned.replace(/Decimal\("[^"]*$/gm, 'Decimal("0")');
   
