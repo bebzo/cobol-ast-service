@@ -139,10 +139,12 @@ export async function POST(request: NextRequest) {
       let cleaned = code
         .replace(/```python\s*/gi, '')
         .replace(/```\s*/g, '')
-        // Fix broken header docstring pattern
-        .replace(/^"""[\s\S]*?"""\s*\nOriginal:.*\n.*\n"""\n/m, '"""\nMEGA-ENTERPRISE-SYSTEM - Migrated from COBOL\n"""\n')
-        // Fix stray """ after imports
-        .replace(/^(from \w+ import .*)"""\s*$/gm, '$1')
+        // Fix broken header: """..."""\nOriginal:...\n...\n""" → clean docstring
+        .replace(/^"""\n[^"]*"""\nOriginal:[^\n]*\n[^\n]*\n"""\n/m, '"""\nMEGA-ENTERPRISE-SYSTEM\n"""\n')
+        // Fix: """text"""\nOriginal: → """text\nOriginal:
+        .replace(/^("""[^"]+)"""\n(Original:)/m, '$1\n$2')
+        // Fix stray """ after imports  
+        .replace(/^(from \w+ import [^"]+)"""\s*$/gm, '$1')
         .replace(/^from dataclasses import.*$/gm, '')
         .replace(/^from decimal import.*$/gm, '')
         .replace(/^from typing import.*$/gm, '')
