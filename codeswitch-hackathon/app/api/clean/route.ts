@@ -36,17 +36,24 @@ export async function POST(request: NextRequest) {
     // Remove COBOL remnants
     cleanedCode = cleanedCode.replace(/^\s+\d{2}\s+[\w-]+\.?"""\s*$/gm, '');
     cleanedCode = cleanedCode.replace(/^\s+\d{2}\s+[\w-]+\.\s*$/gm, '');
-    // Fix over-indented docstrings after def
-    // Pattern: def method():\n            """..."""  -> def method():\n        """..."""
-    cleanedCode = cleanedCode.replace(
-      /^(    def \w+\([^)]*\)[^:]*:\s*\n)\s{12}("""[^"]*""")/gm,
-      '$1        $2'
-    );
-    // Also fix pattern with 16 spaces -> 8 spaces
-    cleanedCode = cleanedCode.replace(
-      /^(        def \w+\([^)]*\)[^:]*:\s*\n)\s{16}("""[^"]*""")/gm,
-      '$1            $2'
-    );
+    // Fix over-indented docstrings: align docstring with following line
+    const fixedLines: string[] = [];
+    const codeLines = cleanedCode.split('\n');
+    for (let i = 0; i < codeLines.length; i++) {
+      const line = codeLines[i];
+      const nextLine = codeLines[i + 1] || '';
+      // Check if current line is a docstring and next line has less indent
+      if (line.match(/^\s+""".*"""$/) && nextLine.trim().length > 0) {
+        const docIndent = (line.match(/^(\s*)/)?.[1] || '').length;
+        const nextIndent = (nextLine.match(/^(\s*)/)?.[1] || '').length;
+        if (docIndent > nextIndent && nextIndent > 0) {
+          fixedLines.push(' '.repeat(nextIndent) + line.trim());
+          continue;
+        }
+      }
+      fixedLines.push(line);
+    }
+    cleanedCode = fixedLines.join('\n');
 
     const cleanedLineCount = cleanedCode.split('\n').length;
 
