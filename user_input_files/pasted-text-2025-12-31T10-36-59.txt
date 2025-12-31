@@ -1,0 +1,701 @@
+Passer au contenu principal
+Gemini API
+Recherche
+/
+
+
+Français
+Obtenir une clé API
+Liste de recettes
+Communauté
+Connexion
+Docs
+Documentation de référence de l'API
+
+
+Cette page a été traduite par l'API Cloud Translation.
+Switch to English
+Accueil
+Gemini API
+Docs
+Modèles Gemini
+
+content_copy
+
+
+
+
+Nous avons mis à jour nos Conditions d'utilisation.
+
+NOTRE MODÈLE LE PLUS INTELLIGENT
+
+Gemini 3 Pro
+Le meilleur modèle au monde pour la compréhension multimodale, et notre modèle agentif et de vibe coding le plus puissant à ce jour. Il offre des visuels plus riches et une meilleure interactivité, et repose sur une technologie de raisonnement à la pointe du secteur.
+
+Développer pour en savoir plus
+Essayer dans Google AI Studio
+
+Informations sur le modèle
+Aperçu de Gemini 3 Pro
+Aperçu de l'image Gemini 3 Pro
+Propriété	Description
+Code du modèle 	gemini-3-pro-preview
+Types de données acceptés
+Entrées
+
+Texte, image, vidéo, audio et PDF
+
+Résultat
+
+Texte
+
+Limites de jetons[*]
+Limite de jetons d'entrée
+
+1 048 576
+
+Limite de jetons de sortie
+
+65 536
+
+ Fonctionnalités
+Génération audio
+
+Not supported
+
+API Batch
+
+Compatible
+
+Mise en cache
+
+Compatible
+
+Exécution de code
+
+Compatible
+
+Recherche de fichiers
+
+Compatible
+
+Appel de fonction
+
+Compatible
+
+Ancrage avec Google Maps
+
+Not supported
+
+Génération d'images
+
+Not supported
+
+API Live
+
+Not supported
+
+Ancrage avec la recherche
+
+Compatible
+
+Sorties structurées
+
+Compatible
+
+Raisonnement
+
+Compatible
+
+Contexte de l'URL
+
+Compatible
+
+Versions 	
+Pour en savoir plus, consultez les schémas de version de modèle.
+Preview: gemini-3-pro-preview
+Dernière mise à jour	Novembre 2025
+Date limite des connaissances	Janvier 2025
+NOTRE MODÈLE LE PLUS ÉQUILIBRÉ, CONÇU POUR ÉVOLUER
+
+Gemini 3 Flash
+Notre modèle le plus équilibré, conçu pour la rapidité, l'évolutivité et l'intelligence de pointe.
+
+Développer pour en savoir plus
+Essayer dans Google AI Studio
+
+Informations sur le modèle
+Aperçu de Gemini 3 Flash
+Propriété	Description
+Code du modèle 	gemini-3-flash-preview
+Types de données acceptés
+Entrées
+
+Texte, image, vidéo, audio et PDF
+
+Résultat
+
+Texte
+
+Limites de jetons[*]
+Limite de jetons d'entrée
+
+1 048 576
+
+Limite de jetons de sortie
+
+65 536
+
+ Fonctionnalités
+Génération audio
+
+Not supported
+
+API Batch
+
+Compatible
+
+Mise en cache
+
+Compatible
+
+Exécution de code
+
+Compatible
+
+Recherche de fichiers
+
+Compatible
+
+Appel de fonction
+
+Compatible
+
+Ancrage avec Google Maps
+
+Not supported
+
+Génération d'images
+
+Not supported
+
+API Live
+
+Not supported
+
+Ancrage avec la recherche
+
+Compatible
+
+Sorties structurées
+
+Compatible
+
+Raisonnement
+
+Compatible
+
+Contexte de l'URL
+
+Compatible
+
+Versions 	
+Pour en savoir plus, consultez les schémas de version de modèle.
+Preview: gemini-3-flash-preview
+Dernière mise à jour	Décembre 2025
+Date limite des connaissances	Janvier 2025
+RAPIDE ET INTELLIGENT
+
+Gemini 2.0 Flash
+Notre meilleur modèle en termes de rapport performances-prix, offrant des capacités polyvalentes. 2.5 Flash est idéal pour les tâches de traitement à grande échelle, à faible latence et à volume élevé qui nécessitent une réflexion, ainsi que pour les cas d'utilisation agentiques.
+
+Développer pour en savoir plus
+Essayer dans Google AI Studio
+
+Informations sur le modèle
+Gemini 2.0 Flash
+Aperçu de Gemini 2.5 Flash
+Plus
+Propriété	Description
+Code du modèle 	gemini-2.5-flash
+Types de données acceptés
+Entrées
+
+Texte, images, vidéo, audio
+
+Résultat
+
+Texte
+
+Limites de jetons[*]
+Limite de jetons d'entrée
+
+1 048 576
+
+Limite de jetons de sortie
+
+65 536
+
+ Fonctionnalités
+Génération audio
+
+Not supported
+
+API Batch
+
+Compatible
+
+Mise en cache
+
+Compatible
+
+Exécution de code
+
+Compatible
+
+Recherche de fichiers
+
+Compatible
+
+Appel de fonction
+
+Compatible
+
+Ancrage avec Google Maps
+
+Compatible
+
+Génération d'images
+
+Not supported
+
+API Live
+
+Not supported
+
+Ancrage avec la recherche
+
+Compatible
+
+Sorties structurées
+
+Compatible
+
+Raisonnement
+
+Compatible
+
+Contexte de l'URL
+
+Compatible
+
+Versions 	
+Pour en savoir plus, consultez les schémas de version de modèle.
+Stable : gemini-2.5-flash
+Dernière mise à jour	Juin 2025
+Date limite des connaissances	Janvier 2025
+ULTRA FAST
+
+Gemini 2.5 Flash-Lite
+Notre modèle Flash le plus rapide, optimisé pour la rentabilité et le haut débit.
+
+Développer pour en savoir plus
+Essayer dans Google AI Studio
+
+Informations sur le modèle
+Gemini 2.5 Flash-Lite
+Aperçu de Gemini 2.5 Flash-Lite
+Propriété	Description
+Code du modèle 	gemini-2.5-flash-lite
+Types de données acceptés
+Entrées
+
+Texte, image, vidéo, audio, PDF
+
+Résultat
+
+Texte
+
+Limites de jetons[*]
+Limite de jetons d'entrée
+
+1 048 576
+
+Limite de jetons de sortie
+
+65 536
+
+ Fonctionnalités
+Génération audio
+
+Not supported
+
+API Batch
+
+Compatible
+
+Mise en cache
+
+Compatible
+
+Exécution de code
+
+Compatible
+
+Recherche de fichiers
+
+Compatible
+
+Appel de fonction
+
+Compatible
+
+Ancrage avec Google Maps
+
+Compatible
+
+Génération d'images
+
+Not supported
+
+API Live
+
+Not supported
+
+Ancrage avec la recherche
+
+Compatible
+
+Sorties structurées
+
+Compatible
+
+Raisonnement
+
+Compatible
+
+Contexte de l'URL
+
+Compatible
+
+Versions 	
+Pour en savoir plus, consultez les schémas de version de modèle.
+Stable : gemini-2.5-flash-lite
+Dernière mise à jour	Juillet 2025
+Date limite des connaissances	Janvier 2025
+NOTRE MODÈLE DE RAISONNEMENT AVANCÉ
+
+Gemini 2.5 Pro
+Notre modèle de réflexion de pointe, capable de raisonner sur des problèmes complexes en code, en mathématiques et dans les domaines scientifiques et techniques, ainsi que d'analyser de grands ensembles de données, des codebases et des documents à l'aide d'un contexte long.
+
+Développer pour en savoir plus
+Essayer dans Google AI Studio
+
+Informations sur le modèle
+Gemini 2.5 Pro
+Gemini 2.5 Pro TTS
+Propriété	Description
+Code du modèle 	gemini-2.5-pro
+Types de données acceptés
+Entrées
+
+Audio, images, vidéo, texte et PDF
+
+Résultat
+
+Texte
+
+Limites de jetons[*]
+Limite de jetons d'entrée
+
+1 048 576
+
+Limite de jetons de sortie
+
+65 536
+
+ Fonctionnalités
+Génération audio
+
+Not supported
+
+API Batch
+
+Compatible
+
+Mise en cache
+
+Compatible
+
+Exécution de code
+
+Compatible
+
+Recherche de fichiers
+
+Compatible
+
+Appel de fonction
+
+Compatible
+
+Ancrage avec Google Maps
+
+Compatible
+
+Génération d'images
+
+Not supported
+
+API Live
+
+Not supported
+
+Ancrage avec la recherche
+
+Compatible
+
+Sorties structurées
+
+Compatible
+
+Raisonnement
+
+Compatible
+
+Contexte de l'URL
+
+Compatible
+
+Versions 	
+Pour en savoir plus, consultez les schémas de version de modèle.
+Stable: gemini-2.5-pro
+Dernière mise à jour	Juin 2025
+Date limite des connaissances	Janvier 2025
+
+
+Anciens modèles Gemini
+NOTRE MODÈLE DE TRAVAIL DE DEUXIÈME GÉNÉRATION
+
+Gemini 2.0 Flash
+Notre modèle polyvalent de deuxième génération, avec une fenêtre de contexte d'un million de jetons.
+
+Développer pour en savoir plus
+Gemini 2.0 Flash offre des fonctionnalités de nouvelle génération et des capacités améliorées, y compris une vitesse supérieure, l'utilisation d'outils natifs et une fenêtre de contexte d'un million de jetons.
+
+Essayer dans Google AI Studio
+
+Informations sur le modèle
+Gemini 2.0 Flash
+Image Gemini 2.0 Flash
+Propriété	Description
+Code du modèle 	gemini-2.0-flash
+Types de données acceptés	
+Entrées
+
+Audio, images, vidéos et texte
+
+ 
+Résultat
+
+Texte
+
+Limites de jetons[*]
+Limite de jetons d'entrée
+
+1 048 576
+
+Limite de jetons de sortie
+
+8 192
+
+ Fonctionnalités
+Génération audio
+
+Not supported
+
+API Batch
+
+Compatible
+
+Mise en cache
+
+Compatible
+
+Exécution de code
+
+Compatible
+
+Recherche de fichiers
+
+Not supported
+
+Appel de fonction
+
+Compatible
+
+Ancrage avec Google Maps
+
+Compatible
+
+Génération d'images
+
+Not supported
+
+API Live
+
+Not supported
+
+Ancrage avec la recherche
+
+Compatible
+
+Sorties structurées
+
+Compatible
+
+Raisonnement
+
+Expérimental
+
+Contexte de l'URL
+
+Not supported
+
+Versions 	
+Pour en savoir plus, consultez les schémas de version de modèle.
+Dernier e-mail : gemini-2.0-flash
+Stable : gemini-2.0-flash-001
+Expérimental : gemini-2.0-flash-exp
+Dernière mise à jour	Février 2025
+Date limite des connaissances	Août 2024
+NOTRE MODÈLE RAPIDE DE DEUXIÈME GÉNÉRATION
+
+Gemini 2.0 Flash-Lite
+Notre modèle polyvalent de deuxième génération, avec une fenêtre de contexte d'un million de jetons.
+
+Développer pour en savoir plus
+Modèle Gemini 2.0 Flash optimisé pour la rentabilité et la faible latence.
+
+Essayer dans Google AI Studio
+
+Informations sur le modèle
+Propriété	Description
+Code du modèle 	gemini-2.0-flash-lite
+Types de données acceptés
+Entrées
+
+Audio, images, vidéos et texte
+
+Résultat
+
+Texte
+
+Limites de jetons[*]
+Limite de jetons d'entrée
+
+1 048 576
+
+Limite de jetons de sortie
+
+8 192
+
+ Fonctionnalités
+Génération audio
+
+Not supported
+
+API Batch
+
+Compatible
+
+Mise en cache
+
+Compatible
+
+Exécution de code
+
+Not supported
+
+Recherche de fichiers
+
+Not supported
+
+Appel de fonction
+
+Compatible
+
+Ancrage avec Google Maps
+
+Not supported
+
+Génération d'images
+
+Not supported
+
+API Live
+
+Not supported
+
+Ancrage avec la recherche
+
+Not supported
+
+Sorties structurées
+
+Compatible
+
+Raisonnement
+
+Non compatible
+
+Contexte de l'URL
+
+Not supported
+
+Versions 	
+Pour en savoir plus, consultez les schémas de version de modèle.
+Dernier e-mail : gemini-2.0-flash-lite
+Stable : gemini-2.0-flash-lite-001
+Dernière mise à jour	Février 2025
+Date limite des connaissances	Août 2024
+
+
+Schémas de nom de version de modèle
+Les modèles Gemini sont disponibles en versions stable, preview, latest ou experimental.
+
+Remarque : La liste suivante fait référence à la convention de dénomination des chaînes de modèle à partir de septembre 2025. Les modèles publiés avant cette date peuvent avoir des conventions de dénomination différentes. Reportez-vous à la chaîne de modèle exacte si vous utilisez un ancien modèle.
+Stable
+Pointe vers un modèle stable spécifique. Les modèles stables ne changent généralement pas. La plupart des applications de production doivent utiliser un modèle stable spécifique.
+
+Exemple : gemini-2.5-flash.
+
+Aperçu
+Pointe vers un modèle d'aperçu qui peut être utilisé en production. La facturation est généralement activée pour les modèles en version preview. Ils peuvent être soumis à des limites de débit plus restrictives et seront abandonnés avec un préavis d'au moins deux semaines.
+
+Exemple : gemini-2.5-flash-preview-09-2025.
+
+Les plus récents
+Pointe vers la dernière version d'une variante de modèle spécifique. Il peut s'agir d'une version stable, preview ou expérimentale. Cet alias sera remplacé à chaud à chaque nouvelle version d'une variante de modèle spécifique. Un préavis de deux semaines sera envoyé par e-mail avant le changement de version.
+
+Exemple : gemini-flash-latest.
+
+Version expérimentale
+Pointe vers un modèle expérimental qui ne convient généralement pas à une utilisation en production et qui est soumis à des limites de fréquence plus restrictives. Nous publions des modèles expérimentaux pour recueillir des commentaires et mettre rapidement nos dernières mises à jour à la disposition des développeurs.
+
+Les modèles expérimentaux ne sont pas stables et la disponibilité des points de terminaison des modèles peut changer.
+
+Abandons de modèles
+Pour en savoir plus sur l'abandon des modèles, consultez la page Abandons de Gemini.
+
+Ce contenu vous a-t-il été utile ?
+
+Envoyer des commentaires
+Sauf indication contraire, le contenu de cette page est régi par une licence Creative Commons Attribution 4.0, et les échantillons de code sont régis par une licence Apache 2.0. Pour en savoir plus, consultez les Règles du site Google Developers. Java est une marque déposée d'Oracle et/ou de ses sociétés affiliées.
+
+Dernière mise à jour le 2025/12/28 (UTC).
+
+Conditions d'utilisation
+Règles de confidentialité
+
+Français
