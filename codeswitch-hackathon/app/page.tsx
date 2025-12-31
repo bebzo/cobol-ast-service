@@ -506,14 +506,19 @@ export default function Home() {
       // Auto-clean the Python code
       let finalPythonCode = parsed.python_code;
       try {
+        console.log('Calling clean API...');
         const cleanRes = await fetch('/api/clean', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ pythonCode: parsed.python_code })
         });
-        const cleanData = await cleanRes.json();
-        if (cleanData.cleanedCode) {
-          finalPythonCode = cleanData.cleanedCode;
+        console.log('Clean response status:', cleanRes.status);
+        if (cleanRes.ok) {
+          const cleanData = await cleanRes.json();
+          if (cleanData.cleanedCode) {
+            finalPythonCode = cleanData.cleanedCode;
+            console.log('Clean successful, lines:', cleanData.stats?.cleanedLines);
+          }
         }
       } catch (e) { console.error('Clean failed:', e); }
       
