@@ -45,7 +45,32 @@ def validate_and_fix(code: str) -> dict:
     fixes_applied = 0
     max_iterations = 100
     
-    for i in range(max_iterations):
+    # Pre-fix: Merge broken docstrings (line ends with """ and next line ends with """)
+    lines = code.split('\n')
+    fixed_lines = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Pattern: line with """ followed by orphan text ending with """
+        if i + 1 < len(lines) and '"""' in line and lines[i+1].strip().endswith('"""') and not lines[i+1].strip().startswith('"""'):
+            # Merge lines
+            next_line = lines[i+1].strip()
+            if next_line.endswith('"""'):
+                merged = line.rstrip().rstrip('"').rstrip() + ' ' + next_line.lstrip()
+                # Ensure proper """ balance
+                if merged.count('"""') % 2 == 0:
+                    fixed_lines.append(merged)
+                    i += 2
+                    fixes_applied += 1
+                    continue
+        fixed_lines.append(line)
+        i += 1
+    code = '\n'.join(fixed_lines)
+    
+    # Pre-fix: Remove lines that look like orphaned docstring fragments
+    code = re.sub(r'^\s*[a-z_]+\s+representing\s+\w+\.\s*"""', '# REMOVED orphan docstring', code, flags=re.MULTILINE)
+    
+    for iteration in range(max_iterations):
         try:
             ast.parse(code)
             # Success!
