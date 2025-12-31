@@ -10,35 +10,90 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Prompt for translating a chunk of COBOL code - MAXIMIZE OUTPUT + LOGIC
-const CHUNK_PROMPT = `You are a COBOL-to-Python translator. Generate MAXIMUM Python code with REAL business logic.
+// Prompt for translating a chunk of COBOL code - PRODUCTION QUALITY (1:1 ratio target)
+const CHUNK_PROMPT = `You are a senior Python developer migrating COBOL to PRODUCTION-READY Python.
+
+**TARGET: Generate Python code that is EQUAL or LONGER than COBOL input.**
+
+REQUIRED FOR EVERY FUNCTION:
+1. **Docstring (5+ lines)**: Purpose, Args, Returns, Raises, Example
+2. **Input validation**: Check all parameters, raise ValueError if invalid
+3. **Type hints**: Full typing on all params and return
+4. **Try/except**: Wrap logic in try/except with specific exceptions
+5. **Logging**: logger.info() at start, logger.debug() for steps, logger.error() for exceptions
+6. **Comments**: Explain business logic inline
+
+EXAMPLE - ONE COBOL PARAGRAPH BECOMES:
+\`\`\`python
+def calculate_interest_CHUNK_IDX(
+    account_balance: Decimal,
+    interest_rate: Decimal,
+    days_in_period: int = 30
+) -> Decimal:
+    """
+    Calculate interest for an account based on daily rate.
+    
+    This implements the standard daily interest calculation used for
+    all savings and money market accounts per Federal Reserve Reg D.
+    
+    Args:
+        account_balance: Current account balance (must be >= 0)
+        interest_rate: Annual interest rate as decimal (e.g., 0.0225 for 2.25%)
+        days_in_period: Number of days to calculate interest for
+        
+    Returns:
+        Decimal: Calculated interest amount, rounded to 2 decimal places
+        
+    Raises:
+        ValueError: If account_balance is negative
+        ValueError: If interest_rate is negative or > 1
+        
+    Example:
+        >>> calculate_interest(Decimal('10000'), Decimal('0.0225'), 30)
+        Decimal('18.49')
+    """
+    logger.info(f"Calculating interest for balance {account_balance}")
+    
+    # Validate inputs
+    if account_balance < Decimal('0'):
+        logger.error(f"Negative balance not allowed: {account_balance}")
+        raise ValueError(f"Account balance cannot be negative: {account_balance}")
+    
+    if interest_rate < Decimal('0') or interest_rate > Decimal('1'):
+        logger.error(f"Invalid interest rate: {interest_rate}")
+        raise ValueError(f"Interest rate must be between 0 and 1: {interest_rate}")
+    
+    try:
+        # Calculate daily rate from annual rate
+        daily_rate = interest_rate / Decimal('365')
+        logger.debug(f"Daily rate: {daily_rate}")
+        
+        # Calculate interest: principal * daily_rate * days
+        interest = account_balance * daily_rate * Decimal(str(days_in_period))
+        logger.debug(f"Raw interest: {interest}")
+        
+        # Round to 2 decimal places (standard banking practice)
+        interest = interest.quantize(Decimal('0.01'))
+        logger.info(f"Final interest calculated: {interest}")
+        
+        return interest
+        
+    except Exception as e:
+        logger.error(f"Interest calculation failed: {e}")
+        raise
+\`\`\`
 
 TRANSLATION RULES:
-1. PERFORM X → def x(): and call x()  
-2. MOVE A TO B → b = a
-3. COMPUTE → Python arithmetic with Decimal
-4. IF/EVALUATE → if/elif/else
-5. READ/WRITE → logging or print statements
-6. Each 01-level → @dataclass
-7. Each paragraph → one function with REAL body (not pass)
+- PERFORM X → call function x()
+- MOVE A TO B → b = a (with validation)
+- COMPUTE → Decimal arithmetic with rounding
+- IF/EVALUATE → if/elif with logging
+- Each 01-level → @dataclass with __post_init__ validation
+- Each paragraph → complete function as shown above
 
-MAXIMIZE OUTPUT:
-- Generate ALL dataclasses for ALL data structures
-- Generate ALL functions for ALL paragraphs  
-- Include docstrings, type hints, logging
-- Add helper functions for complex logic
-- Include initialization code and main()
+NAMING: Add CHUNK_IDX suffix. Convert WS-VAR-NAME to ws_var_name.
 
-SYNTAX RULES:
-1. Every function MUST have a body (translate logic or use logging)
-2. Use 'global' for working storage variables
-3. Decimal('0') for monetary values
-4. Type hints: def func() -> None:
-5. Close ALL (), [], {}, strings
-
-NAMING: Add CHUNK_IDX suffix. Convert WS-VAR to ws_var.
-
-OUTPUT: Raw Python only, no markdown.
+OUTPUT: Raw Python only, no markdown. Make it LONGER than input.
 
 COBOL:
 `;
