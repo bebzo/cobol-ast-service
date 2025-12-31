@@ -1,11 +1,10 @@
 /**
- * Python Code Cleaner - Auto-repair with Gemini
+ * Python Code Cleaner - Auto-repair loop with Gemini
  * 
  * Strategy:
  * 1. Apply quick regex fixes (fast, no API)
- * 2. Validate with Python syntax check
- * 3. If errors, ask Gemini to fix with context
- * 4. Repeat until success (max 5 attempts)
+ * 2. Ask Gemini to validate and fix ALL syntax errors
+ * 3. Repeat until Gemini confirms code is valid (max 10 attempts)
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -36,20 +35,19 @@ function applyQuickFixes(code: string): string {
   // Fix split strings
   cleaned = cleaned.replace(/\+"\n\s+'/gm, "+ '");
   cleaned = cleaned.replace(/\+'\n\s+"/gm, '+ "');
-  
-  // Fix split '\n' strings (newline literal split across lines)
   cleaned = cleaned.replace(/'\\n\n\s*'/gm, "'\\n'");
   cleaned = cleaned.replace(/"\\n\n\s*"/gm, '"\\n"');
   
   // Fix truncated Decimal
   cleaned = cleaned.replace(/Decimal\("[^"]*$/gm, 'Decimal("0")');
   
-  // Fix merged lines (def/class appearing mid-line after truncation)
+  // Fix merged lines (def/class appearing mid-line)
   cleaned = cleaned.replace(/([^\n])(def \w+\()/g, '$1\n$2');
   cleaned = cleaned.replace(/([^\n])(class \w+)/g, '$1\n$2');
   
-  // Fix truncated global statements (just "global" with nothing after)
+  // Fix truncated statements
   cleaned = cleaned.replace(/^(\s*)global\s*$/gm, '$1pass  # truncated global');
+  cleaned = cleaned.replace(/^(\s*)return\s*$/gm, '$1return None');
   
   // Line-by-line fixes
   const lines = cleaned.split('\n');
@@ -78,7 +76,7 @@ function applyQuickFixes(code: string): string {
       const nextTrimmed = nextLine.trim();
       if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('@') || nextTrimmed.startsWith('class ')) {
         fixedLines.push(line);
-        fixedLines.push('    """TODO"""');
+        fixedLines.push('    pass');
         continue;
       }
     }
@@ -108,38 +106,50 @@ function applyQuickFixes(code: string): string {
   return fixedLines.join('\n');
 }
 
-// Validate Python syntax using eval (basic check)
-function findSyntaxError(code: string): { line: number; error: string } | null {
-  // Count unbalanced quotes
-  const lines = code.split('\n');
-  let inDocstring = false;
+// Ask Gemini to validate and fix the code
+async function validateAndFixWithGemini(code: string, attempt: number): Promise<{ code: string; isValid: boolean }> {
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ 
+    model: 'gemini-2.0-flash',
+    generationConfig: { maxOutputTokens: 65536 }
+  });
   
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const count = (line.match(/"""/g) || []).length;
-    if (count === 1) inDocstring = !inDocstring;
-    
-    // Check for obvious issues
-    if (line.trim().startsWith('def ') && !line.includes(':') && !lines[i+1]?.trim().startsWith('def ')) {
-      // Might be truncated
-    }
+  const prompt = `You are a Python syntax validator and fixer. Analyze this Python code and fix ALL syntax errors.
+
+IMPORTANT RULES:
+1. Check for: unterminated strings, missing colons, invalid indentation, unclosed brackets, truncated statements
+2. Return ONLY the complete fixed Python code, no explanations
+3. If code is already valid, return it unchanged
+4. Preserve all logic and comments
+5. Do NOT add new functionality
+6. Start your response with exactly "# VALID" if the code has no syntax errors, or "# FIXED" if you made corrections
+
+Python code to validate (attempt ${attempt}/10):
+
+\`\`\`python
+${code}
+\`\`\`
+
+Return the complete Python code:`;
+
+  const result = await model.generateContent(prompt);
+  let response = result.response.text();
+  
+  // Extract code from response
+  const codeMatch = response.match(/```python\n([\s\S]*?)```/);
+  if (codeMatch) {
+    response = codeMatch[1];
+  } else {
+    // Remove markdown if present
+    response = response.replace(/^```python\n?/gm, '').replace(/```$/gm, '');
   }
   
-  if (inDocstring) {
-    // Find the unclosed docstring
-    let startLine = 0;
-    inDocstring = false;
-    for (let i = 0; i < lines.length; i++) {
-      const count = (lines[i].match(/"""/g) || []).length;
-      if (count === 1) {
-        if (!inDocstring) { startLine = i + 1; inDocstring = true; }
-        else inDocstring = false;
-      }
-    }
-    return { line: startLine, error: 'Unterminated docstring' };
-  }
+  const isValid = response.trim().startsWith('# VALID');
   
-  return null;
+  // Remove the marker comment
+  response = response.replace(/^# (VALID|FIXED)\n?/, '');
+  
+  return { code: response.trim(), isValid };
 }
 
 export async function POST(request: NextRequest) {
@@ -158,54 +168,30 @@ export async function POST(request: NextRequest) {
     // Step 1: Apply quick regex fixes
     let cleanedCode = applyQuickFixes(pythonCode);
     
-    // Step 2: Check for remaining errors
-    const syntaxError = findSyntaxError(cleanedCode);
+    // Step 2: Validate and fix with Gemini (loop until valid or max attempts)
+    let attempts = 0;
+    let isValid = false;
+    const maxAttempts = 10;
     
-    // Step 3: If error found and we have API key, ask Gemini to fix
-    if (syntaxError && GEMINI_API_KEY) {
-      try {
-        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ 
-          model: 'gemini-2.0-flash',
-          generationConfig: { maxOutputTokens: 8192 }
-        });
+    if (GEMINI_API_KEY) {
+      while (!isValid && attempts < maxAttempts) {
+        attempts++;
+        console.log(`Validation attempt ${attempts}/${maxAttempts}`);
         
-        const lines = cleanedCode.split('\n');
-        const errorLine = syntaxError.line;
-        const contextStart = Math.max(0, errorLine - 5);
-        const contextEnd = Math.min(lines.length, errorLine + 5);
-        const context = lines.slice(contextStart, contextEnd).map((l, i) => 
-          `${contextStart + i + 1}: ${l}`
-        ).join('\n');
-        
-        const prompt = `Fix this Python syntax error. Return ONLY the corrected code snippet (lines ${contextStart + 1}-${contextEnd}), no explanation.
-
-Error at line ${errorLine}: ${syntaxError.error}
-
-Context:
-${context}
-
-Return the fixed lines only, preserving line numbers format.`;
-
-        const result = await model.generateContent(prompt);
-        const fixedSnippet = result.response.text();
-        
-        // Parse and apply the fix
-        const fixedLines = fixedSnippet.split('\n');
-        for (const fixedLine of fixedLines) {
-          const match = fixedLine.match(/^(\d+):\s*(.*)$/);
-          if (match) {
-            const lineNum = parseInt(match[1]) - 1;
-            const content = match[2];
-            if (lineNum >= 0 && lineNum < lines.length) {
-              lines[lineNum] = content;
-            }
+        try {
+          const result = await validateAndFixWithGemini(cleanedCode, attempts);
+          cleanedCode = result.code;
+          isValid = result.isValid;
+          
+          if (isValid) {
+            console.log(`Code validated after ${attempts} attempt(s)`);
+            break;
           }
+        } catch (aiError) {
+          console.error(`AI validation attempt ${attempts} failed:`, aiError);
+          // Continue with current code
+          break;
         }
-        cleanedCode = lines.join('\n');
-      } catch (aiError) {
-        console.error('AI repair failed:', aiError);
-        // Continue with regex-cleaned code
       }
     }
 
@@ -217,7 +203,8 @@ Return the fixed lines only, preserving line numbers format.`;
         originalLines: originalLineCount,
         cleanedLines: cleanedLineCount,
         preserved: Math.round((cleanedLineCount / originalLineCount) * 100),
-        hadErrors: syntaxError !== null
+        validationAttempts: attempts,
+        isValid
       }
     }, { headers: corsHeaders });
 
