@@ -43,6 +43,8 @@ export async function POST(request: NextRequest) {
     cleanedCode = cleanedCode.replace(/\.write\(f"[^"]*\n"\)/gm, (match: string) => {
       return match.replace(/\n/g, '\\n');
     });
+    // Fix truncated Decimal() calls (e.g., Decimal("5." without closing)
+    cleanedCode = cleanedCode.replace(/Decimal\("[^"]*$/gm, 'Decimal("0")');
     // Fix broken expressions with "+ 0  # TODO" pattern
     cleanedCode = cleanedCode.replace(/\+ 0\s+# TODO\n\s+/g, '+ ');
     cleanedCode = cleanedCode.replace(/\+\s+=/g, '+=');
@@ -102,6 +104,36 @@ export async function POST(request: NextRequest) {
           continue;
         }
       }
+      
+      // Fix control structures with only comments as body (while, if, for, etc.)
+      const controlMatch = line.match(/^(\s*)(while |if |for |elif |else:|try:|except|with )/);
+      if (controlMatch && line.trim().endsWith(':')) {
+        const controlIndent = controlMatch[1].length;
+        // Look ahead to see if body is missing (only comments until unindented line)
+        let hasBody = false;
+        let insertIndex = -1;
+        for (let j = i + 1; j < codeLines.length && j < i + 20; j++) {
+          const checkLine = codeLines[j];
+          const checkTrimmed = checkLine.trim();
+          if (!checkTrimmed) continue; // skip empty
+          if (checkTrimmed.startsWith('#')) continue; // skip comments
+          const checkIndent = (checkLine.match(/^(\s*)/)?.[1] || '').length;
+          if (checkIndent > controlIndent) {
+            hasBody = true;
+            break;
+          } else {
+            insertIndex = j;
+            break;
+          }
+        }
+        if (!hasBody && insertIndex > 0) {
+          // Add pass with proper indentation
+          fixedLines.push(line);
+          fixedLines.push(' '.repeat(controlIndent + 4) + 'pass');
+          continue;
+        }
+      }
+      
       fixedLines.push(line);
     }
     cleanedCode = fixedLines.join('\n');
