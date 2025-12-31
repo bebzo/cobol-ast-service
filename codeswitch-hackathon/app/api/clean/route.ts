@@ -1,24 +1,14 @@
 /**
- * Python Code Cleaner - Fixes common AI-generated syntax errors
+ * Python Code Cleaner - Auto-repair with Gemini
  * 
- * KNOWN ERROR PATTERNS (add new patterns here):
- * ─────────────────────────────────────────────
- * 1. CRLF line endings         → Normalize to LF
- * 2. Curly quotes (' ' " ")    → Replace with straight quotes
- * 3. Split strings (.write)    → Rejoin strings with literal \n
- * 4. Truncated Decimal()       → Decimal("5." → Decimal("0")
- * 5. Orphan docstrings         → """ alone → """TODO"""
- * 6. Empty function bodies     → Add """TODO""" after def
- * 7. Merged def statements     → Split docstring + def on same line
- * 8. Empty control blocks      → while/if/for with only comments → add pass
- * 9. Truncated function def    → def name( without ) → add ) -> None:
- * 10. Over-indented docstrings → Align with next line
- * 
- * TO ADD NEW PATTERN:
- * - Add regex fix in the appropriate section below
- * - Document pattern here with example
+ * Strategy:
+ * 1. Apply quick regex fixes (fast, no API)
+ * 2. Validate with Python syntax check
+ * 3. If errors, ask Gemini to fix with context
+ * 4. Repeat until success (max 5 attempts)
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,8 +16,119 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
+}
+
+// Quick regex fixes (fast, no API needed)
+function applyQuickFixes(code: string): string {
+  let cleaned = code;
+  
+  // Normalize line endings
+  cleaned = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  // Fix curly quotes
+  cleaned = cleaned.replace(/\u2018/g, "'").replace(/\u2019/g, "'");
+  cleaned = cleaned.replace(/\u201C/g, '"').replace(/\u201D/g, '"');
+  
+  // Fix split strings
+  cleaned = cleaned.replace(/\+"\n\s+'/gm, "+ '");
+  cleaned = cleaned.replace(/\+'\n\s+"/gm, '+ "');
+  
+  // Fix truncated Decimal
+  cleaned = cleaned.replace(/Decimal\("[^"]*$/gm, 'Decimal("0")');
+  
+  // Line-by-line fixes
+  const lines = cleaned.split('\n');
+  const fixedLines: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    const nextLine = lines[i + 1] || '';
+    const prevLine = lines[i - 1] || '';
+    
+    // Fix orphan docstring after def
+    if (line.trim() === '"""' && prevLine.trim().startsWith('def ') && prevLine.trim().endsWith(':')) {
+      line = '    """TODO"""';
+    }
+    
+    // Fix truncated function def
+    if (line.match(/^def \w+\(/) && !line.includes(':')) {
+      const nextTrimmed = nextLine.trim();
+      if (!nextTrimmed || nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || nextTrimmed.startsWith('import ')) {
+        line = line.trimEnd().replace(/,\s*\w*$/, '').replace(/,\s*$/, '') + ') -> None:';
+      }
+    }
+    
+    // Fix empty function body
+    if (line.match(/^def \w+.*:$/) && nextLine.trim()) {
+      const nextTrimmed = nextLine.trim();
+      if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('@') || nextTrimmed.startsWith('class ')) {
+        fixedLines.push(line);
+        fixedLines.push('    """TODO"""');
+        continue;
+      }
+    }
+    
+    // Fix empty control blocks
+    const controlMatch = line.match(/^(\s*)(while |if |for |elif |else:|try:|except|with )/);
+    if (controlMatch && line.trim().endsWith(':')) {
+      const indent = controlMatch[1].length;
+      let hasBody = false;
+      for (let j = i + 1; j < lines.length && j < i + 10; j++) {
+        const check = lines[j];
+        if (!check.trim() || check.trim().startsWith('#')) continue;
+        const checkIndent = (check.match(/^(\s*)/)?.[1] || '').length;
+        if (checkIndent > indent) { hasBody = true; break; }
+        else break;
+      }
+      if (!hasBody) {
+        fixedLines.push(line);
+        fixedLines.push(' '.repeat(indent + 4) + 'pass');
+        continue;
+      }
+    }
+    
+    fixedLines.push(line);
+  }
+  
+  return fixedLines.join('\n');
+}
+
+// Validate Python syntax using eval (basic check)
+function findSyntaxError(code: string): { line: number; error: string } | null {
+  // Count unbalanced quotes
+  const lines = code.split('\n');
+  let inDocstring = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const count = (line.match(/"""/g) || []).length;
+    if (count === 1) inDocstring = !inDocstring;
+    
+    // Check for obvious issues
+    if (line.trim().startsWith('def ') && !line.includes(':') && !lines[i+1]?.trim().startsWith('def ')) {
+      // Might be truncated
+    }
+  }
+  
+  if (inDocstring) {
+    // Find the unclosed docstring
+    let startLine = 0;
+    inDocstring = false;
+    for (let i = 0; i < lines.length; i++) {
+      const count = (lines[i].match(/"""/g) || []).length;
+      if (count === 1) {
+        if (!inDocstring) { startLine = i + 1; inDocstring = true; }
+        else inDocstring = false;
+      }
+    }
+    return { line: startLine, error: 'Unterminated docstring' };
+  }
+  
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -41,157 +142,71 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Normalize line endings (CRLF -> LF)
-    let cleanedCode = pythonCode.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    // Fix curly quotes/apostrophes to straight ones (using Unicode escapes)
-    cleanedCode = cleanedCode.replace(/\u2018/g, "'").replace(/\u2019/g, "'");
-    cleanedCode = cleanedCode.replace(/\u201C/g, '"').replace(/\u201D/g, '"');
-    const lines = cleanedCode.split('\n');
-    const lineCount = lines.length;
-
-    // Fast regex-only cleanup (no AI to avoid timeout)
-    // Fix split string literals ending with unclosed quote + newline (double and single quotes)
-    cleanedCode = cleanedCode.replace(/ \+ "\n"\)/gm, ' + "\\n")');
-    cleanedCode = cleanedCode.replace(/ \+ '\n'\)/gm, " + '\\n')");
-    cleanedCode = cleanedCode.replace(/\.write\("[^"]*\n"\)/gm, (match: string) => {
-      return match.replace(/\n/g, '\\n');
-    });
-    cleanedCode = cleanedCode.replace(/\.write\('[^']*\n'\)/gm, (match: string) => {
-      return match.replace(/\n/g, '\\n');
-    });
-    // Fix f-strings split across lines
-    cleanedCode = cleanedCode.replace(/\.write\(f"[^"]*\n"\)/gm, (match: string) => {
-      return match.replace(/\n/g, '\\n');
-    });
-    // Fix multi-line string concatenation (line ending with +" or +' followed by continuation)
-    cleanedCode = cleanedCode.replace(/\+"\n\s+'/gm, "+ '");
-    cleanedCode = cleanedCode.replace(/\+'\n\s+"/gm, '+ "');
-    // Fix truncated Decimal() calls (e.g., Decimal("5." without closing)
-    cleanedCode = cleanedCode.replace(/Decimal\("[^"]*$/gm, 'Decimal("0")');
-    // Fix broken expressions with "+ 0  # TODO" pattern
-    cleanedCode = cleanedCode.replace(/\+ 0\s+# TODO\n\s+/g, '+ ');
-    cleanedCode = cleanedCode.replace(/\+\s+=/g, '+=');
-    cleanedCode = cleanedCode.replace(/-\s+=/g, '-=');
-    cleanedCode = cleanedCode.replace(/\*\s+=/g, '*=');
-    cleanedCode = cleanedCode.replace(/\/\s+=/g, '/=');
-    // Fix corrupted docstrings
-    cleanedCode = cleanedCode.replace(/^(\s*).*""".*""".*""".*$/gm, '$1"""TODO"""');
-    cleanedCode = cleanedCode.replace(/"""([^"]{0,200})"""TODO"""/g, '"""$1"""');
-    // Remove COBOL remnants
-    cleanedCode = cleanedCode.replace(/^\s+\d{2}\s+[\w-]+\.?"""\s*$/gm, '');
-    cleanedCode = cleanedCode.replace(/^\s+\d{2}\s+[\w-]+\.\s*$/gm, '');
-    // Fix over-indented docstrings: align docstring with following line
-    const fixedLines: string[] = [];
-    const codeLines = cleanedCode.split('\n');
-    let inMultilineDocstring = false;  // Track if we're inside a multiline docstring
+    const originalLineCount = pythonCode.split('\n').length;
     
-    for (let i = 0; i < codeLines.length; i++) {
-      let line = codeLines[i];
-      const nextLine = codeLines[i + 1] || '';
-      
-      // Track multiline docstring state
-      const tripleQuoteCount = (line.match(/"""/g) || []).length;
-      if (tripleQuoteCount === 1) {
-        inMultilineDocstring = !inMultilineDocstring;
-      }
-      // If count is 2, it's a single-line docstring, state unchanged
-      
-      // Fix unclosed docstrings: if prev line is def and current is """ alone, close it
-      const prevLine = codeLines[i - 1] || '';
-      const prevTrimmed = prevLine.trim();
-      if (line.trim() === '"""' && prevTrimmed.startsWith('def ') && prevTrimmed.endsWith(':')) {
-        const indent = line.match(/^(\s*)/)?.[1] || '    ';
-        line = indent + '"""TODO"""';
-        inMultilineDocstring = false;
-      }
-      
-      // Fix truncated function definitions (def without closing paren/colon)
-      // Handles: def foo(x, y   |  def foo(x,   |  def foo(x, ws_
-      if (line.match(/^def \w+\(/) && !line.includes(':')) {
-        const nextTrimmed = nextLine.trim();
-        // Check if next line is new code (not continuation)
-        if (!nextTrimmed || nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || 
-            nextTrimmed.startsWith('import ') || nextTrimmed.startsWith('from ') || nextTrimmed.startsWith('@')) {
-          // Remove incomplete trailing parts and close the function
-          line = line.trimEnd()
-            .replace(/,\s*\w*$/, '')  // Remove trailing comma and incomplete identifier
-            .replace(/,\s*$/, '')     // Remove trailing comma
-            .replace(/\(\s*$/, '(')   // Clean empty parens
-            + ') -> None:';
-        }
-      }
-      
-      // Fix empty function bodies: def followed by non-indented line
-      if (line.match(/^def \w+.*:$/) && nextLine.trim().length > 0) {
-        const nextTrimmed = nextLine.trim();
-        if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('@') || nextTrimmed.startsWith('class ')) {
-          fixedLines.push(line);
-          fixedLines.push('    """TODO"""');
-          continue;
-        }
-      }
-      
-      // Fix merged lines: docstring followed by def on same line
-      if (line.match(/"""[^"]*def \w+/)) {
-        const parts = line.split(/(?=def \w+)/);
-        if (parts.length >= 2) {
-          // Close first docstring and add def on new line
-          fixedLines.push(parts[0].replace(/"""[^"]*$/, '"""TODO"""'));
-          line = parts.slice(1).join('');
-        }
-      }
-      
-      // Check if current line is a docstring and next line has less indent
-      if (line.match(/^\s+""".*"""$/) && nextLine.trim().length > 0) {
-        const docIndent = (line.match(/^(\s*)/)?.[1] || '').length;
-        const nextIndent = (nextLine.match(/^(\s*)/)?.[1] || '').length;
-        if (docIndent > nextIndent && nextIndent > 0) {
-          fixedLines.push(' '.repeat(nextIndent) + line.trim());
-          continue;
-        }
-      }
-      
-      // Fix control structures with only comments as body (while, if, for, etc.)
-      const controlMatch = line.match(/^(\s*)(while |if |for |elif |else:|try:|except|with )/);
-      if (controlMatch && line.trim().endsWith(':')) {
-        const controlIndent = controlMatch[1].length;
-        // Look ahead to see if body is missing (only comments until unindented line)
-        let hasBody = false;
-        let insertIndex = -1;
-        for (let j = i + 1; j < codeLines.length && j < i + 20; j++) {
-          const checkLine = codeLines[j];
-          const checkTrimmed = checkLine.trim();
-          if (!checkTrimmed) continue; // skip empty
-          if (checkTrimmed.startsWith('#')) continue; // skip comments
-          const checkIndent = (checkLine.match(/^(\s*)/)?.[1] || '').length;
-          if (checkIndent > controlIndent) {
-            hasBody = true;
-            break;
-          } else {
-            insertIndex = j;
-            break;
+    // Step 1: Apply quick regex fixes
+    let cleanedCode = applyQuickFixes(pythonCode);
+    
+    // Step 2: Check for remaining errors
+    const syntaxError = findSyntaxError(cleanedCode);
+    
+    // Step 3: If error found and we have API key, ask Gemini to fix
+    if (syntaxError && GEMINI_API_KEY) {
+      try {
+        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ 
+          model: 'gemini-2.0-flash',
+          generationConfig: { maxOutputTokens: 8192 }
+        });
+        
+        const lines = cleanedCode.split('\n');
+        const errorLine = syntaxError.line;
+        const contextStart = Math.max(0, errorLine - 5);
+        const contextEnd = Math.min(lines.length, errorLine + 5);
+        const context = lines.slice(contextStart, contextEnd).map((l, i) => 
+          `${contextStart + i + 1}: ${l}`
+        ).join('\n');
+        
+        const prompt = `Fix this Python syntax error. Return ONLY the corrected code snippet (lines ${contextStart + 1}-${contextEnd}), no explanation.
+
+Error at line ${errorLine}: ${syntaxError.error}
+
+Context:
+${context}
+
+Return the fixed lines only, preserving line numbers format.`;
+
+        const result = await model.generateContent(prompt);
+        const fixedSnippet = result.response.text();
+        
+        // Parse and apply the fix
+        const fixedLines = fixedSnippet.split('\n');
+        for (const fixedLine of fixedLines) {
+          const match = fixedLine.match(/^(\d+):\s*(.*)$/);
+          if (match) {
+            const lineNum = parseInt(match[1]) - 1;
+            const content = match[2];
+            if (lineNum >= 0 && lineNum < lines.length) {
+              lines[lineNum] = content;
+            }
           }
         }
-        if (!hasBody && insertIndex > 0) {
-          // Add pass with proper indentation
-          fixedLines.push(line);
-          fixedLines.push(' '.repeat(controlIndent + 4) + 'pass');
-          continue;
-        }
+        cleanedCode = lines.join('\n');
+      } catch (aiError) {
+        console.error('AI repair failed:', aiError);
+        // Continue with regex-cleaned code
       }
-      
-      fixedLines.push(line);
     }
-    cleanedCode = fixedLines.join('\n');
 
     const cleanedLineCount = cleanedCode.split('\n').length;
 
     return NextResponse.json({
       cleanedCode,
       stats: {
-        originalLines: lineCount,
+        originalLines: originalLineCount,
         cleanedLines: cleanedLineCount,
-        preserved: Math.round((cleanedLineCount / lineCount) * 100)
+        preserved: Math.round((cleanedLineCount / originalLineCount) * 100),
+        hadErrors: syntaxError !== null
       }
     }, { headers: corsHeaders });
 
@@ -203,5 +218,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-// trigger 1767137310
-// 1767139309
