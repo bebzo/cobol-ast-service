@@ -1,7 +1,10 @@
 {
   "functions": {
     "app/api/analyse/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
+    },
+    "app/api/clean/route.ts": {
+      "maxDuration": 300
     }
   }
 }
