@@ -1137,6 +1137,16 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                           <Loader2 className="w-3 h-3 animate-spin" />
                           <span>Correction {correctionAttempt}/100: {correctionStatus}</span>
                         </div>
+                      ) : correctionStatus.includes("✓") ? (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium">
+                          <CheckCircle className="w-3 h-3" />
+                          <span>✓ Code Python valide - prêt à exporter</span>
+                        </div>
+                      ) : correctionStatus.includes("⚠️") ? (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium">
+                          <AlertTriangle className="w-3 h-3" />
+                          <span>{correctionStatus}</span>
+                        </div>
                       ) : (
                         <button
                           onClick={async () => {
