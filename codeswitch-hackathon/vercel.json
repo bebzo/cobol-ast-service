@@ -6,8 +6,8 @@
     "app/api/clean/route.ts": {
       "maxDuration": 300
     },
-    "api/validate.py": {
-      "runtime": "@vercel/python",
+    "api/*.py": {
+      "runtime": "@vercel/python@4.3.1",
       "maxDuration": 60
     }
   }
