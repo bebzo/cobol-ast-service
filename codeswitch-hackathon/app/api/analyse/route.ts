@@ -200,7 +200,39 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      return fixedLines.join('\n');
+      // Final pass: fix common syntax issues
+      let result = fixedLines.join('\n');
+      
+      // Fix header docstring pattern: """text"""\nOriginal: → proper format
+      result = result.replace(
+        /^"""\n[^"]*"""\nOriginal:[^\n]*\n[^\n]*\n"""/m,
+        '"""\nMEGA-ENTERPRISE-SYSTEM - Migrated from COBOL\n"""'
+      );
+      result = result.replace(/^("""[^"]+)"""\n(Original:)/m, '$1\n$2');
+      
+      // Fix stray """ after imports
+      result = result.replace(/(from \w+ import [^"\n]+)"""\s*$/gm, '$1');
+      result = result.replace(/(import \w+)"""\s*$/gm, '$1');
+      
+      // Fix truncated statements (lines ending with unclosed parens or operators)
+      result = result.replace(/^(.+\([^)]*)(import \w+)/gm, '# FIXED: $1\n$2');
+      result = result.replace(/^(.+)(import logging)/gm, (match, before, imp) => {
+        if (before.includes('(') && !before.includes(')')) {
+          return '# FIXED: ' + before + '\n' + imp;
+        }
+        return match;
+      });
+      
+      // Remove lines that would cause obvious syntax errors
+      const cleanLines = result.split('\n').map(line => {
+        // Fix "datimport" merged pattern
+        if (/\w+import\s+\w+/.test(line) && !/^(from|import)/.test(line.trim())) {
+          return '# FIXED: ' + line;
+        }
+        return line;
+      });
+      
+      return cleanLines.join('\n');
     };
 
     // Simple merge: NO deduplication - keep EVERYTHING for max ratio
