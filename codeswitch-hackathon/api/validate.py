@@ -125,6 +125,13 @@ def validate_and_fix(code: str) -> dict:
                     lines[line_num - 1] = '# ' + error_line
                 fixes_applied += 1
             
+            elif 'expected an indented block' in error_msg or 'indent' in error_msg:
+                # Add pass statement to empty block
+                # Find the previous line that needs a body
+                indent = len(error_line) - len(error_line.lstrip())
+                lines.insert(line_num - 1, ' ' * (indent + 4) + 'pass')
+                fixes_applied += 1
+            
             elif 'was never closed' in error_msg:
                 # Unclosed paren/bracket
                 if '(' in error_line and ')' not in error_line:
