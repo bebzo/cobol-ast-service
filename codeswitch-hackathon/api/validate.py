@@ -46,6 +46,24 @@ def validate_and_fix(code: str) -> dict:
         code += '\n"""'
         fixes_applied += 1
     
+    # Fix strings with literal newlines (should use \n)
+    lines = code.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Line ends with open string like: + '  or + "
+        if (line.rstrip().endswith("+ '") or line.rstrip().endswith('+ "')) and i + 1 < len(lines):
+            quote = "'" if line.rstrip().endswith("'") else '"'
+            next_line = lines[i + 1]
+            if next_line.strip() == "')":
+                # Merge into: + '\n')
+                lines[i] = line.rstrip() + '\\n' + quote + ')'
+                lines.pop(i + 1)
+                fixes_applied += 1
+                continue
+        i += 1
+    code = '\n'.join(lines)
+    
     # Fix truncated function definitions
     lines = code.split('\n')
     for i, line in enumerate(lines):
