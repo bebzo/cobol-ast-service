@@ -231,6 +231,13 @@ export async function POST(request: NextRequest) {
       result = result.replace(/(from \w+ import [^"\n]+)"""\s*$/gm, '$1');
       result = result.replace(/(import \w+)"""\s*$/gm, '$1');
       
+      // Fix incomplete elif/if statements (missing colon)
+      result = result.replace(/^(\s*)(elif|if)\s+(\w+)\s*$/gm, '$1$2 $3:  # auto-fixed');
+      result = result.replace(/^(\s*)(elif|if)\s+(\w+\s*[=<>!]+\s*\w+)\s*$/gm, '$1$2 $3:');
+      
+      // Remove misplaced imports in middle of code
+      result = result.replace(/^(\s{4,})(from dataclasses|from decimal|from typing|import logging)/gm, '# $2');
+      
       // Line-by-line cleanup
       const cleanLines = result.split('\n').map((line, idx, arr) => {
         // Fix merged "datimport" pattern  
