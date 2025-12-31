@@ -49,6 +49,20 @@ function applyQuickFixes(code: string): string {
   cleaned = cleaned.replace(/^(\s*)global\s*$/gm, '$1pass  # truncated global');
   cleaned = cleaned.replace(/^(\s*)return\s*$/gm, '$1return None');
   
+  // Fix standalone 'def' lines
+  cleaned = cleaned.replace(/^\s*def\s*$/gm, '');
+  
+  // Fix incomplete if/while/for (missing :)
+  cleaned = cleaned.replace(/^(\s*if\s+\w[^:\n]*)$/gm, '$1:');
+  cleaned = cleaned.replace(/^(\s*while\s+\w[^:\n]*)$/gm, '$1:');
+  cleaned = cleaned.replace(/^(\s*for\s+\w[^:\n]*)$/gm, '$1:');
+  
+  // Fix unclosed docstrings (docstring that doesn't close on same line)
+  cleaned = cleaned.replace(/^(\s*"""[^"]{1,100})$/gm, '$1"""');
+  
+  // Fix logger line with trailing colon
+  cleaned = cleaned.replace(/^(logger\s*=\s*logging\.getLogger\([^)]+\)):$/gm, '$1');
+  
   // Line-by-line fixes
   const lines = cleaned.split('\n');
   const fixedLines: string[] = [];
