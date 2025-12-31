@@ -120,7 +120,7 @@ async function correctPythonCode(
     const currentError = `${validation.line}:${validation.error}`;
     if (currentError === lastError) {
       sameErrorCount++;
-      if (sameErrorCount >= 3) {
+      if (sameErrorCount >= 5) {
         onProgress(attempts, `Boucle détectée: ${validation.error}`, true);
         return { code: currentCode, success: false, attempts, stoppedReason: 'loop_detected' };
       }
