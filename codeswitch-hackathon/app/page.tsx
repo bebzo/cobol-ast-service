@@ -1142,10 +1142,19 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                           <CheckCircle className="w-3 h-3" />
                           <span>✓ Code Python valide - prêt à exporter</span>
                         </div>
-                      ) : correctionStatus.includes("⚠️") ? (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium">
-                          <AlertTriangle className="w-3 h-3" />
-                          <span>{correctionStatus}</span>
+                      ) : correctionStatus.includes("⚠️") || correctionStatus.includes("Limite") ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium">
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>{correctionStatus}</span>
+                          </div>
+                          <button
+                            onClick={() => setCorrectionStatus("")}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs font-medium transition"
+                          >
+                            <Loader2 className="w-3 h-3" />
+                            Réessayer
+                          </button>
                         </div>
                       ) : (
                         <button
