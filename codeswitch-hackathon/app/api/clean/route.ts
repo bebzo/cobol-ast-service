@@ -1,3 +1,23 @@
+/**
+ * Python Code Cleaner - Fixes common AI-generated syntax errors
+ * 
+ * KNOWN ERROR PATTERNS (add new patterns here):
+ * ─────────────────────────────────────────────
+ * 1. CRLF line endings         → Normalize to LF
+ * 2. Curly quotes (' ' " ")    → Replace with straight quotes
+ * 3. Split strings (.write)    → Rejoin strings with literal \n
+ * 4. Truncated Decimal()       → Decimal("5." → Decimal("0")
+ * 5. Orphan docstrings         → """ alone → """TODO"""
+ * 6. Empty function bodies     → Add """TODO""" after def
+ * 7. Merged def statements     → Split docstring + def on same line
+ * 8. Empty control blocks      → while/if/for with only comments → add pass
+ * 9. Truncated function def    → def name( without ) → add ) -> None:
+ * 10. Over-indented docstrings → Align with next line
+ * 
+ * TO ADD NEW PATTERN:
+ * - Add regex fix in the appropriate section below
+ * - Document pattern here with example
+ */
 import { NextRequest, NextResponse } from 'next/server';
 
 const corsHeaders = {
