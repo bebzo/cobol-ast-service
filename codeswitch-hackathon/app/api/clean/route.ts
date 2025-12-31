@@ -55,8 +55,14 @@ export async function POST(request: NextRequest) {
     const fixedLines: string[] = [];
     const codeLines = cleanedCode.split('\n');
     for (let i = 0; i < codeLines.length; i++) {
-      const line = codeLines[i];
+      let line = codeLines[i];
       const nextLine = codeLines[i + 1] || '';
+      
+      // Fix unclosed docstrings: line ends with """ alone, next line is code
+      if (line.match(/^\s+"""$/) && nextLine.trim().length > 0 && !nextLine.trim().startsWith('"""')) {
+        line = line + 'TODO"""';  // Close the orphan docstring
+      }
+      
       // Check if current line is a docstring and next line has less indent
       if (line.match(/^\s+""".*"""$/) && nextLine.trim().length > 0) {
         const docIndent = (line.match(/^(\s*)/)?.[1] || '').length;
