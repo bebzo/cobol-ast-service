@@ -134,17 +134,27 @@ def validate_and_fix(code: str) -> dict:
     
     # Fix empty class/function bodies (add pass)
     lines = code.split('\n')
-    for i, line in enumerate(lines):
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         s = line.rstrip()
-        if (s.startswith('class ') or s.startswith('def ')) and s.endswith(':'):
+        if (s.lstrip().startswith('class ') or s.lstrip().startswith('def ')) and s.endswith(':'):
             indent = len(line) - len(line.lstrip())
             j = i + 1
             needs_pass = True
+            # Look for first non-comment, non-empty line
             while j < len(lines):
                 next_line = lines[j]
-                if next_line.strip() == '' or next_line.strip().startswith('#'):
+                next_stripped = next_line.strip()
+                # Skip empty lines and comments
+                if next_stripped == '' or next_stripped.startswith('#'):
                     j += 1
                     continue
+                # Check if it's a decorator or new class/def at same level
+                if next_stripped.startswith('@') or next_stripped.startswith('class ') or next_stripped.startswith('def '):
+                    needs_pass = True
+                    break
+                # Check indentation
                 next_indent = len(next_line) - len(next_line.lstrip())
                 if next_indent > indent:
                     needs_pass = False
@@ -152,6 +162,8 @@ def validate_and_fix(code: str) -> dict:
             if needs_pass:
                 lines.insert(i + 1, ' ' * (indent + 4) + 'pass')
                 fixes_applied += 1
+                i += 1  # Skip the inserted line
+        i += 1
     code = '\n'.join(lines)
     
     # === ADDITIONAL PREVENTIVE FIXES ===
