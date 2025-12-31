@@ -5,6 +5,10 @@
     },
     "app/api/clean/route.ts": {
       "maxDuration": 300
+    },
+    "api/validate.py": {
+      "runtime": "@vercel/python",
+      "maxDuration": 60
     }
   }
 }

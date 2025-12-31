@@ -715,7 +715,7 @@ export async function POST(request: NextRequest) {
       .replace(/\n{3,}/g, '\n\n')
       .trim();
       
-    const combinedPythonCode = `"""${ast.programId} - Migrated from COBOL."""
+    let combinedPythonCode = `"""${ast.programId} - Migrated from COBOL."""
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -728,6 +728,30 @@ ${cleanedValidatedCode}
 `;
 
     console.log(`[Translation] Combined Python: ${combinedPythonCode.split('\n').length} lines`);
+    
+    // === PYTHON VALIDATION (real py_compile) ===
+    try {
+      console.log('[Validation] Calling Python validator...');
+      const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+      const validateResponse = await fetch(`${baseUrl}/api/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: combinedPythonCode })
+      });
+      
+      if (validateResponse.ok) {
+        const validateResult = await validateResponse.json();
+        if (validateResult.valid) {
+          console.log(`[Validation] Code is valid! ${validateResult.fixes} fixes applied`);
+          combinedPythonCode = validateResult.code;
+        } else {
+          console.log(`[Validation] Code partially fixed: ${validateResult.fixes} fixes, still has errors`);
+          combinedPythonCode = validateResult.code;
+        }
+      }
+    } catch (e) {
+      console.log('[Validation] Python validator not available, skipping');
+    }
 
     // === ANALYSIS METADATA (generated locally to avoid timeout) ===
     console.log(`[Analysis] Generating metadata locally...`);
