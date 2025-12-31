@@ -592,6 +592,7 @@ export default function Home() {
     
     setError("");
     setPythonCode("");
+    setCorrectionStatus("");
     setAnalysis(null);
     setMetricsAnimated(false);
     setAnimatedMetrics({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, improvements: 0, security: 0, testsLines: 0, confidence: 0 });
