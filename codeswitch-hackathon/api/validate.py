@@ -152,15 +152,20 @@ def validate_and_fix(code: str) -> dict:
     # === ADDITIONAL PREVENTIVE FIXES ===
     
     # Fix missing colons after if/elif/else/for/while/try/except/finally/with
+    # Only for standalone keywords, not inline statements
     lines = code.split('\n')
     for i, line in enumerate(lines):
         s = line.rstrip()
-        for kw in ['if ', 'elif ', 'else', 'for ', 'while ', 'try', 'except', 'finally', 'with ']:
-            if s.lstrip().startswith(kw) and not s.endswith(':') and not s.endswith(','):
-                if kw in ['else', 'try', 'finally'] or ')' in s or s.endswith(']'):
-                    lines[i] = s + ':'
-                    fixes_applied += 1
-                    break
+        stripped = s.lstrip()
+        # Only fix standalone else/try/finally (not else: x = y)
+        if stripped == 'else' or stripped == 'try' or stripped == 'finally':
+            lines[i] = s + ':'
+            fixes_applied += 1
+        # Fix if/elif/for/while/with ending with ) but no :
+        elif (stripped.startswith(('if ', 'elif ', 'for ', 'while ', 'with ')) 
+              and stripped.endswith(')') and not stripped.endswith(':')):
+            lines[i] = s + ':'
+            fixes_applied += 1
     code = '\n'.join(lines)
     
     # Fix orphaned decorators (@ without following def/class)
