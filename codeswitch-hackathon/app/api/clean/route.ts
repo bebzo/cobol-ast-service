@@ -169,17 +169,24 @@ async function fixSpecificError(code: string, error: string, line: number): Prom
   
   const prompt = `Fix this Python syntax error. Return the COMPLETE corrected Python code.
 
+CRITICAL RULES:
+1. PRESERVE ALL CODE - do NOT delete functions, classes, or logic
+2. Output must have SAME or MORE lines than input (${lines.length} lines)
+3. Only fix the specific syntax error, keep everything else intact
+4. If a function is broken, fix it - don't remove it
+5. Replace invalid code with valid placeholders (pass, None, TODO) rather than deleting
+
 ERROR at line ${line}: ${error}
 
 Context around error:
 ${context}
 
-FULL CODE:
+FULL CODE (${lines.length} lines - KEEP THIS COUNT):
 \`\`\`python
 ${code}
 \`\`\`
 
-Return ONLY the complete fixed Python code, no explanations:`;
+Return ONLY the complete fixed Python code (must be ~${lines.length} lines):`;
 
   const result = await model.generateContent(prompt);
   let response = result.response.text();
