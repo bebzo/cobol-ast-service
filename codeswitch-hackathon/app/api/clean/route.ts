@@ -63,6 +63,9 @@ export async function POST(request: NextRequest) {
     cleanedCode = cleanedCode.replace(/\.write\(f"[^"]*\n"\)/gm, (match: string) => {
       return match.replace(/\n/g, '\\n');
     });
+    // Fix multi-line string concatenation (line ending with +" or +' followed by continuation)
+    cleanedCode = cleanedCode.replace(/\+"\n\s+'/gm, "+ '");
+    cleanedCode = cleanedCode.replace(/\+'\n\s+"/gm, '+ "');
     // Fix truncated Decimal() calls (e.g., Decimal("5." without closing)
     cleanedCode = cleanedCode.replace(/Decimal\("[^"]*$/gm, 'Decimal("0")');
     // Fix broken expressions with "+ 0  # TODO" pattern
