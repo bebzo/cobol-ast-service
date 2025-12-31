@@ -247,9 +247,7 @@ export default function Home() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [modulesLimit, setModulesLimit] = useState(50);
-  const [activeTab, setActiveTab] = useState<"code" | "cleaned" | "tests" | "config" | "diff" | "arch" | "modules" | "impact" | "report">("code");
-  const [cleanedCode, setCleanedCode] = useState("");
-  const [isCleaningCode, setIsCleaningCode] = useState(false);
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "impact" | "report">("code");
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
@@ -505,7 +503,22 @@ export default function Home() {
         parsed.unit_tests = parsed.unit_tests.replace(/\\n/g, '\n');
       }
       
-      setPythonCode(parsed.python_code);
+      // Auto-clean the Python code
+      let finalPythonCode = parsed.python_code;
+      try {
+        const cleanRes = await fetch('/api/clean', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pythonCode: parsed.python_code })
+        });
+        const cleanData = await cleanRes.json();
+        if (cleanData.cleanedCode) {
+          finalPythonCode = cleanData.cleanedCode;
+        }
+      } catch (e) { console.error('Clean failed:', e); }
+      
+      setPythonCode(finalPythonCode);
+      parsed.python_code = finalPythonCode; // Update for metrics
       setAnalysis(parsed);
       setAnalyzedCobolCode(cobolCode);
 
@@ -928,31 +941,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <Code2 className="w-4 h-4" />Python
                 </button>
                 <button
-                  onClick={async () => {
-                    setActiveTab("cleaned");
-                    // Always re-clean when clicked
-                    if (pythonCode && !isCleaningCode) {
-                      setIsCleaningCode(true);
-                      setCleanedCode(""); // Reset
-                      try {
-                        const res = await fetch('/api/clean', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ pythonCode })
-                        });
-                        const data = await res.json();
-                        if (data.cleanedCode) setCleanedCode(data.cleanedCode);
-                      } catch (e) { console.error(e); }
-                      setIsCleaningCode(false);
-                    }
-                  }}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "cleaned" ? "bg-emerald-500/20 text-emerald-400 border-b-2 border-emerald-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <CheckCircle className="w-4 h-4" />Cleaned
-                </button>
-                <button
                   onClick={() => setActiveTab("tests")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
                     activeTab === "tests" ? "bg-blue-500/20 text-blue-400 border-b-2 border-blue-400" : "text-slate-400 hover:text-white"
@@ -1022,26 +1010,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 />
               )}
 
-              {activeTab === "cleaned" && (
-                <div className="relative">
-                  {isCleaningCode && (
-                    <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center z-10">
-                      <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400 mx-auto mb-2"></div>
-                        <p className="text-emerald-400">Cleaning code with AI...</p>
-                      </div>
-                    </div>
-                  )}
-                  <Editor
-                    height="400px"
-                    defaultLanguage="python"
-                    value={cleanedCode || "# Click this tab to clean and compile the Python code..."}
-                    theme="vs-dark"
-                    options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                  />
-                </div>
-              )}
-              
               {activeTab === "tests" && (
                 <Editor
                   height="400px"
