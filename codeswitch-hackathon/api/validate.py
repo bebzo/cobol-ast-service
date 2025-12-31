@@ -66,6 +66,19 @@ def validate_and_fix(code: str) -> dict:
         code += '\n"""'
         fixes_applied += 1
     
+    # Remove orphaned trailing """
+    lines = code.split('\n')
+    while lines and lines[-1].strip() == '"""':
+        # Check if this is a closing docstring or orphaned
+        count_before = '\n'.join(lines[:-1]).count('"""')
+        if count_before % 2 == 0:
+            # Orphaned - remove it
+            lines.pop()
+            fixes_applied += 1
+        else:
+            break
+    code = '\n'.join(lines)
+    
     # Fix lines with unbalanced quotes (truncated strings)
     lines = code.split('\n')
     for i, line in enumerate(lines):
