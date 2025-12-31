@@ -84,10 +84,16 @@ export async function POST(request: NextRequest) {
       let line = codeLines[i];
       const nextLine = codeLines[i + 1] || '';
       
-      // Fix unclosed docstrings: line ends with """ alone, next line is code
-      if (line.trim() === '"""' && nextLine.trim().length > 0 && !nextLine.trim().startsWith('"""')) {
-        const indent = line.match(/^(\s*)/)?.[1] || '';
-        line = indent + '"""TODO"""';  // Close the orphan docstring
+      // Fix unclosed docstrings: line ends with """ alone, next line is actual code (def/class/@/import)
+      if (line.trim() === '"""') {
+        const nextTrimmed = nextLine.trim();
+        // Only fix if next line is actual code, not docstring content
+        if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || 
+            nextTrimmed.startsWith('@') || nextTrimmed.startsWith('import ') ||
+            nextTrimmed.startsWith('from ')) {
+          const indent = line.match(/^(\s*)/)?.[1] || '';
+          line = indent + '"""TODO"""';  // Close the orphan docstring
+        }
       }
       
       // Fix truncated function definitions (def ... without closing paren and colon)
