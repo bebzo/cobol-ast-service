@@ -92,10 +92,10 @@ def validate_and_fix(code: str) -> dict:
         # Line ends with open string like: + '  or + "
         if (line.rstrip().endswith("+ '") or line.rstrip().endswith('+ "')) and i + 1 < len(lines):
             quote = "'" if line.rstrip().endswith("'") else '"'
-            next_line = lines[i + 1]
-            if next_line.strip() == "')":
-                # Merge into: + '\n')
-                lines[i] = line.rstrip() + '\\n' + quote + ')'
+            next_line = lines[i + 1].strip()
+            # Merge with next line that closes the string
+            if next_line in ["')", '")', "']", '"]', "'", '"', "');", '");']:
+                lines[i] = line.rstrip() + '\\n' + quote + next_line[1:]
                 lines.pop(i + 1)
                 fixes_applied += 1
                 continue
