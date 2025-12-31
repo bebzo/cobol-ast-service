@@ -41,6 +41,11 @@ def validate_and_fix(code: str) -> dict:
     
     # === PHASE 1: Pre-processing fixes ===
     
+    # Fix unbalanced triple quotes (must be even)
+    if code.count('"""') % 2 == 1:
+        code += '\n"""'
+        fixes_applied += 1
+    
     # Fix truncated function definitions
     lines = code.split('\n')
     for i, line in enumerate(lines):
