@@ -21,9 +21,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const lines = pythonCode.split('\n');
+    // Normalize line endings (CRLF -> LF)
+    let cleanedCode = pythonCode.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = cleanedCode.split('\n');
     const lineCount = lines.length;
-    let cleanedCode = pythonCode;
 
     // Fast regex-only cleanup (no AI to avoid timeout)
     cleanedCode = cleanedCode.replace(/\+\s+=/g, '+=');
