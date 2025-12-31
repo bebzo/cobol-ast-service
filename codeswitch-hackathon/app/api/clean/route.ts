@@ -96,24 +96,13 @@ export async function POST(request: NextRequest) {
       }
       // If count is 2, it's a single-line docstring, state unchanged
       
-      // Fix unclosed docstrings: line is """ alone, next line is code, and we're NOT closing a multiline
-      if (line.trim() === '"""' && !inMultilineDocstring) {
-        // We just toggled to false, meaning this WAS a closing quote
-        // But if next line is code and previous was also code, it's orphan
-        const prevLine = codeLines[i - 1] || '';
-        const nextTrimmed = nextLine.trim();
-        const prevTrimmed = prevLine.trim();
-        
-        // Only fix if prev line is a def (orphan opening) and next is code
-        if (prevTrimmed.startsWith('def ') && prevTrimmed.endsWith(':')) {
-          if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || 
-              nextTrimmed.startsWith('@') || nextTrimmed.startsWith('import ') ||
-              nextTrimmed.startsWith('from ')) {
-            const indent = line.match(/^(\s*)/)?.[1] || '';
-            line = indent + '"""TODO"""';
-            inMultilineDocstring = false;  // We closed it
-          }
-        }
+      // Fix unclosed docstrings: if prev line is def and current is """ alone, close it
+      const prevLine = codeLines[i - 1] || '';
+      const prevTrimmed = prevLine.trim();
+      if (line.trim() === '"""' && prevTrimmed.startsWith('def ') && prevTrimmed.endsWith(':')) {
+        const indent = line.match(/^(\s*)/)?.[1] || '    ';
+        line = indent + '"""TODO"""';
+        inMultilineDocstring = false;
       }
       
       // Fix truncated function definitions (def without closing paren/colon)
