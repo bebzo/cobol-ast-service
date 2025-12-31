@@ -1150,7 +1150,40 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                             <span>{correctionStatus}</span>
                           </div>
                           <button
-                            onClick={() => setCorrectionStatus("")}
+                            onClick={async () => {
+                              setIsCorrectingCode(true);
+                              setCorrectionAttempt(0);
+                              setCorrectionStatus("Relance...");
+                              
+                              try {
+                                const result = await correctPythonCode(
+                                  pythonCode,
+                                  100,
+                                  (attempt, error) => {
+                                    setCorrectionAttempt(attempt);
+                                    setCorrectionStatus(error.substring(0, 40) + (error.length > 40 ? '...' : ''));
+                                  }
+                                );
+                                
+                                setPythonCode(result.code);
+                                if (analysis) {
+                                  setAnalysis({ ...analysis, python_code: result.code });
+                                }
+                                
+                                setCorrectionStatus(
+                                  result.success 
+                                    ? "✓ Code valide!" 
+                                    : result.stoppedReason === 'loop_detected'
+                                      ? "⚠️ Boucle détectée - correction manuelle requise"
+                                      : "Limite atteinte"
+                                );
+                              } catch (e) {
+                                console.error('Correction failed:', e);
+                                setCorrectionStatus("Erreur de correction");
+                              } finally {
+                                setIsCorrectingCode(false);
+                              }
+                            }}
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs font-medium transition"
                           >
                             <Loader2 className="w-3 h-3" />
