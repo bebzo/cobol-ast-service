@@ -98,6 +98,9 @@ def check_syntax(code):
   }
 }
 
+// Cache for error fixes to avoid duplicate API calls
+const errorFixCache = new Map<string, string>();
+
 // Correct Python code using Pyodide validation + Gemini fixes
 async function correctPythonCode(
   code: string,
@@ -108,6 +111,7 @@ async function correctPythonCode(
   let attempts = 0;
   let lastError = '';
   let sameErrorCount = 0;
+  let apiCalls = 0;
   
   while (attempts < maxAttempts) {
     const validation = await validatePythonSyntax(currentCode);
@@ -133,6 +137,15 @@ async function correctPythonCode(
     onProgress(attempts, validation.error || 'Unknown error');
     
     try {
+      const cacheKey = `${validation.line}:${validation.error}`;
+      
+      // Check cache first
+      if (errorFixCache.has(cacheKey)) {
+        console.log('Using cached fix for:', cacheKey);
+        continue; // Skip API call, error was already attempted
+      }
+      
+      apiCalls++;
       const response = await fetch('/api/clean', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -146,6 +159,7 @@ async function correctPythonCode(
       if (response.ok) {
         const data = await response.json();
         if (data.cleanedCode) {
+          errorFixCache.set(cacheKey, 'attempted');
           currentCode = data.cleanedCode;
         }
       }
@@ -1136,7 +1150,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       {isCorrectingCode ? (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs">
                           <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Correction {correctionAttempt}/100: {correctionStatus}</span>
+                          <span>Correction {correctionAttempt}/20: {correctionStatus}</span>
                         </div>
                       ) : correctionStatus.includes("✓") ? (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium">
@@ -1158,7 +1172,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                               try {
                                 const result = await correctPythonCode(
                                   pythonCode,
-                                  100,
+                                  20,
                                   (attempt, error) => {
                                     setCorrectionAttempt(attempt);
                                     setCorrectionStatus(error.substring(0, 40) + (error.length > 40 ? '...' : ''));
@@ -1200,7 +1214,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                             try {
                               const result = await correctPythonCode(
                                 pythonCode,
-                                100,
+                                20,
                                 (attempt, error) => {
                                   setCorrectionAttempt(attempt);
                                   setCorrectionStatus(error.substring(0, 40) + (error.length > 40 ? '...' : ''));
