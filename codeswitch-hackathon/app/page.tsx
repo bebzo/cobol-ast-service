@@ -98,6 +98,68 @@ def check_syntax(code):
   }
 }
 
+// Run tests using Pyodide
+async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
+  try {
+    const pyodide = await getPyodide();
+    if (!pyodide) return { total: 0, passed: 0, failed: 0, details: [] };
+    
+    // Run the test execution script
+    pyodide.runPython(`
+import sys
+import json
+from io import StringIO
+
+def run_tests(main_code, test_code):
+    results = {"total": 0, "passed": 0, "failed": 0, "details": []}
+    namespace = {"__name__": "__main__"}
+    
+    # Execute main code
+    try:
+        exec(compile(main_code, '<main>', 'exec'), namespace)
+    except Exception as e:
+        results["details"].append({"name": "main_code", "status": "error", "error": str(e)})
+        return json.dumps(results)
+    
+    # Find test functions
+    import re
+    test_funcs = re.findall(r'def (test_\\w+)\\s*\\(', test_code)
+    results["total"] = len(test_funcs)
+    
+    # Execute test code to define functions
+    try:
+        exec(compile(test_code, '<tests>', 'exec'), namespace)
+    except Exception as e:
+        results["details"].append({"name": "test_code", "status": "error", "error": str(e)})
+        return json.dumps(results)
+    
+    # Run each test
+    for test_name in test_funcs:
+        if test_name in namespace:
+            try:
+                namespace[test_name]()
+                results["passed"] += 1
+                results["details"].append({"name": test_name, "status": "passed"})
+            except AssertionError as e:
+                results["failed"] += 1
+                results["details"].append({"name": test_name, "status": "failed", "error": str(e)})
+            except Exception as e:
+                results["failed"] += 1
+                results["details"].append({"name": test_name, "status": "error", "error": str(e)})
+    
+    return json.dumps(results)
+`);
+    
+    pyodide.globals.set('_main_code', pythonCode);
+    pyodide.globals.set('_test_code', testCode);
+    const resultJson = pyodide.runPython('run_tests(_main_code, _test_code)');
+    return JSON.parse(resultJson);
+  } catch (e) {
+    console.error('Test execution error:', e);
+    return { total: 0, passed: 0, failed: 0, details: [{ name: 'execution', status: 'error', error: String(e) }] };
+  }
+}
+
 // Cache for error fixes to avoid duplicate API calls
 const errorFixCache = new Map<string, string>();
 
@@ -398,6 +460,7 @@ export default function Home() {
   const [isCorrectingCode, setIsCorrectingCode] = useState(false);
   const [correctionStatus, setCorrectionStatus] = useState("");
   const [correctionAttempt, setCorrectionAttempt] = useState(0);
+  const [testResults, setTestResults] = useState<{running: boolean; total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}>({running: false, total: 0, passed: 0, failed: 0, details: []});
   const [animatedMetrics, setAnimatedMetrics] = useState<{
     cobolLines: number;
     pythonLines: number;
@@ -1769,37 +1832,65 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
           {analysis && (analysis.tests || analysis.unit_tests) && (
             <div className="bg-gradient-to-r from-slate-800 to-emerald-900/20 rounded-lg p-6 border border-emerald-500/30">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
+                <TestTube className="w-5 h-5 text-emerald-400" />
                 Test Oracle - Equivalence Validation
-                <span className="ml-2 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">PASSED</span>
+                {testResults.total > 0 && (
+                  <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${testResults.failed === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {testResults.failed === 0 ? 'PASSED' : `${testResults.failed} FAILED`}
+                  </span>
+                )}
+                <button
+                  onClick={async () => {
+                    setTestResults(prev => ({...prev, running: true}));
+                    const testCode = analysis.tests || analysis.unit_tests || '';
+                    const testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
+                    const results = await runTestsWithPyodide(pythonCode, testStr);
+                    setTestResults({...results, running: false});
+                  }}
+                  disabled={testResults.running}
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-medium transition disabled:opacity-50"
+                >
+                  {testResults.running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                  {testResults.running ? 'Exécution...' : 'Exécuter les tests'}
+                </button>
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 1; })()}</p>
+                  <p className="text-2xl font-bold text-emerald-400">{testResults.total || (() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })()}</p>
                   <p className="text-xs text-slate-400">Tests Generated</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 1; })()}</p>
+                  <p className="text-2xl font-bold text-emerald-400">{testResults.passed}</p>
                   <p className="text-xs text-slate-400">Tests Passed</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">0</p>
+                  <p className={`text-2xl font-bold ${testResults.failed > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{testResults.failed}</p>
                   <p className="text-xs text-slate-400">Tests Failed</p>
                 </div>
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">100%</p>
-                  <p className="text-xs text-slate-400">Coverage</p>
+                  <p className="text-2xl font-bold text-emerald-400">{testResults.total > 0 ? Math.round((testResults.passed / testResults.total) * 100) : 0}%</p>
+                  <p className="text-xs text-slate-400">Pass Rate</p>
                 </div>
               </div>
-              <div className="bg-slate-900/50 rounded-lg p-4">
-                <p className="text-sm text-emerald-300 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" />
-                  <strong>COBOL ↔ Python Equivalence:</strong> All test cases validated successfully
-                </p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Tested {(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 1; })()} scenarios including edge cases, boundary conditions, and error handling.
-                </p>
-              </div>
+              {testResults.details.length > 0 && (
+                <div className="bg-slate-900/50 rounded-lg p-4 max-h-48 overflow-y-auto">
+                  {testResults.details.map((test, i) => (
+                    <div key={i} className={`flex items-center gap-2 py-1 text-sm ${test.status === 'passed' ? 'text-emerald-300' : 'text-red-300'}`}>
+                      {test.status === 'passed' ? <CheckCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                      <span>{test.name}</span>
+                      {test.error && <span className="text-xs text-slate-400 ml-2">- {test.error}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {testResults.total === 0 && (
+                <div className="bg-slate-900/50 rounded-lg p-4">
+                  <p className="text-sm text-slate-400 flex items-center gap-2">
+                    <Play className="w-4 h-4" />
+                    Cliquez sur "Exécuter les tests" pour valider l'équivalence COBOL ↔ Python
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
