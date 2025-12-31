@@ -177,6 +177,17 @@ def validate_and_fix(code: str) -> dict:
                 lines.insert(line_num - 1, ' ' * (indent + 4) + 'pass')
                 fixes_applied += 1
             
+            elif "expected 'except' or 'finally'" in error_msg:
+                # Find the try block and add except
+                for j in range(line_num - 2, -1, -1):
+                    if lines[j].strip().startswith('try:'):
+                        indent = len(lines[j]) - len(lines[j].lstrip())
+                        lines.insert(line_num - 1, ' ' * indent + 'except Exception:\n' + ' ' * (indent + 4) + 'pass')
+                        fixes_applied += 1
+                        break
+                else:
+                    lines[line_num - 1] = '# TRY: ' + error_line
+            
             elif 'unexpected indent' in error_msg:
                 # Remove the unexpected indentation or comment out
                 lines[line_num - 1] = '# INDENT: ' + error_line.lstrip()
