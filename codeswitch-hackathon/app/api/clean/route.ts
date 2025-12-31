@@ -23,9 +23,9 @@ export async function POST(request: NextRequest) {
 
     // Normalize line endings (CRLF -> LF)
     let cleanedCode = pythonCode.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    // Fix curly quotes/apostrophes to straight ones
-    cleanedCode = cleanedCode.replace(/'/g, "'").replace(/'/g, "'");
-    cleanedCode = cleanedCode.replace(/"/g, '"').replace(/"/g, '"');
+    // Fix curly quotes/apostrophes to straight ones (using Unicode escapes)
+    cleanedCode = cleanedCode.replace(/\u2018/g, "'").replace(/\u2019/g, "'");
+    cleanedCode = cleanedCode.replace(/\u201C/g, '"').replace(/\u201D/g, '"');
     const lines = cleanedCode.split('\n');
     const lineCount = lines.length;
 
