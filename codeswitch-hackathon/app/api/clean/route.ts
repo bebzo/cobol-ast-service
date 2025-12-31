@@ -72,6 +72,16 @@ export async function POST(request: NextRequest) {
         line = line.trimEnd() + ') -> None:';  // Complete the truncated signature
       }
       
+      // Fix empty function bodies: def followed by non-indented line
+      if (line.match(/^def \w+.*:$/) && nextLine.trim().length > 0) {
+        const nextTrimmed = nextLine.trim();
+        if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('@') || nextTrimmed.startsWith('class ')) {
+          fixedLines.push(line);
+          fixedLines.push('    """TODO"""');
+          continue;
+        }
+      }
+      
       // Fix merged lines: docstring followed by def on same line
       if (line.match(/"""[^"]*def \w+/)) {
         const parts = line.split(/(?=def \w+)/);
