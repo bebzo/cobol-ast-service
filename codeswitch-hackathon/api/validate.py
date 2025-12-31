@@ -132,7 +132,6 @@ def validate_and_fix(code: str) -> dict:
     for i, line in enumerate(lines):
         s = line.rstrip()
         if (s.startswith('class ') or s.startswith('def ')) and s.endswith(':'):
-            # Check if next non-comment line is at same or lower indent
             indent = len(line) - len(line.lstrip())
             j = i + 1
             needs_pass = True
@@ -148,6 +147,58 @@ def validate_and_fix(code: str) -> dict:
             if needs_pass:
                 lines.insert(i + 1, ' ' * (indent + 4) + 'pass')
                 fixes_applied += 1
+    code = '\n'.join(lines)
+    
+    # === ADDITIONAL PREVENTIVE FIXES ===
+    
+    # Fix missing colons after if/elif/else/for/while/try/except/finally/with
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.rstrip()
+        for kw in ['if ', 'elif ', 'else', 'for ', 'while ', 'try', 'except', 'finally', 'with ']:
+            if s.lstrip().startswith(kw) and not s.endswith(':') and not s.endswith(','):
+                if kw in ['else', 'try', 'finally'] or ')' in s or s.endswith(']'):
+                    lines[i] = s + ':'
+                    fixes_applied += 1
+                    break
+    code = '\n'.join(lines)
+    
+    # Fix orphaned decorators (@ without following def/class)
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith('@') and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            if not next_line.startswith('def ') and not next_line.startswith('class ') and not next_line.startswith('@'):
+                lines[i] = '# DECORATOR: ' + line
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
+    # Fix lines ending with operators (incomplete expressions)
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.rstrip()
+        if s.endswith((' +', ' -', ' *', ' /', ' =', ' ==', ' and', ' or', ' not')):
+            if i + 1 < len(lines) and lines[i + 1].strip():
+                # Merge with next line
+                lines[i] = s + ' ' + lines[i + 1].strip()
+                lines[i + 1] = ''
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
+    # Remove duplicate blank lines (more than 2 in a row)
+    code = re.sub(r'\n{4,}', '\n\n\n', code)
+    
+    # Fix f-strings with unbalanced braces
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        if 'f"' in line or "f'" in line:
+            if line.count('{') != line.count('}'):
+                # Try to balance braces
+                diff = line.count('{') - line.count('}')
+                if diff > 0:
+                    lines[i] = line.rstrip() + '}' * diff
+                    fixes_applied += 1
     code = '\n'.join(lines)
     
     # === PHASE 2: Iterative AST-based fixing ===
@@ -233,6 +284,26 @@ def validate_and_fix(code: str) -> dict:
                     lines[line_num - 1] = error_line.rstrip() + '}'
                 else:
                     lines[line_num - 1] = '# ' + error_line
+                fixes_applied += 1
+            
+            elif 'invalid decimal literal' in error_msg:
+                # Usually caused by unclosed string earlier - comment this line
+                lines[line_num - 1] = '# DECIMAL: ' + error_line
+                fixes_applied += 1
+            
+            elif 'cannot assign' in error_msg or 'cannot delete' in error_msg:
+                # Invalid assignment target
+                lines[line_num - 1] = '# ASSIGN: ' + error_line
+                fixes_applied += 1
+            
+            elif 'return' in error_msg and 'outside function' in error_msg:
+                # Return outside function - comment it
+                lines[line_num - 1] = '# RETURN: ' + error_line
+                fixes_applied += 1
+            
+            elif 'break' in error_msg or 'continue' in error_msg:
+                # Break/continue outside loop
+                lines[line_num - 1] = '# LOOP: ' + error_line
                 fixes_applied += 1
             
             elif 'invalid syntax' in error_msg or 'expected' in error_msg:
