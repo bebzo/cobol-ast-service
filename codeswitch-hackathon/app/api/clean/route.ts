@@ -96,17 +96,19 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      // Fix truncated function definitions (def ... without closing paren and colon)
-      if (line.match(/^def \w+\([^)]*$/) && !line.includes(':')) {
-        // Remove trailing comma if present, then close
-        line = line.trimEnd().replace(/,\s*$/, '') + ') -> None:';
-      }
-      
-      // Fix function def followed by import (truncated params that spill into import line)
-      if (line.match(/^def \w+\(/) && line.endsWith(',')) {
+      // Fix truncated function definitions (def without closing paren/colon)
+      // Handles: def foo(x, y   |  def foo(x,   |  def foo(x, ws_
+      if (line.match(/^def \w+\(/) && !line.includes(':')) {
         const nextTrimmed = nextLine.trim();
-        if (nextTrimmed.startsWith('import ') || nextTrimmed.startsWith('from ') || nextTrimmed.startsWith('def ')) {
-          line = line.trimEnd().replace(/,\s*$/, '') + ') -> None:';
+        // Check if next line is new code (not continuation)
+        if (!nextTrimmed || nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || 
+            nextTrimmed.startsWith('import ') || nextTrimmed.startsWith('from ') || nextTrimmed.startsWith('@')) {
+          // Remove incomplete trailing parts and close the function
+          line = line.trimEnd()
+            .replace(/,\s*\w*$/, '')  // Remove trailing comma and incomplete identifier
+            .replace(/,\s*$/, '')     // Remove trailing comma
+            .replace(/\(\s*$/, '(')   // Clean empty parens
+            + ') -> None:';
         }
       }
       
