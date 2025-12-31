@@ -611,14 +611,10 @@ export default function Home() {
         parsed.unit_tests = parsed.unit_tests.replace(/\\n/g, '\n');
       }
       
-      // Auto-clean with Pyodide validation loop
+      // Quick fixes only (fast) - full correction available via button
       let finalPythonCode = parsed.python_code;
-      const maxAttempts = 10;
-      let attempts = 0;
-      
       try {
-        // First call to clean API for quick fixes
-        console.log('Initial clean API call...');
+        console.log('Applying quick fixes...');
         const cleanRes = await fetch('/api/clean', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -630,39 +626,7 @@ export default function Home() {
             finalPythonCode = cleanData.cleanedCode;
           }
         }
-        
-        // Pyodide validation loop
-        console.log('Starting Pyodide validation loop...');
-        let validation = await validatePythonSyntax(finalPythonCode);
-        
-        while (!validation.valid && attempts < maxAttempts) {
-          attempts++;
-          console.log(`Validation attempt ${attempts}: Error - ${validation.error} at line ${validation.line}`);
-          
-          // Call clean API with the specific error
-          const fixRes = await fetch('/api/clean', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              pythonCode: finalPythonCode,
-              syntaxError: validation.error,
-              errorLine: validation.line
-            })
-          });
-          
-          if (fixRes.ok) {
-            const fixData = await fixRes.json();
-            if (fixData.cleanedCode) {
-              finalPythonCode = fixData.cleanedCode;
-            }
-          }
-          
-          // Revalidate
-          validation = await validatePythonSyntax(finalPythonCode);
-        }
-        
-        console.log(`Validation complete after ${attempts} attempts. Valid: ${validation.valid}`);
-      } catch (e) { console.error('Clean/validate failed:', e); }
+      } catch (e) { console.error('Quick fixes failed:', e); }
       
       setPythonCode(finalPythonCode);
       // Create new object to trigger React state update
@@ -1149,13 +1113,61 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               </div>
               
               {activeTab === "code" && (
-                <Editor
-                  height="400px"
-                  defaultLanguage="python"
-                  value={pythonCode || "# Refactored Python code will appear here..."}
-                  theme="vs-dark"
-                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: !pythonCode }}
-                />
+                <div className="relative">
+                  {/* Correction Button & Status */}
+                  {pythonCode && (
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                      {isCorrectingCode ? (
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs">
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Correction {correctionAttempt}/30: {correctionStatus}</span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            setIsCorrectingCode(true);
+                            setCorrectionAttempt(0);
+                            setCorrectionStatus("Chargement Pyodide...");
+                            
+                            try {
+                              const result = await correctPythonCode(
+                                pythonCode,
+                                30,
+                                (attempt, error) => {
+                                  setCorrectionAttempt(attempt);
+                                  setCorrectionStatus(error.substring(0, 40) + (error.length > 40 ? '...' : ''));
+                                }
+                              );
+                              
+                              setPythonCode(result.code);
+                              if (analysis) {
+                                setAnalysis({ ...analysis, python_code: result.code });
+                              }
+                              
+                              setCorrectionStatus(result.success ? "✓ Code valide!" : "Corrections appliquées");
+                            } catch (e) {
+                              console.error('Correction failed:', e);
+                              setCorrectionStatus("Erreur de correction");
+                            } finally {
+                              setIsCorrectingCode(false);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-medium transition"
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                          Corriger le code
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <Editor
+                    height="400px"
+                    defaultLanguage="python"
+                    value={pythonCode || "# Refactored Python code will appear here..."}
+                    theme="vs-dark"
+                    options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: !pythonCode }}
+                  />
+                </div>
               )}
 
               {activeTab === "tests" && (
