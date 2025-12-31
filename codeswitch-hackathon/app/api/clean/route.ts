@@ -63,8 +63,9 @@ export async function POST(request: NextRequest) {
       const nextLine = codeLines[i + 1] || '';
       
       // Fix unclosed docstrings: line ends with """ alone, next line is code
-      if (line.match(/^\s+"""$/) && nextLine.trim().length > 0 && !nextLine.trim().startsWith('"""')) {
-        line = line + 'TODO"""';  // Close the orphan docstring
+      if (line.trim() === '"""' && nextLine.trim().length > 0 && !nextLine.trim().startsWith('"""')) {
+        const indent = line.match(/^(\s*)/)?.[1] || '';
+        line = indent + '"""TODO"""';  // Close the orphan docstring
       }
       
       // Fix truncated function definitions (def ... without closing paren and colon)
