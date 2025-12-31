@@ -183,26 +183,28 @@ async function fixSpecificError(code: string, error: string, line: number): Prom
     `${contextStart + i + 1}: ${l}`
   ).join('\n');
   
-  const prompt = `Fix this Python syntax error. Return the COMPLETE corrected Python code.
+  const prompt = `Fix this Python syntax error and VERIFY the code compiles before returning.
 
-CRITICAL RULES:
-1. PRESERVE ALL CODE - do NOT delete functions, classes, or logic
-2. Output must have SAME or MORE lines than input (${lines.length} lines)
-3. Only fix the specific syntax error, keep everything else intact
-4. If a function is broken, fix it - don't remove it
-5. Replace invalid code with valid placeholders (pass, None, TODO) rather than deleting
+PROCESS:
+1. Fix the error at line ${line}: ${error}
+2. Mentally run "python -m py_compile" on your fix
+3. If it still has errors, fix those too
+4. Only return code that would compile successfully
 
-ERROR at line ${line}: ${error}
+RULES:
+- PRESERVE ALL CODE - do NOT delete functions or logic
+- Keep ~${lines.length} lines (same line count)
+- Replace broken code with valid placeholders (pass, None) rather than deleting
 
 Context around error:
 ${context}
 
-FULL CODE (${lines.length} lines - KEEP THIS COUNT):
+FULL CODE:
 \`\`\`python
 ${code}
 \`\`\`
 
-Return ONLY the complete fixed Python code (must be ~${lines.length} lines):`;
+Return ONLY valid, compilable Python code:`;
 
   const result = await model.generateContent(prompt);
   let response = result.response.text();
