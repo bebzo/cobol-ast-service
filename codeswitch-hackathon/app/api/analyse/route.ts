@@ -732,11 +732,17 @@ ${cleanedValidatedCode}
     // === PYTHON VALIDATION (real py_compile) ===
     try {
       console.log('[Validation] Calling Python validator...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s timeout
+      
       const validateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: combinedPythonCode })
+        body: JSON.stringify({ code: combinedPythonCode }),
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
       
       if (validateResponse.ok) {
         const validateResult = await validateResponse.json();
