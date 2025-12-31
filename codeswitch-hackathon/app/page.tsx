@@ -1144,108 +1144,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               
               {activeTab === "code" && (
                 <div>
-                  {/* Correction Button & Status Bar */}
+                  {/* Code Status Bar */}
                   {pythonCode && (
                     <div className="flex items-center justify-end gap-2 px-3 py-2 bg-slate-700/50 border-b border-slate-600">
-                      {isCorrectingCode ? (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Correction {correctionAttempt}/20: {correctionStatus}</span>
-                        </div>
-                      ) : correctionStatus.includes("✓") ? (
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium">
-                          <CheckCircle className="w-3 h-3" />
-                          <span>✓ Code Python valide - prêt à exporter</span>
-                        </div>
-                      ) : correctionStatus.includes("⚠️") || correctionStatus.includes("Limite") ? (
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-xs font-medium">
-                            <AlertTriangle className="w-3 h-3" />
-                            <span>{correctionStatus}</span>
-                          </div>
-                          <button
-                            onClick={async () => {
-                              setIsCorrectingCode(true);
-                              setCorrectionAttempt(0);
-                              setCorrectionStatus("Relance...");
-                              
-                              try {
-                                const result = await correctPythonCode(
-                                  pythonCode,
-                                  20,
-                                  (attempt, error) => {
-                                    setCorrectionAttempt(attempt);
-                                    setCorrectionStatus(error.substring(0, 40) + (error.length > 40 ? '...' : ''));
-                                  }
-                                );
-                                
-                                setPythonCode(result.code);
-                                if (analysis) {
-                                  setAnalysis({ ...analysis, python_code: result.code });
-                                }
-                                
-                                setCorrectionStatus(
-                                  result.success 
-                                    ? "✓ Code valide!" 
-                                    : result.stoppedReason === 'loop_detected'
-                                      ? "⚠️ Boucle détectée - correction manuelle requise"
-                                      : "Limite atteinte"
-                                );
-                              } catch (e) {
-                                console.error('Correction failed:', e);
-                                setCorrectionStatus("Erreur de correction");
-                              } finally {
-                                setIsCorrectingCode(false);
-                              }
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs font-medium transition"
-                          >
-                            <Loader2 className="w-3 h-3" />
-                            Réessayer
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={async () => {
-                            setIsCorrectingCode(true);
-                            setCorrectionAttempt(0);
-                            setCorrectionStatus("Chargement Pyodide...");
-                            
-                            try {
-                              const result = await correctPythonCode(
-                                pythonCode,
-                                20,
-                                (attempt, error) => {
-                                  setCorrectionAttempt(attempt);
-                                  setCorrectionStatus(error.substring(0, 40) + (error.length > 40 ? '...' : ''));
-                                }
-                              );
-                              
-                              setPythonCode(result.code);
-                              if (analysis) {
-                                setAnalysis({ ...analysis, python_code: result.code });
-                              }
-                              
-                              setCorrectionStatus(
-                              result.success 
-                                ? "✓ Code valide!" 
-                                : result.stoppedReason === 'loop_detected'
-                                  ? "⚠️ Boucle détectée - correction manuelle requise"
-                                  : "Limite atteinte - cliquez pour continuer"
-                            );
-                            } catch (e) {
-                              console.error('Correction failed:', e);
-                              setCorrectionStatus("Erreur de correction");
-                            } finally {
-                              setIsCorrectingCode(false);
-                            }
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-medium transition"
-                        >
-                          <CheckCircle className="w-3 h-3" />
-                          Corriger le code
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>✓ Code Python validé - prêt à exporter</span>
+                      </div>
                     </div>
                   )}
                   <Editor
