@@ -27,6 +27,8 @@ CRITICAL - MUST FOLLOW:
 - NO multi-line strings except docstrings
 - Docstring format: """One line description."""
 
+BEFORE OUTPUT: Mentally run "python -m py_compile" on your code. Fix any errors before returning.
+
 EXAMPLE:
 \`\`\`python
 @dataclass
