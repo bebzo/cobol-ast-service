@@ -376,6 +376,26 @@ def validate_and_fix(code: str) -> dict:
                 # Remove the unexpected indentation or comment out
                 lines[line_num - 1] = '# INDENT: ' + error_line.lstrip()
                 fixes_applied += 1
+                # Check if this creates an empty block and add pass
+                for j in range(line_num - 2, -1, -1):
+                    prev = lines[j].rstrip()
+                    if prev.endswith(':') and not prev.strip().startswith('#'):
+                        # Check if block is now empty (only comments)
+                        block_empty = True
+                        indent = len(lines[j]) - len(lines[j].lstrip())
+                        for k in range(j + 1, min(j + 20, len(lines))):
+                            check_line = lines[k]
+                            check_stripped = check_line.strip()
+                            if not check_stripped or check_stripped.startswith('#'):
+                                continue
+                            check_indent = len(check_line) - len(check_line.lstrip())
+                            if check_indent > indent:
+                                block_empty = False
+                            break
+                        if block_empty:
+                            lines.insert(j + 1, ' ' * (indent + 4) + 'pass')
+                            fixes_applied += 1
+                        break
             
             elif 'was never closed' in error_msg:
                 # Unclosed paren/bracket
