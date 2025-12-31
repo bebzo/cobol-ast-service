@@ -80,19 +80,36 @@ export async function POST(request: NextRequest) {
     // Fix over-indented docstrings: align docstring with following line
     const fixedLines: string[] = [];
     const codeLines = cleanedCode.split('\n');
+    let inMultilineDocstring = false;  // Track if we're inside a multiline docstring
+    
     for (let i = 0; i < codeLines.length; i++) {
       let line = codeLines[i];
       const nextLine = codeLines[i + 1] || '';
       
-      // Fix unclosed docstrings: line ends with """ alone, next line is actual code (def/class/@/import)
-      if (line.trim() === '"""') {
+      // Track multiline docstring state
+      const tripleQuoteCount = (line.match(/"""/g) || []).length;
+      if (tripleQuoteCount === 1) {
+        inMultilineDocstring = !inMultilineDocstring;
+      }
+      // If count is 2, it's a single-line docstring, state unchanged
+      
+      // Fix unclosed docstrings: line is """ alone, next line is code, and we're NOT closing a multiline
+      if (line.trim() === '"""' && !inMultilineDocstring) {
+        // We just toggled to false, meaning this WAS a closing quote
+        // But if next line is code and previous was also code, it's orphan
+        const prevLine = codeLines[i - 1] || '';
         const nextTrimmed = nextLine.trim();
-        // Only fix if next line is actual code, not docstring content
-        if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || 
-            nextTrimmed.startsWith('@') || nextTrimmed.startsWith('import ') ||
-            nextTrimmed.startsWith('from ')) {
-          const indent = line.match(/^(\s*)/)?.[1] || '';
-          line = indent + '"""TODO"""';  // Close the orphan docstring
+        const prevTrimmed = prevLine.trim();
+        
+        // Only fix if prev line is a def (orphan opening) and next is code
+        if (prevTrimmed.startsWith('def ') && prevTrimmed.endsWith(':')) {
+          if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || 
+              nextTrimmed.startsWith('@') || nextTrimmed.startsWith('import ') ||
+              nextTrimmed.startsWith('from ')) {
+            const indent = line.match(/^(\s*)/)?.[1] || '';
+            line = indent + '"""TODO"""';
+            inMultilineDocstring = false;  // We closed it
+          }
         }
       }
       
