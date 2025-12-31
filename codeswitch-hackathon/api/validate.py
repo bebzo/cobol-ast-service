@@ -1,4 +1,4 @@
-"""Python validation endpoint - ensures code compiles."""
+"""Python validation endpoint - ensures code compiles with aggressive fixes."""
 from http.server import BaseHTTPRequestHandler
 import json
 import ast
@@ -6,24 +6,19 @@ import re
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
-        # Read request body
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length).decode('utf-8')
         
         try:
             data = json.loads(body)
             python_code = data.get('code', '')
-            
-            # Validate and fix
             result = validate_and_fix(python_code)
             
-            # Send response
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps(result).encode())
-            
         except Exception as e:
             self.send_response(500)
             self.send_header('Content-Type', 'application/json')
@@ -40,55 +35,52 @@ class handler(BaseHTTPRequestHandler):
 
 
 def validate_and_fix(code: str) -> dict:
-    """Validate Python code and fix errors iteratively."""
+    """Validate Python code and fix ALL errors aggressively."""
     original_lines = len(code.split('\n'))
     fixes_applied = 0
-    max_iterations = 100
     
-    # Pre-fix: Merge broken docstrings (line ends with """ and next line ends with """)
-    lines = code.split('\n')
-    fixed_lines = []
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        # Pattern: line with """ followed by orphan text ending with """
-        if i + 1 < len(lines) and '"""' in line and lines[i+1].strip().endswith('"""') and not lines[i+1].strip().startswith('"""'):
-            # Merge lines
-            next_line = lines[i+1].strip()
-            if next_line.endswith('"""'):
-                merged = line.rstrip().rstrip('"').rstrip() + ' ' + next_line.lstrip()
-                # Ensure proper """ balance
-                if merged.count('"""') % 2 == 0:
-                    fixed_lines.append(merged)
-                    i += 2
-                    fixes_applied += 1
-                    continue
-        fixed_lines.append(line)
-        i += 1
-    code = '\n'.join(fixed_lines)
+    # === PHASE 1: Pre-processing fixes ===
     
-    # Pre-fix: Remove lines that look like orphaned docstring fragments
-    code = re.sub(r'^\s*[a-z_]+\s+representing\s+\w+\.\s*"""', '# REMOVED orphan docstring', code, flags=re.MULTILINE)
-    
-    # Pre-fix: Complete truncated function definitions (def xxx( without closing ) -> :)
+    # Fix truncated function definitions
     lines = code.split('\n')
     for i, line in enumerate(lines):
-        stripped = line.rstrip()
-        if stripped.startswith('def ') and '(' in stripped and not stripped.endswith(':'):
-            # Check if line is truncated (no closing paren or colon)
-            if ')' not in stripped or not stripped.endswith(':'):
-                # Complete the function signature
-                if ')' not in stripped:
-                    lines[i] = stripped + ') -> None:'
-                elif not stripped.endswith(':'):
-                    lines[i] = stripped + ':'
+        s = line.rstrip()
+        if s.startswith('def ') and '(' in s:
+            if not s.endswith(':'):
+                if ')' not in s:
+                    lines[i] = s + ') -> None:'
+                else:
+                    lines[i] = s + ':'
                 fixes_applied += 1
     code = '\n'.join(lines)
+    
+    # Fix truncated class definitions
+    code = re.sub(r'^(class\s+\w+)\s*$', r'\1:', code, flags=re.MULTILINE)
+    
+    # Fix broken docstrings on multiple lines
+    code = re.sub(r'"""([^"]*)\n([^"]*representing[^"]*""")', r'"""\1 \2', code)
+    
+    # Remove orphaned docstring fragments
+    code = re.sub(r'^\s*[a-z_]+\s+representing\s+\w+\.\s*"""', '', code, flags=re.MULTILINE)
+    
+    # Fix unclosed parentheses in function calls (line ends with comma or open paren)
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.rstrip()
+        if s.endswith(',') and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            if next_line.startswith('def ') or next_line.startswith('class ') or next_line == '':
+                lines[i] = s[:-1] + ')'
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
+    # === PHASE 2: Iterative AST-based fixing ===
+    max_iterations = 200
+    fixed_lines_set = set()
     
     for iteration in range(max_iterations):
         try:
             ast.parse(code)
-            # Success!
             return {
                 'valid': True,
                 'code': code,
@@ -101,25 +93,63 @@ def validate_and_fix(code: str) -> dict:
             lines = code.split('\n')
             
             if line_num > len(lines):
-                # Add closing quote if EOF error
+                # EOF error - likely unclosed string/paren
                 code += '\n"""'
                 fixes_applied += 1
                 continue
             
-            # Skip if already fixed (avoid infinite loop)
-            if lines[line_num - 1].strip().startswith('# FIXED:'):
-                # Try removing the line entirely
+            error_line = lines[line_num - 1]
+            error_msg = str(e.msg).lower() if e.msg else ''
+            
+            # Already tried this line - remove it entirely
+            if line_num in fixed_lines_set:
                 lines[line_num - 1] = ''
                 code = '\n'.join(lines)
                 fixes_applied += 1
                 continue
             
-            # Comment out the problematic line
-            lines[line_num - 1] = '# FIXED: ' + lines[line_num - 1]
+            fixed_lines_set.add(line_num)
+            
+            # Specific error handlers
+            if 'unterminated string' in error_msg or 'unterminated triple' in error_msg:
+                # Try closing the string
+                if '"""' in error_line:
+                    lines[line_num - 1] = error_line + '"""'
+                elif "'''" in error_line:
+                    lines[line_num - 1] = error_line + "'''"
+                elif '"' in error_line:
+                    lines[line_num - 1] = error_line + '"'
+                elif "'" in error_line:
+                    lines[line_num - 1] = error_line + "'"
+                else:
+                    lines[line_num - 1] = '# ' + error_line
+                fixes_applied += 1
+            
+            elif 'was never closed' in error_msg:
+                # Unclosed paren/bracket
+                if '(' in error_line and ')' not in error_line:
+                    lines[line_num - 1] = error_line.rstrip() + ')'
+                elif '[' in error_line and ']' not in error_line:
+                    lines[line_num - 1] = error_line.rstrip() + ']'
+                elif '{' in error_line and '}' not in error_line:
+                    lines[line_num - 1] = error_line.rstrip() + '}'
+                else:
+                    lines[line_num - 1] = '# ' + error_line
+                fixes_applied += 1
+            
+            elif 'invalid syntax' in error_msg or 'expected' in error_msg:
+                # Comment out the line
+                lines[line_num - 1] = '# SYNTAX: ' + error_line
+                fixes_applied += 1
+            
+            else:
+                # Generic: comment out
+                lines[line_num - 1] = '# ERROR: ' + error_line
+                fixes_applied += 1
+            
             code = '\n'.join(lines)
-            fixes_applied += 1
     
-    # Max iterations reached
+    # Max iterations - force compile by removing all error lines
     return {
         'valid': False,
         'code': code,
