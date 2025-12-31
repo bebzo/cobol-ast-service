@@ -228,6 +228,22 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanedLineCount = cleanedCode.split('\n').length;
+    
+    // SAFETY: If corrected code lost >20% of lines, reject the fix and return original
+    const preservedRatio = cleanedLineCount / originalLineCount;
+    if (preservedRatio < 0.8) {
+      console.log(`[REJECTED] Fix reduced code from ${originalLineCount} to ${cleanedLineCount} lines (${Math.round(preservedRatio * 100)}%). Keeping original.`);
+      return NextResponse.json({
+        cleanedCode: pythonCode,  // Return original
+        stats: {
+          originalLines: originalLineCount,
+          cleanedLines: originalLineCount,
+          preserved: 100,
+          hadError: true,
+          rejected: true
+        }
+      }, { headers: corsHeaders });
+    }
 
     return NextResponse.json({
       cleanedCode,
