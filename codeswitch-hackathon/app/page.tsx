@@ -1113,10 +1113,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               </div>
               
               {activeTab === "code" && (
-                <div className="relative">
-                  {/* Correction Button & Status */}
+                <div>
+                  {/* Correction Button & Status Bar */}
                   {pythonCode && (
-                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                    <div className="flex items-center justify-end gap-2 px-3 py-2 bg-slate-700/50 border-b border-slate-600">
                       {isCorrectingCode ? (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs">
                           <Loader2 className="w-3 h-3 animate-spin" />
