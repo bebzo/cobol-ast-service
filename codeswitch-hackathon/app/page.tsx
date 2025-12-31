@@ -523,8 +523,9 @@ export default function Home() {
       } catch (e) { console.error('Clean failed:', e); }
       
       setPythonCode(finalPythonCode);
-      parsed.python_code = finalPythonCode; // Update for metrics
-      setAnalysis(parsed);
+      // Create new object to trigger React state update
+      const updatedAnalysis = { ...parsed, python_code: finalPythonCode };
+      setAnalysis(updatedAnalysis);
       setAnalyzedCobolCode(cobolCode);
 
       // Save to Supabase (full code, no truncation)
