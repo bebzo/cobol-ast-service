@@ -98,7 +98,16 @@ export async function POST(request: NextRequest) {
       
       // Fix truncated function definitions (def ... without closing paren and colon)
       if (line.match(/^def \w+\([^)]*$/) && !line.includes(':')) {
-        line = line.trimEnd() + ') -> None:';  // Complete the truncated signature
+        // Remove trailing comma if present, then close
+        line = line.trimEnd().replace(/,\s*$/, '') + ') -> None:';
+      }
+      
+      // Fix function def followed by import (truncated params that spill into import line)
+      if (line.match(/^def \w+\(/) && line.endsWith(',')) {
+        const nextTrimmed = nextLine.trim();
+        if (nextTrimmed.startsWith('import ') || nextTrimmed.startsWith('from ') || nextTrimmed.startsWith('def ')) {
+          line = line.trimEnd().replace(/,\s*$/, '') + ') -> None:';
+        }
       }
       
       // Fix empty function bodies: def followed by non-indented line
