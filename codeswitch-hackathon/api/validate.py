@@ -172,6 +172,41 @@ def validate_and_fix(code: str) -> dict:
                 fixes_applied += 1
     code = '\n'.join(lines)
     
+    # Fix orphaned lines starting with keywords (class, for, if, etc.) without proper context
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.strip()
+        # Line starts with keyword but is clearly a docstring fragment
+        if s and not s.startswith('#') and not s.startswith('"""'):
+            # Check if line looks like docstring fragment: ends with """ and starts with lowercase
+            if s.endswith('"""') and (s[0].islower() or s.startswith('for ') or s.startswith('class ') or s.startswith('if ')):
+                # Check if previous line has unclosed docstring
+                if i > 0:
+                    prev = lines[i - 1].strip()
+                    if prev.endswith('"""') and prev.count('"""') >= 2:
+                        # Merge with previous line
+                        lines[i - 1] = lines[i - 1].rstrip()[:-3] + ' ' + s
+                        lines[i] = ''
+                        fixes_applied += 1
+                    elif '"""' in prev and prev.count('"""') == 1:
+                        # Previous line has open docstring - close it and comment this
+                        lines[i] = '# DOCFRAG: ' + s
+                        fixes_applied += 1
+    code = '\n'.join(lines)
+    
+    # Fix lines that are just closing quotes with text
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.strip()
+        # Orphaned closing pattern: text followed by """
+        if s.endswith('"""') and not s.startswith('"""') and not s.startswith('#'):
+            if not any(s.startswith(kw) for kw in ['def ', 'class ', 'return ', 'if ', 'elif ', 'else:', 'for ', 'while ', 'try:', 'except', 'finally:', 'with ', 'raise ', 'assert ', 'pass', 'break', 'continue', 'import ', 'from ', 'global ', 'nonlocal ', 'yield ', 'async ', 'await ']):
+                # Looks like orphaned docstring fragment - comment it
+                if i > 0 and '"""' not in lines[i - 1]:
+                    lines[i] = '# ORPHAN: ' + s
+                    fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # Fix truncated docstrings (line has """ but no closing """)
     lines = code.split('\n')
     for i, line in enumerate(lines):
