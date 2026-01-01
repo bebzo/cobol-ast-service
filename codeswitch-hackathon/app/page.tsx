@@ -1578,12 +1578,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       </div>
                       <div className="flex items-center justify-center gap-4 p-6">
                         {/* COBOL Legacy */}
-                        <div className="bg-gradient-to-b from-red-600 to-red-800 rounded-xl p-4 border border-red-400/50 shadow-lg shadow-red-500/20">
-                          <div className="text-white font-bold text-center mb-3">{analysis?.summary?.split(' - ')[0]?.replace('Migration of ', '') || 'COBOL Source'}</div>
-                          <div className="space-y-2 max-h-32 overflow-y-auto">
-                            {(analysis?.python_code?.match(/# From COBOL paragraph: (\w+)/g) || ['Main', 'Data', 'Procedure']).slice(0, 5).map((p: string, i: number) => (
-                              <div key={i} className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{p.replace('# From COBOL paragraph: ', '')}</div>
-                            ))}
+                        <div className="bg-gradient-to-b from-red-600 to-red-800 rounded-xl p-4 border border-red-400/50 shadow-lg shadow-red-500/20 min-w-[180px]">
+                          <div className="text-white font-bold text-center mb-3">{analysis?.summary?.split(' - ')[0]?.replace('Migration of ', '') || 'COBOL'}</div>
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.cobol_lines || cobolCode.split('\n').length} lignes</div>
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.paragraphs || 0} paragraphes</div>
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.variables || 0} variables</div>
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.copybooks || 0} copybooks</div>
                           </div>
                         </div>
                         {/* Arrow */}
@@ -1592,19 +1593,17 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                           <div className="text-cyan-400 text-xs mt-1">Migration</div>
                         </div>
                         {/* Python Modern */}
-                        <div className="bg-gradient-to-b from-blue-600 to-blue-800 rounded-xl p-4 border border-blue-400/50 shadow-lg shadow-blue-500/20">
-                          <div className="text-white font-bold text-center mb-3">Python Modules</div>
-                          <div className="space-y-2 max-h-32 overflow-y-auto">
-                            {(analysis?.python_code?.match(/def (\w+)\(/g) || []).slice(0, 5).map((f: string, i: number) => (
-                              <div key={i} className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{f.replace('def ', '').replace('(', '()')}</div>
-                            ))}
-                            {(analysis?.python_code?.match(/class (\w+)/g) || []).slice(0, 3).map((c: string, i: number) => (
-                              <div key={`c${i}`} className="bg-green-900/50 rounded px-3 py-1 text-green-200 text-sm">{c.replace('class ', '')}</div>
-                            ))}
+                        <div className="bg-gradient-to-b from-blue-600 to-blue-800 rounded-xl p-4 border border-blue-400/50 shadow-lg shadow-blue-500/20 min-w-[180px]">
+                          <div className="text-white font-bold text-center mb-3">Python</div>
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{analysis?.python_lines || (analysis?.python_code?.split('\n').length || 0)} lignes</div>
+                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{(analysis?.python_code?.match(/def \w+\(/g) || []).length} fonctions</div>
+                            <div className="bg-green-900/50 rounded px-3 py-1 text-green-200 text-sm">{(analysis?.python_code?.match(/class \w+/g) || []).length} classes</div>
+                            <div className="bg-purple-900/50 rounded px-3 py-1 text-purple-200 text-sm">{(analysis?.unit_tests?.match(/def test_/g) || []).length} tests</div>
                           </div>
                         </div>
                       </div>
-                      <p className="text-xs text-slate-500 text-center">{analysis?.summary || 'Visual architecture showing COBOL to Python transformation'}</p>
+                      <p className="text-xs text-slate-500 text-center">{analysis?.summary || 'Architecture de migration COBOL vers Python'}</p>
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-center text-slate-400">
