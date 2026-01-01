@@ -834,12 +834,32 @@ export default function Home() {
       
       // Quick fixes only (fast) - full correction available via button
       let finalPythonCode = parsed.python_code || '# No code generated';
+      let combinedCodeValid = false;
+      
+      // For multi-analysis, validate the combined code
+      if (isMultiAnalysis && finalPythonCode.length > 100) {
+        try {
+          console.log('Validating combined multi-analysis code...');
+          const validateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: finalPythonCode })
+          });
+          if (validateRes.ok) {
+            const validateData = await validateRes.json();
+            finalPythonCode = validateData.code || finalPythonCode;
+            combinedCodeValid = validateData.valid === true;
+            console.log(`Combined code valid: ${combinedCodeValid}`);
+          }
+        } catch (e) { console.error('Combined validation failed:', e); }
+      }
+      
       try {
         console.log('Applying quick fixes...');
         const cleanRes = await fetch('/api/clean', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pythonCode: parsed.python_code || '' })
+          body: JSON.stringify({ pythonCode: finalPythonCode })
         });
         if (cleanRes.ok) {
           const cleanData = await cleanRes.json();
@@ -855,23 +875,23 @@ export default function Home() {
       setAnalysis(updatedAnalysis);
       setAnalyzedCobolCode(cobolCode);
 
-      // Auto-run tests (skip for multi-analysis - parts already validated individually)
+      // Auto-run tests (skip for multi-analysis - validate combined code)
       if (isMultiAnalysis) {
-        // For multi-analysis, show real test counts from all parts
+        // For multi-analysis, show real test counts based on combined code validation
         const info = (parsed as any)._multiAnalysisInfo;
         const totalTests = info.totalTests || 0;
-        const validParts = info.validParts || 0;
-        const passedTests = validParts === info.totalParts ? totalTests : Math.round(totalTests * validParts / info.totalParts);
-        const failedTests = totalTests - passedTests;
+        // Use combined code validation result
+        const passedTests = combinedCodeValid ? totalTests : 0;
+        const failedTests = combinedCodeValid ? 0 : totalTests;
         setTestResults({
           running: false, 
           total: totalTests, 
           passed: passedTests, 
           failed: failedTests, 
           details: [{
-            name: `${validParts}/${info.totalParts} parts compiled`, 
-            status: validParts === info.totalParts ? 'passed' : 'failed', 
-            error: ''
+            name: combinedCodeValid ? `Combined code validated (${info.totalParts} parts)` : `Combined code has syntax errors`, 
+            status: combinedCodeValid ? 'passed' : 'failed', 
+            error: combinedCodeValid ? '' : 'Run validation to fix'
           }]
         });
       } else {
