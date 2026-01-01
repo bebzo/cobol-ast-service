@@ -854,14 +854,25 @@ export default function Home() {
               }
               
               // Fix orphan 'def' or 'class' without body
-              if (trimmed.match(/^(def|class)\s+\w+.*:$/) && i + 1 < lines.length) {
-                const nextLine = lines[i + 1];
-                const nextTrimmed = nextLine.trim();
-                // If next line is another def/class or decorator, add pass
-                if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || nextTrimmed.startsWith('@')) {
+              if (trimmed.match(/^(\s*)(def|class)\s+\w+.*:$/)) {
+                const currentIndent = line.match(/^(\s*)/)?.[0] || '';
+                const bodyIndent = currentIndent + '    ';
+                
+                // Check if next non-empty line has proper indentation (is a body)
+                let hasBody = false;
+                for (let j = i + 1; j < lines.length && j < i + 5; j++) {
+                  const nextLine = lines[j];
+                  if (nextLine.trim() === '') continue; // skip empty lines
+                  // If next line starts with bodyIndent, it has a body
+                  if (nextLine.startsWith(bodyIndent) && !nextLine.trim().startsWith('#')) {
+                    hasBody = true;
+                  }
+                  break; // only check first non-empty line
+                }
+                
+                if (!hasBody) {
                   fixedLines.push(line);
-                  const indent = line.match(/^(\s*)/)?.[0] || '';
-                  fixedLines.push(indent + '    pass');
+                  fixedLines.push(bodyIndent + 'pass  # auto-added');
                   continue;
                 }
               }
