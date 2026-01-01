@@ -440,7 +440,7 @@ def validate_and_fix(code: str) -> dict:
             fixed_lines_set.add(line_num)
             
             # Specific error handlers
-            if 'unterminated string' in error_msg or 'unterminated triple' in error_msg:
+            if 'unterminated string' in error_msg or 'unterminated triple' in error_msg or 'string literal' in error_msg:
                 # Try closing the string on current line
                 fixed = False
                 if '"""' in error_line:
