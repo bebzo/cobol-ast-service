@@ -145,16 +145,37 @@ function generateImprovements(ast: any, pythonCode: string): string[] {
 }
 
 // Generate security warnings based on code patterns
-function generateSecurityWarnings(cobolCode: string): string[] {
-  const warnings: string[] = [];
+function generateSecurityWarnings(cobolCode: string): any[] {
+  const warnings: any[] = [];
+  const lines = cobolCode.split('\n');
   const lower = cobolCode.toLowerCase();
   
-  if (lower.includes('password') || lower.includes('pwd')) warnings.push('Hardcoded credentials detected - use environment variables');
-  if (lower.includes('exec sql') && !lower.includes('prepare')) warnings.push('SQL injection risk - use parameterized queries');
-  if (lower.includes('accept ') && lower.includes('from')) warnings.push('User input without validation - add sanitization');
-  if (lower.includes('ssn') || lower.includes('social-security')) warnings.push('PII data (SSN) found - ensure encryption');
-  if (lower.includes('credit-card') || lower.includes('card-number')) warnings.push('Payment data detected - PCI-DSS compliance required');
-  if (lower.includes('account-number') || lower.includes('acct-no')) warnings.push('Financial data exposure - implement access controls');
+  const findLine = (pattern: string) => lines.findIndex(l => l.toLowerCase().includes(pattern)) + 1;
+  
+  if (lower.includes('password') || lower.includes('pwd')) {
+    const line = findLine('password') || findLine('pwd');
+    warnings.push({ title: 'Hardcoded credentials', severity: 'CRITICAL', cvss_score: 9.1, location: `Line ${line}`, description: 'Sensitive credentials found in source code', vulnerable_code: 'PASSWORD/PWD variable detected', fix: 'Use environment variables or secret manager' });
+  }
+  if (lower.includes('exec sql') && !lower.includes('prepare')) {
+    const line = findLine('exec sql');
+    warnings.push({ title: 'SQL injection risk', severity: 'HIGH', cvss_score: 8.6, location: `Line ${line}`, description: 'Dynamic SQL without parameterization', vulnerable_code: 'EXEC SQL without PREPARE', fix: 'Use parameterized queries with PREPARE statement' });
+  }
+  if (lower.includes('accept ') && lower.includes('from')) {
+    const line = findLine('accept ');
+    warnings.push({ title: 'Unvalidated user input', severity: 'HIGH', cvss_score: 7.5, location: `Line ${line}`, description: 'User input accepted without validation', vulnerable_code: 'ACCEPT FROM statement', fix: 'Add input validation and sanitization before processing' });
+  }
+  if (lower.includes('ssn') || lower.includes('social-security')) {
+    const line = findLine('ssn') || findLine('social-security');
+    warnings.push({ title: 'PII data exposure (SSN)', severity: 'MEDIUM', cvss_score: 5.3, location: `Line ${line}`, description: 'Social Security Number stored in plain text', vulnerable_code: 'SSN/SOCIAL-SECURITY field', fix: 'Encrypt at rest and in transit, mask in logs' });
+  }
+  if (lower.includes('credit-card') || lower.includes('card-number')) {
+    const line = findLine('credit-card') || findLine('card-number');
+    warnings.push({ title: 'Payment card data', severity: 'MEDIUM', cvss_score: 5.3, location: `Line ${line}`, description: 'Credit card data requires PCI-DSS compliance', vulnerable_code: 'CARD-NUMBER field', fix: 'Tokenize card data, never store full PAN' });
+  }
+  if (lower.includes('account-number') || lower.includes('acct-no')) {
+    const line = findLine('account-number') || findLine('acct-no');
+    warnings.push({ title: 'Financial data exposure', severity: 'MEDIUM', cvss_score: 5.3, location: `Line ${line}`, description: 'Bank account numbers exposed', vulnerable_code: 'ACCOUNT-NUMBER field', fix: 'Implement RBAC and audit logging' });
+  }
   
   return warnings;
 }
