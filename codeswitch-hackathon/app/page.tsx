@@ -159,24 +159,47 @@ def run_tests(main_code, test_code):
         # Continue anyway - some runtime errors are expected
         pass
     
-    # Find test functions
-    import re
-    test_funcs = re.findall(r'def (test_\\w+)\\s*\\(', test_code)
-    results["total"] = len(test_funcs)
-    
-    # Execute test code to define functions
+    # Execute test code to define classes/functions
     try:
         exec(compile(test_code, '<tests>', 'exec'), namespace)
     except SyntaxError as e:
         results["details"].append({"name": "test_code", "status": "error", "error": str(e)})
         return json.dumps(results)
     except Exception as e:
-        # Continue anyway - runtime errors in test setup are handled per-test
         pass
     
-    # Run each test
+    # Find and run tests - support both functions and class methods
+    import re
+    
+    # Find test classes
+    test_classes = re.findall(r'class (Test\\w+)', test_code)
+    test_funcs = re.findall(r'def (test_\\w+)\\s*\\(', test_code)
+    
+    # Run class-based tests
+    for class_name in test_classes:
+        if class_name in namespace:
+            try:
+                test_instance = namespace[class_name]()
+                for attr in dir(test_instance):
+                    if attr.startswith('test_'):
+                        results["total"] += 1
+                        try:
+                            getattr(test_instance, attr)()
+                            results["passed"] += 1
+                            results["details"].append({"name": f"{class_name}.{attr}", "status": "passed"})
+                        except AssertionError as e:
+                            results["failed"] += 1
+                            results["details"].append({"name": f"{class_name}.{attr}", "status": "failed", "error": str(e)})
+                        except Exception as e:
+                            results["failed"] += 1
+                            results["details"].append({"name": f"{class_name}.{attr}", "status": "error", "error": str(e)[:50]})
+            except Exception as e:
+                results["details"].append({"name": class_name, "status": "error", "error": str(e)[:50]})
+    
+    # Run standalone test functions (not in classes)
     for test_name in test_funcs:
-        if test_name in namespace:
+        if test_name in namespace and callable(namespace[test_name]):
+            results["total"] += 1
             try:
                 namespace[test_name]()
                 results["passed"] += 1
@@ -186,7 +209,7 @@ def run_tests(main_code, test_code):
                 results["details"].append({"name": test_name, "status": "failed", "error": str(e)})
             except Exception as e:
                 results["failed"] += 1
-                results["details"].append({"name": test_name, "status": "error", "error": str(e)})
+                results["details"].append({"name": test_name, "status": "error", "error": str(e)[:50]})
     
     return json.dumps(results)
 `);
