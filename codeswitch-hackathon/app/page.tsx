@@ -102,7 +102,7 @@ def check_syntax(code):
 async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
   try {
     const pyodide = await getPyodide();
-    if (!pyodide) return { total: 0, passed: 0, failed: 0, details: [] };
+    if (!pyodide) return { total: 0, passed: 0, failed: 0, details: [{name: 'pyodide', status: 'error', error: 'Pyodide not available'}] };
     
     // Run the test execution script
     pyodide.runPython(`
@@ -1882,15 +1882,18 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 )}
                 <button
                   onClick={async () => {
+                    setTestResults(prev => ({...prev, running: true}));
                     try {
-                      setTestResults(prev => ({...prev, running: true}));
                       const testCode = analysis.tests || analysis.unit_tests || '';
                       const testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
                       const results = await runTestsWithPyodide(pythonCode, testStr);
                       setTestResults({...results, running: false});
                     } catch (e) {
                       console.error('Test error:', e);
-                      setTestResults(prev => ({...prev, running: false, details: [{name: 'error', status: 'error', error: String(e)}]}));
+                      setTestResults({running: false, total: 0, passed: 0, failed: 0, details: [{name: 'error', status: 'error', error: String(e)}]});
+                    } finally {
+                      // Ensure running is always reset
+                      setTimeout(() => setTestResults(prev => ({...prev, running: false})), 100);
                     }
                   }}
                   disabled={testResults.running}
