@@ -864,17 +864,9 @@ ${cleanedValidatedCode}
         is_obsolete: true,
         regulatory_context: `${detectedDomain} legacy system requiring modernization`
       },
-      issues: [
-        'Large codebase requires thorough testing',
-        'Complex business logic needs validation',
-        'Data type conversions need verification'
-      ],
-      improvements: [
-        'Type-safe Python with dataclasses',
-        'Modern error handling',
-        'Structured logging'
-      ],
-      security_warnings: [],
+      issues: generateIssues(ast, cobolCode),
+      improvements: generateImprovements(ast, combinedPythonCode),
+      security_warnings: generateSecurityWarnings(cobolCode),
       migration_score: { 
         complexity, 
         risk_level: complexity, 
