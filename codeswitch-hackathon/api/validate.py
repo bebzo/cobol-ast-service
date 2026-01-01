@@ -410,6 +410,17 @@ def validate_and_fix(code: str) -> dict:
     for iteration in range(max_iterations):
         try:
             compile(code, '<validate>', 'exec')
+            # Check code wasn't gutted
+            code_lines = len([l for l in code.split('\n') if l.strip()])
+            if code_lines < original_lines * 0.1:
+                return {
+                    'valid': False,
+                    'code': code,
+                    'fixes': fixes_applied,
+                    'lines': len(code.split('\n')),
+                    'original_lines': original_lines,
+                    'error': 'Code reduced to less than 10%'
+                }
             return {
                 'valid': True,
                 'code': code,
@@ -669,6 +680,17 @@ def validate_and_fix(code: str) -> dict:
     # Final validation
     try:
         ast.parse(code)
+        # Check code is not too short (wasn't gutted by fixes)
+        code_lines = len([l for l in code.split('\n') if l.strip()])
+        if code_lines < original_lines * 0.1:  # Less than 10% of original = invalid
+            return {
+                'valid': False,
+                'code': code,
+                'fixes': fixes_applied,
+                'lines': len(code.split('\n')),
+                'original_lines': original_lines,
+                'error': 'Code was reduced to less than 10% of original'
+            }
         return {
             'valid': True,
             'code': code,
