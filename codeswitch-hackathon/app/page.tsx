@@ -1892,28 +1892,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     {testResults.failed === 0 ? 'PASSED' : `${testResults.failed} FAILED`}
                   </span>
                 )}
-                <button
-                  onClick={async () => {
-                    setTestResults(prev => ({...prev, running: true}));
-                    try {
-                      const testCode = analysis.tests || analysis.unit_tests || '';
-                      const testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
-                      const results = await runTestsWithPyodide(pythonCode, testStr);
-                      setTestResults({...results, running: false});
-                    } catch (e) {
-                      console.error('Test error:', e);
-                      setTestResults({running: false, total: 0, passed: 0, failed: 0, details: [{name: 'error', status: 'error', error: String(e)}]});
-                    } finally {
-                      // Ensure running is always reset
-                      setTimeout(() => setTestResults(prev => ({...prev, running: false})), 100);
-                    }
-                  }}
-                  disabled={testResults.running}
-                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-medium transition disabled:opacity-50"
-                >
-                  {testResults.running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                  {testResults.running ? 'Exécution...' : 'Exécuter les tests'}
-                </button>
+                {testResults.running && (
+                  <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Exécution...
+                  </span>
+                )}
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="bg-slate-700/50 rounded-lg p-4 text-center">
