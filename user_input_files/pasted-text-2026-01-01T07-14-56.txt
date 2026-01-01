@@ -1,0 +1,149 @@
+Manage
+Environment
+Shell
+Scaling
+Previews
+Disk
+Jobs
+
+Changelog
+Invite a friend
+
+Contact support
+Render Status
+Web Service
+codeswitch
+Node
+Free
+Upgrade your instance
+
+Connect
+
+Manual Deploy
+Service ID:
+srv-d5b1m0pr0fns738kdbi0
+
+bebzo / cobol-ast-service
+main
+https://codeswitch-v8rr.onrender.com
+
+Your free instance will spin down with inactivity, which can delay requests by 50 seconds or more.
+Upgrade now
+January 1, 2026 at 7:58 AM
+live
+d83cdfc
+feat: add Render deployment config
+
+All logs
+Search
+Search
+
+Live tail
+GMT+1
+
+
+
+9 packages are looking for funding
+  run `npm fund` for details
+1 critical severity vulnerability
+To address all issues, run:
+  npm audit fix
+Run `npm audit` for details.
+> codeswitch@0.1.0 build
+> next build
+⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+  ▲ Next.js 14.2.21
+   Creating an optimized production build ...
+==> Cloning from https://github.com/bebzo/cobol-ast-service
+==> Checking out commit d83cdfcce5fd0142d6e4553789b62340a0615ee7 in branch main
+==> Using Node.js version 22.16.0 (default)
+==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+==> Running build command 'npm install && npm run build'...
+added 70 packages, and audited 71 packages in 7s
+9 packages are looking for funding
+  run `npm fund` for details
+1 critical severity vulnerability
+To address all issues, run:
+  npm audit fix
+Run `npm audit` for details.
+> codeswitch@0.1.0 build
+> next build
+⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+  ▲ Next.js 14.2.21
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+ ⚠ Using edge runtime on a page currently disables static generation for that page
+   Generating static pages (0/8) ...
+   Generating static pages (2/8) 
+   Generating static pages (4/8) 
+   Generating static pages (6/8) 
+ ✓ Generating static pages (8/8)
+   Finalizing page optimization ...
+   Collecting build traces ...
+Route (app)                              Size     First Load JS
+┌ ○ /                                    68.9 kB         156 kB
+├ ○ /_not-found                          873 B          88.1 kB
+├ ƒ /api/analyse                         0 B                0 B
+├ ƒ /api/chat                            0 B                0 B
+├ ƒ /api/clean                           0 B                0 B
+└ ○ /api/health                          0 B                0 B
++ First Load JS shared by all            87.2 kB
+  ├ chunks/117-5276891a8198544b.js       31.6 kB
+  ├ chunks/fd9d1056-2f2a8163146f5d3f.js  53.6 kB
+  └ other shared chunks (total)          1.98 kB
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+==> Uploading build...
+==> Uploaded in 7.1s. Compression took 2.6s
+==> Build successful 🎉
+==> Setting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance
+==> Deploying...
+==> No open ports detected, continuing to scan...
+==> Docs on specifying a port: https://render.com/docs/web-services#port-binding
+==> Running 'npm start'
+> codeswitch@0.1.0 start
+> next start
+  ▲ Next.js 14.2.21
+  - Local:        http://localhost:10000
+ ✓ Starting...
+ ✓ Ready in 3s
+==> Your service is live 🎉
+==> 
+==> ///////////////////////////////////////////////////////////
+==> 
+==> Available at your primary URL https://codeswitch-v8rr.onrender.com
+==> 
+==> ///////////////////////////////////////////////////////////
+[AST] Parsing 373960 characters...
+[AST] Parsed: MEGA-ENTERPRISE-SYSTEM, 764 variables, 1704 paragraphs
+[Chunks] Splitting 10006 lines into 15 chunks of ~668 lines
+[Chunk 14/15] Translated: 11848 chars
+[Chunk 12/15] Translated: 10504 chars
+[Chunk 2/15] Translated: 16195 chars
+[Chunk 8/15] Translated: 15429 chars
+[Chunk 1/15] Translated: 15302 chars
+[Chunk 5/15] Translated: 17097 chars
+[Chunk 3/15] Translated: 28289 chars
+[Chunk 4/15] Translated: 24776 chars
+[Chunk 10/15] Translated: 26050 chars
+[Chunk 9/15] Translated: 26636 chars
+[Chunk 11/15] Translated: 26164 chars
+[Chunk 7/15] Translated: 25413 chars
+[Chunk 6/15] Translated: 25160 chars
+[Chunk 13/15] Translated: 25574 chars
+[Chunk 15/15] Translated: 25697 chars
+[Merge] Simple concat: 10151 lines (no dedup)
+[Validation] Completed with 295 corrections (compilable)
+[Cleanup] Quick pass completed
+[AI Fix] End fixed
+[Validation] 295 issues fixed
+[Translation] Combined Python: 10149 lines
+[Validation] Calling Python validator...
+[Validation] Result: valid=true, fixes=9
+[Analysis] Generating metadata locally...
+[Complete] 15 chunks, 10152 Python lines in 51484ms
+==> Detected service running on port 10000
+==> Docs on specifying a port: https://render.com/docs/web-services#port-binding
+Need better ways to work with logs? Try theRender CLI, Render MCP Server, or set up a log stream integration 
