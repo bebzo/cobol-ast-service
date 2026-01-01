@@ -2032,7 +2032,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
               {testResults.details.some(d => d.status === 'error') && (
                 <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mt-2">
-                  <p className="text-sm text-red-400">⚠️ Erreur d'exécution - le code contient des erreurs de syntaxe</p>
+                  <p className="text-sm text-red-400 font-medium">⚠️ Tests échoués - Erreur de syntaxe dans le code généré</p>
+                  <p className="text-xs text-slate-400 mt-2">Solutions possibles :</p>
+                  <ul className="text-xs text-slate-400 mt-1 list-disc list-inside">
+                    <li>Relancez l'analyse (cliquez sur "Refactor with Gemini")</li>
+                    <li>Réduisez la taille du fichier COBOL (&lt; 5000 lignes recommandé)</li>
+                  </ul>
                 </div>
               )}
               {testResults.failed > 0 && (
