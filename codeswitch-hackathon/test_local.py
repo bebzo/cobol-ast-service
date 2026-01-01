@@ -55,44 +55,9 @@ def call_gemini(prompt: str) -> str:
 
 def run_tests(python_code: str, test_code: str) -> dict:
     """Run tests and return results."""
-    # Create mock environment
-    mock_code = '''
-class MockObject:
-    def __init__(self, name="mock"):
-        self._name = name
-    def __getattr__(self, name):
-        return MockObject(f"{self._name}.{name}")
-    def __call__(self, *args, **kwargs):
-        return MockObject(f"{self._name}()")
-    def __repr__(self):
-        return f"<Mock:{self._name}>"
-    def __str__(self):
-        return ""
-    def __int__(self):
-        return 0
-    def __float__(self):
-        return 0.0
-    def __bool__(self):
-        return True
-    def __iter__(self):
-        return iter([])
-
-class AutoMockDict(dict):
-    def __missing__(self, key):
-        self[key] = MockObject(key)
-        return self[key]
-'''
+    full_code = python_code + "\n\n" + test_code
     
-    full_code = mock_code + "\n\n" + python_code + "\n\n" + test_code
-    
-    # Find test functions
-    test_funcs = [line.split('def ')[1].split('(')[0] 
-                  for line in test_code.split('\n') 
-                  if line.strip().startswith('def test_')]
-    
-    results = {'total': len(test_funcs), 'passed': 0, 'failed': 0, 'details': []}
-    
-    # Execute in isolated namespace
+    results = {'total': 0, 'passed': 0, 'failed': 0, 'details': []}
     namespace = {}
     
     try:
@@ -101,19 +66,41 @@ class AutoMockDict(dict):
         results['details'].append({'name': 'compile', 'status': 'error', 'error': str(e)})
         return results
     
-    # Run each test
-    for func_name in test_funcs:
-        try:
-            if func_name in namespace:
-                namespace[func_name]()
+    # Find and run test functions (global def test_*)
+    for name, obj in namespace.items():
+        if name.startswith('test_') and callable(obj):
+            results['total'] += 1
+            try:
+                obj()
                 results['passed'] += 1
-                results['details'].append({'name': func_name, 'status': 'passed'})
-        except AssertionError as e:
-            results['failed'] += 1
-            results['details'].append({'name': func_name, 'status': 'failed', 'error': str(e)})
-        except Exception as e:
-            results['failed'] += 1
-            results['details'].append({'name': func_name, 'status': 'error', 'error': str(e)})
+                results['details'].append({'name': name, 'status': 'passed'})
+            except AssertionError as e:
+                results['failed'] += 1
+                results['details'].append({'name': name, 'status': 'failed', 'error': str(e)})
+            except Exception as e:
+                results['failed'] += 1
+                results['details'].append({'name': name, 'status': 'error', 'error': str(e)})
+    
+    # Find and run test class methods (class Test*: def test_*)
+    for name, obj in namespace.items():
+        if name.startswith('Test') and isinstance(obj, type):
+            try:
+                instance = obj()
+                for method_name in dir(instance):
+                    if method_name.startswith('test_'):
+                        results['total'] += 1
+                        try:
+                            getattr(instance, method_name)()
+                            results['passed'] += 1
+                            results['details'].append({'name': f'{name}.{method_name}', 'status': 'passed'})
+                        except AssertionError as e:
+                            results['failed'] += 1
+                            results['details'].append({'name': f'{name}.{method_name}', 'status': 'failed', 'error': str(e)})
+                        except Exception as e:
+                            results['failed'] += 1
+                            results['details'].append({'name': f'{name}.{method_name}', 'status': 'error', 'error': str(e)})
+            except Exception as e:
+                results['details'].append({'name': f'{name}.__init__', 'status': 'error', 'error': str(e)})
     
     return results
 
