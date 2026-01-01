@@ -1579,11 +1579,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       <div className="flex items-center justify-center gap-4 p-6">
                         {/* COBOL Legacy */}
                         <div className="bg-gradient-to-b from-red-600 to-red-800 rounded-xl p-4 border border-red-400/50 shadow-lg shadow-red-500/20">
-                          <div className="text-white font-bold text-center mb-3">Legacy COBOL</div>
-                          <div className="space-y-2">
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">Main Program</div>
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">Data Division</div>
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">Procedures</div>
+                          <div className="text-white font-bold text-center mb-3">{analysis?.summary?.split(' - ')[0]?.replace('Migration of ', '') || 'COBOL Source'}</div>
+                          <div className="space-y-2 max-h-32 overflow-y-auto">
+                            {(analysis?.python_code?.match(/# From COBOL paragraph: (\w+)/g) || ['Main', 'Data', 'Procedure']).slice(0, 5).map((p: string, i: number) => (
+                              <div key={i} className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{p.replace('# From COBOL paragraph: ', '')}</div>
+                            ))}
                           </div>
                         </div>
                         {/* Arrow */}
@@ -1593,15 +1593,18 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         </div>
                         {/* Python Modern */}
                         <div className="bg-gradient-to-b from-blue-600 to-blue-800 rounded-xl p-4 border border-blue-400/50 shadow-lg shadow-blue-500/20">
-                          <div className="text-white font-bold text-center mb-3">Python Modern</div>
-                          <div className="space-y-2">
-                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">REST API</div>
-                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">DataClasses</div>
-                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">Unit Tests</div>
+                          <div className="text-white font-bold text-center mb-3">Python Modules</div>
+                          <div className="space-y-2 max-h-32 overflow-y-auto">
+                            {(analysis?.python_code?.match(/def (\w+)\(/g) || []).slice(0, 5).map((f: string, i: number) => (
+                              <div key={i} className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{f.replace('def ', '').replace('(', '()')}</div>
+                            ))}
+                            {(analysis?.python_code?.match(/class (\w+)/g) || []).slice(0, 3).map((c: string, i: number) => (
+                              <div key={`c${i}`} className="bg-green-900/50 rounded px-3 py-1 text-green-200 text-sm">{c.replace('class ', '')}</div>
+                            ))}
                           </div>
                         </div>
                       </div>
-                      <p className="text-xs text-slate-500 text-center">Visual architecture showing COBOL to Python transformation</p>
+                      <p className="text-xs text-slate-500 text-center">{analysis?.summary || 'Visual architecture showing COBOL to Python transformation'}</p>
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-center text-slate-400">
