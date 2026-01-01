@@ -1808,13 +1808,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       </div>
                       <div className="flex items-center justify-center gap-4 p-6">
                         {/* COBOL Legacy */}
-                        <div className="bg-gradient-to-b from-red-600 to-red-800 rounded-xl p-4 border border-red-400/50 shadow-lg shadow-red-500/20 min-w-[180px]">
-                          <div className="text-white font-bold text-center mb-3">{analysis?.summary?.split(' - ')[0]?.replace('Migration of ', '') || 'COBOL'}</div>
-                          <div className="space-y-3 max-h-48 overflow-y-auto">
-                            <div className="bg-red-900/50 rounded px-4 py-2 text-red-200 text-sm font-medium">{analysis?.cobol_lines || cobolCode.split('\n').length} lignes</div>
-                            <div className="bg-red-900/50 rounded px-4 py-2 text-red-200 text-sm font-medium">{analysis?.ast_metrics?.paragraphs || 0} paragraphes</div>
-                            <div className="bg-red-900/50 rounded px-4 py-2 text-red-200 text-sm font-medium">{analysis?.ast_metrics?.variables || 0} variables</div>
-                            <div className="bg-red-900/50 rounded px-4 py-2 text-red-200 text-sm font-medium">{analysis?.ast_metrics?.copybooks || 0} copybooks</div>
+                        <div className="bg-gradient-to-b from-red-600 to-red-800 rounded-xl p-5 border border-red-400/50 shadow-lg shadow-red-500/20 min-w-[220px]">
+                          <div className="text-white font-bold text-center mb-4 text-lg">{analysis?.summary?.split(' - ')[0]?.replace('Migration of ', '') || 'COBOL Legacy'}</div>
+                          <div className="space-y-3">
+                            <div className="bg-red-900/50 rounded-lg px-4 py-3 text-red-100 text-sm font-medium flex justify-between"><span>Lignes</span><span className="text-white font-bold">{analysis?.cobol_lines || cobolCode.split('\n').length}</span></div>
+                            <div className="bg-red-900/50 rounded-lg px-4 py-3 text-red-100 text-sm font-medium flex justify-between"><span>Paragraphes</span><span className="text-white font-bold">{analysis?.ast_metrics?.paragraphs || 0}</span></div>
+                            <div className="bg-red-900/50 rounded-lg px-4 py-3 text-red-100 text-sm font-medium flex justify-between"><span>Variables</span><span className="text-white font-bold">{analysis?.ast_metrics?.variables || 0}</span></div>
+                            {(analysis?.ast_metrics?.copybooks || 0) > 0 && <div className="bg-red-900/50 rounded-lg px-4 py-3 text-red-100 text-sm font-medium flex justify-between"><span>Copybooks</span><span className="text-white font-bold">{analysis?.ast_metrics?.copybooks}</span></div>}
                           </div>
                         </div>
                         {/* Arrow */}
@@ -1823,13 +1823,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                           <div className="text-cyan-400 text-xs mt-1">Migration</div>
                         </div>
                         {/* Python Modern */}
-                        <div className="bg-gradient-to-b from-blue-600 to-blue-800 rounded-xl p-4 border border-blue-400/50 shadow-lg shadow-blue-500/20 min-w-[180px]">
-                          <div className="text-white font-bold text-center mb-3">Python</div>
-                          <div className="space-y-3 max-h-48 overflow-y-auto">
-                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{analysis?.python_lines || (analysis?.python_code?.split('\n').length || 0)} lignes</div>
-                            <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{(analysis?.python_code?.match(/def \w+\(/g) || []).length} fonctions</div>
-                            <div className="bg-green-900/50 rounded px-3 py-1 text-green-200 text-sm">{(analysis?.python_code?.match(/class \w+/g) || []).length} classes</div>
-                            <div className="bg-purple-900/50 rounded px-3 py-1 text-purple-200 text-sm">{(typeof analysis?.unit_tests === 'string' ? (analysis.unit_tests.match(/def test_/g) || []).length : 0)} tests</div>
+                        <div className="bg-gradient-to-b from-blue-600 to-blue-800 rounded-xl p-5 border border-blue-400/50 shadow-lg shadow-blue-500/20 min-w-[220px]">
+                          <div className="text-white font-bold text-center mb-4 text-lg">Python Modern</div>
+                          <div className="space-y-3">
+                            <div className="bg-blue-900/50 rounded-lg px-4 py-3 text-blue-100 text-sm font-medium flex justify-between"><span>Lignes</span><span className="text-white font-bold">{analysis?.python_lines || (analysis?.python_code?.split('\n').length || 0)}</span></div>
+                            <div className="bg-blue-900/50 rounded-lg px-4 py-3 text-blue-100 text-sm font-medium flex justify-between"><span>Fonctions</span><span className="text-white font-bold">{(analysis?.python_code?.match(/def \w+\(/g) || []).length}</span></div>
+                            <div className="bg-green-900/50 rounded-lg px-4 py-3 text-green-100 text-sm font-medium flex justify-between"><span>Classes</span><span className="text-white font-bold">{(analysis?.python_code?.match(/class \w+/g) || []).length}</span></div>
+                            <div className="bg-purple-900/50 rounded-lg px-4 py-3 text-purple-100 text-sm font-medium flex justify-between"><span>Tests</span><span className="text-white font-bold">{(typeof analysis?.unit_tests === 'string' ? (analysis.unit_tests.match(/def test_/g) || []).length : 0)}</span></div>
                           </div>
                         </div>
                       </div>
