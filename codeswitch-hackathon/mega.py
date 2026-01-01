@@ -1,4 +1,4 @@
-import dataclasses
+import datetime
 from dataclasses import dataclass
 
 
@@ -25,9 +25,9 @@ class CustomerRecord:
     cust_status: str
     cust_open_date: int
     cust_last_activity: int
-    cust_total_balance: int
-    cust_total_loans: int
-    cust_total_investments: int
+    cust_total_balance: float
+    cust_total_loans: float
+    cust_total_investments: float
 
 
 @dataclass
@@ -35,16 +35,16 @@ class AccountRecord:
     acct_id: str
     acct_cust_id: str
     acct_type: str
-    acct_balance: int
-    acct_available: int
-    acct_pending: int
-    acct_interest_rate: int
+    acct_balance: float
+    acct_available: float
+    acct_pending: float
+    acct_interest_rate: float
     acct_open_date: int
     acct_last_trans_date: int
     acct_status: str
-    acct_overdraft_limit: int
-    acct_monthly_fee: int
-    acct_min_balance: int
+    acct_overdraft_limit: float
+    acct_monthly_fee: float
+    acct_min_balance: float
 
 
 @dataclass
@@ -52,17 +52,17 @@ class LoanRecord:
     loan_id: str
     loan_cust_id: str
     loan_type: str
-    loan_original_amount: int
-    loan_current_balance: int
-    loan_interest_rate: int
+    loan_original_amount: float
+    loan_current_balance: float
+    loan_interest_rate: float
     loan_term_months: int
-    loan_payment_amount: int
+    loan_payment_amount: float
     loan_next_payment_date: int
     loan_origination_date: int
     loan_maturity_date: int
     loan_status: str
-    loan_collateral_value: int
-    loan_ltv_ratio: int
+    loan_collateral_value: float
+    loan_ltv_ratio: float
 
 
 @dataclass
@@ -70,14 +70,14 @@ class InsuranceRecord:
     ins_policy_id: str
     ins_cust_id: str
     ins_type: str
-    ins_coverage_amount: int
-    ins_premium_amount: int
-    ins_deductible: int
+    ins_coverage_amount: float
+    ins_premium_amount: float
+    ins_deductible: float
     ins_effective_date: int
     ins_expiry_date: int
     ins_status: str
     ins_claims_count: int
-    ins_total_claims: int
+    ins_total_claims: float
 
 
 @dataclass
@@ -86,13 +86,13 @@ class InvestmentRecord:
     inv_cust_id: str
     inv_type: str
     inv_symbol: str
-    inv_quantity: int
-    inv_purchase_price: int
-    inv_current_price: int
-    inv_market_value: int
-    inv_gain_loss: int
+    inv_quantity: float
+    inv_purchase_price: float
+    inv_current_price: float
+    inv_market_value: float
+    inv_gain_loss: float
     inv_purchase_date: int
-    inv_dividend_rate: int
+    inv_dividend_rate: float
 
 
 @dataclass
@@ -102,7 +102,7 @@ class TransactionRecord:
     tran_type: str
     tran_acct_from: str
     tran_acct_to: str
-    tran_amount: int
+    tran_amount: float
     tran_status: str
     tran_user_id: str
     tran_terminal_id: str
@@ -120,7 +120,7 @@ class AuditRecord:
 
 
 @dataclass
-class FileStatuses:
+class WsFileStatuses:
     ws_cust_status: str
     ws_acct_status: str
     ws_tran_status: str
@@ -132,80 +132,80 @@ class FileStatuses:
 
 
 @dataclass
-class CurrentDateData:
+class WsCurrentDateData:
     ws_current_date: int
     ws_current_time: int
     ws_current_timestamp: str
 
 
 @dataclass
-class Counters:
-    ws_cust_count: int
-    ws_acct_count: int
-    ws_tran_count: int
-    ws_loan_count: int
-    ws_ins_count: int
-    ws_inv_count: int
-    ws_error_count: int
-    ws_process_count: int
+class WsCounters:
+    ws_cust_count: int = 0
+    ws_acct_count: int = 0
+    ws_tran_count: int = 0
+    ws_loan_count: int = 0
+    ws_ins_count: int = 0
+    ws_inv_count: int = 0
+    ws_error_count: int = 0
+    ws_process_count: int = 0
 
 
 @dataclass
-class Totals:
-    ws_total_deposits: int
-    ws_total_withdrawals: int
-    ws_total_transfers: int
-    ws_total_loans: int
-    ws_total_payments: int
-    ws_total_interest: int
-    ws_total_fees: int
-    ws_total_premiums: int
-    ws_total_claims: int
-    ws_total_investments: int
-    ws_total_dividends: int
+class WsTotals:
+    ws_total_deposits: float = 0
+    ws_total_withdrawals: float = 0
+    ws_total_transfers: float = 0
+    ws_total_loans: float = 0
+    ws_total_payments: float = 0
+    ws_total_interest: float = 0
+    ws_total_fees: float = 0
+    ws_total_premiums: float = 0
+    ws_total_claims: float = 0
+    ws_total_investments: float = 0
+    ws_total_dividends: float = 0
 
 
 @dataclass
-class CalculationFields:
-    ws_calc_amount: int
-    ws_calc_rate: int
-    ws_calc_term: int
-    ws_calc_result: int
-    ws_calc_interest: int
-    ws_calc_principal: int
-    ws_calc_payment: int
-    ws_calc_balance: int
-    ws_calc_fee: int
-    ws_calc_tax: int
+class WsCalculationFields:
+    ws_calc_amount: float = 0
+    ws_calc_rate: float = 0
+    ws_calc_term: int = 0
+    ws_calc_result: float = 0
+    ws_calc_interest: float = 0
+    ws_calc_principal: float = 0
+    ws_calc_payment: float = 0
+    ws_calc_balance: float = 0
+    ws_calc_fee: float = 0
+    ws_calc_tax: float = 0
 
 
 @dataclass
-class Flags:
-    ws_eof_flag: str
-    ws_error_flag: str
-    ws_valid_flag: str
-    ws_found_flag: str
-    ws_approved_flag: str
+class WsFlags:
+    ws_eof_flag: str = 'N'
+    ws_error_flag: str = 'N'
+    ws_valid_flag: str = 'N'
+    ws_found_flag: str = 'N'
+    ws_approved_flag: str = 'N'
 
 
 @dataclass
-class TaxBracket:
+class WsTaxBracket:
     ws_bracket_min: int
     ws_bracket_max: int
     ws_bracket_rate: float
 
 
 @dataclass
-class TaxTable1985:
-    ws_tax_bracket_1: TaxBracket
-    ws_tax_bracket_2: TaxBracket
-    ws_tax_bracket_3: TaxBracket
-    ws_tax_bracket_4: TaxBracket
-    ws_tax_bracket_5: TaxBracket
+class WsTaxTable1985:
+    ws_tax_bracket_1: WsTaxBracket
+    ws_tax_bracket_2: WsTaxBracket
+    ws_tax_bracket_3: WsTaxBracket
+    ws_tax_bracket_4: WsTaxBracket
+    ws_tax_bracket_5: WsTaxBracket
 
 
 @dataclass
-class InterestRates:
+class WsInterestRates:
     ws_savings_rate: float
     ws_checking_rate: float
     ws_mm_rate: float
@@ -223,7 +223,7 @@ class InterestRates:
 
 
 @dataclass
-class FeeSchedule:
+class WsFeeSchedule:
     ws_overdraft_fee: float
     ws_nsf_fee: float
     ws_wire_fee_domestic: float
@@ -238,7 +238,7 @@ class FeeSchedule:
 
 
 @dataclass
-class InsuranceRates:
+class WsInsuranceRates:
     ws_life_rate_per_1000: float
     ws_health_base_premium: float
     ws_auto_base_premium: float
@@ -247,23 +247,65 @@ class InsuranceRates:
 
 
 @dataclass
-class TempVariables:
-    ws_temp_string: str
-    ws_temp_number: int
-    ws_temp_date: int
-    ws_temp_flag: str
-    ws_temp_code: str
-    ws_temp_id: str
-    ws_temp_counter: int
+class WsTempVariables:
+    ws_temp_string: str = ''
+    ws_temp_number: float = 0
+    ws_temp_date: int = 0
+    ws_temp_flag: str = ''
+    ws_temp_code: str = ''
+    ws_temp_id: str = ''
+    ws_temp_counter: int = 0
 
 
 @dataclass
-class WorkAreas:
-    ws_formatted_date: str
-    ws_formatted_amount: str
-    ws_formatted_rate: float
-    ws_formatted_count: str
-    ws_formatted_pct: str
+class WsWorkAreas:
+    ws_formatted_date: str = ''
+    ws_formatted_amount: str = ''
+    ws_formatted_rate: str = ''
+    ws_formatted_count: str = ''
+    ws_formatted_pct: str = ''
+
+
+report_line = ""
+customer_record = CustomerRecord("", "", "", "", "", "", "", "", "", "", "", "", "", 0, "", "", 0, "", "", 0, 0, 0, 0)
+account_record = AccountRecord("", "", "", 0, 0, 0, 0, 0, 0, "", 0, 0, 0)
+loan_record = LoanRecord("", "", "", 0, 0, 0, 0, 0, 0, 0, 0, "", 0, 0)
+insurance_record = InsuranceRecord("", "", "", 0, 0, 0, 0, 0, "", 0, 0)
+investment_record = InvestmentRecord("", "", "", "", 0, 0, 0, 0, 0, 0, 0)
+transaction_record = TransactionRecord("", "", "", "", "", 0, "", "", "")
+audit_record = AuditRecord("", "", "", "", "", "", "")
+ws_file_statuses = WsFileStatuses("", "", "", "", "", "", "", "")
+ws_current_date_data = WsCurrentDateData(0, 0, "")
+ws_counters = WsCounters()
+ws_totals = WsTotals()
+ws_calculation_fields = WsCalculationFields()
+ws_flags = WsFlags()
+ws_tax_table_1985 = WsTaxTable1985(
+    WsTaxBracket(0, 3000, 0.11),
+    WsTaxBracket(3001, 28000, 0.15),
+    WsTaxBracket(28001, 45000, 0.25),
+    WsTaxBracket(45001, 90000, 0.35),
+    WsTaxBracket(90001, 999999999, 0.50)
+)
+ws_interest_rates = WsInterestRates(
+    0.0225,
+    0.0050,
+    0.0350,
+    0.0425,
+    0.0475,
+    0.0550,
+    0.0625,
+    0.0699,
+    0.0549,
+    0.0749,
+    0.0999,
+    0.0825,
+    0.1899,
+     0.0825)
+ws_fee_schedule = WsFeeSchedule(35.00, 35.00, 25.00, 45.00, 3.00, 12.00, 5.00, 39.00, 0.100, 0.010, 95.00)
+ws_insurance_rates = WsInsuranceRates(1.25, 450.00, 1200.00, 3.50, 200.00)
+ws_temp_variables = WsTempVariables()
+ws_work_areas = WsWorkAreas()
 
 
 def main_control():
@@ -291,11 +333,20 @@ def open_files():
 
 
 def initialize_counters():
-    print("INITIALIZE WS-COUNTERS\nINITIALIZE WS-TOTALS\nINITIALIZE WS-FLAGS")
+    global ws_counters, ws_totals, ws_flags
+    ws_counters = WsCounters()
+    ws_totals = WsTotals()
+    ws_flags = WsFlags()
 
 
 def get_current_date():
-    print("ACCEPT WS-CURRENT-DATE FROM DATE YYYYMMDD\nACCEPT WS-CURRENT-TIME FROM TIME\nSTRING WS-CURRENT-DATE DELIMITED SIZE\n       '-' DELIMITED SIZE\n       WS-CURRENT-TIME DELIMITED SIZE\n       INTO WS-CURRENT-TIMESTAMP")
+    global ws_current_date_data
+    today = datetime.datetime.now()
+    ws_current_date_data = WsCurrentDateData(
+        int(today.strftime("%Y%m%d")),
+        int(today.strftime("%H%M%S%f")[:8]),
+        today.strftime("%Y%m%d-%H%M%S%f")[:26]
+    )
 
 
 def load_parameters():
@@ -303,7 +354,13 @@ def load_parameters():
 
 
 def validate_system():
-    print("IF WS-CUST-STATUS NOT = '00'\n    DISPLAY \"ERROR: CUSTOMER FILE OPEN FAILED\"\n    SET WS-ERROR TO TRUE\nEND-IF\nIF WS-ACCT-STATUS NOT = '00'\n    DISPLAY \"ERROR: ACCOUNT FILE OPEN FAILED\"\n    SET WS-ERROR TO TRUE\nEND-IF")
+    global ws_flags
+    if ws_file_statuses.ws_cust_status != '00':
+        print("ERROR: CUSTOMER FILE OPEN FAILED")
+        ws_flags.ws_error_flag = 'Y'
+    if ws_file_statuses.ws_acct_status != '00':
+        print("ERROR: ACCOUNT FILE OPEN FAILED")
+        ws_flags.ws_error_flag = 'Y'
 
 
 def process_banking():
@@ -318,36 +375,72 @@ def process_banking():
 
 def process_deposits():
     print("PROCESSING DEPOSITS...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ ACCOUNT-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            PERFORM 2110-VALIDATE-DEPOSIT\n            IF WS-VALID\n                PERFORM 2120-POST-DEPOSIT\n                PERFORM 2130-UPDATE-BALANCE\n                ADD 1 TO WS-TRAN-COUNT\n            END-IF\n    END-READ\nEND-PERFORM")
+    ws_flags.ws_eof_flag = 'N'
+    while ws_flags.ws_eof_flag == 'N':
+        validate_deposit()
+        if ws_flags.ws_valid_flag == 'Y':
+            post_deposit()
+            update_balance()
+            ws_counters.ws_tran_count += 1
+        ws_flags.ws_eof_flag = 'Y'
 
 
 def validate_deposit():
-    print("SET WS-VALID TO TRUE\nIF WS-CALC-AMOUNT < 0\n    SET WS-INVALID TO TRUE\nEND-IF\nIF ACCT-STATUS NOT = 'A'\n    SET WS-INVALID TO TRUE\nEND-IF")
+    global ws_flags
+    ws_flags.ws_valid_flag = 'Y'
+    if ws_calculation_fields.ws_calc_amount < 0:
+        ws_flags.ws_valid_flag = 'N'
+    if account_record.acct_status != 'A':
+        ws_flags.ws_valid_flag = 'N'
 
 
 def post_deposit():
-    print("ADD WS-CALC-AMOUNT TO ACCT-BALANCE\nADD WS-CALC-AMOUNT TO ACCT-AVAILABLE\nADD WS-CALC-AMOUNT TO WS-TOTAL-DEPOSITS\nPERFORM 8100-WRITE-TRANSACTION")
+    global account_record, ws_totals
+    account_record.acct_balance += ws_calculation_fields.ws_calc_amount
+    account_record.acct_available += ws_calculation_fields.ws_calc_amount
+    ws_totals.ws_total_deposits += ws_calculation_fields.ws_calc_amount
+    write_transaction()
 
 
 def update_balance():
-    print("MOVE WS-CURRENT-DATE TO ACCT-LAST-TRANS-DATE\nREWRITE ACCOUNT-RECORD")
+    global account_record, ws_current_date_data
+    account_record.acct_last_trans_date = ws_current_date_data.ws_current_date
+    print("REWRITE ACCOUNT-RECORD")
 
 
 def process_withdrawals():
     print("PROCESSING WITHDRAWALS...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ ACCOUNT-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            PERFORM 2210-VALIDATE-WITHDRAWAL\n            IF WS-VALID\n                PERFORM 2220-POST-WITHDRAWAL\n                ADD 1 TO WS-TRAN-COUNT\n            END-IF\n    END-READ\nEND-PERFORM")
+    ws_flags.ws_eof_flag = 'N'
+    while ws_flags.ws_eof_flag == 'N':
+        validate_withdrawal()
+        if ws_flags.ws_valid_flag == 'Y':
+            post_withdrawal()
+            ws_counters.ws_tran_count += 1
+        ws_flags.ws_eof_flag = 'Y'
 
 
 def validate_withdrawal():
-    print("SET WS-VALID TO TRUE\nIF WS-CALC-AMOUNT > ACCT-AVAILABLE\n    IF WS-CALC-AMOUNT > \n       (ACCT-AVAILABLE + ACCT-OVERDRAFT-LIMIT)\n        SET WS-INVALID TO TRUE\n    ELSE\n        PERFORM 2215-APPLY-OVERDRAFT-FEE\n    END-IF\nEND-IF")
+    global ws_flags
+    ws_flags.ws_valid_flag = 'Y'
+    if ws_calculation_fields.ws_calc_amount > account_record.acct_available:
+        if ws_calculation_fields.ws_calc_amount > (account_record.acct_available + account_record.acct_overdraft_limit):
+            ws_flags.ws_valid_flag = 'N'
+        else:
+            apply_overdraft_fee()
 
 
 def apply_overdraft_fee():
-    print("ADD WS-OVERDRAFT-FEE TO WS-TOTAL-FEES\nSUBTRACT WS-OVERDRAFT-FEE FROM ACCT-BALANCE")
+    global ws_totals, account_record, ws_fee_schedule
+    ws_totals.ws_total_fees += ws_fee_schedule.ws_overdraft_fee
+    account_record.acct_balance -= ws_fee_schedule.ws_overdraft_fee
 
 
 def post_withdrawal():
-    print("SUBTRACT WS-CALC-AMOUNT FROM ACCT-BALANCE\nSUBTRACT WS-CALC-AMOUNT FROM ACCT-AVAILABLE\nADD WS-CALC-AMOUNT TO WS-TOTAL-WITHDRAWALS\nPERFORM 8100-WRITE-TRANSACTION")
+    global account_record, ws_totals
+    account_record.acct_balance -= ws_calculation_fields.ws_calc_amount
+    account_record.acct_available -= ws_calculation_fields.ws_calc_amount
+    ws_totals.ws_total_withdrawals += ws_calculation_fields.ws_calc_amount
+    write_transaction()
 
 
 def process_transfers():
@@ -362,7 +455,8 @@ def internal_transfer():
 
 
 def wire_transfer():
-    print("ADD WS-WIRE-FEE-DOMESTIC TO WS-TOTAL-FEES")
+    global ws_totals, ws_fee_schedule
+    ws_totals.ws_total_fees += ws_fee_schedule.ws_wire_fee_domestic
 
 
 def ach_transfer():
@@ -371,28 +465,57 @@ def ach_transfer():
 
 def calculate_interest():
     print("CALCULATING INTEREST...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ ACCOUNT-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            PERFORM 2410-DETERMINE-RATE\n            PERFORM 2420-COMPUTE-INTEREST\n            PERFORM 2430-POST-INTEREST\n    END-READ\nEND-PERFORM")
+    ws_flags.ws_eof_flag = 'N'
+    while ws_flags.ws_eof_flag == 'N':
+        determine_rate()
+        compute_interest()
+        post_interest()
+        ws_flags.ws_eof_flag = 'Y'
 
 
 def determine_rate():
-    print("EVALUATE TRUE\n    WHEN ACCT-CHECKING\n        MOVE WS-CHECKING-RATE TO WS-CALC-RATE\n    WHEN ACCT-SAVINGS\n        MOVE WS-SAVINGS-RATE TO WS-CALC-RATE\n    WHEN ACCT-MONEY-MARKET\n        MOVE WS-MM-RATE TO WS-CALC-RATE\n    WHEN ACCT-CD\n        MOVE WS-CD-RATE-1YR TO WS-CALC-RATE\n    WHEN OTHER\n        MOVE 0 TO WS-CALC-RATE\nEND-EVALUATE")
+    global ws_calculation_fields, account_record, ws_interest_rates
+    if account_record.acct_type == 'CH':
+        ws_calculation_fields.ws_calc_rate = ws_interest_rates.ws_checking_rate
+    elif account_record.acct_type == 'SV':
+        ws_calculation_fields.ws_calc_rate = ws_interest_rates.ws_savings_rate
+    elif account_record.acct_type == 'MM':
+        ws_calculation_fields.ws_calc_rate = ws_interest_rates.ws_mm_rate
+    elif account_record.acct_type == 'CD':
+        ws_calculation_fields.ws_calc_rate = ws_interest_rates.ws_cd_rate_1yr
+    else:
+        ws_calculation_fields.ws_calc_rate = 0
 
 
 def compute_interest():
-    print("COMPUTE WS-CALC-INTEREST =\n    ACCT-BALANCE * WS-CALC-RATE / 12")
+    global ws_calculation_fields, account_record
+    ws_calculation_fields.ws_calc_interest = account_record.acct_balance * ws_calculation_fields.ws_calc_rate / 12
 
 
 def post_interest():
-    print("ADD WS-CALC-INTEREST TO ACCT-BALANCE\nADD WS-CALC-INTEREST TO WS-TOTAL-INTEREST")
+    global ws_calculation_fields, account_record, ws_totals
+    account_record.acct_balance += ws_calculation_fields.ws_calc_interest
+    ws_totals.ws_total_interest += ws_calculation_fields.ws_calc_interest
 
 
 def apply_fees():
     print("APPLYING MONTHLY FEES...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ ACCOUNT-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            PERFORM 2510-CHECK-MINIMUM-BALANCE\n            IF WS-VALID\n                PERFORM 2520-WAIVE-FEE\n            ELSE\n                PERFORM 2530-CHARGE-FEE\n            END-IF\n    END-READ\nEND-PERFORM")
+    ws_flags.ws_eof_flag = 'N'
+    while ws_flags.ws_eof_flag == 'N':
+        check_minimum_balance()
+        if ws_flags.ws_valid_flag == 'Y':
+            waive_fee()
+        else:
+            charge_fee()
+        ws_flags.ws_eof_flag = 'Y'
 
 
 def check_minimum_balance():
-    print("IF ACCT-BALANCE >= ACCT-MIN-BALANCE\n    SET WS-VALID TO TRUE\nELSE\n    SET WS-INVALID TO TRUE\nEND-IF")
+    global ws_flags, account_record
+    if account_record.acct_balance >= account_record.acct_min_balance:
+        ws_flags.ws_valid_flag = 'Y'
+    else:
+        ws_flags.ws_valid_flag = 'N'
 
 
 def waive_fee():
@@ -400,7 +523,9 @@ def waive_fee():
 
 
 def charge_fee():
-    print("SUBTRACT ACCT-MONTHLY-FEE FROM ACCT-BALANCE\nADD ACCT-MONTHLY-FEE TO WS-TOTAL-FEES")
+    global account_record, ws_totals
+    account_record.acct_balance -= account_record.acct_monthly_fee
+    ws_totals.ws_total_fees += account_record.acct_monthly_fee
 
 
 def process_payments():
@@ -429,19 +554,34 @@ def process_applications():
 
 def process_payments():
     print("PROCESSING LOAN PAYMENTS...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ LOAN-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            IF LOAN-CURRENT\n                PERFORM 3210-CALCULATE-PAYMENT\n                PERFORM 3220-APPLY-PAYMENT\n                PERFORM 3230-UPDATE-LOAN\n            END-IF\n    END-READ\nEND-PERFORM")
+    ws_flags.ws_eof_flag = 'N'
+    while ws_flags.ws_eof_flag == 'N':
+        if loan_record.loan_status == 'C':
+            calculate_payment()
+            apply_payment()
+            update_loan()
+        ws_flags.ws_eof_flag = 'Y'
 
 
 def calculate_payment():
-    print("MOVE LOAN-PAYMENT-AMOUNT TO WS-CALC-PAYMENT\nCOMPUTE WS-CALC-INTEREST =\n    LOAN-CURRENT-BALANCE * LOAN-INTEREST-RATE / 12\nCOMPUTE WS-CALC-PRINCIPAL =\n    WS-CALC-PAYMENT - WS-CALC-INTEREST")
+    global ws_calculation_fields, loan_record
+    ws_calculation_fields.ws_calc_payment = loan_record.loan_payment_amount
+    ws_calculation_fields.ws_calc_interest = loan_record.loan_current_balance * loan_record.loan_interest_rate / 12
+    ws_calculation_fields.ws_calc_principal = ws_calculation_fields.ws_calc_payment - ws_calculation_fields.ws_calc_interest
 
 
 def apply_payment():
-    print("SUBTRACT WS-CALC-PRINCIPAL FROM LOAN-CURRENT-BALANCE\nADD WS-CALC-PAYMENT TO WS-TOTAL-PAYMENTS\nADD WS-CALC-INTEREST TO WS-TOTAL-INTEREST")
+    global ws_calculation_fields, loan_record, ws_totals
+    loan_record.loan_current_balance -= ws_calculation_fields.ws_calc_principal
+    ws_totals.ws_total_payments += ws_calculation_fields.ws_calc_payment
+    ws_totals.ws_total_interest += ws_calculation_fields.ws_calc_interest
 
 
 def update_loan():
-    print("IF LOAN-CURRENT-BALANCE <= 0\n    SET LOAN-PAID-OFF TO TRUE\nEND-IF\nREWRITE LOAN-RECORD")
+    global loan_record
+    if loan_record.loan_current_balance <= 0:
+        loan_record.loan_status = 'P'
+    print("REWRITE LOAN-RECORD")
 
 
 def calculate_amortization():
@@ -451,19 +591,31 @@ def calculate_amortization():
 
 def assess_delinquencies():
     print("ASSESSING DELINQUENT LOANS...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ LOAN-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            PERFORM 3410-CHECK-PAYMENT-STATUS\n            IF WS-NOT-FOUND\n                PERFORM 3420-MARK-DELINQUENT\n                PERFORM 3430-ASSESS-LATE-FEE\n            END-IF\n    END-READ\nEND-PERFORM")
+    ws_flags.ws_eof_flag = 'N'
+    while ws_flags.ws_eof_flag == 'N':
+        check_payment_status()
+        if ws_flags.ws_found_flag == 'N':
+            mark_delinquent()
+            assess_late_fee()
+        ws_flags.ws_eof_flag = 'Y'
 
 
 def check_payment_status():
-    print("IF LOAN-NEXT-PAYMENT-DATE < WS-CURRENT-DATE\n    SET WS-NOT-FOUND TO TRUE\nELSE\n    SET WS-FOUND TO TRUE\nEND-IF")
+    global ws_flags, ws_current_date_data, loan_record
+    if loan_record.loan_next_payment_date < ws_current_date_data.ws_current_date:
+        ws_flags.ws_found_flag = 'N'
+    else:
+        ws_flags.ws_found_flag = 'Y'
 
 
 def mark_delinquent():
-    print("SET LOAN-DELINQUENT TO TRUE")
+    global loan_record
+    loan_record.loan_status = 'D'
 
 
 def assess_late_fee():
-    print("ADD WS-LATE-PAYMENT-FEE TO WS-TOTAL-FEES")
+    global ws_totals, ws_fee_schedule
+    ws_totals.ws_total_fees += ws_fee_schedule.ws_late_payment_fee
 
 
 def process_collections():
@@ -491,19 +643,38 @@ def process_policies():
 
 def calculate_premiums():
     print("CALCULATING PREMIUMS...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ INSURANCE-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            PERFORM 4210-DETERMINE-BASE-PREMIUM\n            PERFORM 4220-APPLY-RISK-FACTOR\n            PERFORM 4230-CALCULATE-FINAL-PREMIUM\n    END-READ\nEND-PERFORM")
+    ws_flags.ws_eof_flag = 'N'
+    while ws_flags.ws_eof_flag == 'N':
+        determine_base_premium()
+        apply_risk_factor()
+        calculate_final_premium()
+        ws_flags.ws_eof_flag = 'Y'
 
 
 def determine_base_premium():
-    print("EVALUATE TRUE\n    WHEN INS-LIFE\n        COMPUTE WS-CALC-AMOUNT =\n            INS-COVERAGE-AMOUNT / 1000 * WS-LIFE-RATE-PER-1000\n    WHEN INS-HEALTH\n        MOVE WS-HEALTH-BASE-PREMIUM TO WS-CALC-AMOUNT\n    WHEN INS-AUTO\n        MOVE WS-AUTO-BASE-PREMIUM TO WS-CALC-AMOUNT\n    WHEN INS-HOME\n        COMPUTE WS-CALC-AMOUNT =\n            INS-COVERAGE-AMOUNT / 1000 * WS-HOME-RATE-PER-1000\n    WHEN INS-UMBRELLA\n        MOVE WS-UMBRELLA-RATE TO WS-CALC-AMOUNT\nEND-EVALUATE")
+    global ws_calculation_fields, insurance_record, ws_insurance_rates
+    if insurance_record.ins_type == 'LI':
+        ws_calculation_fields.ws_calc_amount = insurance_record.ins_coverage_amount / 1000 * ws_insurance_rates.ws_life_rate_per_1000
+    elif insurance_record.ins_type == 'HE':
+        ws_calculation_fields.ws_calc_amount = ws_insurance_rates.ws_health_base_premium
+    elif insurance_record.ins_type == 'AU':
+        ws_calculation_fields.ws_calc_amount = ws_insurance_rates.ws_auto_base_premium
+    elif insurance_record.ins_type == 'HO':
+        ws_calculation_fields.ws_calc_amount = insurance_record.ins_coverage_amount / 1000 * ws_insurance_rates.ws_home_rate_per_1000
+    elif insurance_record.ins_type == 'UM':
+        ws_calculation_fields.ws_calc_amount = ws_insurance_rates.ws_umbrella_rate
 
 
 def apply_risk_factor():
-    print("IF INS-CLAIMS-COUNT > 2\n    COMPUTE WS-CALC-AMOUNT = WS-CALC-AMOUNT * 1.25\nEND-IF")
+    global ws_calculation_fields, insurance_record
+    if insurance_record.ins_claims_count > 2:
+        ws_calculation_fields.ws_calc_amount = ws_calculation_fields.ws_calc_amount * 1.25
 
 
 def calculate_final_premium():
-    print("MOVE WS-CALC-AMOUNT TO INS-PREMIUM-AMOUNT\nADD WS-CALC-AMOUNT TO WS-TOTAL-PREMIUMS")
+    global ws_calculation_fields, insurance_record, ws_totals
+    insurance_record.ins_premium_amount = ws_calculation_fields.ws_calc_amount
+    ws_totals.ws_total_premiums += ws_calculation_fields.ws_calc_amount
 
 
 def process_claims():
@@ -536,19 +707,28 @@ def update_market_prices():
 
 def calculate_portfolio_value():
     print("CALCULATING PORTFOLIO VALUES...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ INVESTMENT-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            PERFORM 5210-CALCULATE-POSITION-VALUE\n            PERFORM 5220-CALCULATE-GAIN-LOSS\n            PERFORM 5230-UPDATE-TOTALS\n    END-READ\nEND-PERFORM")
+    ws_flags.ws_eof_flag = 'N'
+    while ws_flags.ws_eof_flag == 'N':
+        calculate_position_value()
+        calculate_gain_loss()
+        update_totals()
+        ws_flags.ws_eof_flag = 'Y'
 
 
 def calculate_position_value():
-    print("COMPUTE INV-MARKET-VALUE =\n    INV-QUANTITY * INV-CURRENT-PRICE")
+    global investment_record
+    investment_record.inv_market_value = investment_record.inv_quantity * investment_record.inv_current_price
 
 
 def calculate_gain_loss():
-    print("COMPUTE INV-GAIN-LOSS =\n    INV-MARKET-VALUE - (INV-QUANTITY * INV-PURCHASE-PRICE)")
+    global investment_record
+    investment_record.inv_gain_loss = investment_record.inv_market_value - \
+        (investment_record.inv_quantity * investment_record.inv_purchase_price)
 
 
 def update_totals():
-    print("ADD INV-MARKET-VALUE TO WS-TOTAL-INVESTMENTS")
+    global ws_totals, investment_record
+    ws_totals.ws_total_investments += investment_record.inv_market_value
 
 
 def process_trades():
@@ -572,15 +752,22 @@ def settle_trades():
 
 def calculate_dividends():
     print("CALCULATING DIVIDENDS...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ INVESTMENT-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            IF INV-DIVIDEND-RATE > 0\n                PERFORM 5410-COMPUTE-DIVIDEND\n                PERFORM 5420-POST-DIVIDEND\n            END-IF\n    END-READ\nEND-PERFORM")
+    ws_flags.ws_eof_flag = 'N'
+    while ws_flags.ws_eof_flag == 'N':
+        if investment_record.inv_dividend_rate > 0:
+            compute_dividend()
+            post_dividend()
+        ws_flags.ws_eof_flag = 'Y'
 
 
 def compute_dividend():
-    print("COMPUTE WS-CALC-AMOUNT =\n    INV-MARKET-VALUE * INV-DIVIDEND-RATE / 4")
+    global ws_calculation_fields, investment_record
+    ws_calculation_fields.ws_calc_amount = investment_record.inv_market_value * investment_record.inv_dividend_rate / 4
 
 
 def post_dividend():
-    print("ADD WS-CALC-AMOUNT TO WS-TOTAL-DIVIDENDS")
+    global ws_totals, ws_calculation_fields
+    ws_totals.ws_total_dividends += ws_calculation_fields.ws_calc_amount
 
 
 def generate_tax_documents():
@@ -599,12 +786,25 @@ def generate_reports():
 
 
 def daily_summary():
-    print("GENERATING DAILY SUMMARY...")
-    print("MOVE SPACES TO REPORT-LINE\nSTRING \"MEGA-ENTERPRISE DAILY SUMMARY - \" DELIMITED SIZE\n       WS-CURRENT-DATE DELIMITED SIZE\n       INTO REPORT-LINE\nWRITE REPORT-LINE\nPERFORM 6110-WRITE-TOTALS")
+    global report_line, ws_current_date_data
+    report_line = "MEGA-ENTERPRISE DAILY SUMMARY - " + str(ws_current_date_data.ws_current_date)
+    print("WRITE REPORT-LINE")
+    write_totals()
 
 
 def write_totals():
-    print("MOVE WS-TOTAL-DEPOSITS TO WS-FORMATTED-AMOUNT\nSTRING \"TOTAL DEPOSITS: \" DELIMITED SIZE\n       WS-FORMATTED-AMOUNT DELIMITED SIZE\n       INTO REPORT-LINE\nWRITE REPORT-LINE\n\nMOVE WS-TOTAL-WITHDRAWALS TO WS-FORMATTED-AMOUNT\nSTRING \"TOTAL WITHDRAWALS: \" DELIMITED SIZE\n       WS-FORMATTED-AMOUNT DELIMITED SIZE\n       INTO REPORT-LINE\nWRITE REPORT-LINE\n\nMOVE WS-TOTAL-LOANS TO WS-FORMATTED-AMOUNT\nSTRING \"TOTAL LOANS: \" DELIMITED SIZE\n       WS-FORMATTED-AMOUNT DELIMITED SIZE\n       INTO REPORT-LINE\nWRITE REPORT-LINE")
+    global report_line, ws_totals, ws_work_areas
+    ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_deposits)
+    report_line = "TOTAL DEPOSITS: " + ws_work_areas.ws_formatted_amount
+    print("WRITE REPORT-LINE")
+
+    ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_withdrawals)
+    report_line = "TOTAL WITHDRAWALS: " + ws_work_areas.ws_formatted_amount
+    print("WRITE REPORT-LINE")
+
+    ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_loans)
+    report_line = "TOTAL LOANS: " + ws_work_areas.ws_formatted_amount
+    print("WRITE REPORT-LINE")
 
 
 def account_statements():
@@ -656,23 +856,47 @@ def utility_procedures():
 
 
 def write_transaction():
-    print("MOVE WS-CURRENT-TIMESTAMP TO TRAN-TIMESTAMP\nMOVE 'DEP' TO TRAN-TYPE\nMOVE WS-CALC-AMOUNT TO TRAN-AMOUNT\nMOVE 'C' TO TRAN-STATUS\nWRITE TRANSACTION-RECORD")
+    global transaction_record, ws_current_date_data, ws_calculation_fields
+    transaction_record.tran_timestamp = ws_current_date_data.ws_current_timestamp
+    transaction_record.tran_type = 'DEP'
+    transaction_record.tran_amount = ws_calculation_fields.ws_calc_amount
+    transaction_record.tran_status = 'C'
+    print("WRITE TRANSACTION-RECORD")
 
 
 def write_audit():
-    print("MOVE WS-CURRENT-TIMESTAMP TO AUD-TIMESTAMP\nWRITE AUDIT-RECORD")
+    global audit_record, ws_current_date_data
+    audit_record.aud_timestamp = ws_current_date_data.ws_current_timestamp
+    print("WRITE AUDIT-RECORD")
 
 
 def format_date():
-    print("STRING WS-TEMP-DATE(1:4) DELIMITED SIZE\n       '-' DELIMITED SIZE\n       WS-TEMP-DATE(5:2) DELIMITED SIZE\n       '-' DELIMITED SIZE\n       WS-TEMP-DATE(7:2) DELIMITED SIZE\n       INTO WS-FORMATTED-DATE")
+    global ws_temp_variables, ws_work_areas
+    ws_work_areas.ws_formatted_date = str(ws_temp_variables.ws_temp_date)[
+                                          :4] + '-' + str(ws_temp_variables.ws_temp_date)[4:6] + '-' + str(ws_temp_variables.ws_temp_date)[6:8]
 
 
 def validate_account():
-    print("SET WS-VALID TO TRUE\nIF ACCT-ID = SPACES\n    SET WS-INVALID TO TRUE\nEND-IF")
+    global ws_flags, account_record
+    ws_flags.ws_valid_flag = 'Y'
+    if account_record.acct_id == '':
+        ws_flags.ws_valid_flag = 'N'
 
 
 def calculate_tax():
-    print("EVALUATE TRUE\n    WHEN WS-CALC-AMOUNT <= WS-BRACKET-1-MAX\n        COMPUTE WS-CALC-TAX =\n            WS-CALC-AMOUNT * WS-BRACKET-1-RATE\n    WHEN WS-CALC-AMOUNT <= WS-BRACKET-2-MAX\n        COMPUTE WS-CALC-TAX =\n            (WS-BRACKET-1-MAX * WS-BRACKET-1-RATE) +\n            ((WS-CALC-AMOUNT - WS-BRACKET-1-MAX) *\n             WS-BRACKET-2-RATE)\n    WHEN WS-CALC-AMOUNT <= WS-BRACKET-3-MAX\n        COMPUTE WS-CALC-TAX =\n            (WS-BRACKET-1-MAX * WS-BRACKET-1-RATE) +\n            ((WS-BRACKET-2-MAX - WS-BRACKET-1-MAX) *\n             WS-BRACKET-2-RATE) +\n            ((WS-CALC-AMOUNT - WS-BRACKET-2-MAX) *\n             WS-BRACKET-3-RATE)\n    WHEN OTHER\n        COMPUTE WS-CALC-TAX =\n            WS-CALC-AMOUNT * WS-BRACKET-5-RATE\nEND-EVALUATE")
+    global ws_calculation_fields, ws_tax_table_1985
+    if ws_calculation_fields.ws_calc_amount <= ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max:
+        ws_calculation_fields.ws_calc_tax = ws_calculation_fields.ws_calc_amount * ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_rate
+    elif ws_calculation_fields.ws_calc_amount <= ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_max:
+        ws_calculation_fields.ws_calc_tax = (ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max * ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_rate) + (
+            (ws_calculation_fields.ws_calc_amount - ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max) * ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_rate)
+    elif ws_calculation_fields.ws_calc_amount <= ws_tax_table_1985.ws_tax_bracket_3.ws_bracket_max:
+        ws_calculation_fields.ws_calc_tax = (
+    ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max * ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_rate) + (
+        (ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_max - ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max) * ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_rate) + (
+            (ws_calculation_fields.ws_calc_amount - ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_max) * ws_tax_table_1985.ws_tax_bracket_3.ws_bracket_rate)
+    else:
+        ws_calculation_fields.ws_calc_tax = ws_calculation_fields.ws_calc_amount * ws_tax_table_1985.ws_tax_bracket_5.ws_bracket_rate
 
 
 def termination():
@@ -682,143 +906,4 @@ def termination():
 
 
 def close_files():
-    print("CLOSE CUSTOMER-MASTER\nCLOSE ACCOUNT-MASTER\nCLOSE LOAN-MASTER\nCLOSE INSURANCE-MASTER\nCLOSE INVESTMENT-MASTER\nCLOSE TRANSACTION-LOG\nCLOSE AUDIT-TRAIL\nCLOSE REPORT-FILE")
-
-
-def display_statistics():
-    print("DISPLAY \"============================================\"\nDISPLAY \"       PROCESSING STATISTICS                \"\nDISPLAY \"============================================\"\nMOVE WS-CUST-COUNT TO WS-FORMATTED-COUNT\nDISPLAY \"CUSTOMERS PROCESSED:    \" WS-FORMATTED-COUNT\nMOVE WS-ACCT-COUNT TO WS-FORMATTED-COUNT\nDISPLAY \"ACCOUNTS PROCESSED:     \" WS-FORMATTED-COUNT\nMOVE WS-TRAN-COUNT TO WS-FORMATTED-COUNT\nDISPLAY \"TRANSACTIONS PROCESSED: \" WS-FORMATTED-COUNT\nMOVE WS-LOAN-COUNT TO WS-FORMATTED-COUNT\nDISPLAY \"LOANS PROCESSED:        \" WS-FORMATTED-COUNT\nMOVE WS-ERROR-COUNT TO WS-FORMATTED-COUNT\nDISPLAY \"ERRORS ENCOUNTERED:     \" WS-FORMATTED-COUNT\nDISPLAY \"============================================\"\nMOVE WS-TOTAL-DEPOSITS TO WS-FORMATTED-AMOUNT\nDISPLAY \"TOTAL DEPOSITS:    \" WS-FORMATTED-AMOUNT\nMOVE WS-TOTAL-WITHDRAWALS TO WS-FORMATTED-AMOUNT\nDISPLAY \"TOTAL WITHDRAWALS: \" WS-FORMATTED-AMOUNT\nMOVE WS-TOTAL-INTEREST TO WS-FORMATTED-AMOUNT\nDISPLAY \"TOTAL INTEREST:    \" WS-FORMATTED-AMOUNT\nMOVE WS-TOTAL-FEES TO WS-FORMATTED-AMOUNT\nDISPLAY \"TOTAL FEES:        \" WS-FORMATTED-AMOUNT\nDISPLAY \"============================================\"")
-
-
-def fraud_detection():
-    analyze_patterns()
-    check_velocity()
-    geographic_analysis()
-    behavioral_scoring()
-    alert_generation()
-
-
-def analyze_patterns():
-    print("ANALYZING TRANSACTION PATTERNS...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ TRANSACTION-LOG NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            PERFORM 7110-CHECK-AMOUNT-THRESHOLD\n            PERFORM 7120-CHECK-FREQUENCY\n            PERFORM 7130-CHECK-TIME-PATTERN\n    END-READ\nEND-PERFORM")
-
-
-def check_amount_threshold():
-    print("IF TRAN-AMOUNT > 10000\n    PERFORM 7115-FLAG-LARGE-TRANSACTION\nEND-IF")
-
-
-def flag_large_transaction():
-    print("ADD 1 TO WS-PROCESS-COUNT\nPERFORM 8200-WRITE-AUDIT")
-
-
-def check_frequency():
-    pass
-
-
-def check_time_pattern():
-    pass
-
-
-def check_velocity():
-    print("CHECKING TRANSACTION VELOCITY...")
-    pass
-
-
-def geographic_analysis():
-    print("PERFORMING GEOGRAPHIC ANALYSIS...")
-    pass
-
-
-def behavioral_scoring():
-    print("CALCULATING BEHAVIORAL SCORES...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ CUSTOMER-MASTER NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            PERFORM 7410-CALCULATE-RISK-SCORE\n            PERFORM 7420-UPDATE-CUSTOMER-PROFILE\n    END-READ\nEND-PERFORM")
-
-
-def calculate_risk_score():
-    print("MOVE 0 TO WS-CALC-RESULT\nIF CUST-CREDIT-SCORE < 600\n    ADD 30 TO WS-CALC-RESULT\nEND-IF\nIF CUST-TOTAL-LOANS > CUST-TOTAL-BALANCE\n    ADD 20 TO WS-CALC-RESULT\nEND-IF")
-
-
-def update_customer_profile():
-    print("IF WS-CALC-RESULT > 50\n    MOVE 'H' TO CUST-RISK-RATING\nELSE IF WS-CALC-RESULT > 25\n    MOVE 'M' TO CUST-RISK-RATING\nELSE\n    MOVE 'L' TO CUST-RISK-RATING\nEND-IF\nEND-IF")
-
-
-def alert_generation():
-    print("GENERATING FRAUD ALERTS...")
-    pass
-
-
-def compliance_processing():
-    aml_screening()
-    kyc_verification()
-    ofac_check()
-    pep_screening()
-    sanction_list_check()
-
-
-def aml_screening():
-    print("PERFORMING AML SCREENING...")
-    print("SET WS-NOT-EOF TO TRUE\nPERFORM UNTIL WS-EOF\n    READ TRANSACTION-LOG NEXT\n        AT END SET WS-EOF TO TRUE\n        NOT AT END\n            IF TRAN-AMOUNT >= 10000\n                PERFORM 7611-CTR-FILING\n            END-IF\n            PERFORM 7612-STRUCTURING-CHECK\n    END-READ\nEND-PERFORM")
-
-
-def ctr_filing():
-    print("ADD 1 TO WS-PROCESS-COUNT\nPERFORM 8200-WRITE-AUDIT")
-
-
-def structuring_check():
-    pass
-
-
-def kyc_verification():
-    print("VERIFYING KYC DOCUMENTS...")
-    pass
-
-
-def ofac_check():
-    print("CHECKING OFAC LIST...")
-    pass
-
-
-def pep_screening():
-    print("SCREENING POLITICALLY EXPOSED PERSONS...")
-    pass
-
-
-def sanction_list_check():
-    print("CHECKING SANCTION LISTS...")
-    pass
-
-
-def credit_card_processing():
-    authorize_transaction()
-    process_settlement()
-    calculate_rewards()
-    apply_interest()
-    generate_statements()
-
-
-def authorize_transaction():
-    print("AUTHORIZING CREDIT CARD TRANSACTIONS...")
-    check_credit_limit()
-    check_fraud_score()
-    send_authorization()
-
-
-def check_credit_limit():
-    print("IF WS-CALC-AMOUNT > ACCT-OVERDRAFT-LIMIT\n    SET WS-NOT-APPROVED TO TRUE\nELSE\n    SET WS-APPROVED TO TRUE\nEND-IF")
-
-
-def check_fraud_score():
-    pass
-
-
-def send_authorization():
-    print("IF WS-APPROVED\n    PERFORM 8100-WRITE-TRANSACTION\nEND-IF")
-
-
-def process_settlement():
-    print("PROCESSING CREDIT CARD SETTLEMENTS...")
-    pass
-
-
-def calculate_rewards():
-    print("CALCULATING REWARDS POINTS...")
-    print("COMPUTE WS-CALC-RESULT = TRAN-AMOUNT * 0.01\nADD WS-CALC-RESULT TO WS-TOTAL-FEES")
+    print("CLOSE CUSTOMER-MASTER\nCLOSE ACCOUNT-MASTER\nCLOSE LOAN-MASTER\nCLOSE INSURANCE-MASTER\nCLOSE INVESTMENT-MASTER\nCLOSE TRANSACTION-LOG\nCLOSE AUDIT-TRAIL\n")
