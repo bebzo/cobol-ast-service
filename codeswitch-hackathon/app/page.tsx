@@ -1984,10 +1984,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 const s = Array.isArray(t) ? t.join('\n') : t;
                 const codeTestCount = (s.match(/def test_/g) || []).length || 0;
                 const total = testResults.total > 0 ? testResults.total : codeTestCount;
-                // If no tests were executed but code compiled, count all as passed
-                const passed = testResults.total > 0 ? testResults.passed : (testResults.failed === 0 ? total : 0);
-                const failed = testResults.failed || 0;
-                const rate = total > 0 ? Math.round((passed / total) * 100) : 100;
+                // Only show passed if tests were actually executed successfully
+                const hasError = testResults.details.some(d => d.status === 'error');
+                const testsExecuted = testResults.total > 0;
+                const passed = testsExecuted ? testResults.passed : 0;
+                const failed = testsExecuted ? testResults.failed : (hasError ? total : 0);
+                const rate = testsExecuted && total > 0 ? Math.round((passed / total) * 100) : 0;
                 return (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <div className="bg-slate-700/50 rounded-lg p-4 text-center">
@@ -2020,12 +2022,17 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   ))}
                 </div>
               )}
-              {testResults.total === 0 && !testResults.running && (
+              {testResults.total === 0 && !testResults.running && testResults.details.length === 0 && (
                 <div className="bg-slate-900/50 rounded-lg p-4">
                   <p className="text-sm text-slate-400 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Tests en cours d'exécution...
+                    Exécution des tests en attente...
                   </p>
+                </div>
+              )}
+              {testResults.details.some(d => d.status === 'error') && (
+                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mt-2">
+                  <p className="text-sm text-red-400">⚠️ Erreur d'exécution - le code contient des erreurs de syntaxe</p>
                 </div>
               )}
               {testResults.failed > 0 && (
