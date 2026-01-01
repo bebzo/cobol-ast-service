@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
+import { postProcessPythonCode } from "@/lib/postprocess";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -869,7 +870,7 @@ export default function Home() {
               fixedLines.push(line);
             }
             
-            return fixedLines.join('\n');
+            return postProcessPythonCode(fixedLines.join('\n'), filename || 'PROGRAM');
           })(),
           unit_tests: successParts.map((p: any) => p.unit_tests || '').join('\n'),
           cobol_lines: data.original_lines,
