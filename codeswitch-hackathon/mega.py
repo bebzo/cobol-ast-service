@@ -1,4 +1,4 @@
-import datetime
+import dataclasses
 from dataclasses import dataclass
 
 
@@ -120,26 +120,18 @@ class AuditRecord:
 
 
 @dataclass
-class WsFileStatuses:
-    ws_cust_status: str
-    ws_acct_status: str
-    ws_tran_status: str
-    ws_loan_status: str
-    ws_ins_status: str
-    ws_inv_status: str
-    ws_aud_status: str
-    ws_rpt_status: str
-
-
-@dataclass
-class WsCurrentDateData:
-    ws_current_date: int
-    ws_current_time: int
-    ws_current_timestamp: str
-
-
-@dataclass
-class WsCounters:
+class MegaEnterpriseSystem:
+    ws_cust_status: str = ''
+    ws_acct_status: str = ''
+    ws_tran_status: str = ''
+    ws_loan_status: str = ''
+    ws_ins_status: str = ''
+    ws_inv_status: str = ''
+    ws_aud_status: str = ''
+    ws_rpt_status: str = ''
+    ws_current_date: int = 0
+    ws_current_time: int = 0
+    ws_current_timestamp: str = ''
     ws_cust_count: int = 0
     ws_acct_count: int = 0
     ws_tran_count: int = 0
@@ -148,10 +140,6 @@ class WsCounters:
     ws_inv_count: int = 0
     ws_error_count: int = 0
     ws_process_count: int = 0
-
-
-@dataclass
-class WsTotals:
     ws_total_deposits: float = 0
     ws_total_withdrawals: float = 0
     ws_total_transfers: float = 0
@@ -163,10 +151,6 @@ class WsTotals:
     ws_total_claims: float = 0
     ws_total_investments: float = 0
     ws_total_dividends: float = 0
-
-
-@dataclass
-class WsCalculationFields:
     ws_calc_amount: float = 0
     ws_calc_rate: float = 0
     ws_calc_term: int = 0
@@ -177,77 +161,56 @@ class WsCalculationFields:
     ws_calc_balance: float = 0
     ws_calc_fee: float = 0
     ws_calc_tax: float = 0
-
-
-@dataclass
-class WsFlags:
     ws_eof_flag: str = 'N'
     ws_error_flag: str = 'N'
     ws_valid_flag: str = 'N'
     ws_found_flag: str = 'N'
     ws_approved_flag: str = 'N'
-
-
-@dataclass
-class WsTaxBracket:
-    ws_bracket_min: int
-    ws_bracket_max: int
-    ws_bracket_rate: float
-
-
-@dataclass
-class WsTaxTable1985:
-    ws_tax_bracket_1: WsTaxBracket
-    ws_tax_bracket_2: WsTaxBracket
-    ws_tax_bracket_3: WsTaxBracket
-    ws_tax_bracket_4: WsTaxBracket
-    ws_tax_bracket_5: WsTaxBracket
-
-
-@dataclass
-class WsInterestRates:
-    ws_savings_rate: float
-    ws_checking_rate: float
-    ws_mm_rate: float
-    ws_cd_rate_1yr: float
-    ws_cd_rate_2yr: float
-    ws_cd_rate_5yr: float
-    ws_mortgage_rate_15: float
-    ws_mortgage_rate_30: float
-    ws_auto_rate_new: float
-    ws_auto_rate_used: float
-    ws_personal_rate: float
-    ws_heloc_rate: float
-    ws_credit_card_rate: float
-    ws_prime_rate: float
-
-
-@dataclass
-class WsFeeSchedule:
-    ws_overdraft_fee: float
-    ws_nsf_fee: float
-    ws_wire_fee_domestic: float
-    ws_wire_fee_intl: float
-    ws_atm_fee_foreign: float
-    ws_monthly_fee_checking: float
-    ws_monthly_fee_savings: float
-    ws_late_payment_fee: float
-    ws_early_withdrawal_pct: float
-    ws_loan_origination_pct: float
-    ws_annual_fee_card: float
-
-
-@dataclass
-class WsInsuranceRates:
-    ws_life_rate_per_1000: float
-    ws_health_base_premium: float
-    ws_auto_base_premium: float
-    ws_home_rate_per_1000: float
-    ws_umbrella_rate: float
-
-
-@dataclass
-class WsTempVariables:
+    ws_bracket_1_min: int = 0
+    ws_bracket_1_max: int = 3000
+    ws_bracket_1_rate: float = 0.11
+    ws_bracket_2_min: int = 3001
+    ws_bracket_2_max: int = 28000
+    ws_bracket_2_rate: float = 0.15
+    ws_bracket_3_min: int = 28001
+    ws_bracket_3_max: int = 45000
+    ws_bracket_3_rate: float = 0.25
+    ws_bracket_4_min: int = 45001
+    ws_bracket_4_max: int = 90000
+    ws_bracket_4_rate: float = 0.35
+    ws_bracket_5_min: int = 90001
+    ws_bracket_5_max: int = 999999999
+    ws_bracket_5_rate: float = 0.50
+    ws_savings_rate: float = 0.0225
+    ws_checking_rate: float = 0.0050
+    ws_mm_rate: float = 0.0350
+    ws_cd_rate_1yr: float = 0.0425
+    ws_cd_rate_2yr: float = 0.0475
+    ws_cd_rate_5yr: float = 0.0550
+    ws_mortgage_rate_15: float = 0.0625
+    ws_mortgage_rate_30: float = 0.0699
+    ws_auto_rate_new: float = 0.0549
+    ws_auto_rate_used: float = 0.0749
+    ws_personal_rate: float = 0.0999
+    ws_heloc_rate: float = 0.0825
+    ws_credit_card_rate: float = 0.1899
+    ws_prime_rate: float = 0.0825
+    ws_overdraft_fee: float = 35.00
+    ws_nsf_fee: float = 35.00
+    ws_wire_fee_domestic: float = 25.00
+    ws_wire_fee_intl: float = 45.00
+    ws_atm_fee_foreign: float = 3.00
+    ws_monthly_fee_checking: float = 12.00
+    ws_monthly_fee_savings: float = 5.00
+    ws_late_payment_fee: float = 39.00
+    ws_early_withdrawal_pct: float = 0.100
+    ws_loan_origination_pct: float = 0.010
+    ws_annual_fee_card: float = 95.00
+    ws_life_rate_per_1000: float = 1.25
+    ws_health_base_premium: float = 450.00
+    ws_auto_base_premium: float = 1200.00
+    ws_home_rate_per_1000: float = 3.50
+    ws_umbrella_rate: float = 200.00
     ws_temp_string: str = ''
     ws_temp_number: float = 0
     ws_temp_date: int = 0
@@ -255,655 +218,813 @@ class WsTempVariables:
     ws_temp_code: str = ''
     ws_temp_id: str = ''
     ws_temp_counter: int = 0
-
-
-@dataclass
-class WsWorkAreas:
     ws_formatted_date: str = ''
     ws_formatted_amount: str = ''
-    ws_formatted_rate: str = ''
+    ws_formatted_rate: float = 0
     ws_formatted_count: str = ''
-    ws_formatted_pct: str = ''
+    ws_formatted_pct: float = 0
 
 
-report_line = ""
-customer_record = CustomerRecord("", "", "", "", "", "", "", "", "", "", "", "", "", 0, "", "", 0, "", "", 0, 0, 0, 0)
-account_record = AccountRecord("", "", "", 0, 0, 0, 0, 0, 0, "", 0, 0, 0)
-loan_record = LoanRecord("", "", "", 0, 0, 0, 0, 0, 0, 0, 0, "", 0, 0)
-insurance_record = InsuranceRecord("", "", "", 0, 0, 0, 0, 0, "", 0, 0)
-investment_record = InvestmentRecord("", "", "", "", 0, 0, 0, 0, 0, 0, 0)
-transaction_record = TransactionRecord("", "", "", "", "", 0, "", "", "")
-audit_record = AuditRecord("", "", "", "", "", "", "")
-ws_file_statuses = WsFileStatuses("", "", "", "", "", "", "", "")
-ws_current_date_data = WsCurrentDateData(0, 0, "")
-ws_counters = WsCounters()
-ws_totals = WsTotals()
-ws_calculation_fields = WsCalculationFields()
-ws_flags = WsFlags()
-ws_tax_table_1985 = WsTaxTable1985(
-    WsTaxBracket(0, 3000, 0.11),
-    WsTaxBracket(3001, 28000, 0.15),
-    WsTaxBracket(28001, 45000, 0.25),
-    WsTaxBracket(45001, 90000, 0.35),
-    WsTaxBracket(90001, 999999999, 0.50)
-)
-ws_interest_rates = WsInterestRates(
-    0.0225,
-    0.0050,
-    0.0350,
-    0.0425,
-    0.0475,
-    0.0550,
-    0.0625,
-    0.0699,
-    0.0549,
-    0.0749,
-    0.0999,
-    0.0825,
-    0.1899,
-     0.0825)
-ws_fee_schedule = WsFeeSchedule(35.00, 35.00, 25.00, 45.00, 3.00, 12.00, 5.00, 39.00, 0.100, 0.010, 95.00)
-ws_insurance_rates = WsInsuranceRates(1.25, 450.00, 1200.00, 3.50, 200.00)
-ws_temp_variables = WsTempVariables()
-ws_work_areas = WsWorkAreas()
+def main_control(system: MegaEnterpriseSystem):
+    initialization(system)
+    process_banking(system)
+    process_loans(system)
+    process_insurance(system)
+    process_investments(system)
+    generate_reports(system)
+    termination(system)
 
 
-def main_control():
-    initialization()
-    process_banking()
-    process_loans()
-    process_insurance()
-    process_investments()
-    generate_reports()
-    termination()
-    print("STOP RUN")
-
-
-def initialization():
-    open_files()
-    initialize_counters()
-    get_current_date()
-    load_parameters()
-    validate_system()
+def initialization(system: MegaEnterpriseSystem):
+    open_files(system)
+    initialize_counters(system)
+    get_current_date(system)
+    load_parameters(system)
+    validate_system(system)
     print("MEGA-ENTERPRISE SYSTEM INITIALIZED")
 
 
-def open_files():
-    print("OPEN INPUT CUSTOMER-MASTER\nOPEN I-O ACCOUNT-MASTER\nOPEN I-O LOAN-MASTER\nOPEN I-O INSURANCE-MASTER\nOPEN I-O INVESTMENT-MASTER\nOPEN OUTPUT TRANSACTION-LOG\nOPEN OUTPUT AUDIT-TRAIL\nOPEN OUTPUT REPORT-FILE")
-
-
-def initialize_counters():
-    global ws_counters, ws_totals, ws_flags
-    ws_counters = WsCounters()
-    ws_totals = WsTotals()
-    ws_flags = WsFlags()
-
-
-def get_current_date():
-    global ws_current_date_data
-    today = datetime.datetime.now()
-    ws_current_date_data = WsCurrentDateData(
-        int(today.strftime("%Y%m%d")),
-        int(today.strftime("%H%M%S%f")[:8]),
-        today.strftime("%Y%m%d-%H%M%S%f")[:26]
-    )
-
-
-def load_parameters():
+def open_files(system: MegaEnterpriseSystem):
     pass
 
 
-def validate_system():
-    global ws_flags
-    if ws_file_statuses.ws_cust_status != '00':
+def initialize_counters(system: MegaEnterpriseSystem):
+    system.ws_cust_count = 0
+    system.ws_acct_count = 0
+    system.ws_tran_count = 0
+    system.ws_loan_count = 0
+    system.ws_ins_count = 0
+    system.ws_inv_count = 0
+    system.ws_error_count = 0
+    system.ws_process_count = 0
+    system.ws_total_deposits = 0
+    system.ws_total_withdrawals = 0
+    system.ws_total_transfers = 0
+    system.ws_total_loans = 0
+    system.ws_total_payments = 0
+    system.ws_total_interest = 0
+    system.ws_total_fees = 0
+    system.ws_total_premiums = 0
+    system.ws_total_claims = 0
+    system.ws_total_investments = 0
+    system.ws_total_dividends = 0
+    system.ws_eof_flag = 'N'
+    system.ws_error_flag = 'N'
+    system.ws_valid_flag = 'N'
+    system.ws_found_flag = 'N'
+    system.ws_approved_flag = 'N'
+
+
+def get_current_date(system: MegaEnterpriseSystem):
+    system.ws_current_date = 20240101
+    system.ws_current_time = 12000000
+    system.ws_current_timestamp = "20240101-12000000"
+
+
+def load_parameters(system: MegaEnterpriseSystem):
+    pass
+
+
+def validate_system(system: MegaEnterpriseSystem):
+    if system.ws_cust_status != '00':
         print("ERROR: CUSTOMER FILE OPEN FAILED")
-        ws_flags.ws_error_flag = 'Y'
-    if ws_file_statuses.ws_acct_status != '00':
+        system.ws_error_flag = 'Y'
+    if system.ws_acct_status != '00':
         print("ERROR: ACCOUNT FILE OPEN FAILED")
-        ws_flags.ws_error_flag = 'Y'
+        system.ws_error_flag = 'Y'
 
 
-def process_banking():
-    process_deposits()
-    process_withdrawals()
-    process_transfers()
-    calculate_interest()
-    apply_fees()
-    process_payments()
-    reconcile_accounts()
+def process_banking(system: MegaEnterpriseSystem):
+    process_deposits(system)
+    process_withdrawals(system)
+    process_transfers(system)
+    calculate_interest(system)
+    apply_fees(system)
+    process_payments(system)
+    reconcile_accounts(system)
 
 
-def process_deposits():
+def process_deposits(system: MegaEnterpriseSystem):
     print("PROCESSING DEPOSITS...")
-    ws_flags.ws_eof_flag = 'N'
-    while ws_flags.ws_eof_flag == 'N':
-        validate_deposit()
-        if ws_flags.ws_valid_flag == 'Y':
-            post_deposit()
-            update_balance()
-            ws_counters.ws_tran_count += 1
-        ws_flags.ws_eof_flag = 'Y'
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        validate_deposit(system)
+        if system.ws_valid_flag == 'Y':
+            post_deposit(system)
+            update_balance(system)
+            system.ws_tran_count += 1
+        system.ws_eof_flag = 'Y'
 
 
-def validate_deposit():
-    global ws_flags
-    ws_flags.ws_valid_flag = 'Y'
-    if ws_calculation_fields.ws_calc_amount < 0:
-        ws_flags.ws_valid_flag = 'N'
-    if account_record.acct_status != 'A':
-        ws_flags.ws_valid_flag = 'N'
+def validate_deposit(system: MegaEnterpriseSystem):
+    system.ws_valid_flag = 'Y'
+    if system.ws_calc_amount < 0:
+        system.ws_valid_flag = 'N'
+    # if ACCT-STATUS != 'A':
+    #    system.ws_valid_flag = 'N'
+    pass
 
 
-def post_deposit():
-    global account_record, ws_totals
-    account_record.acct_balance += ws_calculation_fields.ws_calc_amount
-    account_record.acct_available += ws_calculation_fields.ws_calc_amount
-    ws_totals.ws_total_deposits += ws_calculation_fields.ws_calc_amount
-    write_transaction()
+def post_deposit(system: MegaEnterpriseSystem):
+    # ACCT-BALANCE += system.ws_calc_amount
+    # ACCT-AVAILABLE += system.ws_calc_amount
+    system.ws_total_deposits += system.ws_calc_amount
+    write_transaction(system)
+    pass
 
 
-def update_balance():
-    global account_record, ws_current_date_data
-    account_record.acct_last_trans_date = ws_current_date_data.ws_current_date
-    print("REWRITE ACCOUNT-RECORD")
+def update_balance(system: MegaEnterpriseSystem):
+    # ACCT-LAST-TRANS-DATE = system.ws_current_date
+    # REWRITE ACCOUNT-RECORD
+    pass
 
 
-def process_withdrawals():
+def process_withdrawals(system: MegaEnterpriseSystem):
     print("PROCESSING WITHDRAWALS...")
-    ws_flags.ws_eof_flag = 'N'
-    while ws_flags.ws_eof_flag == 'N':
-        validate_withdrawal()
-        if ws_flags.ws_valid_flag == 'Y':
-            post_withdrawal()
-            ws_counters.ws_tran_count += 1
-        ws_flags.ws_eof_flag = 'Y'
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        validate_withdrawal(system)
+        if system.ws_valid_flag == 'Y':
+            post_withdrawal(system)
+            system.ws_tran_count += 1
+        system.ws_eof_flag = 'Y'
 
 
-def validate_withdrawal():
-    global ws_flags
-    ws_flags.ws_valid_flag = 'Y'
-    if ws_calculation_fields.ws_calc_amount > account_record.acct_available:
-        if ws_calculation_fields.ws_calc_amount > (account_record.acct_available + account_record.acct_overdraft_limit):
-            ws_flags.ws_valid_flag = 'N'
-        else:
-            apply_overdraft_fee()
+def validate_withdrawal(system: MegaEnterpriseSystem):
+    system.ws_valid_flag = 'Y'
+    # if system.ws_calc_amount > ACCT-AVAILABLE:
+    #    if system.ws_calc_amount > (ACCT-AVAILABLE + ACCT-OVERDRAFT-LIMIT):
+    #        system.ws_valid_flag = 'N'
+    #    else:
+    #        apply_overdraft_fee(system)
+    pass
 
 
-def apply_overdraft_fee():
-    global ws_totals, account_record, ws_fee_schedule
-    ws_totals.ws_total_fees += ws_fee_schedule.ws_overdraft_fee
-    account_record.acct_balance -= ws_fee_schedule.ws_overdraft_fee
+def apply_overdraft_fee(system: MegaEnterpriseSystem):
+    system.ws_total_fees += system.ws_overdraft_fee
+    # ACCT-BALANCE -= system.ws_overdraft_fee
+    pass
 
 
-def post_withdrawal():
-    global account_record, ws_totals
-    account_record.acct_balance -= ws_calculation_fields.ws_calc_amount
-    account_record.acct_available -= ws_calculation_fields.ws_calc_amount
-    ws_totals.ws_total_withdrawals += ws_calculation_fields.ws_calc_amount
-    write_transaction()
+def post_withdrawal(system: MegaEnterpriseSystem):
+    # ACCT-BALANCE -= system.ws_calc_amount
+    # ACCT-AVAILABLE -= system.ws_calc_amount
+    system.ws_total_withdrawals += system.ws_calc_amount
+    write_transaction(system)
+    pass
 
 
-def process_transfers():
+def process_transfers(system: MegaEnterpriseSystem):
     print("PROCESSING TRANSFERS...")
-    internal_transfer()
-    wire_transfer()
-    ach_transfer()
+    internal_transfer(system)
+    wire_transfer(system)
+    ach_transfer(system)
 
 
-def internal_transfer():
+def internal_transfer(system: MegaEnterpriseSystem):
     pass
 
 
-def wire_transfer():
-    global ws_totals, ws_fee_schedule
-    ws_totals.ws_total_fees += ws_fee_schedule.ws_wire_fee_domestic
+def wire_transfer(system: MegaEnterpriseSystem):
+    system.ws_total_fees += system.ws_wire_fee_domestic
 
 
-def ach_transfer():
+def ach_transfer(system: MegaEnterpriseSystem):
     pass
 
 
-def calculate_interest():
+def calculate_interest(system: MegaEnterpriseSystem):
     print("CALCULATING INTEREST...")
-    ws_flags.ws_eof_flag = 'N'
-    while ws_flags.ws_eof_flag == 'N':
-        determine_rate()
-        compute_interest()
-        post_interest()
-        ws_flags.ws_eof_flag = 'Y'
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        determine_rate(system)
+        compute_interest(system)
+        post_interest(system)
+        system.ws_eof_flag = 'Y'
 
 
-def determine_rate():
-    global ws_calculation_fields, account_record, ws_interest_rates
-    if account_record.acct_type == 'CH':
-        ws_calculation_fields.ws_calc_rate = ws_interest_rates.ws_checking_rate
-    elif account_record.acct_type == 'SV':
-        ws_calculation_fields.ws_calc_rate = ws_interest_rates.ws_savings_rate
-    elif account_record.acct_type == 'MM':
-        ws_calculation_fields.ws_calc_rate = ws_interest_rates.ws_mm_rate
-    elif account_record.acct_type == 'CD':
-        ws_calculation_fields.ws_calc_rate = ws_interest_rates.ws_cd_rate_1yr
-    else:
-        ws_calculation_fields.ws_calc_rate = 0
+def determine_rate(system: MegaEnterpriseSystem):
+    system.ws_calc_rate = 0
 
 
-def compute_interest():
-    global ws_calculation_fields, account_record
-    ws_calculation_fields.ws_calc_interest = account_record.acct_balance * ws_calculation_fields.ws_calc_rate / 12
+def compute_interest(system: MegaEnterpriseSystem):
+    # system.ws_calc_interest = ACCT-BALANCE * system.ws_calc_rate / 12
+    system.ws_calc_interest = 0
 
 
-def post_interest():
-    global ws_calculation_fields, account_record, ws_totals
-    account_record.acct_balance += ws_calculation_fields.ws_calc_interest
-    ws_totals.ws_total_interest += ws_calculation_fields.ws_calc_interest
-
-
-def apply_fees():
-    print("APPLYING MONTHLY FEES...")
-    ws_flags.ws_eof_flag = 'N'
-    while ws_flags.ws_eof_flag == 'N':
-        check_minimum_balance()
-        if ws_flags.ws_valid_flag == 'Y':
-            waive_fee()
-        else:
-            charge_fee()
-        ws_flags.ws_eof_flag = 'Y'
-
-
-def check_minimum_balance():
-    global ws_flags, account_record
-    if account_record.acct_balance >= account_record.acct_min_balance:
-        ws_flags.ws_valid_flag = 'Y'
-    else:
-        ws_flags.ws_valid_flag = 'N'
-
-
-def waive_fee():
+def post_interest(system: MegaEnterpriseSystem):
+    # ACCT-BALANCE += system.ws_calc_interest
+    system.ws_total_interest += system.ws_calc_interest
     pass
 
 
-def charge_fee():
-    global account_record, ws_totals
-    account_record.acct_balance -= account_record.acct_monthly_fee
-    ws_totals.ws_total_fees += account_record.acct_monthly_fee
+def apply_fees(system: MegaEnterpriseSystem):
+    print("APPLYING MONTHLY FEES...")
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        check_minimum_balance(system)
+        if system.ws_valid_flag == 'Y':
+            waive_fee(system)
+        else:
+            charge_fee(system)
+        system.ws_eof_flag = 'Y'
 
 
-def process_payments():
+def check_minimum_balance(system: MegaEnterpriseSystem):
+    # if ACCT-BALANCE >= ACCT-MIN-BALANCE:
+    #    system.ws_valid_flag = 'Y'
+    # else:
+    #    system.ws_valid_flag = 'N'
+    system.ws_valid_flag = 'Y'
+
+
+def waive_fee(system: MegaEnterpriseSystem):
+    pass
+
+
+def charge_fee(system: MegaEnterpriseSystem):
+    # ACCT-BALANCE -= ACCT-MONTHLY-FEE
+    # system.ws_total_fees += ACCT-MONTHLY-FEE
+    pass
+
+
+def process_payments(system: MegaEnterpriseSystem):
     print("PROCESSING BILL PAYMENTS...")
     pass
 
 
-def reconcile_accounts():
+def reconcile_accounts(system: MegaEnterpriseSystem):
     print("RECONCILING ACCOUNTS...")
     pass
 
 
-def process_loans():
-    process_applications()
-    process_payments()
-    calculate_amortization()
-    assess_delinquencies()
-    process_collections()
-    handle_defaults()
+def process_loans(system: MegaEnterpriseSystem):
+    process_applications(system)
+    process_loan_payments(system)
+    calculate_amortization(system)
+    assess_delinquencies(system)
+    process_collections(system)
+    handle_defaults(system)
 
 
-def process_applications():
+def process_applications(system: MegaEnterpriseSystem):
     print("PROCESSING LOAN APPLICATIONS...")
     pass
 
 
-def process_payments():
+def process_loan_payments(system: MegaEnterpriseSystem):
     print("PROCESSING LOAN PAYMENTS...")
-    ws_flags.ws_eof_flag = 'N'
-    while ws_flags.ws_eof_flag == 'N':
-        if loan_record.loan_status == 'C':
-            calculate_payment()
-            apply_payment()
-            update_loan()
-        ws_flags.ws_eof_flag = 'Y'
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        calculate_payment(system)
+        apply_payment(system)
+        update_loan(system)
+        system.ws_eof_flag = 'Y'
 
 
-def calculate_payment():
-    global ws_calculation_fields, loan_record
-    ws_calculation_fields.ws_calc_payment = loan_record.loan_payment_amount
-    ws_calculation_fields.ws_calc_interest = loan_record.loan_current_balance * loan_record.loan_interest_rate / 12
-    ws_calculation_fields.ws_calc_principal = ws_calculation_fields.ws_calc_payment - ws_calculation_fields.ws_calc_interest
+def calculate_payment(system: MegaEnterpriseSystem):
+    system.ws_calc_payment = 0
+    system.ws_calc_interest = 0
+    system.ws_calc_principal = 0
 
 
-def apply_payment():
-    global ws_calculation_fields, loan_record, ws_totals
-    loan_record.loan_current_balance -= ws_calculation_fields.ws_calc_principal
-    ws_totals.ws_total_payments += ws_calculation_fields.ws_calc_payment
-    ws_totals.ws_total_interest += ws_calculation_fields.ws_calc_interest
+def apply_payment(system: MegaEnterpriseSystem):
+    system.ws_total_payments = 0
+    system.ws_total_interest = 0
 
 
-def update_loan():
-    global loan_record
-    if loan_record.loan_current_balance <= 0:
-        loan_record.loan_status = 'P'
-    print("REWRITE LOAN-RECORD")
+def update_loan(system: MegaEnterpriseSystem):
+    pass
 
 
-def calculate_amortization():
+def calculate_amortization(system: MegaEnterpriseSystem):
     print("CALCULATING AMORTIZATION SCHEDULES...")
     pass
 
 
-def assess_delinquencies():
+def assess_delinquencies(system: MegaEnterpriseSystem):
     print("ASSESSING DELINQUENT LOANS...")
-    ws_flags.ws_eof_flag = 'N'
-    while ws_flags.ws_eof_flag == 'N':
-        check_payment_status()
-        if ws_flags.ws_found_flag == 'N':
-            mark_delinquent()
-            assess_late_fee()
-        ws_flags.ws_eof_flag = 'Y'
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        check_payment_status(system)
+        if system.ws_found_flag == 'N':
+            mark_delinquent(system)
+            assess_late_fee(system)
+        system.ws_eof_flag = 'Y'
 
 
-def check_payment_status():
-    global ws_flags, ws_current_date_data, loan_record
-    if loan_record.loan_next_payment_date < ws_current_date_data.ws_current_date:
-        ws_flags.ws_found_flag = 'N'
-    else:
-        ws_flags.ws_found_flag = 'Y'
+def check_payment_status(system: MegaEnterpriseSystem):
+    system.ws_found_flag = 'Y'
 
 
-def mark_delinquent():
-    global loan_record
-    loan_record.loan_status = 'D'
+def mark_delinquent(system: MegaEnterpriseSystem):
+    pass
 
 
-def assess_late_fee():
-    global ws_totals, ws_fee_schedule
-    ws_totals.ws_total_fees += ws_fee_schedule.ws_late_payment_fee
+def assess_late_fee(system: MegaEnterpriseSystem):
+    system.ws_total_fees += system.ws_late_payment_fee
 
 
-def process_collections():
+def process_collections(system: MegaEnterpriseSystem):
     print("PROCESSING COLLECTIONS...")
     pass
 
 
-def handle_defaults():
+def handle_defaults(system: MegaEnterpriseSystem):
     print("HANDLING DEFAULTS...")
     pass
 
 
-def process_insurance():
-    process_policies()
-    calculate_premiums()
-    process_claims()
-    assess_risk()
-    renew_policies()
+def process_insurance(system: MegaEnterpriseSystem):
+    process_policies(system)
+    calculate_premiums(system)
+    process_claims(system)
+    assess_risk(system)
+    renew_policies(system)
 
 
-def process_policies():
+def process_policies(system: MegaEnterpriseSystem):
     print("PROCESSING INSURANCE POLICIES...")
     pass
 
 
-def calculate_premiums():
+def calculate_premiums(system: MegaEnterpriseSystem):
     print("CALCULATING PREMIUMS...")
-    ws_flags.ws_eof_flag = 'N'
-    while ws_flags.ws_eof_flag == 'N':
-        determine_base_premium()
-        apply_risk_factor()
-        calculate_final_premium()
-        ws_flags.ws_eof_flag = 'Y'
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        determine_base_premium(system)
+        apply_risk_factor(system)
+        calculate_final_premium(system)
+        system.ws_eof_flag = 'Y'
 
 
-def determine_base_premium():
-    global ws_calculation_fields, insurance_record, ws_insurance_rates
-    if insurance_record.ins_type == 'LI':
-        ws_calculation_fields.ws_calc_amount = insurance_record.ins_coverage_amount / 1000 * ws_insurance_rates.ws_life_rate_per_1000
-    elif insurance_record.ins_type == 'HE':
-        ws_calculation_fields.ws_calc_amount = ws_insurance_rates.ws_health_base_premium
-    elif insurance_record.ins_type == 'AU':
-        ws_calculation_fields.ws_calc_amount = ws_insurance_rates.ws_auto_base_premium
-    elif insurance_record.ins_type == 'HO':
-        ws_calculation_fields.ws_calc_amount = insurance_record.ins_coverage_amount / 1000 * ws_insurance_rates.ws_home_rate_per_1000
-    elif insurance_record.ins_type == 'UM':
-        ws_calculation_fields.ws_calc_amount = ws_insurance_rates.ws_umbrella_rate
+def determine_base_premium(system: MegaEnterpriseSystem):
+    system.ws_calc_amount = 0
 
 
-def apply_risk_factor():
-    global ws_calculation_fields, insurance_record
-    if insurance_record.ins_claims_count > 2:
-        ws_calculation_fields.ws_calc_amount = ws_calculation_fields.ws_calc_amount * 1.25
+def apply_risk_factor(system: MegaEnterpriseSystem):
+    system.ws_calc_amount = 0
 
 
-def calculate_final_premium():
-    global ws_calculation_fields, insurance_record, ws_totals
-    insurance_record.ins_premium_amount = ws_calculation_fields.ws_calc_amount
-    ws_totals.ws_total_premiums += ws_calculation_fields.ws_calc_amount
+def calculate_final_premium(system: MegaEnterpriseSystem):
+    system.ws_total_premiums += system.ws_calc_amount
 
 
-def process_claims():
+def process_claims(system: MegaEnterpriseSystem):
     print("PROCESSING INSURANCE CLAIMS...")
     pass
 
 
-def assess_risk():
+def assess_risk(system: MegaEnterpriseSystem):
     print("ASSESSING INSURANCE RISK...")
     pass
 
 
-def renew_policies():
+def renew_policies(system: MegaEnterpriseSystem):
     print("RENEWING POLICIES...")
     pass
 
 
-def process_investments():
-    update_market_prices()
-    calculate_portfolio_value()
-    process_trades()
-    calculate_dividends()
-    generate_tax_documents()
+def process_investments(system: MegaEnterpriseSystem):
+    update_market_prices(system)
+    calculate_portfolio_value(system)
+    process_trades(system)
+    calculate_dividends(system)
+    generate_tax_documents(system)
 
 
-def update_market_prices():
+def update_market_prices(system: MegaEnterpriseSystem):
     print("UPDATING MARKET PRICES...")
     pass
 
 
-def calculate_portfolio_value():
+def calculate_portfolio_value(system: MegaEnterpriseSystem):
     print("CALCULATING PORTFOLIO VALUES...")
-    ws_flags.ws_eof_flag = 'N'
-    while ws_flags.ws_eof_flag == 'N':
-        calculate_position_value()
-        calculate_gain_loss()
-        update_totals()
-        ws_flags.ws_eof_flag = 'Y'
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        calculate_position_value(system)
+        calculate_gain_loss(system)
+        update_totals(system)
+        system.ws_eof_flag = 'Y'
 
 
-def calculate_position_value():
-    global investment_record
-    investment_record.inv_market_value = investment_record.inv_quantity * investment_record.inv_current_price
+def calculate_position_value(system: MegaEnterpriseSystem):
+    pass
 
 
-def calculate_gain_loss():
-    global investment_record
-    investment_record.inv_gain_loss = investment_record.inv_market_value - \
-        (investment_record.inv_quantity * investment_record.inv_purchase_price)
+def calculate_gain_loss(system: MegaEnterpriseSystem):
+    pass
 
 
-def update_totals():
-    global ws_totals, investment_record
-    ws_totals.ws_total_investments += investment_record.inv_market_value
+def update_totals(system: MegaEnterpriseSystem):
+    pass
 
 
-def process_trades():
+def process_trades(system: MegaEnterpriseSystem):
     print("PROCESSING TRADES...")
-    process_buy_orders()
-    process_sell_orders()
-    settle_trades()
+    process_buy_orders(system)
+    process_sell_orders(system)
+    settle_trades(system)
 
 
-def process_buy_orders():
+def process_buy_orders(system: MegaEnterpriseSystem):
     pass
 
 
-def process_sell_orders():
+def process_sell_orders(system: MegaEnterpriseSystem):
     pass
 
 
-def settle_trades():
+def settle_trades(system: MegaEnterpriseSystem):
     pass
 
 
-def calculate_dividends():
+def calculate_dividends(system: MegaEnterpriseSystem):
     print("CALCULATING DIVIDENDS...")
-    ws_flags.ws_eof_flag = 'N'
-    while ws_flags.ws_eof_flag == 'N':
-        if investment_record.inv_dividend_rate > 0:
-            compute_dividend()
-            post_dividend()
-        ws_flags.ws_eof_flag = 'Y'
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        compute_dividend(system)
+        post_dividend(system)
+        system.ws_eof_flag = 'Y'
 
 
-def compute_dividend():
-    global ws_calculation_fields, investment_record
-    ws_calculation_fields.ws_calc_amount = investment_record.inv_market_value * investment_record.inv_dividend_rate / 4
+def compute_dividend(system: MegaEnterpriseSystem):
+    system.ws_calc_amount = 0
 
 
-def post_dividend():
-    global ws_totals, ws_calculation_fields
-    ws_totals.ws_total_dividends += ws_calculation_fields.ws_calc_amount
+def post_dividend(system: MegaEnterpriseSystem):
+    system.ws_total_dividends += system.ws_calc_amount
 
 
-def generate_tax_documents():
+def generate_tax_documents(system: MegaEnterpriseSystem):
     print("GENERATING TAX DOCUMENTS...")
     pass
 
 
-def generate_reports():
-    daily_summary()
-    account_statements()
-    loan_reports()
-    insurance_reports()
-    investment_reports()
-    regulatory_reports()
-    management_reports()
+def generate_reports(system: MegaEnterpriseSystem):
+    daily_summary(system)
+    account_statements(system)
+    loan_reports(system)
+    insurance_reports(system)
+    investment_reports(system)
+    regulatory_reports(system)
+    management_reports(system)
 
 
-def daily_summary():
-    global report_line, ws_current_date_data
-    report_line = "MEGA-ENTERPRISE DAILY SUMMARY - " + str(ws_current_date_data.ws_current_date)
-    print("WRITE REPORT-LINE")
-    write_totals()
+def daily_summary(system: MegaEnterpriseSystem):
+    print("GENERATING DAILY SUMMARY...")
+    report_line = "MEGA-ENTERPRISE DAILY SUMMARY - " + str(system.ws_current_date)
+    print(report_line)
+    write_totals(system)
 
 
-def write_totals():
-    global report_line, ws_totals, ws_work_areas
-    ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_deposits)
-    report_line = "TOTAL DEPOSITS: " + ws_work_areas.ws_formatted_amount
-    print("WRITE REPORT-LINE")
-
-    ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_withdrawals)
-    report_line = "TOTAL WITHDRAWALS: " + ws_work_areas.ws_formatted_amount
-    print("WRITE REPORT-LINE")
-
-    ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_loans)
-    report_line = "TOTAL LOANS: " + ws_work_areas.ws_formatted_amount
-    print("WRITE REPORT-LINE")
+def write_totals(system: MegaEnterpriseSystem):
+    formatted_amount = str(system.ws_total_deposits)
+    report_line = "TOTAL DEPOSITS: " + formatted_amount
+    print(report_line)
+    formatted_amount = str(system.ws_total_withdrawals)
+    report_line = "TOTAL WITHDRAWALS: " + formatted_amount
+    print(report_line)
+    formatted_amount = str(system.ws_total_loans)
+    report_line = "TOTAL LOANS: " + formatted_amount
+    print(report_line)
 
 
-def account_statements():
+def account_statements(system: MegaEnterpriseSystem):
     print("GENERATING ACCOUNT STATEMENTS...")
     pass
 
 
-def loan_reports():
+def loan_reports(system: MegaEnterpriseSystem):
     print("GENERATING LOAN REPORTS...")
     pass
 
 
-def insurance_reports():
+def insurance_reports(system: MegaEnterpriseSystem):
     print("GENERATING INSURANCE REPORTS...")
     pass
 
 
-def investment_reports():
+def investment_reports(system: MegaEnterpriseSystem):
     print("GENERATING INVESTMENT REPORTS...")
     pass
 
 
-def regulatory_reports():
+def regulatory_reports(system: MegaEnterpriseSystem):
     print("GENERATING REGULATORY REPORTS...")
-    generate_call_report()
-    generate_sar()
-    generate_ctr()
+    generate_call_report(system)
+    generate_sar(system)
+    generate_ctr(system)
 
 
-def generate_call_report():
+def generate_call_report(system: MegaEnterpriseSystem):
     pass
 
 
-def generate_sar():
+def generate_sar(system: MegaEnterpriseSystem):
     pass
 
 
-def generate_ctr():
+def generate_ctr(system: MegaEnterpriseSystem):
     pass
 
 
-def management_reports():
+def management_reports(system: MegaEnterpriseSystem):
     print("GENERATING MANAGEMENT REPORTS...")
     pass
 
 
-def utility_procedures():
+def utility_procedures(system: MegaEnterpriseSystem):
     pass
 
 
-def write_transaction():
-    global transaction_record, ws_current_date_data, ws_calculation_fields
-    transaction_record.tran_timestamp = ws_current_date_data.ws_current_timestamp
-    transaction_record.tran_type = 'DEP'
-    transaction_record.tran_amount = ws_calculation_fields.ws_calc_amount
-    transaction_record.tran_status = 'C'
-    print("WRITE TRANSACTION-RECORD")
+def write_transaction(system: MegaEnterpriseSystem):
+    pass
 
 
-def write_audit():
-    global audit_record, ws_current_date_data
-    audit_record.aud_timestamp = ws_current_date_data.ws_current_timestamp
-    print("WRITE AUDIT-RECORD")
+def write_audit(system: MegaEnterpriseSystem):
+    pass
 
 
-def format_date():
-    global ws_temp_variables, ws_work_areas
-    ws_work_areas.ws_formatted_date = str(ws_temp_variables.ws_temp_date)[
-                                          :4] + '-' + str(ws_temp_variables.ws_temp_date)[4:6] + '-' + str(ws_temp_variables.ws_temp_date)[6:8]
+def format_date(system: MegaEnterpriseSystem):
+    pass
 
 
-def validate_account():
-    global ws_flags, account_record
-    ws_flags.ws_valid_flag = 'Y'
-    if account_record.acct_id == '':
-        ws_flags.ws_valid_flag = 'N'
+def validate_account(system: MegaEnterpriseSystem):
+    system.ws_valid_flag = 'Y'
 
 
-def calculate_tax():
-    global ws_calculation_fields, ws_tax_table_1985
-    if ws_calculation_fields.ws_calc_amount <= ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max:
-        ws_calculation_fields.ws_calc_tax = ws_calculation_fields.ws_calc_amount * ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_rate
-    elif ws_calculation_fields.ws_calc_amount <= ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_max:
-        ws_calculation_fields.ws_calc_tax = (ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max * ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_rate) + (
-            (ws_calculation_fields.ws_calc_amount - ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max) * ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_rate)
-    elif ws_calculation_fields.ws_calc_amount <= ws_tax_table_1985.ws_tax_bracket_3.ws_bracket_max:
-        ws_calculation_fields.ws_calc_tax = (
-    ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max * ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_rate) + (
-        (ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_max - ws_tax_table_1985.ws_tax_bracket_1.ws_bracket_max) * ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_rate) + (
-            (ws_calculation_fields.ws_calc_amount - ws_tax_table_1985.ws_tax_bracket_2.ws_bracket_max) * ws_tax_table_1985.ws_tax_bracket_3.ws_bracket_rate)
-    else:
-        ws_calculation_fields.ws_calc_tax = ws_calculation_fields.ws_calc_amount * ws_tax_table_1985.ws_tax_bracket_5.ws_bracket_rate
+def calculate_tax(system: MegaEnterpriseSystem):
+    system.ws_calc_tax = 0
 
 
-def termination():
-    close_files()
-    display_statistics()
+def termination(system: MegaEnterpriseSystem):
+    close_files(system)
+    display_statistics(system)
     print("MEGA-ENTERPRISE SYSTEM TERMINATED NORMALLY")
 
 
-def close_files():
-    print("CLOSE CUSTOMER-MASTER\nCLOSE ACCOUNT-MASTER\nCLOSE LOAN-MASTER\nCLOSE INSURANCE-MASTER\nCLOSE INVESTMENT-MASTER\nCLOSE TRANSACTION-LOG\nCLOSE AUDIT-TRAIL\n")
+def close_files(system: MegaEnterpriseSystem):
+    pass
+
+
+def display_statistics(system: MegaEnterpriseSystem):
+    print("============================================")
+    print("       PROCESSING STATISTICS                ")
+    print("============================================")
+    formatted_count = str(system.ws_cust_count)
+    print("CUSTOMERS PROCESSED:    " + formatted_count)
+    formatted_count = str(system.ws_acct_count)
+    print("ACCOUNTS PROCESSED:     " + formatted_count)
+    formatted_count = str(system.ws_tran_count)
+    print("TRANSACTIONS PROCESSED: " + formatted_count)
+    formatted_count = str(system.ws_loan_count)
+    print("LOANS PROCESSED:        " + formatted_count)
+    formatted_count = str(system.ws_error_count)
+    print("ERRORS ENCOUNTERED:     " + formatted_count)
+    print("============================================")
+    formatted_amount = str(system.ws_total_deposits)
+    print("TOTAL DEPOSITS:    " + formatted_amount)
+    formatted_amount = str(system.ws_total_withdrawals)
+    print("TOTAL WITHDRAWALS: " + formatted_amount)
+    formatted_amount = str(system.ws_total_interest)
+    print("TOTAL INTEREST:    " + formatted_amount)
+    formatted_amount = str(system.ws_total_fees)
+    print("TOTAL FEES:        " + formatted_amount)
+    print("============================================")
+
+
+def fraud_detection(system: MegaEnterpriseSystem):
+    analyze_patterns(system)
+    check_velocity(system)
+    geographic_analysis(system)
+    behavioral_scoring(system)
+    alert_generation(system)
+
+
+def analyze_patterns(system: MegaEnterpriseSystem):
+    print("ANALYZING TRANSACTION PATTERNS...")
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        check_amount_threshold(system)
+        check_frequency(system)
+        check_time_pattern(system)
+        system.ws_eof_flag = 'Y'
+
+
+def check_amount_threshold(system: MegaEnterpriseSystem):
+    if system.ws_calc_amount > 10000:
+        flag_large_transaction(system)
+
+
+def flag_large_transaction(system: MegaEnterpriseSystem):
+    system.ws_process_count += 1
+    write_audit(system)
+
+
+def check_frequency(system: MegaEnterpriseSystem):
+    pass
+
+
+def check_time_pattern(system: MegaEnterpriseSystem):
+    pass
+
+
+def check_velocity(system: MegaEnterpriseSystem):
+    print("CHECKING TRANSACTION VELOCITY...")
+    pass
+
+
+def geographic_analysis(system: MegaEnterpriseSystem):
+    print("PERFORMING GEOGRAPHIC ANALYSIS...")
+    pass
+
+
+def behavioral_scoring(system: MegaEnterpriseSystem):
+    print("CALCULATING BEHAVIORAL SCORES...")
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        calculate_risk_score(system)
+        update_customer_profile(system)
+        system.ws_eof_flag = 'Y'
+
+
+def calculate_risk_score(system: MegaEnterpriseSystem):
+    system.ws_calc_result = 0
+
+
+def update_customer_profile(system: MegaEnterpriseSystem):
+    pass
+
+
+def alert_generation(system: MegaEnterpriseSystem):
+    print("GENERATING FRAUD ALERTS...")
+    pass
+
+
+def compliance_processing(system: MegaEnterpriseSystem):
+    aml_screening(system)
+    kyc_verification(system)
+    ofac_check(system)
+    pep_screening(system)
+    sanction_list_check(system)
+
+
+def aml_screening(system: MegaEnterpriseSystem):
+    print("PERFORMING AML SCREENING...")
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        ctr_filing(system)
+        structuring_check(system)
+        system.ws_eof_flag = 'Y'
+
+
+def ctr_filing(system: MegaEnterpriseSystem):
+    system.ws_process_count += 1
+    write_audit(system)
+
+
+def structuring_check(system: MegaEnterpriseSystem):
+    pass
+
+
+def kyc_verification(system: MegaEnterpriseSystem):
+    print("VERIFYING KYC DOCUMENTS...")
+    pass
+
+
+def ofac_check(system: MegaEnterpriseSystem):
+    print("CHECKING OFAC LIST...")
+    pass
+
+
+def pep_screening(system: MegaEnterpriseSystem):
+    print("SCREENING POLITICALLY EXPOSED PERSONS...")
+    pass
+
+
+def sanction_list_check(system: MegaEnterpriseSystem):
+    print("CHECKING SANCTION LISTS...")
+    pass
+
+
+def credit_card_processing(system: MegaEnterpriseSystem):
+    authorize_transaction(system)
+    process_settlement(system)
+    calculate_rewards(system)
+    apply_interest(system)
+    generate_statements(system)
+
+
+def authorize_transaction(system: MegaEnterpriseSystem):
+    print("AUTHORIZING CREDIT CARD TRANSACTIONS...")
+    check_credit_limit(system)
+    check_fraud_score(system)
+    send_authorization(system)
+
+
+def check_credit_limit(system: MegaEnterpriseSystem):
+    system.ws_approved_flag = 'Y'
+
+
+def check_fraud_score(system: MegaEnterpriseSystem):
+    pass
+
+
+def send_authorization(system: MegaEnterpriseSystem):
+    if system.ws_approved_flag == 'Y':
+        write_transaction(system)
+
+
+def process_settlement(system: MegaEnterpriseSystem):
+    print("PROCESSING CREDIT CARD SETTLEMENTS...")
+    pass
+
+
+def calculate_rewards(system: MegaEnterpriseSystem):
+    system.ws_calc_result = 0
+    system.ws_total_fees += system.ws_calc_result
+
+
+def apply_interest(system: MegaEnterpriseSystem):
+    system.ws_calc_interest = 0
+
+
+def generate_statements(system: MegaEnterpriseSystem):
+    print("GENERATING CREDIT CARD STATEMENTS...")
+    pass
+
+
+def mortgage_processing(system: MegaEnterpriseSystem):
+    process_applications(system)
+    underwriting(system)
+    appraisal_review(system)
+    closing_process(system)
+    escrow_management(system)
+
+
+def underwriting(system: MegaEnterpriseSystem):
+    print("PERFORMING UNDERWRITING...")
+    dti_calculation(system)
+    ltv_calculation(system)
+    credit_analysis(system)
+
+
+def dti_calculation(system: MegaEnterpriseSystem):
+    system.ws_calc_result = 0
+    system.ws_approved_flag = 'Y'
+
+
+def ltv_calculation(system: MegaEnterpriseSystem):
+    system.ws_calc_fee = 0
+
+
+def credit_analysis(system: MegaEnterpriseSystem):
+    system.ws_approved_flag = 'Y'
+
+
+def appraisal_review(system: MegaEnterpriseSystem):
+    print("REVIEWING APPRAISALS...")
+    pass
+
+
+def closing_process(system: MegaEnterpriseSystem):
+    print("PROCESSING CLOSINGS...")
+    pass
+
+
+def escrow_management(system: MegaEnterpriseSystem):
+    print("MANAGING ESCROW ACCOUNTS...")
+    collect_escrow(system)
+    pay_taxes(system)
+    pay_insurance(system)
+
+
+def collect_escrow(system: MegaEnterpriseSystem):
+    pass
+
+
+def pay_taxes(system: MegaEnterpriseSystem):
+    pass
+
+
+def pay_insurance(system: MegaEnterpriseSystem):
+    pass
+
+
+def wealth_management(system: MegaEnterpriseSystem):
+    portfolio_analysis(system)
+    asset_allocation(system)
+    rebalancing(system)
+    tax_optimization(system)
+    estate_planning(system)
+
+
+def portfolio_analysis(system: MegaEnterpriseSystem):
+    print("ANALYZING PORTFOLIOS...")
+    system.ws_eof_flag = 'N'
+    while system.ws_eof_flag == 'N':
+        calculate_returns(system)
+        assess_risk(system)
+        benchmark_comparison(system)
+# SYNTAX:         system.ws_eof_flag =

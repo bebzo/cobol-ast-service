@@ -768,6 +768,18 @@ export default function Home() {
       setAnalysis(updatedAnalysis);
       setAnalyzedCobolCode(cobolCode);
 
+      // Auto-run tests
+      try {
+        setTestResults(prev => ({...prev, running: true}));
+        const testCode = parsed.tests || parsed.unit_tests || '';
+        const testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
+        const results = await runTestsWithPyodide(finalPythonCode, testStr);
+        setTestResults({...results, running: false});
+      } catch (e) {
+        console.error('Auto-test error:', e);
+        setTestResults({running: false, total: 0, passed: 0, failed: 0, details: [{name: 'error', status: 'error', error: String(e)}]});
+      }
+
       // Save to Supabase (full code, no truncation)
       const historyItem: AnalysisHistory = {
         filename,
