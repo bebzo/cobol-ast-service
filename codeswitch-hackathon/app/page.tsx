@@ -1873,23 +1873,21 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
                 {/* Python Lines */}
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-green-400 tabular-nums">{(analysis.python_code || '').split('\n').filter(l => l.trim()).length}</p>
+                  <p className="text-2xl font-bold text-green-400 tabular-nums">{analysis.python_lines || (analysis.python_code || '').split('\n').length}</p>
                   <p className="text-xs text-slate-400 mt-1">Python</p>
-                  <p className="text-[10px] text-slate-500">(business code)</p>
+                  <p className="text-[10px] text-slate-500">(lignes)</p>
                 </div>
                 {/* Tests */}
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 1; })()}</p>
+                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })()}</p>
                   <p className="text-xs text-slate-400 mt-1">Tests</p>
-                  <p className="text-[10px] text-slate-500">(unit tests)</p>
                 </div>
                 {/* Total */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-blue-400 tabular-nums">
-                    {(analysis.python_code || '').split('\n').filter(l => l.trim()).length + ((Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')).split('\n').filter(l => l.trim()).length || 0)}
+                    {(analysis.python_lines || (analysis.python_code || '').split('\n').length) + ((() => { const t = analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return s.split('\n').length; })())}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Total</p>
-                  <p className="text-[10px] text-slate-500">(delivered)</p>
                 </div>
                 {/* Issues */}
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
