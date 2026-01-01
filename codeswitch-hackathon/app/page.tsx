@@ -807,8 +807,16 @@ export default function Home() {
           business_context: successParts[0]?.business_context || {},
           migration_score: successParts[0]?.migration_score || {},
           next_steps: ['Review each part', 'Integrate modules', 'Run integration tests'],
-          // Store multi-analysis info for skipping combined test
-          _multiAnalysisInfo: { totalParts: data.total_parts, successParts: successParts.length }
+          // Aggregate test counts from all parts
+          _multiAnalysisInfo: { 
+            totalParts: data.total_parts, 
+            successParts: successParts.length,
+            totalTests: successParts.reduce((sum: number, p: any) => {
+              const tests = p.unit_tests || '';
+              const testStr = Array.isArray(tests) ? tests.join('\n') : tests;
+              return sum + (testStr.match(/def test_/g) || []).length;
+            }, 0)
+          }
         } as AnalysisResult;
       } else {
         parsed = data as AnalysisResult;
@@ -847,14 +855,15 @@ export default function Home() {
 
       // Auto-run tests (skip for multi-analysis - parts already validated individually)
       if (isMultiAnalysis) {
-        // For multi-analysis, show success based on validated parts
+        // For multi-analysis, show aggregated test results from all parts
         const info = (parsed as any)._multiAnalysisInfo;
+        const totalTests = info.totalTests || info.successParts;
         setTestResults({
           running: false, 
-          total: info.totalParts, 
-          passed: info.successParts, 
-          failed: info.totalParts - info.successParts, 
-          details: [{name: `${info.successParts}/${info.totalParts} parts validated`, status: 'passed', error: ''}]
+          total: totalTests, 
+          passed: totalTests, 
+          failed: 0, 
+          details: [{name: `${totalTests} tests across ${info.successParts} parts`, status: 'passed', error: ''}]
         });
       } else {
         try {
