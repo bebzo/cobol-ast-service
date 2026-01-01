@@ -819,7 +819,7 @@ ${cleanedValidatedCode}
     const effort = Math.ceil(ast.metrics.totalLines / 100);
     
     // Detect domain from COBOL content
-    const cobolLower = code.toLowerCase();
+    const cobolLower = cobolCode.toLowerCase();
     const detectedDomain = cobolLower.includes('bank') || cobolLower.includes('account') || cobolLower.includes('deposit') ? 'Banking & Finance' :
                            cobolLower.includes('insurance') || cobolLower.includes('policy') || cobolLower.includes('claim') ? 'Insurance' :
                            cobolLower.includes('inventory') || cobolLower.includes('warehouse') || cobolLower.includes('stock') ? 'Supply Chain' :
