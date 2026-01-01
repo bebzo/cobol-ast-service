@@ -171,13 +171,19 @@ def run_tests(main_code, test_code):
     # Find and run tests - support both functions and class methods
     import re
     
-    # Find test classes
-    test_classes = re.findall(r'class (Test\\w+)', test_code)
-    test_funcs = re.findall(r'def (test_\\w+)\\s*\\(', test_code)
+    # Find test classes and functions from code
+    test_classes = re.findall(r'class (Test[A-Za-z0-9_]+)', test_code)
+    test_funcs = re.findall(r'def (test_[a-z0-9_]+)', test_code)
+    
+    # Also check namespace directly for any Test classes
+    for name, obj in list(namespace.items()):
+        if name.startswith('Test') and isinstance(obj, type):
+            if name not in test_classes:
+                test_classes.append(name)
     
     # Run class-based tests
     for class_name in test_classes:
-        if class_name in namespace:
+        if class_name in namespace and isinstance(namespace[class_name], type):
             try:
                 test_instance = namespace[class_name]()
                 for attr in dir(test_instance):
