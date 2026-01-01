@@ -787,7 +787,90 @@ export default function Home() {
         const successParts = data.parts.filter((p: any) => p.success && p.code_valid !== false);
         parsed = {
           summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
-          python_code: data.python_code || '# Error: No Python code generated',
+          python_code: (() => {
+            // Smart merge: deduplicate imports, clean apostrophes
+            const allParts = successParts.map((p: any) => p.python_code || '');
+            const imports = new Set<string>();
+            const codeParts: string[] = [];
+            
+            allParts.forEach((part: string, idx: number) => {
+              const lines = part.split('\n');
+              const codeLines: string[] = [];
+              
+              lines.forEach((line: string) => {
+                // Collect imports
+                if (line.match(/^(from |import )/)) {
+                  imports.add(line);
+                } else if (!line.match(/^""".*"""$/) || idx === 0) {
+                  // Skip duplicate module docstrings, keep first
+                  codeLines.push(line);
+                }
+              });
+              
+              if (codeLines.length > 0) {
+                codeParts.push(codeLines.join('\n'));
+              }
+            });
+            
+            // Combine: imports first, then code
+            let combined = Array.from(imports).sort().join('\n') + '\n\n' + codeParts.join('\n\n');
+            
+            // Fix common syntax issues
+            combined = combined.replace(/(\w)'(\w)/g, "$1\\'$2"); // escape apostrophes
+            
+            // Multi-pass syntax fixing
+            let lines = combined.split('\n');
+            const fixedLines: string[] = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+              let line = lines[i];
+              
+              // Fix unterminated strings
+              const dblQuotes = (line.match(/(?<!\\)"/g) || []).length;
+              if (dblQuotes % 2 !== 0 && !line.includes('"""')) {
+                // Check if it's an f-string or regular string
+                if (line.includes('f"') || line.includes("f'")) {
+                  line = line + '")';  // Close f-string and likely function call
+                } else {
+                  line = line + '"';
+                }
+              }
+              
+              // Fix lines ending with incomplete expressions
+              const trimmed = line.trimEnd();
+              if (trimmed.endsWith('=') || trimmed.endsWith('+') || trimmed.endsWith(',')) {
+                line = line + ' None  # auto-fixed';
+              }
+              
+              // Fix orphan 'def' or 'class' without body
+              if (trimmed.match(/^(\s*)(def|class)\s+\w+.*:$/)) {
+                const currentIndent = line.match(/^(\s*)/)?.[0] || '';
+                const bodyIndent = currentIndent + '    ';
+                
+                // Check if next non-empty line has proper indentation (is a body)
+                let hasBody = false;
+                for (let j = i + 1; j < lines.length && j < i + 5; j++) {
+                  const nextLine = lines[j];
+                  if (nextLine.trim() === '') continue; // skip empty lines
+                  // If next line starts with bodyIndent, it has a body
+                  if (nextLine.startsWith(bodyIndent) && !nextLine.trim().startsWith('#')) {
+                    hasBody = true;
+                  }
+                  break; // only check first non-empty line
+                }
+                
+                if (!hasBody) {
+                  fixedLines.push(line);
+                  fixedLines.push(bodyIndent + 'pass  # auto-added');
+                  continue;
+                }
+              }
+              
+              fixedLines.push(line);
+            }
+            
+            return fixedLines.join('\n');
+          })(),
           unit_tests: successParts.map((p: any) => p.unit_tests || '').join('\n'),
           cobol_lines: data.original_lines,
           python_lines: successParts.reduce((sum: number, p: any) => sum + (p.python_lines || 0), 0),
