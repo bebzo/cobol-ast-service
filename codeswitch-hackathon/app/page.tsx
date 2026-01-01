@@ -1600,7 +1600,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                             <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{analysis?.python_lines || (analysis?.python_code?.split('\n').length || 0)} lignes</div>
                             <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{(analysis?.python_code?.match(/def \w+\(/g) || []).length} fonctions</div>
                             <div className="bg-green-900/50 rounded px-3 py-1 text-green-200 text-sm">{(analysis?.python_code?.match(/class \w+/g) || []).length} classes</div>
-                            <div className="bg-purple-900/50 rounded px-3 py-1 text-purple-200 text-sm">{(analysis?.unit_tests?.match(/def test_/g) || []).length} tests</div>
+                            <div className="bg-purple-900/50 rounded px-3 py-1 text-purple-200 text-sm">{(typeof analysis?.unit_tests === 'string' ? (analysis.unit_tests.match(/def test_/g) || []).length : 0)} tests</div>
                           </div>
                         </div>
                       </div>
