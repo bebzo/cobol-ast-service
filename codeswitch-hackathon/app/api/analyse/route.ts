@@ -257,9 +257,9 @@ export async function POST(request: NextRequest) {
     });
 
     // === CHUNKED TRANSLATION ===
-    // Split COBOL into chunks - max 15
-    const MAX_CHUNKS = 15;
-    const CHUNK_SIZE = Math.max(200, Math.ceil(lines.length / MAX_CHUNKS));
+    // Split COBOL into chunks - adaptive based on file size
+    const MAX_CHUNKS = lines.length > 8000 ? 25 : lines.length > 4000 ? 20 : 15;
+    const CHUNK_SIZE = Math.max(150, Math.ceil(lines.length / MAX_CHUNKS));
     const chunks: string[] = [];
     for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
       chunks.push(lines.slice(i, i + CHUNK_SIZE).join('\n'));
