@@ -57,7 +57,9 @@ def call_gemini(prompt: str) -> str:
 
 def run_tests(python_code: str, test_code: str) -> dict:
     """Run tests and return results."""
-    full_code = python_code + "\n\n" + test_code
+    # Remove pytest import since we run tests directly
+    test_code_clean = test_code.replace('import pytest', '').replace('from pytest import', '# from pytest import')
+    full_code = python_code + "\n\n" + test_code_clean
     
     results = {'total': 0, 'passed': 0, 'failed': 0, 'details': []}
     namespace = {}
