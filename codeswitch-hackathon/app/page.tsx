@@ -789,8 +789,10 @@ export default function Home() {
       }
       // Handle multi-analysis response (large files split into parts)
       let parsed: AnalysisResult;
+      let isMultiAnalysis = false;
       if (data.is_multi_analysis && data.parts) {
         console.log(`Multi-analysis: ${data.parts.length} parts`);
+        isMultiAnalysis = true;
         // Aggregate results from all successful parts
         const successParts = data.parts.filter((p: any) => p.success);
         parsed = {
@@ -805,6 +807,8 @@ export default function Home() {
           business_context: successParts[0]?.business_context || {},
           migration_score: successParts[0]?.migration_score || {},
           next_steps: ['Review each part', 'Integrate modules', 'Run integration tests'],
+          // Store multi-analysis info for skipping combined test
+          _multiAnalysisInfo: { totalParts: data.total_parts, successParts: successParts.length }
         } as AnalysisResult;
       } else {
         parsed = data as AnalysisResult;
