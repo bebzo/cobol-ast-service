@@ -533,6 +533,40 @@ def validate_and_fix(code: str) -> dict:
                             fixes_applied += 1
                         break
             
+            elif 'unexpected unindent' in error_msg or 'unindent does not match' in error_msg:
+                # Fix unexpected unindent - usually means a block was left open
+                # Find the line and add proper indentation or close the block
+                error_line = lines[line_num - 1] if line_num <= len(lines) else ''
+                current_indent = len(error_line) - len(error_line.lstrip())
+                
+                # Look back to find the block that should contain this line
+                for j in range(line_num - 2, max(-1, line_num - 30), -1):
+                    if j < 0:
+                        break
+                    prev = lines[j].rstrip()
+                    prev_stripped = prev.strip()
+                    if not prev_stripped or prev_stripped.startswith('#'):
+                        continue
+                    prev_indent = len(lines[j]) - len(lines[j].lstrip())
+                    
+                    # If previous non-empty line ends with : and is at same/lower indent
+                    # We need to add pass before current line
+                    if prev.endswith(':') and prev_indent < current_indent:
+                        # Block header found - add pass to close it properly
+                        lines.insert(j + 1, ' ' * (prev_indent + 4) + 'pass')
+                        fixes_applied += 1
+                        break
+                    elif prev_indent >= current_indent and not prev.endswith(':'):
+                        # Found a properly indented line at same level - issue is something else
+                        # Just comment out the problematic line
+                        lines[line_num - 1] = '# UNINDENT: ' + error_line.lstrip()
+                        fixes_applied += 1
+                        break
+                else:
+                    # Fallback: comment out the line
+                    lines[line_num - 1] = '# UNINDENT: ' + error_line.lstrip()
+                    fixes_applied += 1
+            
             elif 'was never closed' in error_msg:
                 # Unclosed paren/bracket
                 if '(' in error_line and ')' not in error_line:
