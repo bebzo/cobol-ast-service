@@ -1027,10 +1027,23 @@ ${cleanedValidatedCode}
       }
     }
 
-    // === ANALYSIS METADATA (generated dynamically) ===
+    // === ANALYSIS METADATA (generated dynamically from REAL data) ===
     console.log(`[Analysis] Generating metadata...`);
     const complexity = ast.metrics.cyclomaticComplexity > 100 ? 'HIGH' : ast.metrics.cyclomaticComplexity > 50 ? 'MEDIUM' : 'LOW';
-    const effort = Math.ceil(ast.metrics.totalLines / 100);
+    
+    // REAL effort calculation based on complexity factors
+    const baseEffort = Math.ceil(ast.metrics.totalLines / 100);
+    const complexityMultiplier = complexity === 'HIGH' ? 2.5 : complexity === 'MEDIUM' ? 1.5 : 1;
+    const paragraphFactor = ast.metrics.paragraphs > 50 ? 1.3 : 1;
+    const effort = Math.ceil(baseEffort * complexityMultiplier * paragraphFactor);
+    
+    // REAL confidence based on validation success
+    const pythonLines = combinedPythonCode.split('\n').length;
+    const conversionRatio = pythonLines / ast.metrics.totalLines;
+    const baseConfidence = validationSuccess ? 80 : 50;
+    const ratioBonus = conversionRatio > 1.2 ? 10 : conversionRatio > 0.8 ? 5 : 0;
+    const complexityPenalty = complexity === 'HIGH' ? 15 : complexity === 'MEDIUM' ? 5 : 0;
+    const confidence = Math.min(95, Math.max(40, baseConfidence + ratioBonus - complexityPenalty));
     
     // Detect domain from COBOL content
     const cobolLower = cobolCode.toLowerCase();
@@ -1041,11 +1054,19 @@ ${cleanedValidatedCode}
                            cobolLower.includes('customer') || cobolLower.includes('order') || cobolLower.includes('invoice') ? 'CRM & Sales' :
                            'Enterprise System';
     
+    // REAL year detection from COBOL comments/headers
+    const yearMatch = cobolCode.match(/DATE-WRITTEN\.\s*(\d{4})/i) || 
+                      cobolCode.match(/(\d{4})-\d{2}-\d{2}/i) ||
+                      cobolCode.match(/AUTHOR\..*(\d{4})/i) ||
+                      cobolCode.match(/\*.*(?:19|20)(\d{2})/);
+    const detectedYear = yearMatch ? yearMatch[1].length === 2 ? `19${yearMatch[1]}` : yearMatch[1] : 
+                         ast.programId.includes('Y2K') ? '2000' : null;
+    
     const metadata = {
       summary: `Migration of ${ast.programId} - ${ast.metrics.totalLines} lines COBOL to Python`,
       business_context: { 
         domain: detectedDomain, 
-        detected_year: ast.programId.includes('Y2K') ? '2000s' : '1990s', 
+        detected_year: detectedYear || 'Unknown', 
         is_obsolete: true,
         regulatory_context: `${detectedDomain} legacy system requiring modernization`
       },
@@ -1056,7 +1077,7 @@ ${cleanedValidatedCode}
         complexity, 
         risk_level: complexity, 
         estimated_effort: `${effort} person-days`, 
-        confidence: 75 
+        confidence
       },
       architecture_diagram: '', // Set below after funcNames/classNames extracted
       next_steps: ['Run unit tests', 'Validate business logic', 'Performance testing']
