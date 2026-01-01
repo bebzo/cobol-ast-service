@@ -970,7 +970,26 @@ export default function Home() {
       try {
         setTestResults(prev => ({...prev, running: true}));
         const testCode = parsed.tests || parsed.unit_tests || '';
-        const testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
+        let testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
+        
+        // Validate and fix test code too
+        if (testStr.length > 100) {
+          try {
+            const testValidateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: testStr })
+            });
+            if (testValidateRes.ok) {
+              const testValidateData = await testValidateRes.json();
+              if (testValidateData.valid && testValidateData.code) {
+                testStr = testValidateData.code;
+                console.log('Test code validated');
+              }
+            }
+          } catch (e) { console.error('Test validation failed:', e); }
+        }
+        
         const results = await runTestsWithPyodide(finalPythonCode, testStr);
         setTestResults({...results, running: false});
       } catch (e) {
