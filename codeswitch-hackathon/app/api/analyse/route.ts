@@ -622,13 +622,21 @@ export async function POST(request: NextRequest) {
       }
     };
 
-    // Run translations in parallel
-    const allPythonCode = await Promise.all(
-      chunks.map((chunk, idx) => translateChunk(chunk, idx))
-    );
+    // === RETRY LOOP: Try up to 3 times until code compiles ===
+    const MAX_ATTEMPTS = 3;
+    let combinedPythonCode = '';
+    let validationSuccess = false;
+    
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS && !validationSuccess; attempt++) {
+      console.log(`[Attempt ${attempt}/${MAX_ATTEMPTS}] Generating Python code...`);
+      
+      // Run translations in parallel
+      const allPythonCode = await Promise.all(
+        chunks.map((chunk, idx) => translateChunk(chunk, idx))
+      );
 
-    // Simple merge + FULL validation (heavy) + iterative cleanup
-    const mergedCode = intelligentMerge(allPythonCode);
+      // Simple merge + FULL validation (heavy) + iterative cleanup
+      const mergedCode = intelligentMerge(allPythonCode);
     let { code: validatedCode, issues: validationIssues } = validateAndFixPythonHeavy(mergedCode);
     
     // Comprehensive iterative syntax cleanup - fix ALL patterns until code stabilizes
@@ -735,7 +743,7 @@ export async function POST(request: NextRequest) {
       .replace(/\n{3,}/g, '\n\n')
       .trim();
       
-    let combinedPythonCode = `"""${ast.programId} - Migrated from COBOL."""
+    combinedPythonCode = `"""${ast.programId} - Migrated from COBOL."""
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -749,31 +757,42 @@ ${cleanedValidatedCode}
 
     console.log(`[Translation] Combined Python: ${combinedPythonCode.split('\n').length} lines`);
     
-    // === PYTHON VALIDATION (real py_compile) ===
-    try {
-      console.log('[Validation] Calling Python validator...');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s timeout
-      
-      const validateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: combinedPythonCode }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (validateResponse.ok) {
-        const validateResult = await validateResponse.json();
-        console.log(`[Validation] Result: valid=${validateResult.valid}, fixes=${validateResult.fixes}`);
-        combinedPythonCode = validateResult.code;
-      } else {
-        console.log(`[Validation] Failed: ${validateResponse.status}`);
+      // === PYTHON VALIDATION (real py_compile) ===
+      try {
+        console.log(`[Attempt ${attempt}] Calling Python validator...`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s timeout
+        
+        const validateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: combinedPythonCode }),
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (validateResponse.ok) {
+          const validateResult = await validateResponse.json();
+          console.log(`[Attempt ${attempt}] Validation: valid=${validateResult.valid}, fixes=${validateResult.fixes}`);
+          combinedPythonCode = validateResult.code;
+          
+          // Check if code is valid
+          if (validateResult.valid) {
+            validationSuccess = true;
+            console.log(`[SUCCESS] Code validated on attempt ${attempt}!`);
+          } else if (attempt < MAX_ATTEMPTS) {
+            console.log(`[Attempt ${attempt}] Code invalid, retrying...`);
+          }
+        } else {
+          console.log(`[Attempt ${attempt}] Validation API failed: ${validateResponse.status}`);
+        }
+      } catch (e: any) {
+        console.log(`[Attempt ${attempt}] Validation error: ${e.message}`);
       }
-    } catch (e: any) {
-      console.log(`[Validation] Error: ${e.message}`);
-    }
+    } // End retry loop
+    
+    console.log(`[Retry] Completed after ${validationSuccess ? 'successful' : 'max'} attempts`);
 
     // === ANALYSIS METADATA (generated locally to avoid timeout) ===
     console.log(`[Analysis] Generating metadata locally...`);
