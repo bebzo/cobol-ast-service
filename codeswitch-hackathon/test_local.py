@@ -7,7 +7,10 @@ import io
 import contextlib
 from api.validate import validate_and_fix
 
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'AIzaSyCQlSmH7aD8DnqnS6H4oYgjA7_2tscJ11Y')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+if not GEMINI_API_KEY:
+    print("ERROR: Set GEMINI_API_KEY environment variable")
+    exit(1)
 
 CODE_PROMPT = """Convert this COBOL code to Python. Output ONLY valid Python code.
 
