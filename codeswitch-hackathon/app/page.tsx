@@ -1029,7 +1029,7 @@ export default function Home() {
       abortController.abort();
       setAbortController(null);
       setIsLoading(false);
-      setAnalysisStatus("Analyse annulée");
+      setAnalysisStatus("Analysis cancelled");
       setAnalysisProgress(0);
     }
   };
@@ -1352,7 +1352,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   onClick={cancelAnalysis}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium bg-red-500/80 hover:bg-red-600 transition"
                 >
-                  <X className="w-5 h-5" />Annuler
+                  <X className="w-5 h-5" />Cancel
                 </button>
               )}
             </div>
