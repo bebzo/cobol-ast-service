@@ -464,14 +464,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         })
       );
       
-      // Return multi-analysis result
+      // Merge all Python code from parts and apply post-processing
       const successfulParts = partResults.filter(r => r.success);
+      let mergedPythonCode = successfulParts
+        .map((p: any) => p.python_code || '')
+        .join('\n\n');
+      
+      // Apply post-processing to merged code (dedupe, remove debug comments, single __main__)
+      mergedPythonCode = postProcessPythonCode(mergedPythonCode, filename || 'PROGRAM');
+      console.log(`[MultiAnalysis] Post-processed merged code: ${mergedPythonCode.split('\n').length} lines`);
+      
+      // Update each part's python_code with empty (since we merged) and add merged to response
+      const cleanedParts = partResults.map((p: any) => ({
+        ...p,
+        python_code: undefined // Remove individual code, use merged instead
+      }));
+      
       return NextResponse.json({
         is_multi_analysis: true,
         total_parts: parts.length,
         successful_parts: successfulParts.length,
         original_lines: totalLines,
-        parts: partResults,
+        parts: cleanedParts,
+        python_code: mergedPythonCode, // Merged and post-processed
         processing_time_ms: Date.now() - startTime,
         summary: `Large file (${totalLines} lines) split into ${parts.length} independent analyses for reliability`
       }, { headers: corsHeaders });
