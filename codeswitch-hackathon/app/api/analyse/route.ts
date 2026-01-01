@@ -2,6 +2,67 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseCobolWithANTLR, generateANTLRSummary, CobolFullAST } from '@/lib/cobol-antlr-parser';
 
+// Validate that input is actually COBOL code
+function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
+  if (!code || code.trim().length < 50) {
+    return { valid: false, reason: 'Code too short - minimum 50 characters required' };
+  }
+  
+  const upper = code.toUpperCase();
+  const lines = code.split('\n');
+  
+  // COBOL must have at least one division or common keywords
+  const cobolDivisions = ['IDENTIFICATION DIVISION', 'ENVIRONMENT DIVISION', 'DATA DIVISION', 'PROCEDURE DIVISION'];
+  const hasDivision = cobolDivisions.some(div => upper.includes(div));
+  
+  // Common COBOL keywords (at least 3 required)
+  const cobolKeywords = [
+    'WORKING-STORAGE', 'PROGRAM-ID', 'PIC ', 'PIC(', 'PICTURE',
+    'MOVE ', 'PERFORM ', 'IF ', 'END-IF', 'EVALUATE', 'END-EVALUATE',
+    'COMPUTE ', 'ADD ', 'SUBTRACT ', 'MULTIPLY ', 'DIVIDE ',
+    'OPEN ', 'CLOSE ', 'READ ', 'WRITE ', 'REWRITE',
+    'CALL ', 'GOBACK', 'STOP RUN', 'EXEC SQL', 'EXEC CICS',
+    '01 ', '05 ', '10 ', '15 ', '77 ', '88 ',
+    'SECTION.', 'COPY ', 'REPLACING'
+  ];
+  const keywordCount = cobolKeywords.filter(kw => upper.includes(kw)).length;
+  
+  // Check for COBOL-style line structure (columns 7-72 are code area)
+  const hasCobolStructure = lines.some(line => 
+    line.length > 6 && /^\s{0,6}[\d\s\*]/.test(line)
+  );
+  
+  // Detect non-COBOL languages
+  const nonCobolPatterns = [
+    /^import\s+\w+/m,                    // Python/Java imports
+    /^from\s+\w+\s+import/m,             // Python imports
+    /^#include\s*[<"]/m,                 // C/C++ includes
+    /^package\s+\w+/m,                   // Java/Go packages
+    /^const\s+\w+\s*=/m,                 // JavaScript/TypeScript
+    /^let\s+\w+\s*=/m,                   // JavaScript
+    /^function\s+\w+\s*\(/m,             // JavaScript functions
+    /^def\s+\w+\s*\(/m,                  // Python functions
+    /^class\s+\w+.*:/m,                  // Python classes
+    /^public\s+class/m,                  // Java classes
+    /^\s*<\?php/m,                       // PHP
+    /^SELECT\s+.*FROM/im,                // Pure SQL
+    /^\s*<html/im,                       // HTML
+    /^\s*\{[\s\n]*"/m,                   // JSON
+  ];
+  
+  const isOtherLanguage = nonCobolPatterns.some(pattern => pattern.test(code));
+  if (isOtherLanguage) {
+    return { valid: false, reason: 'Input appears to be another programming language, not COBOL' };
+  }
+  
+  // Must have division OR at least 3 COBOL keywords
+  if (!hasDivision && keywordCount < 3) {
+    return { valid: false, reason: 'No COBOL structure detected. Expected DIVISION headers or COBOL keywords (PIC, MOVE, PERFORM, etc.)' };
+  }
+  
+  return { valid: true };
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -350,6 +411,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!cobolCode) {
       return NextResponse.json(
         { error: 'cobolCode is required' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    // Validate that input is actually COBOL
+    const cobolValidation = isValidCobolCode(cobolCode);
+    if (!cobolValidation.valid) {
+      console.log(`[Validation] Rejected non-COBOL input: ${cobolValidation.reason}`);
+      return NextResponse.json(
+        { error: `Invalid COBOL code: ${cobolValidation.reason}` },
         { status: 400, headers: corsHeaders }
       );
     }
