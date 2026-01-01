@@ -526,6 +526,7 @@ export default function Home() {
   const [isApiKeySet, setIsApiKeySet] = useState(true); // API is server-side
   const [cobolCode, setCobolCode] = useState("");
   const [pythonCode, setPythonCode] = useState("");
+  const [validatedTests, setValidatedTests] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analyzedCobolCode, setAnalyzedCobolCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -765,6 +766,7 @@ export default function Home() {
     
     setError("");
     setPythonCode("");
+    setValidatedTests("");
     setCorrectionStatus("");
     setAnalysis(null);
     setMetricsAnimated(false);
@@ -994,6 +996,7 @@ export default function Home() {
               const testValidateData = await testValidateRes.json();
               if (testValidateData.valid && testValidateData.code) {
                 testStr = testValidateData.code;
+                setValidatedTests(testStr);
                 console.log('Test code validated');
               }
             }
@@ -1314,7 +1317,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[160px]">
                     <button onClick={exportMigrationPackage} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-t-lg">📄 Full Report (.md)</button>
                     <button onClick={() => {
-                      const blob = new Blob([analysis.python_code], { type: 'text/python' });
+                      const blob = new Blob([pythonCode || analysis.python_code], { type: 'text/python' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
@@ -1322,7 +1325,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       a.click();
                     }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700">🐍 Python Code (.py)</button>
                     <button onClick={() => {
-                      const blob = new Blob([Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '')], { type: 'text/python' });
+                      const blob = new Blob([validatedTests || (Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || ''))], { type: 'text/python' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
