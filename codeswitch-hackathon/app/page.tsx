@@ -2113,7 +2113,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
                 {/* COBOL Lines */}
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-amber-400 tabular-nums">{(analyzedCobolCode || cobolCode).split('\n').filter(l => l.trim()).length}</p>
+                  <p className="text-2xl font-bold text-amber-400 tabular-nums">{(analyzedCobolCode || cobolCode).split('\n').length}</p>
                   <p className="text-xs text-slate-400 mt-1">COBOL</p>
                 </div>
                 {/* Arrow */}
