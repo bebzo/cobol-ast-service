@@ -1239,6 +1239,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
             </button>
 
+            <a href="/docs" className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition hidden md:block">Docs</a>
+            <a href="/login" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition">Login</a>
+
             <div className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/50 rounded-lg">
               <CheckCircle className="w-4 h-4 text-green-500" />
               <span className="text-sm text-green-400">Gemini API Connected</span>
