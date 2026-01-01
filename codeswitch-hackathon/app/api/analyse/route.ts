@@ -96,6 +96,54 @@ Return ONLY a valid JSON object:
 COBOL AST Summary:
 `;
 
+// Generate issues based on code analysis
+function generateIssues(ast: any, cobolCode: string): string[] {
+  const issues: string[] = [];
+  const lower = cobolCode.toLowerCase();
+  
+  if (ast.metrics.totalLines > 5000) issues.push(`Large codebase (${ast.metrics.totalLines} lines) requires incremental testing`);
+  if (ast.metrics.cyclomaticComplexity > 50) issues.push(`High cyclomatic complexity (${ast.metrics.cyclomaticComplexity}) - refactoring recommended`);
+  if (lower.includes('goto')) issues.push('GOTO statements detected - control flow needs review');
+  if (lower.includes('alter')) issues.push('ALTER statements found - dynamic branching risk');
+  if (ast.metrics.copybooks > 0) issues.push(`${ast.metrics.copybooks} COPYBOOK dependencies to resolve`);
+  if (lower.includes('exec sql')) issues.push('Embedded SQL requires database migration strategy');
+  if (lower.includes('exec cics')) issues.push('CICS transactions need middleware replacement');
+  if (ast.metrics.paragraphs > 100) issues.push(`${ast.metrics.paragraphs} paragraphs - modularization needed`);
+  
+  return issues.length > 0 ? issues : ['Code structure is clean - minimal issues detected'];
+}
+
+// Generate improvements based on Python output
+function generateImprovements(ast: any, pythonCode: string): string[] {
+  const improvements: string[] = [];
+  const classCount = (pythonCode.match(/class \w+/g) || []).length;
+  const funcCount = (pythonCode.match(/def \w+/g) || []).length;
+  
+  if (classCount > 0) improvements.push(`${classCount} type-safe dataclasses created`);
+  if (funcCount > 0) improvements.push(`${funcCount} modular functions extracted`);
+  if (pythonCode.includes('try:')) improvements.push('Modern exception handling implemented');
+  if (pythonCode.includes('logging')) improvements.push('Structured logging added');
+  if (pythonCode.includes('@dataclass')) improvements.push('Immutable data structures with dataclasses');
+  if (pythonCode.includes('typing') || pythonCode.includes('Optional')) improvements.push('Type hints for better IDE support');
+  
+  return improvements.length > 0 ? improvements : ['Standard Python migration completed'];
+}
+
+// Generate security warnings based on code patterns
+function generateSecurityWarnings(cobolCode: string): string[] {
+  const warnings: string[] = [];
+  const lower = cobolCode.toLowerCase();
+  
+  if (lower.includes('password') || lower.includes('pwd')) warnings.push('Hardcoded credentials detected - use environment variables');
+  if (lower.includes('exec sql') && !lower.includes('prepare')) warnings.push('SQL injection risk - use parameterized queries');
+  if (lower.includes('accept ') && lower.includes('from')) warnings.push('User input without validation - add sanitization');
+  if (lower.includes('ssn') || lower.includes('social-security')) warnings.push('PII data (SSN) found - ensure encryption');
+  if (lower.includes('credit-card') || lower.includes('card-number')) warnings.push('Payment data detected - PCI-DSS compliance required');
+  if (lower.includes('account-number') || lower.includes('acct-no')) warnings.push('Financial data exposure - implement access controls');
+  
+  return warnings;
+}
+
 // Generate dynamic architecture diagram from AST
 function generateArchitectureDiagram(ast: any, funcs: string[], classes: string[]): string {
   const programName = ast.programId || 'Program';
