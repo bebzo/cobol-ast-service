@@ -787,8 +787,8 @@ export default function Home() {
         const successParts = data.parts.filter((p: any) => p.success && p.code_valid !== false);
         parsed = {
           summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
-          python_code: (() => {
-            // Smart merge: deduplicate imports, clean apostrophes
+          python_code: data.python_code || (() => {
+            // Fallback: Smart merge if backend didn't provide merged code
             const allParts = successParts.map((p: any) => p.python_code || '');
             const imports = new Set<string>();
             const codeParts: string[] = [];
