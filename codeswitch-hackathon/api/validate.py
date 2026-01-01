@@ -4,6 +4,12 @@ import json
 import ast
 import re
 
+try:
+    import autopep8
+    HAS_AUTOPEP8 = True
+except ImportError:
+    HAS_AUTOPEP8 = False
+
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         content_length = int(self.headers.get('Content-Length', 0))
@@ -38,6 +44,14 @@ def validate_and_fix(code: str) -> dict:
     """Validate Python code and fix ALL errors aggressively."""
     original_lines = len(code.split('\n'))
     fixes_applied = 0
+    
+    # === PHASE 0: autopep8 automatic fixes ===
+    if HAS_AUTOPEP8:
+        try:
+            code = autopep8.fix_code(code, options={'aggressive': 2, 'max_line_length': 120})
+            fixes_applied += 1
+        except:
+            pass  # Continue with manual fixes if autopep8 fails
     
     # === PHASE 1: Pre-processing fixes ===
     
