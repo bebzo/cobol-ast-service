@@ -96,6 +96,35 @@ Return ONLY a valid JSON object:
 COBOL AST Summary:
 `;
 
+// Generate dynamic architecture diagram from AST
+function generateArchitectureDiagram(ast: any, funcs: string[], classes: string[]): string {
+  const programName = ast.programId || 'Program';
+  const funcNodes = funcs.slice(0, 6).map((f, i) => `F${i}[${f}]`).join('; ');
+  const classNodes = classes.slice(0, 4).map((c, i) => `C${i}[${c}]`).join('; ');
+  const funcLinks = funcs.slice(0, 6).map((_, i) => `Main --> F${i}`).join('; ');
+  const classLinks = classes.slice(0, 4).map((_, i) => `Data --> C${i}`).join('; ');
+  
+  return `flowchart TB
+    subgraph COBOL[${programName} - COBOL Source]
+      direction LR
+      ID[Identification Division]
+      Data[Data Division]
+      Proc[Procedure Division]
+    end
+    subgraph Python[Python Modules]
+      direction TB
+      Main[Main Module]
+      ${funcNodes}
+    end
+    subgraph DataClasses[Data Classes]
+      ${classNodes}
+    end
+    COBOL ==>|Migration| Python
+    Data ==>|Convert| DataClasses
+    ${funcLinks}
+    ${classLinks}`;
+}
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
@@ -852,7 +881,7 @@ ${cleanedValidatedCode}
         estimated_effort: `${effort} person-days`, 
         confidence: 75 
       },
-      architecture_diagram: 'flowchart LR; COBOL[COBOL Legacy] --> Python[Python Modern]; Python --> API[REST API]; Python --> DB[(Database)]',
+      architecture_diagram: '', // Set below after funcNames/classNames extracted
       next_steps: ['Run unit tests', 'Validate business logic', 'Performance testing']
     };
 
@@ -862,6 +891,9 @@ ${cleanedValidatedCode}
     
     const classMatches = combinedPythonCode.match(/class (\w+)/g) || [];
     const classNames = classMatches.map(m => m.replace('class ', '')).slice(0, 15);
+    
+    // Update architecture diagram with real function/class names
+    metadata.architecture_diagram = generateArchitectureDiagram(ast, funcNames.slice(0, 8), classNames.slice(0, 6));
     
     // Generate REAL tests using Gemini
     let generatedTests = '';
