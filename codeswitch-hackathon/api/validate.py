@@ -441,17 +441,37 @@ def validate_and_fix(code: str) -> dict:
             
             # Specific error handlers
             if 'unterminated string' in error_msg or 'unterminated triple' in error_msg:
-                # Try closing the string
+                # Try closing the string on current line
+                fixed = False
                 if '"""' in error_line:
                     lines[line_num - 1] = error_line + '"""'
+                    fixed = True
                 elif "'''" in error_line:
                     lines[line_num - 1] = error_line + "'''"
+                    fixed = True
                 elif '"' in error_line:
                     lines[line_num - 1] = error_line + '"'
+                    fixed = True
                 elif "'" in error_line:
                     lines[line_num - 1] = error_line + "'"
+                    fixed = True
                 else:
-                    lines[line_num - 1] = '# ' + error_line
+                    # Check previous lines for unclosed string
+                    for j in range(line_num - 2, max(-1, line_num - 10), -1):
+                        if j < 0:
+                            break
+                        prev = lines[j]
+                        prev_clean = prev.replace('\\"', '').replace("\\'", '')
+                        if prev_clean.count('"') % 2 == 1:
+                            lines[j] = prev.rstrip() + '"'
+                            fixed = True
+                            break
+                        elif prev_clean.count("'") % 2 == 1:
+                            lines[j] = prev.rstrip() + "'"
+                            fixed = True
+                            break
+                    if not fixed:
+                        lines[line_num - 1] = '# STRFIX: ' + error_line
                 fixes_applied += 1
             
             elif 'expected an indented block' in error_msg:
