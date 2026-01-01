@@ -157,6 +157,21 @@ def validate_and_fix(code: str) -> dict:
     # Fix broken docstrings on multiple lines
     code = re.sub(r'"""([^"]*)\n([^"]*representing[^"]*""")', r'"""\1 \2', code)
     
+    # Fix split docstrings ("""Text """ followed by orphaned text""")
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.strip()
+        # Line ends with """ """ (empty-ish docstring)
+        if s.endswith('"""') and s.count('"""') == 2 and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            # Next line is orphaned docstring fragment
+            if next_line.endswith('"""') and not next_line.startswith('"""') and not next_line.startswith('#'):
+                # Merge: remove closing """ from current, append next line
+                lines[i] = line.rstrip()[:-3] + ' ' + next_line
+                lines[i + 1] = ''
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # Fix truncated docstrings (line has """ but no closing """)
     lines = code.split('\n')
     for i, line in enumerate(lines):
