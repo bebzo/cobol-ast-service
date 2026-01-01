@@ -441,6 +441,49 @@ def validate_and_fix(code: str) -> dict:
             
             code = '\n'.join(lines)
     
+    # === FINAL PHASE: Fix any remaining empty blocks ===
+    lines = code.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        s = line.rstrip()
+        if (s.lstrip().startswith('class ') or s.lstrip().startswith('def ')) and s.endswith(':'):
+            indent = len(line) - len(line.lstrip())
+            j = i + 1
+            needs_pass = True
+            while j < len(lines):
+                next_line = lines[j]
+                next_stripped = next_line.strip()
+                if next_stripped == '' or next_stripped.startswith('#'):
+                    j += 1
+                    continue
+                if next_stripped.startswith('@') or next_stripped.startswith('class ') or next_stripped.startswith('def '):
+                    needs_pass = True
+                    break
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent > indent:
+                    needs_pass = False
+                break
+            if needs_pass:
+                lines.insert(i + 1, ' ' * (indent + 4) + 'pass')
+                fixes_applied += 1
+                i += 1
+        i += 1
+    code = '\n'.join(lines)
+    
+    # Final validation
+    try:
+        ast.parse(code)
+        return {
+            'valid': True,
+            'code': code,
+            'fixes': fixes_applied,
+            'lines': len(code.split('\n')),
+            'original_lines': original_lines
+        }
+    except:
+        pass
+    
     # Max iterations - force compile by removing all error lines
     return {
         'valid': False,
