@@ -798,7 +798,39 @@ export default function Home() {
         const successParts = data.parts.filter((p: any) => p.success && p.code_valid !== false);
         parsed = {
           summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
-          python_code: successParts.map((p: any) => p.python_code || '').join('\n\n# === PART ===\n\n'),
+          python_code: (() => {
+            // Smart merge: deduplicate imports, clean apostrophes
+            const allParts = successParts.map((p: any) => p.python_code || '');
+            const imports = new Set<string>();
+            const codeParts: string[] = [];
+            
+            allParts.forEach((part: string, idx: number) => {
+              const lines = part.split('\n');
+              const codeLines: string[] = [];
+              
+              lines.forEach((line: string) => {
+                // Collect imports
+                if (line.match(/^(from |import )/)) {
+                  imports.add(line);
+                } else if (!line.match(/^""".*"""$/) || idx === 0) {
+                  // Skip duplicate module docstrings, keep first
+                  codeLines.push(line);
+                }
+              });
+              
+              if (codeLines.length > 0) {
+                codeParts.push(codeLines.join('\n'));
+              }
+            });
+            
+            // Combine: imports first, then code
+            let combined = Array.from(imports).sort().join('\n') + '\n\n' + codeParts.join('\n\n');
+            
+            // Fix common apostrophe issues in strings
+            combined = combined.replace(/(\w)'(\w)/g, "$1\\'$2"); // escape apostrophes in words
+            
+            return combined;
+          })(),
           unit_tests: successParts.map((p: any) => p.unit_tests || '').join('\n'),
           cobol_lines: data.original_lines,
           python_lines: successParts.reduce((sum: number, p: any) => sum + (p.python_lines || 0), 0),
