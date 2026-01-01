@@ -829,18 +829,47 @@ export default function Home() {
             // Fix common syntax issues
             combined = combined.replace(/(\w)'(\w)/g, "$1\\'$2"); // escape apostrophes
             
-            // Fix unterminated strings - close any line ending with unclosed quote
-            combined = combined.split('\n').map((line: string) => {
-              // Count quotes (excluding escaped ones)
-              const dblQuotes = (line.match(/(?<!\\)"/g) || []).length;
-              const fStrings = (line.match(/f"/g) || []).length;
-              if (dblQuotes % 2 !== 0 && !line.includes('"""')) {
-                return line + '"';
-              }
-              return line;
-            }).join('\n');
+            // Multi-pass syntax fixing
+            let lines = combined.split('\n');
+            const fixedLines: string[] = [];
             
-            return combined;
+            for (let i = 0; i < lines.length; i++) {
+              let line = lines[i];
+              
+              // Fix unterminated strings
+              const dblQuotes = (line.match(/(?<!\\)"/g) || []).length;
+              if (dblQuotes % 2 !== 0 && !line.includes('"""')) {
+                // Check if it's an f-string or regular string
+                if (line.includes('f"') || line.includes("f'")) {
+                  line = line + '")';  // Close f-string and likely function call
+                } else {
+                  line = line + '"';
+                }
+              }
+              
+              // Fix lines ending with incomplete expressions
+              const trimmed = line.trimEnd();
+              if (trimmed.endsWith('=') || trimmed.endsWith('+') || trimmed.endsWith(',')) {
+                line = line + ' None  # auto-fixed';
+              }
+              
+              // Fix orphan 'def' or 'class' without body
+              if (trimmed.match(/^(def|class)\s+\w+.*:$/) && i + 1 < lines.length) {
+                const nextLine = lines[i + 1];
+                const nextTrimmed = nextLine.trim();
+                // If next line is another def/class or decorator, add pass
+                if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('class ') || nextTrimmed.startsWith('@')) {
+                  fixedLines.push(line);
+                  const indent = line.match(/^(\s*)/)?.[0] || '';
+                  fixedLines.push(indent + '    pass');
+                  continue;
+                }
+              }
+              
+              fixedLines.push(line);
+            }
+            
+            return fixedLines.join('\n');
           })(),
           unit_tests: successParts.map((p: any) => p.unit_tests || '').join('\n'),
           cobol_lines: data.original_lines,
