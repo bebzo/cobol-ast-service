@@ -1021,6 +1021,11 @@ export default function Home() {
       });
 
     } catch (err: unknown) {
+      // Ignore abort errors (user cancelled)
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('Analysis cancelled by user');
+        return;
+      }
       console.error(err);
       if (err instanceof Error) {
         if (err.message.includes("API_KEY") || err.message.includes("403")) {
@@ -1029,7 +1034,7 @@ export default function Home() {
           setError("API quota exhausted. Wait or use a new key.");
         } else if (err.message.includes("JSON")) {
           setError("Parsing error. Please try again.");
-        } else if (!err.message.includes("405") && !err.message.includes("AST")) {
+        } else if (!err.message.includes("405") && !err.message.includes("AST") && !err.message.includes("abort")) {
           setError(`Error: ${err.message}`);
         }
       } else {
@@ -1048,8 +1053,9 @@ export default function Home() {
       abortController.abort();
       setAbortController(null);
       setIsLoading(false);
-      setAnalysisStatus("Analysis cancelled");
+      setAnalysisStatus("");
       setAnalysisProgress(0);
+      setError("");
     }
   };
 
