@@ -508,6 +508,7 @@ interface AnalysisResult {
   architecture_diagram?: string;
   next_steps: string[];
   modules?: { name: string; lines: number; type: string; description: string; complexity?: string; pythonTarget?: string; risk?: string }[];
+  ast_metrics?: { paragraphs?: number; variables?: number; copybooks?: number; totalLines?: number; cyclomaticComplexity?: number };
 }
 
 interface HistoryItem {
