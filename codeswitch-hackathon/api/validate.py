@@ -224,6 +224,50 @@ def validate_and_fix(code: str) -> dict:
     
     # === ADDITIONAL PREVENTIVE FIXES ===
     
+    # Fix indented lines after 'pass' (should be at same level or less)
+    lines = code.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if stripped == 'pass' and i + 1 < len(lines):
+            pass_indent = len(line) - len(line.lstrip())
+            j = i + 1
+            while j < len(lines):
+                next_line = lines[j]
+                next_stripped = next_line.strip()
+                if next_stripped == '' or next_stripped.startswith('#'):
+                    j += 1
+                    continue
+                next_indent = len(next_line) - len(next_line.lstrip())
+                # If next code line is MORE indented than pass, it's orphaned
+                if next_indent > pass_indent:
+                    # Check if it's a valid block start
+                    if not next_stripped.startswith(('def ', 'class ', '@', 'if ', 'for ', 'while ', 'try:', 'with ')):
+                        lines[j] = ' ' * pass_indent + next_stripped
+                        fixes_applied += 1
+                break
+            i = j
+        else:
+            i += 1
+    code = '\n'.join(lines)
+    
+    # Fix inline function definitions (def x(): pass\n    code)
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('def ') and ': pass' in stripped and i + 1 < len(lines):
+            func_indent = len(line) - len(line.lstrip())
+            next_line = lines[i + 1]
+            next_stripped = next_line.strip()
+            if next_stripped and not next_stripped.startswith('#'):
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent > func_indent:
+                    # Orphaned line after inline function - dedent it
+                    lines[i + 1] = ' ' * func_indent + next_stripped
+                    fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # Fix missing colons after if/elif/else/for/while/try/except/finally/with
     # Only for standalone keywords, not inline statements
     lines = code.split('\n')
