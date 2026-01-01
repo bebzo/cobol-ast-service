@@ -826,8 +826,19 @@ export default function Home() {
             // Combine: imports first, then code
             let combined = Array.from(imports).sort().join('\n') + '\n\n' + codeParts.join('\n\n');
             
-            // Fix common apostrophe issues in strings
-            combined = combined.replace(/(\w)'(\w)/g, "$1\\'$2"); // escape apostrophes in words
+            // Fix common syntax issues
+            combined = combined.replace(/(\w)'(\w)/g, "$1\\'$2"); // escape apostrophes
+            
+            // Fix unterminated strings - close any line ending with unclosed quote
+            combined = combined.split('\n').map((line: string) => {
+              // Count quotes (excluding escaped ones)
+              const dblQuotes = (line.match(/(?<!\\)"/g) || []).length;
+              const fStrings = (line.match(/f"/g) || []).length;
+              if (dblQuotes % 2 !== 0 && !line.includes('"""')) {
+                return line + '"';
+              }
+              return line;
+            }).join('\n');
             
             return combined;
           })(),
