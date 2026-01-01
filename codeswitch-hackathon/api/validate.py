@@ -395,7 +395,7 @@ def validate_and_fix(code: str) -> dict:
     
     for iteration in range(max_iterations):
         try:
-            ast.parse(code)
+            compile(code, '<validate>', 'exec')
             return {
                 'valid': True,
                 'code': code,
