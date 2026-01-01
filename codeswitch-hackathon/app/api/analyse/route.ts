@@ -213,6 +213,26 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
+// Split large file into independent sub-analyses
+function splitForMultiAnalysis(cobolCode: string, maxLinesPerAnalysis: number = 2500): string[] {
+  const lines = cobolCode.split('\n');
+  if (lines.length <= maxLinesPerAnalysis) {
+    return [cobolCode];
+  }
+  
+  const parts: string[] = [];
+  const numParts = Math.ceil(lines.length / maxLinesPerAnalysis);
+  
+  for (let i = 0; i < numParts; i++) {
+    const start = i * maxLinesPerAnalysis;
+    const end = Math.min(start + maxLinesPerAnalysis, lines.length);
+    parts.push(lines.slice(start, end).join('\n'));
+  }
+  
+  console.log(`[MultiAnalysis] Split ${lines.length} lines into ${parts.length} parts of ~${maxLinesPerAnalysis} lines`);
+  return parts;
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   
@@ -231,6 +251,51 @@ export async function POST(request: NextRequest) {
         { error: 'GEMINI_API_KEY not configured' },
         { status: 500, headers: corsHeaders }
       );
+    }
+
+    const totalLines = cobolCode.split('\n').length;
+    const MULTI_ANALYSIS_THRESHOLD = 5000;
+    
+    // If file is too large, split into multiple independent analyses
+    if (totalLines > MULTI_ANALYSIS_THRESHOLD) {
+      console.log(`[MultiAnalysis] File has ${totalLines} lines, splitting into multiple analyses...`);
+      const parts = splitForMultiAnalysis(cobolCode, 2500);
+      
+      // Analyze each part independently (in parallel for speed)
+      const analyzePartUrl = request.url;
+      const partResults = await Promise.all(
+        parts.map(async (part, index) => {
+          try {
+            // Recursive call with smaller part
+            const partRequest = new NextRequest(analyzePartUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                cobolCode: part, 
+                filename: `${filename || 'program'}_part${index + 1}.cbl`
+              })
+            });
+            const response = await POST(partRequest);
+            const result = await response.json();
+            return { success: true, partIndex: index + 1, ...result };
+          } catch (e: any) {
+            console.error(`[MultiAnalysis] Part ${index + 1} failed: ${e.message}`);
+            return { success: false, partIndex: index + 1, error: e.message };
+          }
+        })
+      );
+      
+      // Return multi-analysis result
+      const successfulParts = partResults.filter(r => r.success);
+      return NextResponse.json({
+        is_multi_analysis: true,
+        total_parts: parts.length,
+        successful_parts: successfulParts.length,
+        original_lines: totalLines,
+        parts: partResults,
+        processing_time_ms: Date.now() - startTime,
+        summary: `Large file (${totalLines} lines) split into ${parts.length} independent analyses for reliability`
+      }, { headers: corsHeaders });
     }
 
     // Parse COBOL with ANTLR4 (full COBOL85 grammar)
