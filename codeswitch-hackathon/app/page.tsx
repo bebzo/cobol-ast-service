@@ -937,20 +937,24 @@ export default function Home() {
         } catch (e) { console.error('Combined validation failed:', e); }
       }
       
+      // ALWAYS validate the final code (whether multi or mono analysis)
       try {
-        console.log('Applying quick fixes...');
-        const cleanRes = await fetch('/api/clean', {
+        console.log('Final validation before tests...');
+        const validateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pythonCode: finalPythonCode })
+          body: JSON.stringify({ code: finalPythonCode })
         });
-        if (cleanRes.ok) {
-          const cleanData = await cleanRes.json();
-          if (cleanData.cleanedCode) {
-            finalPythonCode = cleanData.cleanedCode;
+        if (validateRes.ok) {
+          const validateData = await validateRes.json();
+          if (validateData.valid && validateData.code) {
+            finalPythonCode = validateData.code;
+            console.log('Final validation: PASS');
+          } else {
+            console.log('Final validation: FAIL, using original');
           }
         }
-      } catch (e) { console.error('Quick fixes failed:', e); }
+      } catch (e) { console.error('Final validation failed:', e); }
       
       setPythonCode(finalPythonCode);
       // Create new object to trigger React state update
