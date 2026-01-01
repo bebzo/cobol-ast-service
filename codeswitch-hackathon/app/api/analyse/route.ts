@@ -474,19 +474,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       mergedPythonCode = postProcessPythonCode(mergedPythonCode, filename || 'PROGRAM');
       console.log(`[MultiAnalysis] Post-processed merged code: ${mergedPythonCode.split('\n').length} lines`);
       
-      // Update each part's python_code with empty (since we merged) and add merged to response
-      const cleanedParts = partResults.map((p: any) => ({
-        ...p,
-        python_code: undefined // Remove individual code, use merged instead
-      }));
-      
       return NextResponse.json({
         is_multi_analysis: true,
         total_parts: parts.length,
         successful_parts: successfulParts.length,
         original_lines: totalLines,
-        parts: cleanedParts,
-        python_code: mergedPythonCode, // Merged and post-processed
+        parts: partResults, // Keep original parts for fallback
+        python_code: mergedPythonCode, // Merged and post-processed (primary)
         processing_time_ms: Date.now() - startTime,
         summary: `Large file (${totalLines} lines) split into ${parts.length} independent analyses for reliability`
       }, { headers: corsHeaders });
