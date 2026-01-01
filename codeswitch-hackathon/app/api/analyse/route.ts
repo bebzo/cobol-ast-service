@@ -97,20 +97,35 @@ COBOL AST Summary:
 `;
 
 // Generate issues based on code analysis
-function generateIssues(ast: any, cobolCode: string): string[] {
-  const issues: string[] = [];
+function generateIssues(ast: any, cobolCode: string): any[] {
+  const issues: any[] = [];
   const lower = cobolCode.toLowerCase();
+  const lines = cobolCode.split('\n');
   
-  if (ast.metrics.totalLines > 5000) issues.push(`Large codebase (${ast.metrics.totalLines} lines) requires incremental testing`);
-  if (ast.metrics.cyclomaticComplexity > 50) issues.push(`High cyclomatic complexity (${ast.metrics.cyclomaticComplexity}) - refactoring recommended`);
-  if (lower.includes('goto')) issues.push('GOTO statements detected - control flow needs review');
-  if (lower.includes('alter')) issues.push('ALTER statements found - dynamic branching risk');
-  if (ast.metrics.copybooks > 0) issues.push(`${ast.metrics.copybooks} COPYBOOK dependencies to resolve`);
-  if (lower.includes('exec sql')) issues.push('Embedded SQL requires database migration strategy');
-  if (lower.includes('exec cics')) issues.push('CICS transactions need middleware replacement');
-  if (ast.metrics.paragraphs > 100) issues.push(`${ast.metrics.paragraphs} paragraphs - modularization needed`);
+  if (ast.metrics.totalLines > 5000) issues.push({
+    title: `Large codebase: ${ast.metrics.totalLines} lines`,
+    severity: 'HIGH',
+    description: 'Incremental testing strategy required',
+    recommendation: 'Split into modules of max 1000 lines each'
+  });
+  if (ast.metrics.cyclomaticComplexity > 50) issues.push({
+    title: `High complexity: ${ast.metrics.cyclomaticComplexity}`,
+    severity: 'HIGH', 
+    description: 'Code paths are difficult to test',
+    recommendation: 'Refactor into smaller functions'
+  });
+  if (lower.includes('goto')) {
+    const gotoLine = lines.findIndex(l => l.toLowerCase().includes('goto')) + 1;
+    issues.push({ title: 'GOTO statement detected', severity: 'MEDIUM', description: `Line ${gotoLine}: Unstructured control flow`, recommendation: 'Replace with structured loops' });
+  }
+  if (lower.includes('exec sql')) {
+    const sqlLine = lines.findIndex(l => l.toLowerCase().includes('exec sql')) + 1;
+    issues.push({ title: 'Embedded SQL found', severity: 'MEDIUM', description: `Line ${sqlLine}: Database coupling`, recommendation: 'Use SQLAlchemy ORM' });
+  }
+  if (lower.includes('exec cics')) issues.push({ title: 'CICS transactions', severity: 'HIGH', description: 'Mainframe middleware dependency', recommendation: 'Replace with REST API' });
+  if (ast.metrics.paragraphs > 100) issues.push({ title: `${ast.metrics.paragraphs} paragraphs`, severity: 'LOW', description: 'High number of code blocks', recommendation: 'Group related paragraphs into classes' });
   
-  return issues.length > 0 ? issues : ['Code structure is clean - minimal issues detected'];
+  return issues.length > 0 ? issues : [{ title: 'Clean code', severity: 'INFO', description: 'No major issues detected', recommendation: 'Proceed with migration' }];
 }
 
 // Generate improvements based on Python output
