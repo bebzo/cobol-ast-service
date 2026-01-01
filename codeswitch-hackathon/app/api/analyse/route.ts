@@ -941,7 +941,7 @@ ${cleanedValidatedCode}
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s timeout
         
-        const validateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
+        const validateResponse = await fetch('https://codeswitch-v8rr.onrender.com/api/validate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code: combinedPythonCode }),
@@ -976,7 +976,7 @@ ${cleanedValidatedCode}
     if (!validationSuccess) {
       console.log('[Warning] Code did not pass validation, attempting final fix...');
       try {
-        const finalValidateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
+        const finalValidateResponse = await fetch('https://codeswitch-v8rr.onrender.com/api/validate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code: combinedPythonCode }),
