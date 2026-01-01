@@ -894,6 +894,9 @@ export default function Home() {
           security_warnings: successParts.flatMap((p: any) => p.security_warnings || []),
           business_context: successParts[0]?.business_context || {},
           migration_score: successParts[0]?.migration_score || {},
+          config_json: successParts[0]?.config_json || '',
+          architecture_diagram: successParts[0]?.architecture_diagram || '',
+          modules: successParts.flatMap((p: any) => p.modules || []),
           next_steps: ['Review each part', 'Integrate modules', 'Run integration tests'],
           // Aggregate test counts from all parts (only valid ones)
           _multiAnalysisInfo: { 
