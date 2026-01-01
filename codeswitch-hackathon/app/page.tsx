@@ -787,7 +787,28 @@ export default function Home() {
       if (!response.ok || data.error) {
         throw new Error(data.error || 'Analysis failed');
       }
-      const parsed: AnalysisResult = data;
+      // Handle multi-analysis response (large files split into parts)
+      let parsed: AnalysisResult;
+      if (data.is_multi_analysis && data.parts) {
+        console.log(`Multi-analysis: ${data.parts.length} parts`);
+        // Aggregate results from all successful parts
+        const successParts = data.parts.filter((p: any) => p.success);
+        parsed = {
+          summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
+          python_code: successParts.map((p: any) => p.python_code || '').join('\n\n# === PART ===\n\n'),
+          unit_tests: successParts.map((p: any) => p.unit_tests || '').join('\n'),
+          cobol_lines: data.original_lines,
+          python_lines: successParts.reduce((sum: number, p: any) => sum + (p.python_lines || 0), 0),
+          issues: successParts.flatMap((p: any) => p.issues || []),
+          improvements: successParts.flatMap((p: any) => p.improvements || []),
+          security_warnings: successParts.flatMap((p: any) => p.security_warnings || []),
+          business_context: successParts[0]?.business_context || {},
+          migration_score: successParts[0]?.migration_score || {},
+          next_steps: ['Review each part', 'Integrate modules', 'Run integration tests'],
+        } as AnalysisResult;
+      } else {
+        parsed = data as AnalysisResult;
+      }
       
       // Convert escaped newlines to real newlines
       if (parsed.python_code) {
@@ -837,7 +858,7 @@ export default function Home() {
         filename,
         timestamp: new Date().toISOString(),
         cobol_lines: cobolCode.split('\n').length,
-        python_lines: parsed.python_code.split('\n').length,
+        python_lines: (parsed.python_code || '').split('\n').length,
         cobol_code: cobolCode,
         python_code: parsed.python_code,
         analysis: parsed,
