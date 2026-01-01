@@ -255,49 +255,54 @@ ws_counters = Ws_Counters()
 ws_totals = Ws_Totals()
 ws_calculation_fields = Ws_Calculation_Fields()
 ws_flags = Ws_Flags()
+
 ws_tax_table_1985 = Ws_Tax_Table_1985(
-    ws_tax_bracket_1=Ws_Tax_Bracket(ws_bracket_min=0, ws_bracket_max=3000, ws_bracket_rate=0.11),
-    ws_tax_bracket_2=Ws_Tax_Bracket(ws_bracket_min=3001, ws_bracket_max=28000, ws_bracket_rate=0.15),
-    ws_tax_bracket_3=Ws_Tax_Bracket(ws_bracket_min=28001, ws_bracket_max=45000, ws_bracket_rate=0.25),
-    ws_tax_bracket_4=Ws_Tax_Bracket(ws_bracket_min=45001, ws_bracket_max=90000, ws_bracket_rate=0.35),
-    ws_tax_bracket_5=Ws_Tax_Bracket(ws_bracket_min=90001, ws_bracket_max=999999999, ws_bracket_rate=0.50)
+    ws_tax_bracket_1 = Ws_Tax_Bracket(ws_bracket_min=0, ws_bracket_max=3000, ws_bracket_rate=0.11),
+    ws_tax_bracket_2 = Ws_Tax_Bracket(ws_bracket_min=3001, ws_bracket_max=28000, ws_bracket_rate=0.15),
+    ws_tax_bracket_3 = Ws_Tax_Bracket(ws_bracket_min=28001, ws_bracket_max=45000, ws_bracket_rate=0.25),
+    ws_tax_bracket_4 = Ws_Tax_Bracket(ws_bracket_min=45001, ws_bracket_max=90000, ws_bracket_rate=0.35),
+    ws_tax_bracket_5 = Ws_Tax_Bracket(ws_bracket_min=90001, ws_bracket_max=999999999, ws_bracket_rate=0.50)
 )
+
 ws_interest_rates = Ws_Interest_Rates(
-    ws_savings_rate=0.0225,
-    ws_checking_rate=0.0050,
-    ws_mm_rate=0.0350,
-    ws_cd_rate_1yr=0.0425,
-    ws_cd_rate_2yr=0.0475,
-    ws_cd_rate_5yr=0.0550,
-    ws_mortgage_rate_15=0.0625,
-    ws_mortgage_rate_30=0.0699,
-    ws_auto_rate_new=0.0549,
-    ws_auto_rate_used=0.0749,
-    ws_personal_rate=0.0999,
-    ws_heloc_rate=0.0825,
-    ws_credit_card_rate=0.1899,
-    ws_prime_rate=0.0825
+    ws_savings_rate = 0.0225,
+    ws_checking_rate = 0.0050,
+    ws_mm_rate = 0.0350,
+    ws_cd_rate_1yr = 0.0425,
+    ws_cd_rate_2yr = 0.0475,
+    ws_cd_rate_5yr = 0.0550,
+    ws_mortgage_rate_15 = 0.0625,
+    ws_mortgage_rate_30 = 0.0699,
+    ws_auto_rate_new = 0.0549,
+    ws_auto_rate_used = 0.0749,
+    ws_personal_rate = 0.0999,
+    ws_heloc_rate = 0.0825,
+    ws_credit_card_rate = 0.1899,
+    ws_prime_rate = 0.0825
 )
+
 ws_fee_schedule = Ws_Fee_Schedule(
-    ws_overdraft_fee=35.00,
-    ws_nsf_fee=35.00,
-    ws_wire_fee_domestic=25.00,
-    ws_wire_fee_intl=45.00,
-    ws_atm_fee_foreign=3.00,
-    ws_monthly_fee_checking=12.00,
-    ws_monthly_fee_savings=5.00,
-    ws_late_payment_fee=39.00,
-    ws_early_withdrawal_pct=0.100,
-    ws_loan_origination_pct=0.010,
-    ws_annual_fee_card=95.00
+    ws_overdraft_fee = 35.00,
+    ws_nsf_fee = 35.00,
+    ws_wire_fee_domestic = 25.00,
+    ws_wire_fee_intl = 45.00,
+    ws_atm_fee_foreign = 3.00,
+    ws_monthly_fee_checking = 12.00,
+    ws_monthly_fee_savings = 5.00,
+    ws_late_payment_fee = 39.00,
+    ws_early_withdrawal_pct = 0.100,
+    ws_loan_origination_pct = 0.010,
+    ws_annual_fee_card = 95.00
 )
+
 ws_insurance_rates = Ws_Insurance_Rates(
-    ws_life_rate_per_1000=1.25,
-    ws_health_base_premium=450.00,
-    ws_auto_base_premium=1200.00,
-    ws_home_rate_per_1000=3.50,
-    ws_umbrella_rate=200.00
+    ws_life_rate_per_1000 = 1.25,
+    ws_health_base_premium = 450.00,
+    ws_auto_base_premium = 1200.00,
+    ws_home_rate_per_1000 = 3.50,
+    ws_umbrella_rate = 200.00
 )
+
 ws_temp_variables = Ws_Temp_Variables()
 ws_work_areas = Ws_Work_Areas()
 
@@ -318,7 +323,7 @@ def main_control():
     process_investments()
     generate_reports()
     termination()
-    print("STOP RUN")
+    print("STOP RUN.")
 
 def initialization():
     open_files()
@@ -329,14 +334,8 @@ def initialization():
     print("MEGA-ENTERPRISE SYSTEM INITIALIZED")
 
 def open_files():
-    print("OPEN INPUT CUSTOMER-MASTER")
-    print("OPEN I-O ACCOUNT-MASTER")
-    print("OPEN I-O LOAN-MASTER")
-    print("OPEN I-O INSURANCE-MASTER")
-    print("OPEN I-O INVESTMENT-MASTER")
-    print("OPEN OUTPUT TRANSACTION-LOG")
-    print("OPEN OUTPUT AUDIT-TRAIL")
-    print("OPEN OUTPUT REPORT-FILE")
+    print("OPEN INPUT CUSTOMER-MASTER\nOPEN I-O ACCOUNT-MASTER\nOPEN I-O LOAN-MASTER\nOPEN I-O INSURANCE-MASTER\nOPEN I-O INVESTMENT-MASTER\nOPEN OUTPUT TRANSACTION-LOG\nOPEN OUTPUT AUDIT-TRAIL\nOPEN OUTPUT REPORT-FILE")
+    pass
 
 def initialize_counters():
     global ws_counters, ws_totals, ws_flags
@@ -356,7 +355,7 @@ def load_parameters():
     pass
 
 def validate_system():
-    global ws_file_statuses, ws_flags
+    global ws_flags
     if ws_file_statuses.ws_cust_status != '00':
         print("ERROR: CUSTOMER FILE OPEN FAILED")
         ws_flags.ws_error_flag = 'Y'
@@ -374,22 +373,22 @@ def process_banking():
     reconcile_accounts()
 
 def process_deposits():
-    global ws_flags, ws_counters
+    global ws_flags
     print("PROCESSING DEPOSITS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        try:
-            account_record = Account_Record()
-            validate_deposit()
-            if ws_flags.ws_valid_flag == 'Y':
-                post_deposit()
-                update_balance()
-                ws_counters.ws_tran_count += 1
-        except StopIteration:
-            ws_flags.ws_eof_flag = 'Y'
+        # Simulate reading from ACCOUNT-MASTER
+        # In a real implementation, you would read from a file or database
+        # For now, we just set WS-EOF to TRUE after one iteration
+        ws_flags.ws_eof_flag = 'Y'
+        validate_deposit()
+        if ws_flags.ws_valid_flag == 'Y':
+            post_deposit()
+            update_balance()
+            ws_counters.ws_tran_count += 1
 
 def validate_deposit():
-    global ws_flags, ws_calculation_fields, account_record
+    global ws_flags
     ws_flags.ws_valid_flag = 'Y'
     if ws_calculation_fields.ws_calc_amount < 0:
         ws_flags.ws_valid_flag = 'N'
@@ -397,33 +396,34 @@ def validate_deposit():
         ws_flags.ws_valid_flag = 'N'
 
 def post_deposit():
-    global ws_calculation_fields, account_record, ws_totals
+    global account_record, ws_calculation_fields, ws_totals
     account_record.acct_balance += ws_calculation_fields.ws_calc_amount
     account_record.acct_available += ws_calculation_fields.ws_calc_amount
     ws_totals.ws_total_deposits += ws_calculation_fields.ws_calc_amount
     write_transaction()
 
 def update_balance():
-    global ws_current_date_data, account_record
+    global account_record, ws_current_date_data
     account_record.acct_last_trans_date = ws_current_date_data.ws_current_date
     print("REWRITE ACCOUNT-RECORD")
+    pass
 
 def process_withdrawals():
-    global ws_flags, ws_counters
+    global ws_flags
     print("PROCESSING WITHDRAWALS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        try:
-            account_record = Account_Record()
-            validate_withdrawal()
-            if ws_flags.ws_valid_flag == 'Y':
-                post_withdrawal()
-                ws_counters.ws_tran_count += 1
-        except StopIteration:
-            ws_flags.ws_eof_flag = 'Y'
+        # Simulate reading from ACCOUNT-MASTER
+        # In a real implementation, you would read from a file or database
+        # For now, we just set WS-EOF to TRUE after one iteration
+        ws_flags.ws_eof_flag = 'Y'
+        validate_withdrawal()
+        if ws_flags.ws_valid_flag == 'Y':
+            post_withdrawal()
+            ws_counters.ws_tran_count += 1
 
 def validate_withdrawal():
-    global ws_flags, ws_calculation_fields, account_record, ws_fee_schedule
+    global ws_flags, ws_fee_schedule
     ws_flags.ws_valid_flag = 'Y'
     if ws_calculation_fields.ws_calc_amount > account_record.acct_available:
         if ws_calculation_fields.ws_calc_amount > (account_record.acct_available + account_record.acct_overdraft_limit):
@@ -432,12 +432,12 @@ def validate_withdrawal():
             apply_overdraft_fee()
 
 def apply_overdraft_fee():
-    global ws_fee_schedule, ws_totals, account_record
+    global ws_totals, ws_fee_schedule, account_record
     ws_totals.ws_total_fees += ws_fee_schedule.ws_overdraft_fee
     account_record.acct_balance -= ws_fee_schedule.ws_overdraft_fee
 
 def post_withdrawal():
-    global ws_calculation_fields, account_record, ws_totals
+    global account_record, ws_calculation_fields, ws_totals
     account_record.acct_balance -= ws_calculation_fields.ws_calc_amount
     account_record.acct_available -= ws_calculation_fields.ws_calc_amount
     ws_totals.ws_total_withdrawals += ws_calculation_fields.ws_calc_amount
@@ -453,7 +453,7 @@ def internal_transfer():
     pass
 
 def wire_transfer():
-    global ws_fee_schedule, ws_totals
+    global ws_totals, ws_fee_schedule
     ws_totals.ws_total_fees += ws_fee_schedule.ws_wire_fee_domestic
 
 def ach_transfer():
@@ -464,16 +464,16 @@ def calculate_interest():
     print("CALCULATING INTEREST...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        try:
-            account_record = Account_Record()
-            determine_rate()
-            compute_interest()
-            post_interest()
-        except StopIteration:
-            ws_flags.ws_eof_flag = 'Y'
+        # Simulate reading from ACCOUNT-MASTER
+        # In a real implementation, you would read from a file or database
+        # For now, we just set WS-EOF to TRUE after one iteration
+        ws_flags.ws_eof_flag = 'Y'
+        determine_rate()
+        compute_interest()
+        post_interest()
 
 def determine_rate():
-    global account_record, ws_calculation_fields, ws_interest_rates
+    global ws_calculation_fields, ws_interest_rates
     if account_record.acct_type == 'CH':
         ws_calculation_fields.ws_calc_rate = ws_interest_rates.ws_checking_rate
     elif account_record.acct_type == 'SV':
@@ -486,7 +486,7 @@ def determine_rate():
         ws_calculation_fields.ws_calc_rate = 0
 
 def compute_interest():
-    global account_record, ws_calculation_fields
+    global ws_calculation_fields, account_record
     ws_calculation_fields.ws_calc_interest = account_record.acct_balance * ws_calculation_fields.ws_calc_rate / 12
 
 def post_interest():
@@ -499,18 +499,18 @@ def apply_fees():
     print("APPLYING MONTHLY FEES...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        try:
-            account_record = Account_Record()
-            check_minimum_balance()
-            if ws_flags.ws_valid_flag == 'Y':
-                waive_fee()
-            else:
-                charge_fee()
-        except StopIteration:
-            ws_flags.ws_eof_flag = 'Y'
+        # Simulate reading from ACCOUNT-MASTER
+        # In a real implementation, you would read from a file or database
+        # For now, we just set WS-EOF to TRUE after one iteration
+        ws_flags.ws_eof_flag = 'Y'
+        check_minimum_balance()
+        if ws_flags.ws_valid_flag == 'Y':
+            waive_fee()
+        else:
+            charge_fee()
 
 def check_minimum_balance():
-    global account_record, ws_flags
+    global ws_flags, account_record
     if account_record.acct_balance >= account_record.acct_min_balance:
         ws_flags.ws_valid_flag = 'Y'
     else:
@@ -521,8 +521,8 @@ def waive_fee():
 
 def charge_fee():
     global account_record, ws_totals
-    account_record.acct_balance -= account_record.acct_monthly_fee
     ws_totals.ws_total_fees += account_record.acct_monthly_fee
+    account_record.acct_balance -= account_record.acct_monthly_fee
 
 def process_payments():
     print("PROCESSING BILL PAYMENTS...")
@@ -534,7 +534,7 @@ def reconcile_accounts():
 
 def process_loans():
     process_applications()
-    process_payments_3000()
+    process_payments()
     calculate_amortization()
     assess_delinquencies()
     process_collections()
@@ -544,19 +544,19 @@ def process_applications():
     print("PROCESSING LOAN APPLICATIONS...")
     pass
 
-def process_payments_3000():
+def process_payments():
     global ws_flags
     print("PROCESSING LOAN PAYMENTS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        try:
-            loan_record = Loan_Record()
-            if loan_record.loan_status == 'C':
-                calculate_payment()
-                apply_payment()
-                update_loan()
-        except StopIteration:
-            ws_flags.ws_eof_flag = 'Y'
+        # Simulate reading from LOAN-MASTER
+        # In a real implementation, you would read from a file or database
+        # For now, we just set WS-EOF to TRUE after one iteration
+        ws_flags.ws_eof_flag = 'Y'
+        if loan_record.loan_status == 'C':
+            calculate_payment()
+            apply_payment()
+            update_loan()
 
 def calculate_payment():
     global loan_record, ws_calculation_fields
@@ -575,27 +575,28 @@ def update_loan():
     if loan_record.loan_current_balance <= 0:
         loan_record.loan_status = 'P'
     print("REWRITE LOAN-RECORD")
+    pass
 
 def calculate_amortization():
     print("CALCULATING AMORTIZATION SCHEDULES...")
     pass
 
 def assess_delinquencies():
-    global ws_flags, ws_current_date_data
+    global ws_flags
     print("ASSESSING DELINQUENT LOANS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        try:
-            loan_record = Loan_Record()
-            check_payment_status()
-            if ws_flags.ws_found_flag == 'N':
-                mark_delinquent()
-                assess_late_fee()
-        except StopIteration:
-            ws_flags.ws_eof_flag = 'Y'
+        # Simulate reading from LOAN-MASTER
+        # In a real implementation, you would read from a file or database
+        # For now, we just set WS-EOF to TRUE after one iteration
+        ws_flags.ws_eof_flag = 'Y'
+        check_payment_status()
+        if ws_flags.ws_found_flag == 'N':
+            mark_delinquent()
+            assess_late_fee()
 
 def check_payment_status():
-    global loan_record, ws_current_date_data, ws_flags
+    global ws_flags, ws_current_date_data, loan_record
     if loan_record.loan_next_payment_date < ws_current_date_data.ws_current_date:
         ws_flags.ws_found_flag = 'N'
     else:
@@ -606,7 +607,7 @@ def mark_delinquent():
     loan_record.loan_status = 'D'
 
 def assess_late_fee():
-    global ws_fee_schedule, ws_totals
+    global ws_totals, ws_fee_schedule
     ws_totals.ws_total_fees += ws_fee_schedule.ws_late_payment_fee
 
 def process_collections():
@@ -633,13 +634,13 @@ def calculate_premiums():
     print("CALCULATING PREMIUMS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        try:
-            insurance_record = Insurance_Record()
-            determine_base_premium()
-            apply_risk_factor()
-            calculate_final_premium()
-        except StopIteration:
-            ws_flags.ws_eof_flag = 'Y'
+        # Simulate reading from INSURANCE-MASTER
+        # In a real implementation, you would read from a file or database
+        # For now, we just set WS-EOF to TRUE after one iteration
+        ws_flags.ws_eof_flag = 'Y'
+        determine_base_premium()
+        apply_risk_factor()
+        calculate_final_premium()
 
 def determine_base_premium():
     global insurance_record, ws_calculation_fields, ws_insurance_rates
@@ -692,13 +693,13 @@ def calculate_portfolio_value():
     print("CALCULATING PORTFOLIO VALUES...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        try:
-            investment_record = Investment_Record()
-            calculate_position_value()
-            calculate_gain_loss()
-            update_totals()
-        except StopIteration:
-            ws_flags.ws_eof_flag = 'Y'
+        # Simulate reading from INVESTMENT-MASTER
+        # In a real implementation, you would read from a file or database
+        # For now, we just set WS-EOF to TRUE after one iteration
+        ws_flags.ws_eof_flag = 'Y'
+        calculate_position_value()
+        calculate_gain_loss()
+        update_totals()
 
 def calculate_position_value():
     global investment_record
@@ -732,13 +733,13 @@ def calculate_dividends():
     print("CALCULATING DIVIDENDS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        try:
-            investment_record = Investment_Record()
-            if investment_record.inv_dividend_rate > 0:
-                compute_dividend()
-                post_dividend()
-        except StopIteration:
-            ws_flags.ws_eof_flag = 'Y'
+        # Simulate reading from INVESTMENT-MASTER
+        # In a real implementation, you would read from a file or database
+        # For now, we just set WS-EOF to TRUE after one iteration
+        ws_flags.ws_eof_flag = 'Y'
+        if investment_record.inv_dividend_rate > 0:
+            compute_dividend()
+            post_dividend()
 
 def compute_dividend():
     global investment_record, ws_calculation_fields
@@ -762,20 +763,5 @@ def generate_reports():
     management_reports()
 
 def daily_summary():
-    global report_line, ws_current_date_data
+    global report_line, ws_current_date_data, ws_totals, ws_work_areas
     print("GENERATING DAILY SUMMARY...")
-    report_line.report_line = "MEGA-ENTERPRISE DAILY SUMMARY - " + str(ws_current_date_data.ws_current_date)
-    print("WRITE REPORT-LINE")
-    write_totals()
-
-def write_totals():
-    global ws_totals, ws_work_areas, report_line
-    ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_deposits)
-    report_line.report_line = "TOTAL DEPOSITS: " + ws_work_areas.ws_formatted_amount
-    print("WRITE REPORT-LINE")
-
-    ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_withdrawals)
-    report_line.report_line = "TOTAL WITHDRAWALS: " + ws_work_areas.ws_formatted_amount
-    print("WRITE REPORT-LINE")
-
-    ws_
