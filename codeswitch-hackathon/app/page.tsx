@@ -529,6 +529,7 @@ export default function Home() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [analyzedCobolCode, setAnalyzedCobolCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisStatus, setAnalysisStatus] = useState("");
   const [error, setError] = useState("");
@@ -735,6 +736,8 @@ export default function Home() {
     }
 
     setIsLoading(true);
+    const controller = new AbortController();
+    setAbortController(controller);
     setAnalysisProgress(0);
     setAnalysisStatus("Parsing COBOL structure...");
     setVoiceResponse("");  // Reset chat for new analysis
@@ -773,7 +776,8 @@ export default function Home() {
       const response = await fetch('/api/analyse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cobolCode, filename })
+        body: JSON.stringify({ cobolCode, filename }),
+        signal: controller.signal
       });
       
       const text = await response.text();
@@ -1015,7 +1019,18 @@ export default function Home() {
     } finally {
       clearInterval(progressInterval);
       setAnalysisProgress(100);
+      setAbortController(null);
       setTimeout(() => setIsLoading(false), 300);
+    }
+  };
+
+  const cancelAnalysis = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setIsLoading(false);
+      setAnalysisStatus("Analyse annulée");
+      setAnalysisProgress(0);
     }
   };
 
@@ -1332,6 +1347,14 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <><Play className="w-5 h-5" />Refactor with Gemini</>
                 )}
               </button>
+              {isLoading && (
+                <button
+                  onClick={cancelAnalysis}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium bg-red-500/80 hover:bg-red-600 transition"
+                >
+                  <X className="w-5 h-5" />Annuler
+                </button>
+              )}
             </div>
           </div>
 
