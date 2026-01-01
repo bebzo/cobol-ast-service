@@ -5,10 +5,12 @@ import requests
 import sys
 import io
 import contextlib
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 from api.validate import validate_and_fix
-
-load_dotenv()
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 if not GEMINI_API_KEY:
     print("ERROR: Set GEMINI_API_KEY environment variable")
