@@ -1944,7 +1944,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     <li>• Le code Python compile et est fonctionnellement équivalent</li>
                   </ul>
                   <button
-                    onClick={() => analyzeCobol()}
+                    onClick={handleConvert}
                     className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-xs font-medium transition"
                   >
                     🔄 Ré-analyser pour de nouveaux tests
