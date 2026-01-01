@@ -793,6 +793,25 @@ ${cleanedValidatedCode}
     } // End retry loop
     
     console.log(`[Retry] Completed after ${validationSuccess ? 'successful' : 'max'} attempts`);
+    
+    // Final safety check - ensure code compiles
+    if (!validationSuccess) {
+      console.log('[Warning] Code did not pass validation, attempting final fix...');
+      try {
+        const finalValidateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: combinedPythonCode }),
+        });
+        if (finalValidateResponse.ok) {
+          const finalResult = await finalValidateResponse.json();
+          combinedPythonCode = finalResult.code;
+          validationSuccess = finalResult.valid;
+        }
+      } catch (e) {
+        console.log('[Warning] Final validation failed');
+      }
+    }
 
     // === ANALYSIS METADATA (generated locally to avoid timeout) ===
     console.log(`[Analysis] Generating metadata locally...`);
