@@ -1882,11 +1882,16 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 )}
                 <button
                   onClick={async () => {
-                    setTestResults(prev => ({...prev, running: true}));
-                    const testCode = analysis.tests || analysis.unit_tests || '';
-                    const testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
-                    const results = await runTestsWithPyodide(pythonCode, testStr);
-                    setTestResults({...results, running: false});
+                    try {
+                      setTestResults(prev => ({...prev, running: true}));
+                      const testCode = analysis.tests || analysis.unit_tests || '';
+                      const testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
+                      const results = await runTestsWithPyodide(pythonCode, testStr);
+                      setTestResults({...results, running: false});
+                    } catch (e) {
+                      console.error('Test error:', e);
+                      setTestResults(prev => ({...prev, running: false, details: [{name: 'error', status: 'error', error: String(e)}]}));
+                    }
                   }}
                   disabled={testResults.running}
                   className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-medium transition disabled:opacity-50"
