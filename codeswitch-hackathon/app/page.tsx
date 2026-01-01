@@ -100,6 +100,24 @@ def check_syntax(code):
 
 // Run tests using Pyodide
 async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
+  // Try server-side pytest first (real execution)
+  try {
+    const response = await fetch('https://cobol-ast-service.vercel.app/api/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: pythonCode, tests: testCode })
+    });
+    if (response.ok) {
+      const result = await response.json();
+      if (result.total > 0) {
+        return result;
+      }
+    }
+  } catch (e) {
+    console.log('Server-side tests failed, falling back to Pyodide');
+  }
+  
+  // Fallback to Pyodide
   try {
     const pyodide = await getPyodide();
     if (!pyodide) return { total: 0, passed: 0, failed: 0, details: [{name: 'pyodide', status: 'error', error: 'Pyodide not available'}] };
