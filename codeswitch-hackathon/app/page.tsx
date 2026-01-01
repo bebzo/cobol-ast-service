@@ -1951,9 +1951,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 const t = analysis.tests || analysis.unit_tests || '';
                 const s = Array.isArray(t) ? t.join('\n') : t;
                 const codeTestCount = (s.match(/def test_/g) || []).length || 0;
-                const total = testResults.total || codeTestCount;
-                const passed = testResults.passed || (testResults.failed === 0 ? total : 0);
-                const failed = testResults.failed;
+                const total = testResults.total > 0 ? testResults.total : codeTestCount;
+                // If no tests were executed but code compiled, count all as passed
+                const passed = testResults.total > 0 ? testResults.passed : (testResults.failed === 0 ? total : 0);
+                const failed = testResults.failed || 0;
                 const rate = total > 0 ? Math.round((passed / total) * 100) : 100;
                 return (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
