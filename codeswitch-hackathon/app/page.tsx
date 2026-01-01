@@ -534,7 +534,7 @@ export default function Home() {
   const [analysisProgress, setAnalysisProgress] = useState(0);
   const [analysisStatus, setAnalysisStatus] = useState("");
   const [error, setError] = useState("");
-  const [filename, setFilename] = useState("MEGA-ENTERPRISE.CBL");
+  const [filename, setFilename] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [modulesLimit, setModulesLimit] = useState(50);
@@ -577,24 +577,7 @@ export default function Home() {
   });
   const [metricsAnimated, setMetricsAnimated] = useState(false);
 
-  // Load MEGA-ENTERPRISE.CBL on startup
-  useEffect(() => {
-    setError(""); // Clear any previous errors
-    fetch('/MEGA-ENTERPRISE.CBL')
-      .then(res => {
-        if (!res.ok) throw new Error('File not found');
-        return res.text();
-      })
-      .then(text => {
-        if (text && text.includes('IDENTIFICATION DIVISION') || text.includes('PROGRAM-ID')) {
-          setCobolCode(text);
-          setFilename('MEGA-ENTERPRISE.CBL');
-        } else {
-          setCobolCode(SAMPLE_COBOL);
-        }
-      })
-      .catch(() => setCobolCode(SAMPLE_COBOL));
-  }, []);
+  // No auto-load - user chooses to paste, upload, or load demo
 
   useEffect(() => {
     const savedKey = sessionStorage.getItem("gemini_api_key");
@@ -1299,10 +1282,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <FileCode className="w-4 h-4" />
                 <span>Load Demo (10K LOC)</span>
               </button>
-              <div className="flex items-center gap-2 text-slate-400">
-                <FileCode className="w-4 h-4" />
-                <span className="text-sm">{filename}</span>
-              </div>
+              {filename && (
+                <div className="flex items-center gap-2 text-slate-400">
+                  <FileCode className="w-4 h-4" />
+                  <span className="text-sm">{filename}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
@@ -1456,11 +1441,20 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
           {/* Editors with Tabs */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* COBOL Editor */}
-            <div className="bg-slate-800 rounded-lg overflow-hidden">
+            <div className="bg-slate-800 rounded-lg overflow-hidden relative">
               <div className="flex items-center gap-2 px-4 py-3 bg-amber-500/20 border-b border-slate-700">
                 <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
                 <span className="font-medium text-amber-400">COBOL (Source)</span>
               </div>
+              {!cobolCode && (
+                <div className="absolute inset-0 top-[52px] z-10 flex items-center justify-center bg-slate-900/80 pointer-events-none">
+                  <div className="text-center p-8">
+                    <FileCode className="w-16 h-16 text-amber-500/50 mx-auto mb-4" />
+                    <p className="text-xl text-slate-300 font-medium mb-2">Paste your COBOL code here</p>
+                    <p className="text-slate-500">or upload a .cbl file, or click "Load Demo"</p>
+                  </div>
+                </div>
+              )}
               <Editor
                 height="400px"
                 defaultLanguage="cobol"
