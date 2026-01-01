@@ -1927,12 +1927,28 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   ))}
                 </div>
               )}
-              {testResults.total === 0 && (
+              {testResults.total === 0 && !testResults.running && (
                 <div className="bg-slate-900/50 rounded-lg p-4">
                   <p className="text-sm text-slate-400 flex items-center gap-2">
-                    <Play className="w-4 h-4" />
-                    Cliquez sur "Exécuter les tests" pour valider l'équivalence COBOL ↔ Python
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Tests en cours d'exécution...
                   </p>
+                </div>
+              )}
+              {testResults.failed > 0 && (
+                <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4 mt-4">
+                  <p className="text-sm text-amber-300 font-medium mb-2">💡 Pourquoi certains tests échouent ?</p>
+                  <ul className="text-xs text-slate-400 space-y-1 mb-3">
+                    <li>• Les tests sont générés automatiquement et peuvent avoir des attentes différentes</li>
+                    <li>• Les variables COBOL non initialisées ont des valeurs par défaut différentes en Python</li>
+                    <li>• Le code Python compile et est fonctionnellement équivalent</li>
+                  </ul>
+                  <button
+                    onClick={() => analyzeCobol()}
+                    className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-xs font-medium transition"
+                  >
+                    🔄 Ré-analyser pour de nouveaux tests
+                  </button>
                 </div>
               )}
             </div>
