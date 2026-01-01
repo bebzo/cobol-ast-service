@@ -1582,9 +1582,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                           <div className="text-white font-bold text-center mb-3">{analysis?.summary?.split(' - ')[0]?.replace('Migration of ', '') || 'COBOL'}</div>
                           <div className="space-y-2 max-h-40 overflow-y-auto">
                             <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.cobol_lines || cobolCode.split('\n').length} lignes</div>
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.paragraphs || 0} paragraphes</div>
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.variables || 0} variables</div>
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.copybooks || 0} copybooks</div>
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.ast_metrics?.paragraphs || 0} paragraphes</div>
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.ast_metrics?.variables || 0} variables</div>
+                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.ast_metrics?.copybooks || 0} copybooks</div>
                           </div>
                         </div>
                         {/* Arrow */}
