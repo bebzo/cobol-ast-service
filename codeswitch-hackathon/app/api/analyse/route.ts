@@ -813,17 +813,27 @@ ${cleanedValidatedCode}
       }
     }
 
-    // === ANALYSIS METADATA (generated locally to avoid timeout) ===
-    console.log(`[Analysis] Generating metadata locally...`);
+    // === ANALYSIS METADATA (generated dynamically) ===
+    console.log(`[Analysis] Generating metadata...`);
     const complexity = ast.metrics.cyclomaticComplexity > 100 ? 'HIGH' : ast.metrics.cyclomaticComplexity > 50 ? 'MEDIUM' : 'LOW';
     const effort = Math.ceil(ast.metrics.totalLines / 100);
+    
+    // Detect domain from COBOL content
+    const cobolLower = code.toLowerCase();
+    const detectedDomain = cobolLower.includes('bank') || cobolLower.includes('account') || cobolLower.includes('deposit') ? 'Banking & Finance' :
+                           cobolLower.includes('insurance') || cobolLower.includes('policy') || cobolLower.includes('claim') ? 'Insurance' :
+                           cobolLower.includes('inventory') || cobolLower.includes('warehouse') || cobolLower.includes('stock') ? 'Supply Chain' :
+                           cobolLower.includes('payroll') || cobolLower.includes('employee') || cobolLower.includes('salary') ? 'HR & Payroll' :
+                           cobolLower.includes('customer') || cobolLower.includes('order') || cobolLower.includes('invoice') ? 'CRM & Sales' :
+                           'Enterprise System';
+    
     const metadata = {
       summary: `Migration of ${ast.programId} - ${ast.metrics.totalLines} lines COBOL to Python`,
       business_context: { 
-        domain: 'Enterprise Banking', 
-        detected_year: '1990s', 
+        domain: detectedDomain, 
+        detected_year: ast.programId.includes('Y2K') ? '2000s' : '1990s', 
         is_obsolete: true,
-        regulatory_context: 'Legacy system requiring modernization'
+        regulatory_context: `${detectedDomain} legacy system requiring modernization`
       },
       issues: [
         'Large codebase requires thorough testing',
