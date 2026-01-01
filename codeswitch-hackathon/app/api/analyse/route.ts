@@ -1123,6 +1123,7 @@ class TestCompilation:
       ast_metrics: ast.metrics,
       chunks_processed: chunks.length,
       processing_time_ms: Date.now() - startTime,
+      code_valid: validationSuccess,  // True only if Python code compiles
     };
 
     console.log(`[Complete] ${chunks.length} chunks, ${finalResult.python_lines} Python lines in ${finalResult.processing_time_ms}ms`);

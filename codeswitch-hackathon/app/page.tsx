@@ -794,7 +794,8 @@ export default function Home() {
         console.log(`Multi-analysis: ${data.parts.length} parts`);
         isMultiAnalysis = true;
         // Aggregate results from all successful parts
-        const successParts = data.parts.filter((p: any) => p.success);
+        // Only count parts where code actually compiles (code_valid = true)
+        const successParts = data.parts.filter((p: any) => p.success && p.code_valid !== false);
         parsed = {
           summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
           python_code: successParts.map((p: any) => p.python_code || '').join('\n\n# === PART ===\n\n'),
@@ -807,10 +808,11 @@ export default function Home() {
           business_context: successParts[0]?.business_context || {},
           migration_score: successParts[0]?.migration_score || {},
           next_steps: ['Review each part', 'Integrate modules', 'Run integration tests'],
-          // Aggregate test counts from all parts
+          // Aggregate test counts from all parts (only valid ones)
           _multiAnalysisInfo: { 
             totalParts: data.total_parts, 
             successParts: successParts.length,
+            validParts: data.parts.filter((p: any) => p.code_valid === true).length,
             totalTests: successParts.reduce((sum: number, p: any) => {
               const tests = p.unit_tests || '';
               const testStr = Array.isArray(tests) ? tests.join('\n') : tests;
@@ -858,12 +860,18 @@ export default function Home() {
         // For multi-analysis, show aggregated test results from all parts
         const info = (parsed as any)._multiAnalysisInfo;
         const totalTests = info.totalTests || info.successParts;
+        const validParts = info.validParts || 0;
+        const failedParts = info.totalParts - validParts;
         setTestResults({
           running: false, 
           total: totalTests, 
-          passed: totalTests, 
-          failed: 0, 
-          details: [{name: `${totalTests} tests across ${info.successParts} parts`, status: 'passed', error: ''}]
+          passed: validParts > 0 ? totalTests : 0, 
+          failed: validParts === 0 ? totalTests : 0, 
+          details: [{
+            name: `${validParts}/${info.totalParts} parts compiled successfully`, 
+            status: validParts === info.totalParts ? 'passed' : (validParts > 0 ? 'passed' : 'failed'), 
+            error: failedParts > 0 ? `${failedParts} parts failed validation` : ''
+          }]
         });
       } else {
         try {
