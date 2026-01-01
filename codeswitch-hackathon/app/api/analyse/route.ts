@@ -213,23 +213,59 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-// Split large file into independent sub-analyses
+// Split large file into independent sub-analyses - SMART: at COBOL paragraph boundaries
 function splitForMultiAnalysis(cobolCode: string, maxLinesPerAnalysis: number = 1000): string[] {
   const lines = cobolCode.split('\n');
   if (lines.length <= maxLinesPerAnalysis) {
     return [cobolCode];
   }
   
-  const parts: string[] = [];
-  const numParts = Math.ceil(lines.length / maxLinesPerAnalysis);
+  // Find COBOL paragraph/section boundaries (lines that look like: "PARAGRAPH-NAME." in area A)
+  const isParagraphStart = (line: string): boolean => {
+    // COBOL paragraph: starts in column 8-11, ends with period, no leading spaces beyond area A
+    const trimmed = line.trim();
+    // Paragraph names: alphanumeric with hyphens, ending with period
+    if (/^[A-Z0-9][A-Z0-9-]*\.\s*$/.test(trimmed)) return true;
+    // Section headers
+    if (/^[A-Z0-9][A-Z0-9-]*\s+SECTION\.\s*$/i.test(trimmed)) return true;
+    // Division headers
+    if (/^\s*(IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE)\s+DIVISION/i.test(line)) return true;
+    return false;
+  };
   
-  for (let i = 0; i < numParts; i++) {
-    const start = i * maxLinesPerAnalysis;
-    const end = Math.min(start + maxLinesPerAnalysis, lines.length);
-    parts.push(lines.slice(start, end).join('\n'));
+  const parts: string[] = [];
+  let currentPart: string[] = [];
+  let currentLineCount = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // If we're at a natural boundary AND current part is big enough, start new part
+    if (isParagraphStart(line) && currentLineCount >= maxLinesPerAnalysis * 0.7) {
+      if (currentPart.length > 0) {
+        parts.push(currentPart.join('\n'));
+        currentPart = [];
+        currentLineCount = 0;
+      }
+    }
+    
+    currentPart.push(line);
+    currentLineCount++;
+    
+    // Safety: if we exceed 1.5x max without finding boundary, force split
+    if (currentLineCount > maxLinesPerAnalysis * 1.5) {
+      parts.push(currentPart.join('\n'));
+      currentPart = [];
+      currentLineCount = 0;
+    }
   }
   
-  console.log(`[MultiAnalysis] Split ${lines.length} lines into ${parts.length} parts of ~${maxLinesPerAnalysis} lines`);
+  // Add remaining lines
+  if (currentPart.length > 0) {
+    parts.push(currentPart.join('\n'));
+  }
+  
+  console.log(`[MultiAnalysis] Smart split ${lines.length} lines into ${parts.length} parts at paragraph boundaries`);
   return parts;
 }
 
