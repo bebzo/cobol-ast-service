@@ -11,25 +11,41 @@ const corsHeaders = {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 // Prompt for translating COBOL to Python - MINIMAL AND CORRECT
-const CHUNK_PROMPT = `Convert this COBOL code to Python. Output ONLY valid Python code.
+const CHUNK_PROMPT = `Convert this COBOL code to Python. Output ONLY valid, compilable Python code.
 
-RULES:
+STRICT SYNTAX RULES - VIOLATIONS WILL CAUSE FAILURES:
+1. EVERY class/def MUST have a body - use "pass" if empty
+2. EVERY string MUST be closed on the SAME line - NO line breaks inside quotes
+3. EVERY parenthesis ( [ { MUST be closed on the SAME line
+4. Docstrings: EXACTLY """Single line only.""" - NO multi-line docstrings
+5. After @dataclass decorator, the class MUST be on the NEXT line with SAME indentation
+6. NO orphaned code after "pass" - next line must be at same or lower indentation
+7. Use \\n for newlines in strings, NEVER actual line breaks
+8. NEVER split a statement across multiple lines
+
+CONVERSION RULES:
 1. Each COBOL paragraph → Python function with pass if empty
-2. Each 01-level → @dataclass  
-3. PIC 9 → Decimal, PIC X → str
-4. PERFORM → function call
+2. Each 01-level → @dataclass with typed fields
+3. PIC 9/COMP → Decimal, PIC X → str
+4. PERFORM → direct function call
 5. Add logger.info() at function start
 
-CRITICAL - MUST FOLLOW:
-- Complete ALL statements on ONE line
-- Close ALL parentheses and quotes
-- Every function needs a body (use pass if needed)
-- NO multi-line strings except docstrings
-- Docstring format: """One line description."""
+FORBIDDEN PATTERNS - NEVER DO THESE:
+❌ """Multi-line
+   docstring"""           → ✓ """Single line docstring."""
+❌ f.write("text + "
+   "more")               → ✓ f.write("text + more")
+❌ def func():
+   @dataclass            → ✓ def func():
+                               pass
+                             @dataclass
+❌ class Name:
+   # comment only        → ✓ class Name:
+                               pass
 
-BEFORE OUTPUT: Mentally run "python -m py_compile" on your code. Fix any errors before returning.
+BEFORE RETURNING: Verify EVERY class and function has an indented body (code or pass).
 
-EXAMPLE:
+EXAMPLE OF CORRECT CODE:
 \`\`\`python
 @dataclass
 class CustomerRecord:
@@ -42,6 +58,10 @@ def process_customer() -> None:
     logger.info("Processing customer")
     validate_customer()
     update_balance()
+
+def empty_function() -> None:
+    """Placeholder function."""
+    pass
 \`\`\`
 
 Convert this COBOL:
