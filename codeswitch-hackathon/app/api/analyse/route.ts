@@ -233,7 +233,7 @@ function splitForMultiAnalysis(cobolCode: string, maxLinesPerAnalysis: number = 
   return parts;
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   
   try {
