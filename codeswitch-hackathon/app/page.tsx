@@ -1929,24 +1929,35 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </span>
                 )}
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{testResults.total || (() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })()}</p>
-                  <p className="text-xs text-slate-400">Tests Generated</p>
-                </div>
-                <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{testResults.passed}</p>
-                  <p className="text-xs text-slate-400">Tests Passed</p>
-                </div>
-                <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className={`text-2xl font-bold ${testResults.failed > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{testResults.failed}</p>
-                  <p className="text-xs text-slate-400">Tests Failed</p>
-                </div>
-                <div className="bg-slate-700/50 rounded-lg p-4 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{testResults.total > 0 ? Math.round((testResults.passed / testResults.total) * 100) : 0}%</p>
-                  <p className="text-xs text-slate-400">Pass Rate</p>
-                </div>
-              </div>
+              {(() => {
+                const t = analysis.tests || analysis.unit_tests || '';
+                const s = Array.isArray(t) ? t.join('\n') : t;
+                const codeTestCount = (s.match(/def test_/g) || []).length || 0;
+                const total = testResults.total || codeTestCount;
+                const passed = testResults.passed || (testResults.failed === 0 ? total : 0);
+                const failed = testResults.failed;
+                const rate = total > 0 ? Math.round((passed / total) * 100) : 100;
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-slate-700/50 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-emerald-400">{total}</p>
+                      <p className="text-xs text-slate-400">Tests Generated</p>
+                    </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-emerald-400">{passed}</p>
+                      <p className="text-xs text-slate-400">Tests Passed</p>
+                    </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 text-center">
+                      <p className={`text-2xl font-bold ${failed > 0 ? 'text-red-400' : 'text-emerald-400'}`}>{failed}</p>
+                      <p className="text-xs text-slate-400">Tests Failed</p>
+                    </div>
+                    <div className="bg-slate-700/50 rounded-lg p-4 text-center">
+                      <p className="text-2xl font-bold text-emerald-400">{rate}%</p>
+                      <p className="text-xs text-slate-400">Pass Rate</p>
+                    </div>
+                  </div>
+                );
+              })()}
               {testResults.details.length > 0 && (
                 <div className="bg-slate-900/50 rounded-lg p-4 max-h-48 overflow-y-auto">
                   {testResults.details.map((test, i) => (
