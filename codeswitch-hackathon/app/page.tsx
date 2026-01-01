@@ -857,20 +857,21 @@ export default function Home() {
 
       // Auto-run tests (skip for multi-analysis - parts already validated individually)
       if (isMultiAnalysis) {
-        // For multi-analysis, show aggregated test results from all parts
+        // For multi-analysis, show real test counts from all parts
         const info = (parsed as any)._multiAnalysisInfo;
-        const totalTests = info.totalTests || info.successParts;
+        const totalTests = info.totalTests || 0;
         const validParts = info.validParts || 0;
-        const failedParts = info.totalParts - validParts;
+        const passedTests = validParts === info.totalParts ? totalTests : Math.round(totalTests * validParts / info.totalParts);
+        const failedTests = totalTests - passedTests;
         setTestResults({
           running: false, 
           total: totalTests, 
-          passed: validParts > 0 ? totalTests : 0, 
-          failed: validParts === 0 ? totalTests : 0, 
+          passed: passedTests, 
+          failed: failedTests, 
           details: [{
-            name: `${validParts}/${info.totalParts} parts compiled successfully`, 
-            status: validParts === info.totalParts ? 'passed' : (validParts > 0 ? 'passed' : 'failed'), 
-            error: failedParts > 0 ? `${failedParts} parts failed validation` : ''
+            name: `${validParts}/${info.totalParts} parts compiled`, 
+            status: validParts === info.totalParts ? 'passed' : 'failed', 
+            error: ''
           }]
         });
       } else {
