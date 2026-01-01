@@ -651,10 +651,10 @@ export default function Home() {
   useEffect(() => {
     if (analysis && analysis.python_code && !metricsAnimated) {
       // REAL DATA from analysis
-      const cobolLines = cobolCode ? cobolCode.split('\n').filter(l => l.trim()).length : 350;
-      const pythonLines = analysis.python_code ? analysis.python_code.split('\n').filter(l => l.trim()).length : 85;
+      const cobolLines = cobolCode ? cobolCode.split('\n').length : 350;
+      const pythonLines = analysis.python_code ? analysis.python_code.split('\n').length : 85;
       const testsStr = Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '');
-      const testsLines = testsStr.split('\n').filter(l => l.trim()).length || 24;
+      const testsLines = testsStr.split('\n').length || 24;
       const issuesCount = Array.isArray(analysis.issues) ? analysis.issues.length : 3;
       const improvementsCount = Array.isArray(analysis.improvements) ? analysis.improvements.length : 5;
       const securityCount = Array.isArray(analysis.security_warnings) ? analysis.security_warnings.length : 2;
