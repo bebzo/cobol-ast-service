@@ -883,7 +883,7 @@ export default function Home() {
       if (isMultiAnalysis && finalPythonCode.length > 100) {
         try {
           console.log('Validating combined multi-analysis code...');
-          const validateRes = await fetch('https://codeswitch-v8rr.onrender.com/api/validate', {
+          const validateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code: finalPythonCode })
