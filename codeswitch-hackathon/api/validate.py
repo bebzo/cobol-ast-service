@@ -523,10 +523,35 @@ def validate_and_fix(code: str) -> dict:
                 lines[line_num - 1] = '# LOOP: ' + error_line
                 fixes_applied += 1
             
-            elif 'invalid syntax' in error_msg or 'expected' in error_msg:
-                # Comment out the line
-                lines[line_num - 1] = '# SYNTAX: ' + error_line
+            elif 'global' in error_msg or 'nonlocal' in error_msg:
+                # Global/nonlocal declaration issue - remove the global line
+                lines[line_num - 1] = '# GLOBAL: ' + error_line
                 fixes_applied += 1
+            
+            elif 'invalid syntax' in error_msg or 'expected' in error_msg or 'forgot a comma' in error_msg:
+                # Comment out the line
+                if not error_line.strip().startswith('#'):
+                    lines[line_num - 1] = '# SYNTAX: ' + error_line
+                    fixes_applied += 1
+                    # Check if this creates an empty block and add pass
+                    for j in range(line_num - 2, -1, -1):
+                        prev = lines[j].rstrip()
+                        if prev.endswith(':') and not prev.strip().startswith('#'):
+                            block_empty = True
+                            indent = len(lines[j]) - len(lines[j].lstrip())
+                            for k in range(j + 1, min(j + 20, len(lines))):
+                                check_line = lines[k]
+                                check_stripped = check_line.strip()
+                                if not check_stripped or check_stripped.startswith('#'):
+                                    continue
+                                check_indent = len(check_line) - len(check_line.lstrip())
+                                if check_indent > indent:
+                                    block_empty = False
+                                break
+                            if block_empty:
+                                lines.insert(j + 1, ' ' * (indent + 4) + 'pass')
+                                fixes_applied += 1
+                            break
             
             else:
                 # Generic: comment out
