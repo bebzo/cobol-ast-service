@@ -1191,8 +1191,8 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <div className="flex items-center gap-3 mb-2">
                     <span className="font-semibold text-white">
                       {typeof analysis.business_context === 'string' 
-                        ? 'Banking & Finance System' 
-                        : (analysis.business_context.domain || 'Business Application')}
+                        ? analysis.business_context 
+                        : (analysis.business_context.domain || 'Application')}
                     </span>
                     <span className="text-sm px-2 py-0.5 rounded bg-slate-700">
                       {typeof analysis.business_context === 'object' && analysis.business_context.detected_year 
