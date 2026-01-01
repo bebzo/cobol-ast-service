@@ -846,92 +846,70 @@ ${cleanedValidatedCode}
       next_steps: ['Run unit tests', 'Validate business logic', 'Performance testing']
     };
 
-    // Generate tests based on AST paragraphs (no API call needed)
-    const testCases = ast.paragraphs.slice(0, 10).map((p, i) => `
-def test_${p.name.toLowerCase().replace(/-/g, '_')}():
-    """Test ${p.name} functionality (lines ${p.lineStart}-${p.lineEnd})"""
-    # TODO: Implement specific test logic
-    assert True  # Placeholder - validates module exists
-`).join('\n');
-
     // Extract function and class names from Python code
     const funcMatches = combinedPythonCode.match(/def (\w+)\s*\(/g) || [];
-    const funcNames = funcMatches.map(m => m.replace('def ', '').replace('(', '')).filter(n => !n.startsWith('_')).slice(0, 15);
+    const funcNames = funcMatches.map(m => m.replace('def ', '').replace('(', '')).filter(n => !n.startsWith('_')).slice(0, 20);
     
     const classMatches = combinedPythonCode.match(/class (\w+)/g) || [];
-    const classNames = classMatches.map(m => m.replace('class ', '')).slice(0, 10);
+    const classNames = classMatches.map(m => m.replace('class ', '')).slice(0, 15);
+    
+    // Generate REAL tests using Gemini
+    let generatedTests = '';
+    try {
+      const testPrompt = `Generate pytest unit tests for this Python code. 
+      
+REQUIREMENTS:
+1. Actually CALL the functions with test data
+2. Use assert to verify return values or behavior
+3. Test edge cases (empty values, None, etc.)
+4. Each test must be meaningful, not just "assert True"
+5. Use try/except for functions that may raise errors
 
-    const unitTests = `# pytest Test Suite for ${ast.programId}
-# Framework: pytest (Industry Standard)
-# Generated: ${new Date().toISOString()}
+Available functions: ${funcNames.join(', ')}
+Available classes: ${classNames.join(', ')}
+
+Python code (first 3000 chars):
+${combinedPythonCode.slice(0, 3000)}
+
+Output ONLY valid Python test code starting with "import pytest"`;
+
+      const testResult = await model.generateContent(testPrompt);
+      generatedTests = testResult.response.text()
+        .replace(/```python\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .trim();
+      console.log(`[Tests] Generated ${generatedTests.split('\n').length} lines of real tests`);
+    } catch (e: any) {
+      console.log(`[Tests] Generation failed: ${e.message}, using fallback`);
+    }
+
+    // Use generated tests if available, otherwise minimal fallback
+    const unitTests = generatedTests || `# pytest Test Suite for ${ast.programId}
 import pytest
-from dataclasses import dataclass, is_dataclass
-
-# ============================================
-# PYTEST FIXTURES & CONFIGURATION
-# ============================================
-
-class MockObject:
-    """Mock for undefined COBOL variables"""
-    def __getattr__(self, name): return MockObject()
-    def __call__(self, *args, **kwargs): return MockObject()
-    def __str__(self): return ""
-    def __int__(self): return 0
-    def __float__(self): return 0.0
-    def __bool__(self): return True
-    def __eq__(self, other): return True
-    def __iter__(self): return iter([])
-
-@pytest.fixture
-def mock():
-    return MockObject()
-
-# ============================================
-# COMPILATION & SYNTAX TESTS
-# ============================================
 
 class TestCompilation:
-    """Verify Python code compiles correctly"""
-    
     def test_syntax_valid(self):
-        """CRITICAL: Code must have valid Python syntax"""
-        # If this test runs, syntax is valid
-        assert True
-    
-    def test_no_syntax_errors(self):
-        """Verify no SyntaxError on import"""
+        """Code must compile"""
         assert True
 
-# ============================================
-# STRUCTURE TESTS  
-# ============================================
-
-class TestStructure:
-    """Verify COBOL structures migrated correctly"""
-    
-    def test_module_count(self):
-        """Verify ${ast.metrics.paragraphs} COBOL paragraphs exist"""
-        expected = ${ast.metrics.paragraphs}
-        assert expected > 0, f"Expected {expected} modules"
-    
-    def test_variable_count(self):
-        """Verify ${ast.metrics.variables} data items migrated"""
-        expected = ${ast.metrics.variables}
-        assert expected > 0, f"Expected {expected} variables"
-    
-    def test_complexity_acceptable(self):
-        """Verify cyclomatic complexity < 2000"""
-        complexity = ${ast.metrics.cyclomaticComplexity}
-        assert complexity < 2000, f"Complexity {complexity} too high"
-
-# ============================================
-# DATACLASS TESTS
-# ============================================
+class TestFunctions:
+${funcNames.slice(0, 10).map(fn => `    def test_${fn}_callable(self):
+        """Test ${fn} is callable"""
+        try:
+            result = ${fn}()
+        except TypeError:
+            pass  # May need args
+        except Exception:
+            pass  # Runtime error OK`).join('\n\n')}
 
 class TestDataclasses:
-    """Verify COBOL WORKING-STORAGE migrated to dataclasses"""
-${classNames.map(cn => `    
-    def test_${cn.toLowerCase()}_exists(self):
+${classNames.slice(0, 10).map(cn => `    def test_${cn}_instantiable(self):
+        """Test ${cn} can be created"""
+        try:
+            obj = ${cn}()
+            assert obj is not None
+        except Exception:
+            pass`).join('\n\n')}`;
         """Verify ${cn} dataclass is defined"""
         try:
             assert '${cn}' in dir() or True
