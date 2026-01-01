@@ -495,6 +495,8 @@ interface AnalysisResult {
   summary: string;
   business_context: BusinessContext;
   python_code: string;
+  python_lines?: number;
+  cobol_lines?: number;
   unit_tests?: string | string[];
   tests?: string | string[];
   config_json?: string;
