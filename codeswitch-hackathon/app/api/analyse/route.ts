@@ -884,67 +884,12 @@ Output ONLY valid Python test code starting with "import pytest"`;
     }
 
     // Use generated tests if available, otherwise minimal fallback
-    const unitTests = generatedTests || `# pytest Test Suite for ${ast.programId}
+    const unitTests = generatedTests || `# pytest Test Suite
 import pytest
 
 class TestCompilation:
     def test_syntax_valid(self):
-        """Code must compile"""
         assert True
-
-class TestFunctions:
-${funcNames.slice(0, 10).map(fn => `    def test_${fn}_callable(self):
-        """Test ${fn} is callable"""
-        try:
-            result = ${fn}()
-        except TypeError:
-            pass  # May need args
-        except Exception:
-            pass  # Runtime error OK`).join('\n\n')}
-
-class TestDataclasses:
-${classNames.slice(0, 10).map(cn => `    def test_${cn}_instantiable(self):
-        """Test ${cn} can be created"""
-        try:
-            obj = ${cn}()
-            assert obj is not None
-        except Exception:
-            pass`).join('\n\n')}`;
-        """Verify ${cn} dataclass is defined"""
-        try:
-            assert '${cn}' in dir() or True
-        except:
-            pass`).join('\n')}
-
-# ============================================
-# FUNCTION TESTS
-# ============================================
-
-class TestFunctions:
-    """Verify COBOL PARAGRAPH functions migrated"""
-${funcNames.map(fn => `    
-    def test_${fn}_callable(self):
-        """Verify ${fn}() is callable"""
-        try:
-            assert callable(${fn}) or True
-        except NameError:
-            pytest.skip("${fn} not in scope")
-    
-    def test_${fn}_no_crash(self):
-        """Verify ${fn}() doesn't raise on call"""
-        try:
-            ${fn}()
-        except (TypeError, NameError):
-            pass  # Expected - may need args`).join('\n')}
-
-# ============================================
-# COVERAGE SUMMARY
-# ============================================
-# Modules tested: ${ast.metrics.paragraphs}
-# Variables validated: ${ast.metrics.variables}
-# Functions checked: ${funcNames.length}
-# Dataclasses verified: ${classNames.length}
-${testCases}
 `;
 
     // Build final result
