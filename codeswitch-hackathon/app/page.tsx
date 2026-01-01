@@ -819,13 +819,13 @@ export default function Home() {
       }
       
       // Quick fixes only (fast) - full correction available via button
-      let finalPythonCode = parsed.python_code;
+      let finalPythonCode = parsed.python_code || '# No code generated';
       try {
         console.log('Applying quick fixes...');
         const cleanRes = await fetch('/api/clean', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pythonCode: parsed.python_code })
+          body: JSON.stringify({ pythonCode: parsed.python_code || '' })
         });
         if (cleanRes.ok) {
           const cleanData = await cleanRes.json();
