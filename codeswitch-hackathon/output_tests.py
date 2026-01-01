@@ -219,9 +219,9 @@ class Ws_Fee_Schedule:
     ws_monthly_fee_checking: float = 0.0
     ws_monthly_fee_savings: float = 0.0
     ws_late_payment_fee: float = 0.0
-    ws_early_withdrawal_pct: float = 0.100
-    ws_loan_origination_pct: float = 0.010
-    ws_annual_fee_card: float = 95.00
+    ws_early_withdrawal_pct: float = 0.0
+    ws_loan_origination_pct: float = 0.0
+    ws_annual_fee_card: float = 0.0
 
 @dataclass
 class Ws_Insurance_Rates:
@@ -329,7 +329,14 @@ def initialization():
     print("MEGA-ENTERPRISE SYSTEM INITIALIZED")
 
 def open_files():
-    print("OPEN INPUT CUSTOMER-MASTER\nOPEN I-O ACCOUNT-MASTER\nOPEN I-O LOAN-MASTER\nOPEN I-O INSURANCE-MASTER\nOPEN I-O INVESTMENT-MASTER\nOPEN OUTPUT TRANSACTION-LOG\nOPEN OUTPUT AUDIT-TRAIL\nOPEN OUTPUT REPORT-FILE")
+    print("OPEN INPUT CUSTOMER-MASTER")
+    print("OPEN I-O ACCOUNT-MASTER")
+    print("OPEN I-O LOAN-MASTER")
+    print("OPEN I-O INSURANCE-MASTER")
+    print("OPEN I-O INVESTMENT-MASTER")
+    print("OPEN OUTPUT TRANSACTION-LOG")
+    print("OPEN OUTPUT AUDIT-TRAIL")
+    print("OPEN OUTPUT REPORT-FILE")
 
 def initialize_counters():
     global ws_counters, ws_totals, ws_flags
@@ -338,12 +345,13 @@ def initialize_counters():
     ws_flags = Ws_Flags()
 
 def get_current_date():
-    global ws_current_date_data
     import datetime
+    global ws_current_date_data
+    today = datetime.date.today()
     now = datetime.datetime.now()
-    ws_current_date_data.ws_current_date = int(now.strftime("%Y%m%d"))
+    ws_current_date_data.ws_current_date = int(today.strftime("%Y%m%d"))
     ws_current_date_data.ws_current_time = int(now.strftime("%H%M%S%f")[:8])
-    ws_current_date_data.ws_current_timestamp = now.strftime("%Y%m%d-%H%M%S%f")[:26]
+    ws_current_date_data.ws_current_timestamp = today.strftime("%Y%m%d-") + now.strftime("%H%M%S%f")[:8]
 
 def load_parameters():
     pass
@@ -367,17 +375,19 @@ def process_banking():
     reconcile_accounts()
 
 def process_deposits():
-    global ws_flags
+    global ws_flags, ws_counters
     print("PROCESSING DEPOSITS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        print("READ ACCOUNT-MASTER NEXT")
-        ws_flags.ws_eof_flag = 'Y'
-        validate_deposit()
-        if ws_flags.ws_valid_flag == 'Y':
-            post_deposit()
-            update_balance()
-            ws_counters.ws_tran_count += 1
+        try:
+            account_record = Account_Record()
+            validate_deposit()
+            if ws_flags.ws_valid_flag == 'Y':
+                post_deposit()
+                update_balance()
+                ws_counters.ws_tran_count += 1
+        except StopIteration:
+            ws_flags.ws_eof_flag = 'Y'
 
 def validate_deposit():
     global ws_flags, ws_calculation_fields, account_record
@@ -400,16 +410,18 @@ def update_balance():
     print("REWRITE ACCOUNT-RECORD")
 
 def process_withdrawals():
-    global ws_flags
+    global ws_flags, ws_counters
     print("PROCESSING WITHDRAWALS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        print("READ ACCOUNT-MASTER NEXT")
-        ws_flags.ws_eof_flag = 'Y'
-        validate_withdrawal()
-        if ws_flags.ws_valid_flag == 'Y':
-            post_withdrawal()
-            ws_counters.ws_tran_count += 1
+        try:
+            account_record = Account_Record()
+            validate_withdrawal()
+            if ws_flags.ws_valid_flag == 'Y':
+                post_withdrawal()
+                ws_counters.ws_tran_count += 1
+        except StopIteration:
+            ws_flags.ws_eof_flag = 'Y'
 
 def validate_withdrawal():
     global ws_flags, ws_calculation_fields, account_record, ws_fee_schedule
@@ -453,11 +465,13 @@ def calculate_interest():
     print("CALCULATING INTEREST...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        print("READ ACCOUNT-MASTER NEXT")
-        ws_flags.ws_eof_flag = 'Y'
-        determine_rate()
-        compute_interest()
-        post_interest()
+        try:
+            account_record = Account_Record()
+            determine_rate()
+            compute_interest()
+            post_interest()
+        except StopIteration:
+            ws_flags.ws_eof_flag = 'Y'
 
 def determine_rate():
     global account_record, ws_calculation_fields, ws_interest_rates
@@ -486,13 +500,15 @@ def apply_fees():
     print("APPLYING MONTHLY FEES...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        print("READ ACCOUNT-MASTER NEXT")
-        ws_flags.ws_eof_flag = 'Y'
-        check_minimum_balance()
-        if ws_flags.ws_valid_flag == 'Y':
-            waive_fee()
-        else:
-            charge_fee()
+        try:
+            account_record = Account_Record()
+            check_minimum_balance()
+            if ws_flags.ws_valid_flag == 'Y':
+                waive_fee()
+            else:
+                charge_fee()
+        except StopIteration:
+            ws_flags.ws_eof_flag = 'Y'
 
 def check_minimum_balance():
     global account_record, ws_flags
@@ -506,8 +522,8 @@ def waive_fee():
 
 def charge_fee():
     global account_record, ws_totals
-    ws_totals.ws_total_fees += account_record.acct_monthly_fee
     account_record.acct_balance -= account_record.acct_monthly_fee
+    ws_totals.ws_total_fees += account_record.acct_monthly_fee
 
 def process_payments():
     print("PROCESSING BILL PAYMENTS...")
@@ -519,7 +535,7 @@ def reconcile_accounts():
 
 def process_loans():
     process_applications()
-    process_payments()
+    process_payments_3000()
     calculate_amortization()
     assess_delinquencies()
     process_collections()
@@ -529,17 +545,19 @@ def process_applications():
     print("PROCESSING LOAN APPLICATIONS...")
     pass
 
-def process_payments():
+def process_payments_3000():
     global ws_flags
     print("PROCESSING LOAN PAYMENTS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        print("READ LOAN-MASTER NEXT")
-        ws_flags.ws_eof_flag = 'Y'
-        if loan_record.loan_status == 'C':
-            calculate_payment()
-            apply_payment()
-            update_loan()
+        try:
+            loan_record = Loan_Record()
+            if loan_record.loan_status == 'C':
+                calculate_payment()
+                apply_payment()
+                update_loan()
+        except StopIteration:
+            ws_flags.ws_eof_flag = 'Y'
 
 def calculate_payment():
     global loan_record, ws_calculation_fields
@@ -564,16 +582,18 @@ def calculate_amortization():
     pass
 
 def assess_delinquencies():
-    global ws_flags
+    global ws_flags, ws_current_date_data
     print("ASSESSING DELINQUENT LOANS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        print("READ LOAN-MASTER NEXT")
-        ws_flags.ws_eof_flag = 'Y'
-        check_payment_status()
-        if ws_flags.ws_found_flag == 'N':
-            mark_delinquent()
-            assess_late_fee()
+        try:
+            loan_record = Loan_Record()
+            check_payment_status()
+            if ws_flags.ws_found_flag == 'N':
+                mark_delinquent()
+                assess_late_fee()
+        except StopIteration:
+            ws_flags.ws_eof_flag = 'Y'
 
 def check_payment_status():
     global loan_record, ws_current_date_data, ws_flags
@@ -614,11 +634,13 @@ def calculate_premiums():
     print("CALCULATING PREMIUMS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        print("READ INSURANCE-MASTER NEXT")
-        ws_flags.ws_eof_flag = 'Y'
-        determine_base_premium()
-        apply_risk_factor()
-        calculate_final_premium()
+        try:
+            insurance_record = Insurance_Record()
+            determine_base_premium()
+            apply_risk_factor()
+            calculate_final_premium()
+        except StopIteration:
+            ws_flags.ws_eof_flag = 'Y'
 
 def determine_base_premium():
     global insurance_record, ws_calculation_fields, ws_insurance_rates
@@ -671,11 +693,13 @@ def calculate_portfolio_value():
     print("CALCULATING PORTFOLIO VALUES...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        print("READ INVESTMENT-MASTER NEXT")
-        ws_flags.ws_eof_flag = 'Y'
-        calculate_position_value()
-        calculate_gain_loss()
-        update_totals()
+        try:
+            investment_record = Investment_Record()
+            calculate_position_value()
+            calculate_gain_loss()
+            update_totals()
+        except StopIteration:
+            ws_flags.ws_eof_flag = 'Y'
 
 def calculate_position_value():
     global investment_record
@@ -709,11 +733,13 @@ def calculate_dividends():
     print("CALCULATING DIVIDENDS...")
     ws_flags.ws_eof_flag = 'N'
     while ws_flags.ws_eof_flag == 'N':
-        print("READ INVESTMENT-MASTER NEXT")
-        ws_flags.ws_eof_flag = 'Y'
-        if investment_record.inv_dividend_rate > 0:
-            compute_dividend()
-            post_dividend()
+        try:
+            investment_record = Investment_Record()
+            if investment_record.inv_dividend_rate > 0:
+                compute_dividend()
+                post_dividend()
+        except StopIteration:
+            ws_flags.ws_eof_flag = 'Y'
 
 def compute_dividend():
     global investment_record, ws_calculation_fields
@@ -737,7 +763,7 @@ def generate_reports():
     management_reports()
 
 def daily_summary():
-    global ws_current_date_data, report_line
+    global report_line, ws_current_date_data
     print("GENERATING DAILY SUMMARY...")
     report_line.report_line = "MEGA-ENTERPRISE DAILY SUMMARY - " + str(ws_current_date_data.ws_current_date)
     print("WRITE REPORT-LINE")
@@ -752,26 +778,3 @@ def write_totals():
     ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_withdrawals)
     report_line.report_line = "TOTAL WITHDRAWALS: " + ws_work_areas.ws_formatted_amount
     print("WRITE REPORT-LINE")
-
-    ws_work_areas.ws_formatted_amount = str(ws_totals.ws_total_loans)
-    report_line.report_line = "TOTAL LOANS: " + ws_work_areas.ws_formatted_amount
-    print("WRITE REPORT-LINE")
-
-def account_statements():
-    print("GENERATING ACCOUNT STATEMENTS...")
-    pass
-
-def loan_reports():
-    print("GENERATING LOAN REPORTS...")
-    pass
-
-def insurance_reports():
-    print("GENERATING INSURANCE REPORTS...")
-    pass
-
-def investment_reports():
-    print("GENERATING INVESTMENT REPORTS...")
-    pass
-
-def regulatory_reports():
-    pass
