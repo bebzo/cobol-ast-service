@@ -897,6 +897,13 @@ export default function Home() {
           config_json: successParts[0]?.config_json || '',
           architecture_diagram: successParts[0]?.architecture_diagram || '',
           modules: successParts.flatMap((p: any) => p.modules || []),
+          ast_metrics: {
+            paragraphs: successParts.reduce((sum: number, p: any) => sum + (p.ast_metrics?.paragraphs || 0), 0),
+            variables: successParts.reduce((sum: number, p: any) => sum + (p.ast_metrics?.variables || 0), 0),
+            copybooks: successParts.reduce((sum: number, p: any) => sum + (p.ast_metrics?.copybooks || 0), 0),
+            totalLines: data.original_lines,
+            cyclomaticComplexity: successParts.reduce((sum: number, p: any) => sum + (p.ast_metrics?.cyclomaticComplexity || 0), 0)
+          },
           next_steps: ['Review each part', 'Integrate modules', 'Run integration tests'],
           // Aggregate test counts from all parts (only valid ones)
           _multiAnalysisInfo: { 
@@ -1803,11 +1810,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         {/* COBOL Legacy */}
                         <div className="bg-gradient-to-b from-red-600 to-red-800 rounded-xl p-4 border border-red-400/50 shadow-lg shadow-red-500/20 min-w-[180px]">
                           <div className="text-white font-bold text-center mb-3">{analysis?.summary?.split(' - ')[0]?.replace('Migration of ', '') || 'COBOL'}</div>
-                          <div className="space-y-2 max-h-40 overflow-y-auto">
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.cobol_lines || cobolCode.split('\n').length} lignes</div>
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.ast_metrics?.paragraphs || 0} paragraphes</div>
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.ast_metrics?.variables || 0} variables</div>
-                            <div className="bg-red-900/50 rounded px-3 py-1 text-red-200 text-sm">{analysis?.ast_metrics?.copybooks || 0} copybooks</div>
+                          <div className="space-y-3 max-h-48 overflow-y-auto">
+                            <div className="bg-red-900/50 rounded px-4 py-2 text-red-200 text-sm font-medium">{analysis?.cobol_lines || cobolCode.split('\n').length} lignes</div>
+                            <div className="bg-red-900/50 rounded px-4 py-2 text-red-200 text-sm font-medium">{analysis?.ast_metrics?.paragraphs || 0} paragraphes</div>
+                            <div className="bg-red-900/50 rounded px-4 py-2 text-red-200 text-sm font-medium">{analysis?.ast_metrics?.variables || 0} variables</div>
+                            <div className="bg-red-900/50 rounded px-4 py-2 text-red-200 text-sm font-medium">{analysis?.ast_metrics?.copybooks || 0} copybooks</div>
                           </div>
                         </div>
                         {/* Arrow */}
@@ -1818,7 +1825,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         {/* Python Modern */}
                         <div className="bg-gradient-to-b from-blue-600 to-blue-800 rounded-xl p-4 border border-blue-400/50 shadow-lg shadow-blue-500/20 min-w-[180px]">
                           <div className="text-white font-bold text-center mb-3">Python</div>
-                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                          <div className="space-y-3 max-h-48 overflow-y-auto">
                             <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{analysis?.python_lines || (analysis?.python_code?.split('\n').length || 0)} lignes</div>
                             <div className="bg-blue-900/50 rounded px-3 py-1 text-blue-200 text-sm">{(analysis?.python_code?.match(/def \w+\(/g) || []).length} fonctions</div>
                             <div className="bg-green-900/50 rounded px-3 py-1 text-green-200 text-sm">{(analysis?.python_code?.match(/class \w+/g) || []).length} classes</div>
