@@ -539,7 +539,7 @@ COBOL paragraph:
       const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
       // FIXED HEADER - cannot be modified by translations
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v4.1]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v4.2]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -562,34 +562,27 @@ class ${className}:
         // Sanitize name: only keep alphanumeric, spaces, hyphens
         const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 40);
         
-        // Extract ONLY lines that look like valid Python statements
+        // Extract ONLY simple Python statements - NO control flow (causes indentation issues)
         const validStatements = t.logic.split('\n')
           .map(l => l.trim())
           .filter(l => {
             if (!l || l.length < 3) return false;
-            if (l.includes('"')) return false;  // No strings at all - they cause issues
-            if (l.includes("'") && !l.includes("self.")) return false;  // Allow self. with quotes
+            if (l.includes('"')) return false;  // No strings - they cause issues
+            if (l.includes("'") && !l.includes("self.")) return false;
             if (/TODO|COBOL|MOVE|PERFORM|DISPLAY|DIVISION/i.test(l)) return false;
             if (/^[A-Z]{2,}/.test(l)) return false;  // No uppercase-starting lines
-            // Must be a valid Python pattern
-            return /^(self\.|if |else:|elif |for |while |try:|except|return |pass$|#|\w+\s*[=+\-*\/])/.test(l);
+            if (l.endsWith(':')) return false;  // NO CONTROL FLOW - causes indentation issues
+            // Only simple statements: assignments, method calls, return
+            return /^(self\.\w+\s*[=+\-*\/]|self\.\w+\(|return |pass$|#)/.test(l);
           })
-          .slice(0, 8);  // Max 8 lines per method
+          .slice(0, 5);  // Max 5 lines per method (simpler is safer)
         
         // Build the method with proper indentation
         let methodCode = `    def ${methodName}(self):\n`;
         methodCode += `        """${safeName}."""\n`;
         
         if (validStatements.length > 0) {
-          // Add pass after any block opener (lines ending with :)
-          const fixedStatements: string[] = [];
-          for (const s of validStatements) {
-            fixedStatements.push(`        ${s}`);
-            if (s.endsWith(':')) {
-              fixedStatements.push(`            pass  # TODO: implement`);
-            }
-          }
-          methodCode += fixedStatements.join('\n') + '\n';
+          methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
           methodCode += `        pass\n`;
         }
