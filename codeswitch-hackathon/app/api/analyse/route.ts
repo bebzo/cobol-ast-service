@@ -71,105 +71,120 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Prompt for translating COBOL to Python - COMMERCIAL GRADE
-const CHUNK_PROMPT = `Convert this COBOL code to PRODUCTION-READY Python. Output ONLY valid, compilable Python code.
+// Prompt for translating COBOL to Python - COMMERCIAL GRADE (PRODUCTION-READY)
+const CHUNK_PROMPT = `Convert this COBOL code to PRODUCTION-READY Python. Output ONLY valid, compilable, FUNCTIONAL Python code.
 
-=== COMMERCIAL-GRADE ARCHITECTURE (HIGHEST PRIORITY) ===
-1. ENCAPSULATE in classes - NO global variables or standalone functions:
-   - Create domain classes: class BankingEngine, class LoanProcessor, class AccountManager
-   - Use @dataclass for data structures, regular classes for business logic
-   - Store state as instance attributes (self.xxx), NOT globals
-   
-2. STRUCTURED ERROR HANDLING - wrap critical operations:
-   - Use try/except for I/O, database, file operations
-   - Use try/except for financial calculations (division, conversions)
-   - Define custom exceptions: class InsufficientFundsError(Exception): pass
-   - Always log errors with context: logger.error(f"Failed: {e}")
+=== CRITICAL: PRODUCTION-READY CODE (NOT A SKELETON) ===
+This code will run in PRODUCTION. Every function MUST contain REAL business logic.
 
-3. CLEAN ARCHITECTURE:
-   - Single Responsibility: one class = one purpose
-   - Dependency injection via __init__ parameters
-   - Return Result objects or raise exceptions, never return error codes
+=== ABSOLUTE PROHIBITIONS (VIOLATIONS = REJECTION) ===
+❌ NEVER use "pass" in business functions - implement REAL logic
+❌ NEVER use "TODO" comments - implement the feature NOW
+❌ NEVER assign "= None" as placeholder - use REAL initial values
+❌ NEVER use "except: pass" - ALWAYS log and re-raise or handle properly
+❌ NEVER use global variables - encapsulate ALL state in classes
+❌ NEVER leave functions empty - translate the COBOL logic completely
 
-CORRECT PATTERN:
+=== MANDATORY ARCHITECTURE ===
+1. CLASSES FOR ALL LOGIC - zero global variables:
+   class TransactionProcessor:
+       def __init__(self):
+           self.accounts: Dict[str, Decimal] = {}
+           self.transactions: List[Transaction] = []
+           self.logger = logging.getLogger(__name__)
+
+2. REAL IMPLEMENTATIONS - translate COBOL logic to Python:
+   - COBOL MOVE A TO B → self.b = self.a
+   - COBOL ADD A TO B → self.b += self.a
+   - COBOL COMPUTE → Python arithmetic with Decimal
+   - COBOL IF/EVALUATE → Python if/elif/else
+   - COBOL PERFORM → method call: self.process_record()
+   - COBOL READ/WRITE → file operations with context managers
+
+3. PROPER ERROR HANDLING:
+   try:
+       result = self.calculate_interest(principal, rate)
+   except ZeroDivisionError as e:
+       self.logger.error(f"Division by zero in interest calc: {e}")
+       raise CalculationError("Invalid rate") from e
+
+4. INITIALIZE ALL STATE in __init__:
+   def __init__(self):
+       self.balance: Decimal = Decimal("0")
+       self.status: str = "ACTIVE"
+       self.records: List[Record] = []
+
+=== REQUIRED PATTERNS ===
 \`\`\`python
-class InsufficientFundsError(Exception):
-    """Raised when account balance is insufficient."""
+class BankingError(Exception):
+    """Base exception for banking operations."""
     pass
 
-class AccountProcessor:
-    """Handles account operations."""
+class InsufficientFundsError(BankingError):
+    """Raised when balance is insufficient."""
+    pass
+
+class AccountManager:
+    """Manages customer accounts with full business logic."""
     
-    def __init__(self, logger: logging.Logger):
-        self.logger = logger
+    def __init__(self):
         self.accounts: Dict[str, Decimal] = {}
+        self.logger = logging.getLogger(__name__)
+    
+    def deposit(self, account_id: str, amount: Decimal) -> Decimal:
+        """Deposit funds - REAL implementation."""
+        if amount <= Decimal("0"):
+            raise ValueError(f"Invalid deposit amount: {amount}")
+        if account_id not in self.accounts:
+            self.accounts[account_id] = Decimal("0")
+        self.accounts[account_id] += amount
+        self.logger.info(f"Deposited {amount} to {account_id}")
+        return self.accounts[account_id]
     
     def withdraw(self, account_id: str, amount: Decimal) -> Decimal:
-        """Withdraw funds with error handling."""
-        try:
-            balance = self.accounts.get(account_id, Decimal("0"))
-            if amount > balance:
-                raise InsufficientFundsError(f"Balance {balance} < {amount}")
-            self.accounts[account_id] = balance - amount
-            self.logger.info(f"Withdrew {amount} from {account_id}")
-            return self.accounts[account_id]
-        except Exception as e:
-            self.logger.error(f"Withdrawal failed: {e}")
-            raise
+        """Withdraw funds - REAL implementation with validation."""
+        balance = self.accounts.get(account_id, Decimal("0"))
+        if amount > balance:
+            raise InsufficientFundsError(f"Cannot withdraw {amount}, balance is {balance}")
+        self.accounts[account_id] = balance - amount
+        self.logger.info(f"Withdrew {amount} from {account_id}, new balance: {self.accounts[account_id]}")
+        return self.accounts[account_id]
+    
+    def calculate_interest(self, account_id: str, rate: Decimal) -> Decimal:
+        """Calculate and apply interest - REAL implementation."""
+        balance = self.accounts.get(account_id, Decimal("0"))
+        interest = balance * rate / Decimal("100")
+        self.accounts[account_id] = balance + interest
+        return interest
 \`\`\`
 
-STRICT SYNTAX RULES - VIOLATIONS WILL CAUSE FAILURES:
-1. EVERY class/def MUST have a body - use "pass" if empty
-2. EVERY string MUST be closed on the SAME line - NO line breaks inside quotes
-3. EVERY parenthesis ( [ { MUST be closed on the SAME line
-4. Docstrings: EXACTLY """Single line only.""" - NO multi-line docstrings
-5. After @dataclass decorator, the class MUST be on the NEXT line with SAME indentation
-6. NO orphaned code after "pass" - next line must be at same or lower indentation
-7. Use \\n for newlines in strings, NEVER actual line breaks
-8. NEVER split a statement across multiple lines
-
-CONVERSION RULES:
-1. Each COBOL paragraph → Python function with pass if empty
-2. Each 01-level → @dataclass with typed fields
-3. PIC 9/COMP → Decimal, PIC X → str
-4. PERFORM → direct function call
-5. Add logger.info() at function start
-
-FORBIDDEN PATTERNS - NEVER DO THESE:
-❌ """Multi-line
-   docstring"""           → ✓ """Single line docstring."""
-❌ f.write("text + "
-   "more")               → ✓ f.write("text + more")
-❌ def func():
-   @dataclass            → ✓ def func():
-                               pass
-                             @dataclass
-❌ class Name:
-   # comment only        → ✓ class Name:
-                               pass
-
-BEFORE RETURNING: Verify EVERY class and function has an indented body (code or pass).
-
-EXAMPLE OF CORRECT CODE:
+=== FILE I/O PATTERN (REAL IMPLEMENTATION) ===
 \`\`\`python
-@dataclass
-class CustomerRecord:
-    """Customer data structure."""
-    cust_id: str = ""
-    balance: Decimal = Decimal("0")
-
-def process_customer() -> None:
-    """Process customer record."""
-    logger.info("Processing customer")
-    validate_customer()
-    update_balance()
-
-def empty_function() -> None:
-    """Placeholder function."""
-    pass
+def read_records(self, filepath: str) -> List[Record]:
+    """Read records from file - REAL implementation."""
+    records = []
+    try:
+        with open(filepath, 'r') as f:
+            for line in f:
+                record = self.parse_record(line.strip())
+                records.append(record)
+        self.logger.info(f"Read {len(records)} records from {filepath}")
+    except FileNotFoundError:
+        self.logger.warning(f"File not found: {filepath}")
+    except IOError as e:
+        self.logger.error(f"Error reading {filepath}: {e}")
+        raise
+    return records
 \`\`\`
 
-Convert this COBOL:
+=== SYNTAX RULES ===
+1. EVERY string closed on SAME line - use \\n for newlines
+2. EVERY parenthesis closed on SAME line
+3. Docstrings: """Single line.""" only
+4. @dataclass on line before class
+5. Use Decimal for ALL financial values
+
+Convert this COBOL (implement REAL logic, no pass/TODO):
 `;
 
 // Prompt for generating analysis metadata
