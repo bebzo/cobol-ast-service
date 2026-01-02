@@ -989,6 +989,9 @@ export default function Home() {
         finalCodeValid = false;
       }
       
+      // ALWAYS apply post-processing as final step to clean any remaining artifacts
+      finalPythonCode = postProcessPythonCode(finalPythonCode, filename || 'PROGRAM');
+      
       setPythonCode(finalPythonCode);
       // Create new object to trigger React state update - include code_valid!
       const updatedAnalysis = { ...parsed, python_code: finalPythonCode, code_valid: finalCodeValid };
