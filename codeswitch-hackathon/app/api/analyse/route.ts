@@ -517,8 +517,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     // === HYBRID: Skeleton + Individual Paragraph Translation ===
-    const PARA_PROMPT = `Convert COBOL to Python. Output ONLY code lines (no def, no docstring, no \`\`\`).
-MOVE A TO B → self.b = self.a | ADD → += | PERFORM X → self.x() | IF → if
+    const PARA_PROMPT = `Convert this COBOL to Python code. Output ONLY Python code (no markdown, no def, no docstring).
+
+RULES:
+- MOVE A TO B → self.b = self.a
+- ADD A TO B → self.b += self.a
+- SUBTRACT → self.x -= self.y
+- COMPUTE X = A + B → self.x = self.a + self.b
+- PERFORM paragraph-name → self.paragraph_name()
+- IF condition → if condition:
+- DISPLAY "text" → self.logger.info("text")
+- READ file → self.read_file()
+- WRITE record → self.write_record()
+- All variables use self. prefix
+
+OUTPUT ONLY VALID PYTHON - NO COBOL KEYWORDS (MOVE, PERFORM, DISPLAY, etc.)
+
 COBOL:
 `;
 
