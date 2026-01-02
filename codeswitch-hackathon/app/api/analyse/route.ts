@@ -1353,7 +1353,7 @@ class TestCompilation:
         complexity: p.complexity > 3 ? 'HIGH' : p.complexity > 1 ? 'MEDIUM' : 'LOW',
       })),
       ast_metrics: ast.metrics,
-      chunks_processed: chunks.length,
+      chunks_processed: ast.paragraphs.length,
       processing_time_ms: Date.now() - startTime,
       code_valid: validationSuccess,  // True only if Python code compiles
     };
