@@ -467,16 +467,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         })
       );
       
-      // Return multi-analysis result
-      const successfulParts = partResults.filter(r => r.success);
+      // Combine all successful parts into single response
+      const successfulParts = partResults.filter(r => r.success && r.python_code);
+      const combinedPython = successfulParts.map(p => p.python_code).join('\n\n# === PART SEPARATOR ===\n\n');
+      const combinedTests = successfulParts.map(p => p.unit_tests || '').join('\n\n');
+      const totalPythonLines = combinedPython.split('\n').length;
+      
       return NextResponse.json({
+        python_code: combinedPython || '# Large file analysis failed - please try smaller file',
+        unit_tests: combinedTests,
+        config_json: JSON.stringify({ multi_analysis: true, parts: parts.length }),
+        cobol_lines: totalLines,
+        python_lines: totalPythonLines,
+        confidence: successfulParts.length > 0 ? 70 : 30,
+        complexity: 'HIGH',
+        risk_level: 'HIGH',
         is_multi_analysis: true,
         total_parts: parts.length,
         successful_parts: successfulParts.length,
-        original_lines: totalLines,
-        parts: partResults,
         processing_time_ms: Date.now() - startTime,
-        summary: `Large file (${totalLines} lines) split into ${parts.length} independent analyses for reliability`
+        summary: `Large file (${totalLines} lines) split into ${parts.length} parts`,
+        code_valid: successfulParts.length > 0
       }, { headers: corsHeaders });
     }
 
