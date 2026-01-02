@@ -555,15 +555,15 @@ COBOL:
         // Ensure proper indentation (8 spaces for method body)
         logic = logic.split('\n').map(l => l.trim() ? '        ' + l.trim() : '').join('\n');
         
-        console.log(\`[Paragraph] \${paragraph.name}: \${logic.split('\\n').length} lines\`);
+        console.log(`[Paragraph] ${paragraph.name}: ${logic.split('\n').length} lines`);
         return { name: paragraph.name, logic: logic || 'pass  # TODO: Implement' };
       } catch (e: any) {
-        console.error(\`[Paragraph \${paragraph.name}] Error: \${e.message}\`);
-        return { name: paragraph.name, logic: \`pass  # Error: \${e.message}\` };
+        console.error(`[Paragraph ${paragraph.name}] Error: ${e.message}`);
+        return { name: paragraph.name, logic: `pass  # Error: ${e.message}` };
       }
     };
 
-    console.log(\`[Hybrid] Translating \${ast.paragraphs.length} paragraphs individually...\`);
+    console.log(`[Hybrid] Translating ${ast.paragraphs.length} paragraphs individually...`);
 
     // Post-process Python code to clean up artifacts
     const cleanPythonCode = (code: string): string => {
