@@ -1358,7 +1358,7 @@ class TestCompilation:
       code_valid: validationSuccess,  // True only if Python code compiles
     };
 
-    console.log(`[Complete] ${chunks.length} chunks, ${finalResult.python_lines} Python lines in ${finalResult.processing_time_ms}ms`);
+    console.log(`[Complete] ${ast.paragraphs.length} paragraphs, ${finalResult.python_lines} Python lines in ${finalResult.processing_time_ms}ms`);
     return NextResponse.json(finalResult, { headers: corsHeaders });
 
   } catch (error: any) {
