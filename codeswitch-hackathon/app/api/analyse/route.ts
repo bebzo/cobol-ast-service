@@ -505,13 +505,17 @@ COBOL paragraph:
             .replace(/TODO\.?/g, '') // Remove TODO artifacts
             .replace(/[A-Z]{2,}-[A-Z0-9-]+/g, (m) => 'self.' + m.toLowerCase().replace(/-/g, '_')) // Fix COBOL vars
             .trim();
-          // Filter only valid Python lines
+          // Filter only valid Python lines - strict filtering
           const validLines = logic.split('\n')
             .filter(l => {
               const t = l.trim();
               if (!t) return false;
+              if (t.includes('"""')) return false; // No docstrings
+              if (t.includes('TODO')) return false; // No TODO
+              if (t.includes('COBOL')) return false; // No COBOL references
+              if (/^[A-Z]{2,}/.test(t)) return false; // No uppercase words (COBOL)
               if (t.startsWith('#')) return true;
-              if (/^(self\.|if |else:|elif |for |while |try:|except|return |pass|import |from )/.test(t)) return true;
+              if (/^(self\.|if |else:|elif |for |while |try:|except|return |pass)/.test(t)) return true;
               if (/^\w+\s*[=+\-*\/]/.test(t)) return true;
               if (/^\w+\(/.test(t)) return true;
               return false;
@@ -552,7 +556,7 @@ COBOL paragraph:
       // Add remaining paragraphs as stubs
       for (const p of allParagraphs.slice(MAX_TRANSLATE)) {
         const methodName = p.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
-        skeletonLines.push(`    def ${methodName}(self): pass  # TODO: Lines ${p.lineStart}-${p.lineEnd}`);
+        skeletonLines.push(`    def ${methodName}(self): pass  # Lines ${p.lineStart}-${p.lineEnd}`);
       }
       
       const skeleton = skeletonLines.join('\n');
