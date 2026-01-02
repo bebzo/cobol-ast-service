@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { parseCobolWithANTLR, generateANTLRSummary, CobolFullAST } from '@/lib/cobol-antlr-parser';
+import { parseCobolWithANTLR, generateANTLRSummary, generatePythonSkeleton, CobolFullAST } from '@/lib/cobol-antlr-parser';
 
 // Validate that input is actually COBOL code
 function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
@@ -484,6 +484,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.log(`[AST] Parsing ${cobolCode.length} characters...`);
     const ast: CobolFullAST = parseCobolWithANTLR(cobolCode);
     console.log(`[AST] Parsed: ${ast.programId}, ${ast.metrics.variables} variables, ${ast.metrics.paragraphs} paragraphs`);
+    
+    // HYBRID APPROACH: Generate deterministic skeleton from AST
+    const pythonSkeleton = generatePythonSkeleton(ast);
+    console.log(`[Skeleton] Generated ${pythonSkeleton.split('\n').length} lines of skeleton code`);
+    
+    // Extract skeleton structure (imports, exceptions, dataclasses, main class with __init__)
+    // This guarantees proper commercial structure
+    const skeletonLines = pythonSkeleton.split('\n');
+    const runMethodIdx = skeletonLines.findIndex(l => l.includes('def run(self)'));
+    const skeletonHeader = runMethodIdx > 0 
+      ? skeletonLines.slice(0, runMethodIdx).join('\n') 
+      : pythonSkeleton;
+    console.log(`[Skeleton] Header: ${skeletonHeader.split('\n').length} lines (structure guaranteed)`);
     
     const astSummary = generateANTLRSummary(ast);
     const lines = cobolCode.split('\n');
@@ -1103,14 +1116,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .replace(/\n{3,}/g, '\n\n')
       .trim();
       
-    combinedPythonCode = `"""${ast.programId} - Migrated from COBOL."""
-from dataclasses import dataclass, field
-from decimal import Decimal
-from typing import Optional, List, Dict, Any
-from datetime import date, datetime
-import logging
+    // Use skeleton header for guaranteed structure (imports, exceptions, dataclasses, __init__)
+    // Then append the translated logic from chunks
+    combinedPythonCode = `${skeletonHeader}
 
-logger = logging.getLogger('${ast.programId}')
+# === Translated Business Logic ===
 
 ${cleanedValidatedCode}
 `;
