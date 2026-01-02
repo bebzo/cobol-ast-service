@@ -436,11 +436,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const totalLines = cobolCode.split('\n').length;
-    const MULTI_ANALYSIS_THRESHOLD = 3000;
     
-    // For very large files (>5000 lines), use hybrid chunking
-    if (totalLines > 5000) {
-      console.log(`[HybridChunk] File has ${totalLines} lines, using smart chunking`);
+    // v6.0: Unified batch+parallel translation for ALL files
+    {
+      console.log(`[v6.0-Unified] Processing ${totalLines} lines with batch+parallel`);
       
       // Fast regex parsing instead of ANTLR
       const programMatch = cobolCode.match(/PROGRAM-ID\.\s+(\w+)/i);
@@ -759,9 +758,12 @@ Output ONLY valid Python test code starting with "import pytest":`;
           cyclomaticComplexity: allParagraphs.length
         }
       }, { headers: corsHeaders });
-    }
     
-    // If file is medium-large, split into multiple independent analyses
+    // v6.0: Removed old multi-analysis and ANTLR paths - unified approach above
+    // This line should never be reached (return above)
+    throw new Error('Unexpected code path');
+    
+    /* REMOVED: Old multi-analysis code
     if (totalLines > MULTI_ANALYSIS_THRESHOLD) {
       console.log(`[MultiAnalysis] File has ${totalLines} lines, splitting into multiple analyses...`);
       const parts = splitForMultiAnalysis(cobolCode, 2000);
@@ -1706,6 +1708,7 @@ Output ONLY valid Python test code starting with "import pytest"`;
 
     console.log(`[Complete] ${ast.paragraphs.length} paragraphs, ${finalResult.python_lines} Python lines in ${finalResult.processing_time_ms}ms`);
     return NextResponse.json(finalResult, { headers: corsHeaders });
+    END OF REMOVED OLD CODE */
 
   } catch (error: any) {
     console.error('[Error]', error);
