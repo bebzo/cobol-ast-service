@@ -547,9 +547,12 @@ COBOL paragraph:
       // Add translated methods
       for (const t of translations) {
         const methodName = t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
+        const safeName = t.name.replace(/"/g, "'").replace(/\n/g, ' ');
         skeletonLines.push(`    def ${methodName}(self):`);
-        skeletonLines.push(`        """${t.name}"""`);
-        skeletonLines.push(t.logic);
+        skeletonLines.push(`        """${safeName}."""`);
+        // Ensure logic has at least pass
+        const logic = t.logic.trim() || '        pass';
+        skeletonLines.push(logic);
         skeletonLines.push('');
       }
       
