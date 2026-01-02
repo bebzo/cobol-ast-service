@@ -875,12 +875,33 @@ export default function Home() {
             return postProcessPythonCode(fixedLines.join('\n'), filename || 'PROGRAM');
           })();
         
+        // CRITICAL: Validate merged code before marking as valid
+        let mergedCodeValid = false;
+        let validatedMergedCode = mergedPythonCode;
+        try {
+          console.log('[Merge Validation] Validating merged code...');
+          const validateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: mergedPythonCode }),
+          });
+          if (validateResponse.ok) {
+            const validateResult = await validateResponse.json();
+            mergedCodeValid = validateResult.valid;
+            validatedMergedCode = validateResult.code || mergedPythonCode;
+            console.log(`[Merge Validation] Result: valid=${mergedCodeValid}, fixes=${validateResult.fixes || 0}`);
+          }
+        } catch (e) {
+          console.log('[Merge Validation] API error, marking as invalid');
+        }
+        
         parsed = {
           summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
-          python_code: mergedPythonCode,
+          python_code: validatedMergedCode,
+          code_valid: mergedCodeValid,  // Use MERGED validation result
           unit_tests: successParts.map((p: any) => p.unit_tests || '').join('\n'),
           cobol_lines: data.original_lines,
-          python_lines: mergedPythonCode.split('\n').length,  // Use ACTUAL merged code line count
+          python_lines: validatedMergedCode.split('\n').length,  // Use VALIDATED merged code line count
           issues: successParts.flatMap((p: any) => p.issues || []),
           improvements: successParts.flatMap((p: any) => p.improvements || []),
           security_warnings: successParts.flatMap((p: any) => p.security_warnings || []),
