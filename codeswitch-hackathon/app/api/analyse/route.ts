@@ -1031,9 +1031,10 @@ COBOL:
 
     // === HYBRID GENERATION: Skeleton + Paragraph translations ===
     const MAX_ATTEMPTS = 2;
-    let combinedPythonCode = '';
+    let combinedPythonCode = pythonSkeleton; // FALLBACK: Start with skeleton
     let validationSuccess = false;
     
+    try {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS && !validationSuccess; attempt++) {
       console.log(`[Attempt ${attempt}/${MAX_ATTEMPTS}] Translating paragraphs...`);
       
@@ -1209,6 +1210,11 @@ COBOL:
       } catch (e) {
         console.log('[Warning] Final validation failed');
       }
+    }
+    } catch (translationError: any) {
+      // FALLBACK: If translation fails entirely, use the skeleton
+      console.error('[FALLBACK] Translation failed, using skeleton:', translationError.message);
+      combinedPythonCode = pythonSkeleton.replace(/# \{\{LOGIC:[^}]+\}\}/g, 'pass  # Translation failed');
     }
 
     // === ANALYSIS METADATA (generated dynamically from REAL data) ===
