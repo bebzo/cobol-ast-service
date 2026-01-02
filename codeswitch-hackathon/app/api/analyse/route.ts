@@ -543,7 +543,7 @@ COBOL:
       const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
       // FIXED HEADER - cannot be modified by translations
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v5.1]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v5.2]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -621,25 +621,67 @@ class ${className}:
       // FINAL ASSEMBLY: header + methods + stubs
       const skeleton = header + methods.join('\n') + '\n' + stubs.join('\n');
       
-      // Generate basic tests for translated methods
-      const testLines = [
-        'import pytest',
-        `from main import ${className}`,
-        '',
-        'class TestProcessor:',
-        '    def setup_method(self):',
-        `        self.processor = ${className}()`,
-        ''
-      ];
-      for (const t of translations.slice(0, 30)) {
-        const methodName = t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
-        testLines.push(`    def test_${methodName}(self):`);
-        testLines.push(`        """Test ${t.name}."""`);
-        testLines.push(`        self.processor.${methodName}()`);
-        testLines.push(`        assert True  # Method executed without error`);
-        testLines.push('');
+      // Generate REAL tests using Gemini
+      const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
+      let unitTests = '';
+      
+      try {
+        const testPrompt = `Generate pytest unit tests for this Python class.
+
+CLASS: ${className}
+METHODS: ${methodNames.slice(0, 20).join(', ')}
+
+REQUIREMENTS:
+1. Import pytest and the class
+2. Create a test class with setup_method
+3. For EACH method, create a test that:
+   - Calls the method
+   - Verifies it doesn't raise exceptions
+   - Checks any state changes (self.data, self.logger calls)
+4. Add edge case tests (empty data, None values)
+5. Use meaningful assertions, NOT just "assert True"
+
+PYTHON CODE TO TEST:
+${skeleton.slice(0, 4000)}
+
+Output ONLY valid Python test code starting with "import pytest":`;
+
+        const testResult = await model.generateContent(testPrompt);
+        let generatedTests = testResult.response.text()
+          .replace(/```python\s*/gi, '')
+          .replace(/```\s*/g, '')
+          .trim();
+        
+        // Validate generated tests have real assertions
+        if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
+          unitTests = generatedTests;
+          console.log(`[Tests] Generated ${generatedTests.split('def test_').length - 1} real tests via Gemini`);
+        } else {
+          throw new Error('Generated tests invalid');
+        }
+      } catch (e: any) {
+        console.log(`[Tests] Gemini generation failed: ${e.message}, using fallback`);
+        // Fallback to basic tests
+        const testLines = [
+          'import pytest',
+          `from main import ${className}`,
+          '',
+          'class TestProcessor:',
+          '    def setup_method(self):',
+          `        self.processor = ${className}()`,
+          '        self.processor.data = {}',
+          ''
+        ];
+        for (const m of methodNames.slice(0, 30)) {
+          testLines.push(`    def test_${m}(self):`);
+          testLines.push(`        """Test ${m} executes without error."""`);
+          testLines.push(`        initial_data = dict(self.processor.data)`);
+          testLines.push(`        self.processor.${m}()`);
+          testLines.push(`        assert isinstance(self.processor.data, dict)`);
+          testLines.push('');
+        }
+        unitTests = testLines.join('\n');
       }
-      const unitTests = testLines.join('\n');
       
       // Generate all metadata for large files
       const funcNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
