@@ -462,30 +462,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
       
-      // Translate first 30 paragraphs with LLM (reduced to avoid timeout)
-      const MAX_TRANSLATE = 30;
+      // Translate first 50 paragraphs with LLM
+      const MAX_TRANSLATE = 50;
       const toTranslate = allParagraphs.slice(0, MAX_TRANSLATE);
       
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       
-      const PARA_PROMPT_FAST = `Convert this COBOL paragraph to Python method body. 
-Output ONLY executable Python statements, one per line. No def, no docstrings, no markdown.
+      const PARA_PROMPT_FAST = `Convert this COBOL paragraph to Python method body.
+Output ONLY executable Python statements. No def, no docstrings, no markdown.
 
 Rules:
-- MOVE A TO B → self.b = self.a
+- MOVE A TO B → self.b = self.a  
 - ADD A TO B → self.b += self.a
-- PERFORM X → self.x()
+- SUBTRACT A FROM B → self.b -= self.a
+- COMPUTE X = A + B → self.x = self.a + self.b
+- PERFORM 1000-INIT → self.p_1000_init()  (always prefix with p_ for numbered paragraphs)
+- PERFORM PROCESS-DATA → self.process_data()
 - DISPLAY "text" → self.logger.info("text")
-- IF cond → if cond:
-- All variables must use self. prefix (self.ws_count, self.customer_id)
+- READ FILE → self.read_file()
+- WRITE RECORD → self.write_record()
+- All variables: self.variable_name (lowercase, underscores)
 
-Example output:
+Example:
 self.ws_count = 0
-self.logger.info("Starting process")
+self.p_1000_initialization()
 self.process_record()
 
-COBOL paragraph:
+COBOL:
 `;
       
       // Process in batches of 10 for speed
@@ -539,7 +543,7 @@ COBOL paragraph:
       const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
       // FIXED HEADER - cannot be modified by translations
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v4.2]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v5.0]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -575,14 +579,31 @@ class ${className}:
             // Only simple statements: assignments, method calls, return
             return /^(self\.\w+\s*[=+\-*\/]|self\.\w+\(|return |pass$|#)/.test(l);
           })
-          .slice(0, 5);  // Max 5 lines per method (simpler is safer)
+          .slice(0, 8);  // Max 8 lines per method
         
         // Build the method with proper indentation
         let methodCode = `    def ${methodName}(self):\n`;
         methodCode += `        """${safeName}."""\n`;
         
         if (validStatements.length > 0) {
-          methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
+          // Fix method calls: convert word numbers to p_XXXX format
+          const fixedStatements = validStatements
+            .map(s => s
+              // Fix "self.one000_x()" → "self.p_1000_x()"
+              .replace(/self\.(one|two|three|four|five|six|seven|eight|nine)(\d+)/gi, (_, word, num) => {
+                const wordToNum: Record<string, string> = {
+                  'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
+                  'six': '6', 'seven': '7', 'eight': '8', 'nine': '9'
+                };
+                return `self.p_${wordToNum[word.toLowerCase()] || ''}${num}`;
+              })
+              // Fix "self.1000_x()" → "self.p_1000_x()"
+              .replace(/self\.(\d)/g, 'self.p_$1')
+            )
+            // Remove duplicate pass statements
+            .filter((s, i, arr) => s !== 'pass' || arr.indexOf('pass') === i);
+          
+          methodCode += fixedStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
           methodCode += `        pass\n`;
         }
