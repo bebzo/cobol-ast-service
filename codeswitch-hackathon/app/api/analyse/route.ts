@@ -78,20 +78,24 @@ const CHUNK_PROMPT = `Convert this COBOL code to PRODUCTION-READY Python. Output
 This code will run in PRODUCTION. Every function MUST contain REAL business logic.
 
 === ABSOLUTE PROHIBITIONS (VIOLATIONS = REJECTION) ===
-❌ NEVER use "pass" in business functions - implement REAL logic
-❌ NEVER use "TODO" comments - implement the feature NOW
-❌ NEVER assign "= None" as placeholder - use REAL initial values
-❌ NEVER use "except: pass" - ALWAYS log and re-raise or handle properly
-❌ NEVER use global variables - encapsulate ALL state in classes
-❌ NEVER leave functions empty - translate the COBOL logic completely
+❌ NEVER use "pass" in methods - implement REAL logic from COBOL
+❌ NEVER use "TODO" - implement NOW
+❌ NEVER use "= None" placeholder - use Decimal("0") or "" or []
+❌ NEVER use "except: pass" - ALWAYS log with self.logger.error() and re-raise
+❌ NEVER use global variables - ALL state in self.xxx
+❌ NEVER create class without __init__ - EVERY class needs __init__
 
-=== MANDATORY ARCHITECTURE ===
-1. CLASSES FOR ALL LOGIC - zero global variables:
-   class TransactionProcessor:
-       def __init__(self):
-           self.accounts: Dict[str, Decimal] = {}
-           self.transactions: List[Transaction] = []
-           self.logger = logging.getLogger(__name__)
+=== MANDATORY: EVERY CLASS MUST HAVE __init__ ===
+EVERY class (not @dataclass) MUST have def __init__(self): that:
+1. Creates self.logger = logging.getLogger(__name__)
+2. Initializes ALL instance variables with real values
+
+class CustomerProcessor:
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.customers: Dict[str, Customer] = {}
+        self.total_processed: int = 0
+        self.error_count: int = 0
 
 2. REAL IMPLEMENTATIONS - translate COBOL logic to Python:
    - COBOL MOVE A TO B → self.b = self.a

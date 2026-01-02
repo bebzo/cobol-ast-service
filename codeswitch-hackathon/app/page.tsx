@@ -965,6 +965,7 @@ export default function Home() {
       }
       
       // ALWAYS validate the final code (whether multi or mono analysis)
+      let finalCodeValid = parsed.code_valid || false;
       try {
         console.log('Final validation before tests...');
         const validateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
@@ -974,18 +975,22 @@ export default function Home() {
         });
         if (validateRes.ok) {
           const validateData = await validateRes.json();
+          finalCodeValid = validateData.valid === true;
           if (validateData.valid && validateData.code) {
             finalPythonCode = validateData.code;
             console.log('Final validation: PASS');
           } else {
-            console.log('Final validation: FAIL, using original');
+            console.log('Final validation: FAIL');
           }
         }
-      } catch (e) { console.error('Final validation failed:', e); }
+      } catch (e) { 
+        console.error('Final validation failed:', e);
+        finalCodeValid = false;
+      }
       
       setPythonCode(finalPythonCode);
-      // Create new object to trigger React state update
-      const updatedAnalysis = { ...parsed, python_code: finalPythonCode };
+      // Create new object to trigger React state update - include code_valid!
+      const updatedAnalysis = { ...parsed, python_code: finalPythonCode, code_valid: finalCodeValid };
       setAnalysis(updatedAnalysis);
       setAnalyzedCobolCode(cobolCode);
 
