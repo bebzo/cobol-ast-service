@@ -1639,14 +1639,8 @@ Output ONLY valid Python test code starting with "import pytest"`;
       console.log(`[Tests] Generation failed: ${e.message}, using fallback`);
     }
 
-    // Use generated tests if available, otherwise minimal fallback
-    const unitTests = generatedTests || `# pytest Test Suite
-import pytest
-
-class TestCompilation:
-    def test_syntax_valid(self):
-        assert True
-`;
+    // Use generated tests if available, otherwise error message
+    const unitTests = generatedTests || `# Test generation failed - please regenerate`;
 
     // Build final result
     const finalResult = {
