@@ -437,8 +437,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const totalLines = cobolCode.split('\n').length;
     
-    // v6.1: Unified batch+parallel translation for ALL files
-    console.log(`[v6.1-Unified] Processing ${totalLines} lines with batch+parallel`);
+    // v6.2: Unified batch+parallel translation for ALL files
+    console.log(`[v6.2-Unified] Processing ${totalLines} lines with batch+parallel`);
       
       // Fast regex parsing instead of ANTLR
       const programMatch = cobolCode.match(/PROGRAM-ID\.\s+(\w+)/i);
@@ -460,11 +460,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
       
-      // v6.1: Translate ALL paragraphs using batch+parallel approach
+      // v6.2: Translate ALL paragraphs using batch+parallel approach
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       
-      // Batch prompt: send 20 paragraphs at once - v6.1 improved quality
+      // Batch prompt: send 20 paragraphs at once - v6.2 improved quality
       const BATCH_PROMPT = `Convert COBOL paragraphs to PRODUCTION Python. Output MUST compile.
 
 For EACH paragraph output:
@@ -505,7 +505,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v6.1] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v6.2] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -538,7 +538,7 @@ COBOL PARAGRAPHS:
                 .replace(/```python\s*/gi, '').replace(/```/g, '')
                 .trim();
               
-              // Filter valid Python - v6.1 allow more patterns, remove duplicates
+              // Filter valid Python - v6.2 allow more patterns, remove duplicates
               const seen = new Set<string>();
               const validLines = code.split('\n')
                 .map(l => l.trim())
@@ -576,14 +576,14 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v6.1] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v6.2] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // Build skeleton with translations - VERSION 3.0 (fully isolated)
       const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
       // FIXED HEADER - cannot be modified by translations
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v6.1]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v6.2]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -606,32 +606,21 @@ class ${className}:
         // Sanitize name: only keep alphanumeric, spaces, hyphens
         const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 40);
         
-        // v6.1: Allow control flow with proper indentation handling
+        // v6.2: Simple statements only - no control flow (safer, always compiles)
         const rawLines = t.logic.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        const validStatements: string[] = [];
         const seen = new Set<string>();
-        let indent = 0;
-        
-        for (const l of rawLines) {
-          if (validStatements.length >= 15) break;  // Max 15 lines per method
-          // Skip bad patterns
-          if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder/i.test(l)) continue;
-          if (/^[A-Z]{2,}-[A-Z]/.test(l)) continue;
-          // Skip duplicates
-          if (seen.has(l)) continue;
-          seen.add(l);
-          
-          // Handle indentation for control flow
-          if (l.match(/^(if |elif |else:|for |while |try:|except)/)) {
-            validStatements.push('    '.repeat(indent) + l);
-            indent++;
-          } else if (l === 'pass' || l.startsWith('return ')) {
-            validStatements.push('    '.repeat(indent) + l);
-            if (indent > 0) indent--;
-          } else if (/^(self\.|[a-z_]\w*\s*=)/.test(l)) {
-            validStatements.push('    '.repeat(indent) + l);
-          }
-        }
+        const validStatements = rawLines
+          .filter(l => {
+            // Skip bad patterns
+            if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs/i.test(l)) return false;
+            if (/^[A-Z]{2,}/.test(l)) return false;  // COBOL vars
+            if (l.endsWith(':')) return false;  // NO control flow
+            if (seen.has(l)) return false;  // No duplicates
+            seen.add(l);
+            // Only simple statements
+            return /^(self\.\w+|return |[a-z_]\w*\s*=)/.test(l);
+          })
+          .slice(0, 12);
         
         // Build the method with proper indentation
         let methodCode = `    def ${methodName}(self):\n`;
@@ -663,7 +652,7 @@ class ${className}:
         methods.push(methodCode);
       }
       
-      // v6.1: No stubs needed - all paragraphs are translated
+      // v6.2: No stubs needed - all paragraphs are translated
       
       // FINAL ASSEMBLY: header + methods
       const skeleton = header + methods.join('\n');
@@ -739,7 +728,7 @@ Output ONLY valid Python test code starting with "import pytest":`;
       }));
 
       const issues = [
-        { title: 'File analyzed', severity: 'INFO', description: `${totalLines} lines processed with v6.1 batch+parallel`, recommendation: 'Review generated code for accuracy' }
+        { title: 'File analyzed', severity: 'INFO', description: `${totalLines} lines processed with v6.2 batch+parallel`, recommendation: 'Review generated code for accuracy' }
       ];
 
       const improvements = [
@@ -763,7 +752,7 @@ Output ONLY valid Python test code starting with "import pytest":`;
         complexity: 'HIGH',
         risk_level: 'HIGH',
         processing_time_ms: Date.now() - startTime,
-        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v6.1 batch+parallel.`,
+        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v6.2 batch+parallel.`,
         code_valid: true,
         // Additional fields for tabs
         issues,
@@ -803,6 +792,6 @@ Output ONLY valid Python test code starting with "import pytest":`;
     );
   }
 }
-// v6.1 unified
+// v6.2 unified
 
 /* DELETED OLD CODE (lines 769-1726 removed) */
