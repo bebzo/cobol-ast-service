@@ -523,12 +523,18 @@ COBOL:
 `;
 
     const translateOne = async (p: { name: string; lineStart: number; lineEnd: number }): Promise<{ name: string; logic: string }> => {
-      const cobol = lines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 30)).join('\n');
+      // Get FULL paragraph COBOL code (up to 100 lines)
+      const cobol = lines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 100)).join('\n');
       if (cobol.trim().length < 15) return { name: p.name, logic: '        self.logger.debug("Empty paragraph")' };
       try {
         const r = await model.generateContent(PARA_PROMPT + cobol);
-        let logic = r.response.text().replace(/```python\s*/gi, '').replace(/```/g, '').replace(/^\s*def\s+\w+.*$/gm, '').trim();
-        logic = logic.split('\n').slice(0, 15).map(l => l.trim() ? '        ' + l.trim() : '').filter(l => l).join('\n');
+        let logic = r.response.text()
+          .replace(/```python\s*/gi, '').replace(/```/g, '')
+          .replace(/^\s*def\s+\w+.*$/gm, '')
+          .replace(/^\s*""".*$/gm, '')
+          .trim();
+        // Keep up to 80 lines of translated logic
+        logic = logic.split('\n').slice(0, 80).map(l => l.trim() ? '        ' + l.trim() : '').filter(l => l).join('\n');
         return { name: p.name, logic: logic || '        self.logger.debug("Translated")' };
       } catch { return { name: p.name, logic: '        self.logger.debug("Translation error")' }; }
     };
