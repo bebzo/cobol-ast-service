@@ -559,6 +559,9 @@ COBOL:
           .replace(/```python\s*/gi, '').replace(/```/g, '')
           .replace(/^\s*def\s+\w+.*$/gm, '')
           .replace(/^\s*""".*$/gm, '')
+          // Remove raw COBOL lines
+          .replace(/^\s*(MOVE|PERFORM|DISPLAY|COMPUTE|ADD|SUBTRACT|MULTIPLY|DIVIDE|IF|ELSE|END-IF|EVALUATE|WHEN|END-EVALUATE|READ|WRITE|OPEN|CLOSE|CALL|GOBACK|STOP RUN)\s.*$/gmi, '')
+          .replace(/^\s*\d{5,6}-[\w-]+\s*$/gm, '') // Remove COBOL paragraph references
           .trim();
         let logicLines = logic.split('\n').slice(0, 80).map(l => l.trim() ? '        ' + l.trim() : '').filter(l => l);
         
