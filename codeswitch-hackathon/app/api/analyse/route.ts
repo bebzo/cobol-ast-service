@@ -438,8 +438,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const totalLines = cobolCode.split('\n').length;
     
     // v6.0: Unified batch+parallel translation for ALL files
-    {
-      console.log(`[v6.0-Unified] Processing ${totalLines} lines with batch+parallel`);
+    console.log(`[v6.0-Unified] Processing ${totalLines} lines with batch+parallel`);
       
       // Fast regex parsing instead of ANTLR
       const programMatch = cobolCode.match(/PROGRAM-ID\.\s+(\w+)/i);
