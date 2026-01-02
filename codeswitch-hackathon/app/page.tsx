@@ -996,15 +996,15 @@ export default function Home() {
         setTestResults({running: false, total: 0, passed: 0, failed: 0, details: [{name: 'error', status: 'error', error: String(e)}]});
       }
 
-      // Save to Supabase (full code, no truncation)
+      // Save to Supabase (full code, no truncation) - use finalPythonCode (post-processed)
       const historyItem: AnalysisHistory = {
         filename,
         timestamp: new Date().toISOString(),
         cobol_lines: cobolCode.split('\n').length,
-        python_lines: (parsed.python_code || '').split('\n').length,
+        python_lines: finalPythonCode.split('\n').length,
         cobol_code: cobolCode,
-        python_code: parsed.python_code,
-        analysis: parsed,
+        python_code: finalPythonCode,
+        analysis: updatedAnalysis,
       };
       saveAnalysis(historyItem).then(() => {
         loadHistory(10).then((data) => {
