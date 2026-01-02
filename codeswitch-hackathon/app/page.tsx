@@ -968,7 +968,7 @@ export default function Home() {
       // ALWAYS validate the final code (whether multi or mono analysis)
       // EXCEPTION: v3.0 skeletons are pre-validated and should not be modified
       let finalCodeValid = parsed.code_valid || false;
-      const isV3Skeleton = finalPythonCode.includes('[v4.0]');
+      const isV3Skeleton = finalPythonCode.includes('[v4.') || finalPythonCode.includes('[v5.');
       
       if (isV3Skeleton) {
         // v3.0 skeletons are already valid - skip external validation

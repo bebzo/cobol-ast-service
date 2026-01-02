@@ -539,7 +539,7 @@ COBOL paragraph:
       const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
       // FIXED HEADER - cannot be modified by translations
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v4.0]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v4.1]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -581,7 +581,15 @@ class ${className}:
         methodCode += `        """${safeName}."""\n`;
         
         if (validStatements.length > 0) {
-          methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
+          // Add pass after any block opener (lines ending with :)
+          const fixedStatements: string[] = [];
+          for (const s of validStatements) {
+            fixedStatements.push(`        ${s}`);
+            if (s.endsWith(':')) {
+              fixedStatements.push(`            pass  # TODO: implement`);
+            }
+          }
+          methodCode += fixedStatements.join('\n') + '\n';
         } else {
           methodCode += `        pass\n`;
         }
