@@ -1547,11 +1547,19 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               {activeTab === "code" && (
                 <div>
                   {/* Code Status Bar */}
-                  {pythonCode && (
+                  {pythonCode && analysis?.code_valid === true && (
                     <div className="flex items-center justify-end gap-2 px-3 py-2 bg-slate-700/50 border-b border-slate-600">
                       <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium">
                         <CheckCircle className="w-3 h-3" />
                         <span>✓ Code Python validé - prêt à exporter</span>
+                      </div>
+                    </div>
+                  )}
+                  {pythonCode && analysis?.code_valid === false && (
+                    <div className="flex items-center justify-end gap-2 px-3 py-2 bg-slate-700/50 border-b border-slate-600">
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/20 text-red-400 rounded-lg text-xs font-medium">
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>⚠ Code Python invalide - erreurs de syntaxe</span>
                       </div>
                     </div>
                   )}
