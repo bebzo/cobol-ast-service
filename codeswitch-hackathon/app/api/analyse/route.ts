@@ -436,12 +436,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const totalLines = cobolCode.split('\n').length;
-    const MULTI_ANALYSIS_THRESHOLD = 2000;
+    const MULTI_ANALYSIS_THRESHOLD = 3000;
     
     // If file is too large, split into multiple independent analyses
     if (totalLines > MULTI_ANALYSIS_THRESHOLD) {
       console.log(`[MultiAnalysis] File has ${totalLines} lines, splitting into multiple analyses...`);
-      const parts = splitForMultiAnalysis(cobolCode, 1000);
+      const parts = splitForMultiAnalysis(cobolCode, 2000);
       
       // Analyze each part independently (in parallel for speed)
       const analyzePartUrl = request.url;
