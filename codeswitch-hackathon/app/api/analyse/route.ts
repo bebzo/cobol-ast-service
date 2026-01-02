@@ -535,16 +535,16 @@ COBOL paragraph:
         console.log(`[HybridChunk] Batch ${Math.floor(i/10)+1}: ${batchResults.length} paragraphs`);
       }
       
-      // Build skeleton with translations
+      // Build skeleton with translations - VERSION 2.0
       const skeletonLines = [
-        `"""${programId} - Migrated from COBOL (${totalLines} lines)."""`,
+        `"""${programId} - Migrated from COBOL (${totalLines} lines). [v2.0]"""`
         'from dataclasses import dataclass',
         'from decimal import Decimal', 
         'from typing import Optional, List, Dict, Any',
         'import logging',
         '',
         `class ${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor:`,
-        '    """Main processor class."""',
+        '    """Main processor class. Generated with HybridChunk v2.0."""',
         '    def __init__(self):',
         '        self.logger = logging.getLogger(__name__)',
         ''
