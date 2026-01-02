@@ -516,16 +516,54 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     });
 
-    // === CHUNKED TRANSLATION ===
-    // Split COBOL into chunks - adaptive based on file size
-    const MAX_CHUNKS = lines.length > 8000 ? 25 : lines.length > 4000 ? 20 : 15;
-    const CHUNK_SIZE = Math.max(150, Math.ceil(lines.length / MAX_CHUNKS));
-    const chunks: string[] = [];
-    for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-      chunks.push(lines.slice(i, i + CHUNK_SIZE).join('\n'));
-    }
-    
-    console.log(`[Chunks] Splitting ${lines.length} lines into ${chunks.length} chunks of ~${CHUNK_SIZE} lines`);
+    // === PARAGRAPH-BASED TRANSLATION (Hybrid Approach) ===
+    // Translate each paragraph's logic individually, then inject into skeleton
+    const PARAGRAPH_PROMPT = `Convert this COBOL paragraph to Python method body. Output ONLY the method body lines (no def, no docstring).
+
+Rules:
+- MOVE A TO B → self.b = self.a
+- ADD A TO B → self.b += self.a
+- COMPUTE → Python arithmetic
+- IF/EVALUATE → if/elif/else
+- PERFORM X → self.x()
+- Use self. for all variables
+- Real logic, no pass/TODO
+
+COBOL:
+`;
+
+    // Extract COBOL code for each paragraph based on line numbers
+    const getParagraphCode = (paragraph: { name: string; lineStart: number; lineEnd: number }): string => {
+      return lines.slice(paragraph.lineStart - 1, paragraph.lineEnd).join('\n');
+    };
+
+    // Translate a single paragraph
+    const translateParagraph = async (paragraph: { name: string; lineStart: number; lineEnd: number }): Promise<{ name: string; logic: string }> => {
+      try {
+        const cobolCode = getParagraphCode(paragraph);
+        if (cobolCode.trim().length < 10) {
+          return { name: paragraph.name, logic: 'pass  # Empty paragraph' };
+        }
+        const result = await model.generateContent(PARAGRAPH_PROMPT + cobolCode);
+        let logic = result.response.text()
+          .replace(/```python\s*/gi, '')
+          .replace(/```\s*/g, '')
+          .replace(/^\s*def\s+\w+.*:\s*$/gm, '')  // Remove any def lines
+          .replace(/^\s*""".*"""\s*$/gm, '')       // Remove docstrings
+          .trim();
+        
+        // Ensure proper indentation (8 spaces for method body)
+        logic = logic.split('\n').map(l => l.trim() ? '        ' + l.trim() : '').join('\n');
+        
+        console.log(\`[Paragraph] \${paragraph.name}: \${logic.split('\\n').length} lines\`);
+        return { name: paragraph.name, logic: logic || 'pass  # TODO: Implement' };
+      } catch (e: any) {
+        console.error(\`[Paragraph \${paragraph.name}] Error: \${e.message}\`);
+        return { name: paragraph.name, logic: \`pass  # Error: \${e.message}\` };
+      }
+    };
+
+    console.log(\`[Hybrid] Translating \${ast.paragraphs.length} paragraphs individually...\`);
 
     // Post-process Python code to clean up artifacts
     const cleanPythonCode = (code: string): string => {
@@ -980,36 +1018,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return { code: fixed, issues };
     };
 
-    // Translate chunks in parallel - inject chunk index for unique naming
-    const translateChunk = async (chunk: string, index: number): Promise<string> => {
-      try {
-        const promptWithIndex = CHUNK_PROMPT.replace(/CHUNK_IDX/g, `C${index + 1}`);
-        const result = await model.generateContent(promptWithIndex + chunk);
-        let code = result.response.text();
-        code = cleanPythonCode(code);
-        console.log(`[Chunk ${index + 1}/${chunks.length}] Translated: ${code.length} chars`);
-        return code;
-      } catch (e: any) {
-        console.error(`[Chunk ${index + 1}] Error:`, e.message);
-        return `# === CHUNK ${index + 1} ERROR: ${e.message} ===`;
-      }
-    };
-
-    // === RETRY LOOP: Try up to 3 times until code compiles ===
-    const MAX_ATTEMPTS = 3;
+    // === HYBRID GENERATION: Skeleton + Paragraph translations ===
+    const MAX_ATTEMPTS = 2;
     let combinedPythonCode = '';
     let validationSuccess = false;
     
     for (let attempt = 1; attempt <= MAX_ATTEMPTS && !validationSuccess; attempt++) {
-      console.log(`[Attempt ${attempt}/${MAX_ATTEMPTS}] Generating Python code...`);
+      console.log(`[Attempt ${attempt}/${MAX_ATTEMPTS}] Translating paragraphs...`);
       
-      // Run translations in parallel
-      const allPythonCode = await Promise.all(
-        chunks.map((chunk, idx) => translateChunk(chunk, idx))
-      );
-
-      // Simple merge + FULL validation (heavy) + iterative cleanup
-      const mergedCode = intelligentMerge(allPythonCode);
+      // Translate all paragraphs in parallel (max 20 concurrent)
+      const batchSize = 20;
+      const translations: { name: string; logic: string }[] = [];
+      
+      for (let i = 0; i < ast.paragraphs.length; i += batchSize) {
+        const batch = ast.paragraphs.slice(i, i + batchSize);
+        const batchResults = await Promise.all(batch.map(p => translateParagraph(p)));
+        translations.push(...batchResults);
+      }
+      
+      // Inject translations into skeleton
+      let filledSkeleton = pythonSkeleton;
+      for (const { name, logic } of translations) {
+        const marker = `        # {{LOGIC:${name}}}`;
+        filledSkeleton = filledSkeleton.replace(marker, logic);
+      }
+      
+      console.log(`[Hybrid] Injected ${translations.length} paragraph translations`);
+      
+      // Use filled skeleton as the merged code
+      const mergedCode = filledSkeleton;
     let { code: validatedCode, issues: validationIssues } = validateAndFixPythonHeavy(mergedCode);
     
     // Comprehensive iterative syntax cleanup - fix ALL patterns until code stabilizes
@@ -1101,29 +1138,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     
     validatedCode = await aiFixEnd(validatedCode);
     console.log(`[Validation] ${validationIssues.length} issues fixed`);
-    // Remove any existing headers from validated code
-    let cleanedValidatedCode = validatedCode
-      .replace(/^"""[\s\S]*?"""\n/m, '')  // Remove first docstring block
-      .replace(/^Original:.*$/gm, '')
-      .replace(/^Generated by.*$/gm, '')
-      .replace(/^from dataclasses.*$/gm, '')
-      .replace(/^from decimal.*$/gm, '')
-      .replace(/^from typing.*$/gm, '')
-      .replace(/^from datetime.*$/gm, '')
-      .replace(/^import logging.*$/gm, '')
-      .replace(/^logger = logging.*$/gm, '')
-      .replace(/Decimal"""/g, 'Decimal')
+    
+    // Use the validated skeleton directly (already has proper structure)
+    combinedPythonCode = validatedCode
       .replace(/\n{3,}/g, '\n\n')
-      .trim();
-      
-    // Use skeleton header for guaranteed structure (imports, exceptions, dataclasses, __init__)
-    // Then append the translated logic from chunks
-    combinedPythonCode = `${skeletonHeader}
-
-# === Translated Business Logic ===
-
-${cleanedValidatedCode}
-`;
+      .trim() + '\n';
 
     console.log(`[Translation] Combined Python: ${combinedPythonCode.split('\n').length} lines`);
     
