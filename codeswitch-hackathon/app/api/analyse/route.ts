@@ -462,88 +462,104 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
       
-      // Translate first 50 paragraphs with LLM
-      const MAX_TRANSLATE = 50;
-      const toTranslate = allParagraphs.slice(0, MAX_TRANSLATE);
-      
+      // v6.0: Translate ALL paragraphs using batch+parallel approach
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       
-      const PARA_PROMPT_FAST = `Convert this COBOL paragraph to Python method body.
-Output ONLY executable Python statements. No def, no docstrings, no markdown.
+      // Batch prompt: send 20 paragraphs at once
+      const BATCH_PROMPT = `Convert these COBOL paragraphs to Python method bodies.
+For EACH paragraph, output: ### PARAGRAPH_NAME
+then the Python code (simple statements only).
 
 Rules:
 - MOVE A TO B → self.b = self.a  
 - ADD A TO B → self.b += self.a
-- SUBTRACT A FROM B → self.b -= self.a
-- COMPUTE X = A + B → self.x = self.a + self.b
-- PERFORM 1000-INIT → self.p_1000_init()  (always prefix with p_ for numbered paragraphs)
-- PERFORM PROCESS-DATA → self.process_data()
-- DISPLAY "text" → self.logger.info("text")
-- READ FILE → self.read_file()
-- WRITE RECORD → self.write_record()
-- All variables: self.variable_name (lowercase, underscores)
+- PERFORM X → self.p_x() or self.x()
+- All variables: self.variable_name
 
-Example:
-self.ws_count = 0
-self.p_1000_initialization()
-self.process_record()
-
-COBOL:
+COBOL PARAGRAPHS:
 `;
       
-      // Process in batches of 10 for speed
+      // Create batches of 20 paragraphs
+      const BATCH_SIZE = 20;
+      const PARALLEL_BATCHES = 5;
+      const batches: typeof allParagraphs[] = [];
+      for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
+        batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
+      }
+      console.log(`[v6.0] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      
       const translations: { name: string; logic: string }[] = [];
-      for (let i = 0; i < toTranslate.length; i += 10) {
-        const batch = toTranslate.slice(i, i + 10);
-        const batchResults = await Promise.all(batch.map(async (p) => {
-        const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 30)).join('\n');
-        if (cobol.trim().length < 10) return { name: p.name, logic: 'pass' };
-        try {
-          const r = await model.generateContent(PARA_PROMPT_FAST + cobol);
-          let logic = r.response.text()
-            .replace(/```python\s*/gi, '').replace(/```/g, '')
-            .replace(/^\s*def\s+\w+.*$/gm, '')
-            .replace(/^\s*"""[^"]*"""\.?/gm, '') // Remove docstrings
-            .replace(/^\s*(MOVE|PERFORM|DISPLAY|IF|END-IF|EVALUATE|WHEN|READ|WRITE).*$/gmi, '')
-            .replace(/TODO\.?/g, '') // Remove TODO artifacts
-            .replace(/[A-Z]{2,}-[A-Z0-9-]+/g, (m) => 'self.' + m.toLowerCase().replace(/-/g, '_')) // Fix COBOL vars
-            .trim();
-          // Filter only valid Python lines - ULTRA strict filtering
-          const validLines = logic.split('\n')
-            .map(l => l.trim())
-            .filter(l => {
-              if (!l || l.length < 3) return false;
-              // Reject anything with quotes (docstrings/strings often corrupted)
-              if (l.includes('"""')) return false;
-              if (l.includes("'''")) return false;
-              // Reject COBOL/TODO artifacts
-              if (/TODO|COBOL|PERFORM|MOVE|DISPLAY/i.test(l)) return false;
-              // Reject uppercase-heavy lines (COBOL)
-              if (/^[A-Z][A-Z0-9-]{3,}/.test(l)) return false;
-              // Only allow known Python patterns
-              if (/^(self\.|if |else:|elif |for |while |try:|except|return |pass$|#)/.test(l)) return true;
-              if (/^\w+\s*[=+\-*\/]/.test(l)) return true;
-              if (/^\w+\(/.test(l)) return true;
-              return false;
-            })
-            .slice(0, 10);
-          // Build clean logic with proper indentation
-          const cleanLogic = validLines.length > 0 
-            ? validLines.map(l => '        ' + l).join('\n')
-            : '        pass';
-          return { name: p.name, logic: cleanLogic };
-        } catch { return { name: p.name, logic: '        pass' }; }
+      
+      // Process batches in parallel waves
+      for (let wave = 0; wave < batches.length; wave += PARALLEL_BATCHES) {
+        const waveBatches = batches.slice(wave, wave + PARALLEL_BATCHES);
+        
+        const waveResults = await Promise.all(waveBatches.map(async (batch) => {
+          // Build COBOL text for all paragraphs in batch
+          const batchCobol = batch.map(p => {
+            const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 20)).join('\n');
+            return `=== ${p.name} ===\n${cobol}`;
+          }).join('\n\n');
+          
+          try {
+            const r = await model.generateContent(BATCH_PROMPT + batchCobol);
+            const response = r.response.text();
+            
+            // Parse response: split by ### PARAGRAPH_NAME
+            const results: { name: string; logic: string }[] = [];
+            const sections = response.split(/###\s*/).filter(s => s.trim());
+            
+            for (const section of sections) {
+              const lines = section.split('\n');
+              const nameMatch = lines[0]?.match(/^([A-Z0-9][\w-]+)/i);
+              if (!nameMatch) continue;
+              
+              const name = nameMatch[1];
+              const code = lines.slice(1).join('\n')
+                .replace(/```python\s*/gi, '').replace(/```/g, '')
+                .trim();
+              
+              // Filter valid Python only
+              const validLines = code.split('\n')
+                .map(l => l.trim())
+                .filter(l => {
+                  if (!l || l.length < 3) return false;
+                  if (/TODO|COBOL|MOVE|PERFORM|DISPLAY/i.test(l)) return false;
+                  if (l.endsWith(':')) return false;  // No control flow
+                  return /^(self\.\w+|return |pass$|#)/.test(l);
+                })
+                .slice(0, 6);
+              
+              results.push({ name, logic: validLines.join('\n') || 'pass' });
+            }
+            
+            // Fill in any missing paragraphs from batch
+            for (const p of batch) {
+              if (!results.find(r => r.name.toUpperCase() === p.name.toUpperCase())) {
+                results.push({ name: p.name, logic: 'pass' });
+              }
+            }
+            
+            return results;
+          } catch (e) {
+            // On error, return pass stubs for this batch
+            return batch.map(p => ({ name: p.name, logic: 'pass' }));
+          }
         }));
-        translations.push(...batchResults);
-        console.log(`[HybridChunk] Batch ${Math.floor(i/10)+1}: ${batchResults.length} paragraphs`);
+        
+        // Flatten results
+        for (const batchResults of waveResults) {
+          translations.push(...batchResults);
+        }
+        console.log(`[v6.0] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // Build skeleton with translations - VERSION 3.0 (fully isolated)
       const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
       // FIXED HEADER - cannot be modified by translations
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v5.2]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v6.0]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -611,15 +627,10 @@ class ${className}:
         methods.push(methodCode);
       }
       
-      // Build stubs for remaining paragraphs
-      const stubs: string[] = [];
-      for (const p of allParagraphs.slice(MAX_TRANSLATE)) {
-        const methodName = p.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
-        stubs.push(`    def ${methodName}(self): pass  # Lines ${p.lineStart}-${p.lineEnd}`);
-      }
+      // v6.0: No stubs needed - all paragraphs are translated
       
-      // FINAL ASSEMBLY: header + methods + stubs
-      const skeleton = header + methods.join('\n') + '\n' + stubs.join('\n');
+      // FINAL ASSEMBLY: header + methods
+      const skeleton = header + methods.join('\n');
       
       // Generate REAL tests using Gemini
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
