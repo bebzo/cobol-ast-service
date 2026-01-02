@@ -535,60 +535,78 @@ COBOL paragraph:
         console.log(`[HybridChunk] Batch ${Math.floor(i/10)+1}: ${batchResults.length} paragraphs`);
       }
       
-      // Build skeleton with translations - VERSION 2.0
-      const skeletonLines = [
-        `"""${programId} - Migrated from COBOL (${totalLines} lines). [v2.0]"""`,
-        'from dataclasses import dataclass',
-        'from decimal import Decimal', 
-        'from typing import Optional, List, Dict, Any',
-        'import logging',
-        '',
-        `class ${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor:`,
-        '    """Main processor class. Generated with HybridChunk v2.0."""',
-        '    def __init__(self):',
-        '        self.logger = logging.getLogger(__name__)',
-        ''
-      ];
+      // Build skeleton with translations - VERSION 3.0 (fully isolated)
+      const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
-      // Add translated methods - CLEAN ASSEMBLY
+      // FIXED HEADER - cannot be modified by translations
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v3.0]"""
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import Optional, List, Dict, Any
+import logging
+
+class ${className}:
+    """Main processor class."""
+    
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.data = {}
+
+`;
+      
+      // Build methods separately - each method is a clean string
+      const methods: string[] = [];
+      
       for (const t of translations) {
         const methodName = t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
-        // Sanitize docstring: only alphanumeric + basic punctuation
-        const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 50);
+        // Sanitize name: only keep alphanumeric, spaces, hyphens
+        const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 40);
         
-        // Start method
-        skeletonLines.push(`    def ${methodName}(self):`);
-        skeletonLines.push(`        """${safeName}."""`);
+        // Extract ONLY lines that look like valid Python statements
+        const validStatements = t.logic.split('\n')
+          .map(l => l.trim())
+          .filter(l => {
+            if (!l || l.length < 3) return false;
+            if (l.includes('"')) return false;  // No strings at all - they cause issues
+            if (l.includes("'") && !l.includes("self.")) return false;  // Allow self. with quotes
+            if (/TODO|COBOL|MOVE|PERFORM|DISPLAY|DIVISION/i.test(l)) return false;
+            if (/^[A-Z]{2,}/.test(l)) return false;  // No uppercase-starting lines
+            // Must be a valid Python pattern
+            return /^(self\.|if |else:|elif |for |while |try:|except|return |pass$|#|\w+\s*[=+\-*\/])/.test(l);
+          })
+          .slice(0, 8);  // Max 8 lines per method
         
-        // Add logic - ensure it's ONLY valid lines
-        const logicLines = t.logic.split('\n')
-          .map(l => l.trimEnd())
-          .filter(l => l.startsWith('        ') && !l.includes('"""') && !l.includes('TODO'));
+        // Build the method with proper indentation
+        let methodCode = `    def ${methodName}(self):\n`;
+        methodCode += `        """${safeName}."""\n`;
         
-        if (logicLines.length > 0) {
-          skeletonLines.push(...logicLines);
+        if (validStatements.length > 0) {
+          methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
-          skeletonLines.push('        pass');
+          methodCode += `        pass\n`;
         }
-        skeletonLines.push('');
+        
+        methods.push(methodCode);
       }
       
-      // Add remaining paragraphs as stubs
+      // Build stubs for remaining paragraphs
+      const stubs: string[] = [];
       for (const p of allParagraphs.slice(MAX_TRANSLATE)) {
         const methodName = p.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
-        skeletonLines.push(`    def ${methodName}(self): pass  # Lines ${p.lineStart}-${p.lineEnd}`);
+        stubs.push(`    def ${methodName}(self): pass  # Lines ${p.lineStart}-${p.lineEnd}`);
       }
       
-      const skeleton = skeletonLines.join('\n');
+      // FINAL ASSEMBLY: header + methods + stubs
+      const skeleton = header + methods.join('\n') + '\n' + stubs.join('\n');
       
       // Generate basic tests for translated methods
       const testLines = [
         'import pytest',
-        `from main import ${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`,
+        `from main import ${className}`,
         '',
         'class TestProcessor:',
         '    def setup_method(self):',
-        `        self.processor = ${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor()`,
+        `        self.processor = ${className}()`,
         ''
       ];
       for (const t of translations.slice(0, 30)) {
