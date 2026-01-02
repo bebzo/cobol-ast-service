@@ -115,103 +115,52 @@ async function runTestsWithPyodide(pythonCode: string, testCode: string): Promis
       }
     }
   } catch (e) {
-    console.log('Server-side tests failed, falling back to Pyodide');
+    console.log('Server-side tests failed, falling back to syntax validation only');
   }
   
-  // Fallback to Pyodide
+  // Fallback to Pyodide - SYNTAX VALIDATION ONLY (no fake test results)
   try {
     const pyodide = await getPyodide();
     if (!pyodide) return { total: 0, passed: 0, failed: 0, details: [{name: 'pyodide', status: 'error', error: 'Pyodide not available'}] };
     
-    // Run the test execution script
+    // Run SYNTAX VALIDATION ONLY - no fake test execution
     pyodide.runPython(`
 import sys
 import json
-from io import StringIO
 
-def run_tests(main_code, test_code):
-    results = {"total": 0, "passed": 0, "failed": 0, "details": []}
+def validate_syntax(main_code, test_code):
+    results = {"total": 0, "passed": 0, "failed": 0, "details": [], "syntax_only": True}
     
-    # Create namespace with mock objects for undefined variables
-    class MockObject:
-        def __init__(self, name="mock"):
-            self._name = name
-        def __getattr__(self, name):
-            return MockObject(f"{self._name}.{name}")
-        def __call__(self, *args, **kwargs):
-            return MockObject(f"{self._name}()")
-        def __repr__(self):
-            return f"<Mock:{self._name}>"
-        def __str__(self):
-            return ""
-        def __iter__(self):
-            return iter([])
-        def __bool__(self):
-            return True
-        def __eq__(self, other):
-            return True
-        def __add__(self, other):
-            return self
-        def __sub__(self, other):
-            return self
-        def __mul__(self, other):
-            return self
-        def __truediv__(self, other):
-            return self
-    
-    # Auto-mock missing names
-    class AutoMockDict(dict):
-        def __missing__(self, key):
-            mock = MockObject(key)
-            self[key] = mock
-            return mock
-    
-    namespace = AutoMockDict({"__name__": "__main__", "__builtins__": __builtins__})
-    
-    # Execute main code with auto-mocking
+    # Validate main code syntax
     try:
-        exec(compile(main_code, '<main>', 'exec'), namespace)
+        compile(main_code, '<main>', 'exec')
+        results["details"].append({"name": "main_code_syntax", "status": "passed"})
+        results["total"] += 1
+        results["passed"] += 1
     except SyntaxError as e:
-        results["details"].append({"name": "main_code", "status": "error", "error": str(e)})
+        results["details"].append({"name": "main_code", "status": "error", "error": f"invalid syntax ({e.filename}, line {e.lineno})"})
+        results["total"] += 1
+        results["failed"] += 1
         return json.dumps(results)
-    except Exception as e:
-        # Continue anyway - some runtime errors are expected
-        pass
     
-    # Execute test code to define classes/functions
+    # Validate test code syntax
     try:
-        exec(compile(test_code, '<tests>', 'exec'), namespace)
+        compile(test_code, '<tests>', 'exec')
+        results["details"].append({"name": "test_code_syntax", "status": "passed"})
+        results["total"] += 1
+        results["passed"] += 1
     except SyntaxError as e:
-        results["details"].append({"name": "test_code", "status": "error", "error": str(e)})
-        return json.dumps(results)
-    except Exception as e:
-        pass
+        results["details"].append({"name": "test_code", "status": "error", "error": f"invalid syntax ({e.filename}, line {e.lineno})"})
+        results["total"] += 1
+        results["failed"] += 1
     
-    # Find and run tests - support both functions and class methods
+    # Count test functions for informational purposes
     import re
+    test_count = len(re.findall(r'def (test_[a-z0-9_]+)', test_code))
+    if test_count > 0:
+        results["details"].append({"name": f"{test_count}_tests_defined", "status": "info", "error": "Real execution requires Python backend"})
     
-    # Find test classes and functions from code  
-    test_classes = re.findall(r'class (Test[A-Za-z0-9_]+)', test_code)
-    test_funcs = re.findall(r'^def (test_[a-z0-9_]+)', test_code, re.MULTILINE)  # Only top-level
-    
-    # Run class-based tests - check namespace for all defined classes
-    for name, obj in list(namespace.items()):
-        try:
-            if name.startswith('Test') and (isinstance(obj, type) or hasattr(obj, '__call__')):
-                test_instance = obj() if isinstance(obj, type) else obj
-                methods = [m for m in dir(test_instance) if m.startswith('test_') and callable(getattr(test_instance, m, None))]
-                for method_name in methods:
-                    results["total"] += 1
-                    try:
-                        getattr(test_instance, method_name)()
-                        results["passed"] += 1
-                        results["details"].append({"name": f"{name}.{method_name}", "status": "passed"})
-                    except AssertionError as e:
-                        results["failed"] += 1
-                        results["details"].append({"name": f"{name}.{method_name}", "status": "failed", "error": str(e)[:80]})
-                    except Exception as e:
-                        results["passed"] += 1  # Count as pass if no assertion error
-                        results["details"].append({"name": f"{name}.{method_name}", "status": "passed"})
+    return json.dumps(results)
         except:
             pass
     
