@@ -660,27 +660,8 @@ Output ONLY valid Python test code starting with "import pytest":`;
           throw new Error('Generated tests invalid');
         }
       } catch (e: any) {
-        console.log(`[Tests] Gemini generation failed: ${e.message}, using fallback`);
-        // Fallback to basic tests
-        const testLines = [
-          'import pytest',
-          `from main import ${className}`,
-          '',
-          'class TestProcessor:',
-          '    def setup_method(self):',
-          `        self.processor = ${className}()`,
-          '        self.processor.data = {}',
-          ''
-        ];
-        for (const m of methodNames.slice(0, 30)) {
-          testLines.push(`    def test_${m}(self):`);
-          testLines.push(`        """Test ${m} executes without error."""`);
-          testLines.push(`        initial_data = dict(self.processor.data)`);
-          testLines.push(`        self.processor.${m}()`);
-          testLines.push(`        assert isinstance(self.processor.data, dict)`);
-          testLines.push('');
-        }
-        unitTests = testLines.join('\n');
+        console.log(`[Tests] Gemini generation failed: ${e.message}`);
+        unitTests = `import pytest\n\n# Test generation failed - regenerate manually`;
       }
       
       // Generate all metadata for large files
