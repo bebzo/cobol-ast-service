@@ -149,7 +149,10 @@ def run_tests(main_code, test_code):
         def __bool__(self):
             return True
         def __eq__(self, other):
-            return True
+            # v7.0: Real comparison - only equal if same mock name
+            if isinstance(other, MockObject):
+                return self._name == other._name
+            return False  # Mock != real value
         def __add__(self, other):
             return self
         def __sub__(self, other):

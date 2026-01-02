@@ -437,8 +437,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const totalLines = cobolCode.split('\n').length;
     
-    // v6.2: Unified batch+parallel translation for ALL files
-    console.log(`[v6.2-Unified] Processing ${totalLines} lines with batch+parallel`);
+    // v7.0: Unified batch+parallel with AUTO-INIT and AUTO-IMPORTS
+    console.log(`[v7.0-Commercial] Processing ${totalLines} lines with full initialization`);
       
       // Fast regex parsing instead of ANTLR
       const programMatch = cobolCode.match(/PROGRAM-ID\.\s+(\w+)/i);
@@ -460,11 +460,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
       
-      // v6.2: Translate ALL paragraphs using batch+parallel approach
+      // v7.0: Translate ALL paragraphs using batch+parallel approach
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       
-      // Batch prompt: send 20 paragraphs at once - v6.2 improved quality
+      // Batch prompt: send 20 paragraphs at once - v7.0 commercial quality
       const BATCH_PROMPT = `Convert COBOL paragraphs to PRODUCTION Python. Output MUST compile.
 
 For EACH paragraph output:
@@ -505,7 +505,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v6.2] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.0] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -538,7 +538,7 @@ COBOL PARAGRAPHS:
                 .replace(/```python\s*/gi, '').replace(/```/g, '')
                 .trim();
               
-              // Filter valid Python - v6.2 allow more patterns, remove duplicates
+              // Filter valid Python - v7.0 allow more patterns, remove duplicates
               const seen = new Set<string>();
               const validLines = code.split('\n')
                 .map(l => l.trim())
@@ -576,25 +576,78 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v6.2] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.0] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
-      // Build skeleton with translations - VERSION 3.0 (fully isolated)
+      // v7.0: Build skeleton with AUTO-DETECTED variables and imports
       const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
-      // FIXED HEADER - cannot be modified by translations
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v6.2]"""
-from dataclasses import dataclass
-from decimal import Decimal
-from typing import Optional, List, Dict, Any
-import logging
+      // === v7.0: SCAN ALL METHODS FOR self.xxx VARIABLES ===
+      const allSelfVars = new Set<string>();
+      const needsDecimal = cobolCode.toLowerCase().includes('compute') || cobolCode.toLowerCase().includes('pic 9');
+      const needsDatetime = cobolCode.toLowerCase().includes('date') || cobolCode.toLowerCase().includes('time');
+      const needsJson = cobolCode.toLowerCase().includes('json') || cobolCode.toLowerCase().includes('parse');
+      
+      // First pass: collect all self.xxx variables from translations
+      for (const t of translations) {
+        const varMatches = t.logic.matchAll(/self\.([a-z_][a-z0-9_]*)/gi);
+        for (const m of varMatches) {
+          if (!['logger', 'data'].includes(m[1])) {
+            allSelfVars.add(m[1].toLowerCase());
+          }
+        }
+      }
+      console.log(`[v7.0] Detected ${allSelfVars.size} unique self.xxx variables`);
+      
+      // v7.0: Build dynamic imports based on code analysis
+      const imports: string[] = [
+        'from dataclasses import dataclass',
+        'from decimal import Decimal',
+        'from typing import Optional, List, Dict, Any',
+        'import logging'
+      ];
+      if (needsDatetime) imports.push('from datetime import datetime, date, timedelta');
+      if (needsJson) imports.push('import json');
+      
+      // v7.0: Build complete __init__ with ALL detected variables
+      const initVars: string[] = [
+        '        self.logger = logging.getLogger(__name__)',
+        '        self.data: Dict[str, Any] = {}',
+        '        self.error_count: int = 0',
+        '        self.status: str = "ACTIVE"'
+      ];
+      
+      // Add all detected variables with inferred types
+      for (const varName of Array.from(allSelfVars).sort()) {
+        if (['logger', 'data', 'error_count', 'status'].includes(varName)) continue;
+        // Infer type from variable name
+        let typeAndDefault = ': Any = None';
+        if (varName.includes('count') || varName.includes('total') || varName.includes('num')) {
+          typeAndDefault = ': int = 0';
+        } else if (varName.includes('amount') || varName.includes('balance') || varName.includes('rate') || varName.includes('price')) {
+          typeAndDefault = ': Decimal = Decimal("0")';
+        } else if (varName.includes('flag') || varName.includes('is_') || varName.includes('has_') || varName.includes('error')) {
+          typeAndDefault = ': bool = False';
+        } else if (varName.includes('list') || varName.includes('items') || varName.includes('records')) {
+          typeAndDefault = ': List[Any] = []';
+        } else if (varName.includes('name') || varName.includes('id') || varName.includes('code') || varName.includes('msg')) {
+          typeAndDefault = ': str = ""';
+        } else if (varName.includes('date') || varName.includes('time')) {
+          typeAndDefault = ': Optional[datetime] = None';
+        }
+        initVars.push(`        self.${varName}${typeAndDefault}`);
+      }
+      
+      // v7.0: DYNAMIC HEADER with all imports and complete __init__
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.0]"""
+${imports.join('\n')}
 
 class ${className}:
-    """Main processor class."""
+    """Main processor class for ${programId} business logic."""
     
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        self.data = {}
+        """Initialize all business variables."""
+${initVars.join('\n')}
 
 `;
       
@@ -606,7 +659,7 @@ class ${className}:
         // Sanitize name: only keep alphanumeric, spaces, hyphens
         const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 40);
         
-        // v6.2: Simple statements only - no control flow (safer, always compiles)
+        // v7.0: Allow control flow but ensure indentation is correct
         const rawLines = t.logic.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         const seen = new Set<string>();
         const validStatements = rawLines
@@ -614,7 +667,8 @@ class ${className}:
             // Skip bad patterns
             if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs/i.test(l)) return false;
             if (/^[A-Z]{2,}/.test(l)) return false;  // COBOL vars
-            if (l.endsWith(':')) return false;  // NO control flow
+            // v7.0: Allow if/for/while but track indentation
+            if (l.endsWith(':') && !/^(if |elif |else:|for |while |try:|except)/.test(l)) return false;
             if (seen.has(l)) return false;  // No duplicates
             seen.add(l);
             // Only simple statements
@@ -652,7 +706,7 @@ class ${className}:
         methods.push(methodCode);
       }
       
-      // v6.2: No stubs needed - all paragraphs are translated
+      // v7.0: No stubs needed - all paragraphs are translated
       
       // FINAL ASSEMBLY: header + methods
       const skeleton = header + methods.join('\n');
@@ -728,7 +782,7 @@ Output ONLY valid Python test code starting with "import pytest":`;
       }));
 
       const issues = [
-        { title: 'File analyzed', severity: 'INFO', description: `${totalLines} lines processed with v6.2 batch+parallel`, recommendation: 'Review generated code for accuracy' }
+        { title: 'File analyzed', severity: 'INFO', description: `${totalLines} lines processed with v7.0 commercial`, recommendation: 'Review generated code for accuracy' }
       ];
 
       const improvements = [
@@ -752,7 +806,7 @@ Output ONLY valid Python test code starting with "import pytest":`;
         complexity: 'HIGH',
         risk_level: 'HIGH',
         processing_time_ms: Date.now() - startTime,
-        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v6.2 batch+parallel.`,
+        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v7.0 (${allSelfVars.size} vars auto-initialized).`,
         code_valid: true,
         // Additional fields for tabs
         issues,
@@ -792,6 +846,6 @@ Output ONLY valid Python test code starting with "import pytest":`;
     );
   }
 }
-// v6.2 unified
+// v7.0 commercial - auto-init, auto-imports
 
 /* DELETED OLD CODE (lines 769-1726 removed) */
