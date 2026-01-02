@@ -788,11 +788,11 @@ export default function Home() {
         // Aggregate results from all successful parts
         // Only count parts where code actually compiles (code_valid = true)
         const successParts = data.parts.filter((p: any) => p.success && p.code_valid !== false);
-        parsed = {
-          summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
-          python_code: (() => {
-            // Smart merge: deduplicate imports, clean apostrophes
-            const allParts = successParts.map((p: any) => p.python_code || '');
+        
+        // Calculate merged Python code FIRST to get accurate line count
+        const mergedPythonCode = (() => {
+          // Smart merge: deduplicate imports, clean apostrophes
+          const allParts = successParts.map((p: any) => p.python_code || '');
             const imports = new Set<string>();
             const codeParts: string[] = [];
             
@@ -873,10 +873,14 @@ export default function Home() {
             }
             
             return postProcessPythonCode(fixedLines.join('\n'), filename || 'PROGRAM');
-          })(),
+          })();
+        
+        parsed = {
+          summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
+          python_code: mergedPythonCode,
           unit_tests: successParts.map((p: any) => p.unit_tests || '').join('\n'),
           cobol_lines: data.original_lines,
-          python_lines: successParts.reduce((sum: number, p: any) => sum + (p.python_lines || 0), 0),
+          python_lines: mergedPythonCode.split('\n').length,  // Use ACTUAL merged code line count
           issues: successParts.flatMap((p: any) => p.issues || []),
           improvements: successParts.flatMap((p: any) => p.improvements || []),
           security_warnings: successParts.flatMap((p: any) => p.security_warnings || []),
