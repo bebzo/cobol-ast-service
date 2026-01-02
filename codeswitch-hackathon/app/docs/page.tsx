@@ -216,11 +216,11 @@ Yes! Use our REST API to integrate CodeSwitch into your build pipeline. See the 
             <button
               key={key}
               onClick={() => setActiveSection(key)}
-              className={\`w-full text-left px-4 py-2 rounded-lg transition \${
+              className={`w-full text-left px-4 py-2 rounded-lg transition ${
                 activeSection === key
                   ? 'bg-blue-600 text-white'
                   : 'text-slate-400 hover:bg-slate-700 hover:text-white'
-              }\`}
+              }`}
             >
               {section.title}
             </button>
