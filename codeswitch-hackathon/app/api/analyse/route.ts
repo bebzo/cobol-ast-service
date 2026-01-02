@@ -516,11 +516,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     });
 
-    // === SKELETON-ONLY APPROACH (Reliable Structure) ===
-    // Use skeleton directly - guaranteed commercial structure
-    // Logic translation is simplified to avoid corruption
-    
-    console.log(`[Hybrid] Using skeleton with ${ast.paragraphs.length} method stubs...`);
+    // === HYBRID: Skeleton + Individual Paragraph Translation ===
+    const PARA_PROMPT = `Convert COBOL to Python. Output ONLY code lines (no def, no docstring, no \`\`\`).
+MOVE A TO B → self.b = self.a | ADD → += | PERFORM X → self.x() | IF → if
+COBOL:
+`;
+
+    const translateOne = async (p: { name: string; lineStart: number; lineEnd: number }): Promise<{ name: string; logic: string }> => {
+      const cobol = lines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 30)).join('\n');
+      if (cobol.trim().length < 15) return { name: p.name, logic: '        self.logger.debug("Empty paragraph")' };
+      try {
+        const r = await model.generateContent(PARA_PROMPT + cobol);
+        let logic = r.response.text().replace(/```python\s*/gi, '').replace(/```/g, '').replace(/^\s*def\s+\w+.*$/gm, '').trim();
+        logic = logic.split('\n').slice(0, 15).map(l => l.trim() ? '        ' + l.trim() : '').filter(l => l).join('\n');
+        return { name: p.name, logic: logic || '        self.logger.debug("Translated")' };
+      } catch { return { name: p.name, logic: '        self.logger.debug("Translation error")' }; }
+    };
+
+    console.log(`[Hybrid] Translating ${ast.paragraphs.length} paragraphs...`);
 
     // Post-process Python code to clean up artifacts
     const cleanPythonCode = (code: string): string => {
@@ -981,20 +994,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let validationSuccess = false;
     
     for (let attempt = 1; attempt <= MAX_ATTEMPTS && !validationSuccess; attempt++) {
-      console.log(`[Attempt ${attempt}/${MAX_ATTEMPTS}] Using skeleton structure...`);
+      console.log(`[Attempt ${attempt}/${MAX_ATTEMPTS}] Translating paragraphs...`);
       
-      // Replace LOGIC markers with simple self.logger.info calls
-      let filledSkeleton = pythonSkeleton;
-      for (const p of ast.paragraphs) {
-        const marker = `        # {{LOGIC:${p.name}}}`;
-        const methodName = p.name.toLowerCase().replace(/-/g, '_');
-        filledSkeleton = filledSkeleton.replace(marker, 
-          `        self.logger.debug("${p.name} logic")\n        self.records_processed += 1`);
+      // Translate all paragraphs in parallel (max 30 concurrent)
+      const translations: { name: string; logic: string }[] = [];
+      for (let i = 0; i < ast.paragraphs.length; i += 30) {
+        const batch = ast.paragraphs.slice(i, i + 30);
+        const results = await Promise.all(batch.map(p => translateOne(p)));
+        translations.push(...results);
+        console.log(`[Hybrid] Batch ${Math.floor(i/30)+1}: ${results.length} paragraphs`);
       }
       
-      console.log(`[Skeleton] Filled ${ast.paragraphs.length} methods`);
+      // Inject translations into skeleton
+      let filledSkeleton = pythonSkeleton;
+      for (const { name, logic } of translations) {
+        filledSkeleton = filledSkeleton.replace(`        # {{LOGIC:${name}}}`, logic);
+      }
       
-      // Use skeleton as the code
+      console.log(`[Hybrid] Injected ${translations.length} translations`);
+      
+      // Use filled skeleton as the code
       const mergedCode = filledSkeleton;
     let { code: validatedCode, issues: validationIssues } = validateAndFixPythonHeavy(mergedCode);
     
