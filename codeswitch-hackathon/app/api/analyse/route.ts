@@ -469,13 +469,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       
-      const PARA_PROMPT_FAST = `Convert COBOL to Python. Output ONLY Python code, no markdown.
-MOVE A TO B → self.b = self.a
-PERFORM X → self.x()
-DISPLAY → self.logger.info()
-All variables: self.var_name
+      const PARA_PROMPT_FAST = `Convert this COBOL paragraph to Python method body. 
+Output ONLY executable Python statements, one per line. No def, no docstrings, no markdown.
 
-COBOL:
+Rules:
+- MOVE A TO B → self.b = self.a
+- ADD A TO B → self.b += self.a
+- PERFORM X → self.x()
+- DISPLAY "text" → self.logger.info("text")
+- IF cond → if cond:
+- All variables must use self. prefix (self.ws_count, self.customer_id)
+
+Example output:
+self.ws_count = 0
+self.logger.info("Starting process")
+self.process_record()
+
+COBOL paragraph:
 `;
       
       // Process in batches of 25 to avoid rate limits
@@ -490,10 +500,25 @@ COBOL:
           let logic = r.response.text()
             .replace(/```python\s*/gi, '').replace(/```/g, '')
             .replace(/^\s*def\s+\w+.*$/gm, '')
-            .replace(/^\s*(MOVE|PERFORM|DISPLAY|IF|END-IF).*$/gmi, '')
+            .replace(/^\s*"""[^"]*"""\.?/gm, '') // Remove docstrings
+            .replace(/^\s*(MOVE|PERFORM|DISPLAY|IF|END-IF|EVALUATE|WHEN|READ|WRITE).*$/gmi, '')
+            .replace(/TODO\.?/g, '') // Remove TODO artifacts
+            .replace(/[A-Z]{2,}-[A-Z0-9-]+/g, (m) => 'self.' + m.toLowerCase().replace(/-/g, '_')) // Fix COBOL vars
             .trim();
-          const lines = logic.split('\n').slice(0, 20).map(l => '        ' + l.trim()).filter(l => l.trim());
-          return { name: p.name, logic: lines.join('\n') || '        pass' };
+          // Filter only valid Python lines
+          const validLines = logic.split('\n')
+            .filter(l => {
+              const t = l.trim();
+              if (!t) return false;
+              if (t.startsWith('#')) return true;
+              if (/^(self\.|if |else:|elif |for |while |try:|except|return |pass|import |from )/.test(t)) return true;
+              if (/^\w+\s*[=+\-*\/]/.test(t)) return true;
+              if (/^\w+\(/.test(t)) return true;
+              return false;
+            })
+            .slice(0, 15)
+            .map(l => '        ' + l.trim());
+          return { name: p.name, logic: validLines.join('\n') || '        pass' };
         } catch { return { name: p.name, logic: '        pass' }; }
         }));
         translations.push(...batchResults);
