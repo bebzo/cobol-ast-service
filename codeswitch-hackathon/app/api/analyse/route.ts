@@ -438,7 +438,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const totalLines = cobolCode.split('\n').length;
     const MULTI_ANALYSIS_THRESHOLD = 3000;
     
-    // If file is too large, split into multiple independent analyses
+    // For very large files (>5000 lines), return skeleton only (fast mode)
+    if (totalLines > 5000) {
+      console.log(`[FastMode] File has ${totalLines} lines, returning skeleton only`);
+      const ast: CobolFullAST = parseCobolWithANTLR(cobolCode);
+      const skeleton = generatePythonSkeleton(ast).replace(/# \{\{LOGIC:[^}]+\}\}/g, 'pass  # TODO: Implement');
+      return NextResponse.json({
+        python_code: skeleton,
+        unit_tests: '# Tests pending - file too large for full analysis',
+        config_json: JSON.stringify({ fast_mode: true, lines: totalLines }),
+        cobol_lines: totalLines,
+        python_lines: skeleton.split('\n').length,
+        confidence: 60,
+        complexity: 'HIGH',
+        risk_level: 'HIGH',
+        processing_time_ms: Date.now() - startTime,
+        summary: `Large file (${totalLines} lines) - skeleton generated. For full translation, split into files < 5000 lines.`,
+        code_valid: true
+      }, { headers: corsHeaders });
+    }
+    
+    // If file is medium-large, split into multiple independent analyses
     if (totalLines > MULTI_ANALYSIS_THRESHOLD) {
       console.log(`[MultiAnalysis] File has ${totalLines} lines, splitting into multiple analyses...`);
       const parts = splitForMultiAnalysis(cobolCode, 2000);
