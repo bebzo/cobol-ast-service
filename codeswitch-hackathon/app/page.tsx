@@ -1340,6 +1340,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 min-w-[160px]">
                     <button onClick={() => { exportMigrationPackage(); setShowExportMenu(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-t-lg">📄 Full Report (.md)</button>
                     <button onClick={() => {
+                      if (analysis?.code_valid === false) {
+                        if (!confirm('⚠️ Le code contient des erreurs de syntaxe. Exporter quand même?')) return;
+                      }
                       const blob = new Blob([pythonCode || analysis.python_code], { type: 'text/python' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
@@ -1347,7 +1350,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       a.download = `${filename.replace('.cbl', '')}_main.py`;
                       a.click();
                       setShowExportMenu(false);
-                    }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700">🐍 Python Code (.py)</button>
+                    }} className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-700 ${analysis?.code_valid === false ? 'text-yellow-400' : ''}`}>
+                      {analysis?.code_valid === false ? '⚠️' : '🐍'} Python Code (.py)
+                    </button>
                     <button onClick={() => {
                       const blob = new Blob([validatedTests || (Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || ''))], { type: 'text/python' });
                       const url = URL.createObjectURL(blob);
