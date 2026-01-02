@@ -538,6 +538,7 @@ export default function Home() {
   const [filename, setFilename] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [modulesLimit, setModulesLimit] = useState(50);
   const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "impact" | "report">("code");
   const [showAllModules, setShowAllModules] = useState(false);
@@ -1296,15 +1297,17 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
             <div className="flex items-center gap-3">
               {analysis && (
-                <div className="relative group">
+                <div className="relative">
                   <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition"
                   >
                     <Download className="w-4 h-4" />
                     Export ▾
                   </button>
-                  <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[160px]">
-                    <button onClick={exportMigrationPackage} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-t-lg">📄 Full Report (.md)</button>
+                  {showExportMenu && (
+                  <div className="absolute right-0 top-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 min-w-[160px]">
+                    <button onClick={() => { exportMigrationPackage(); setShowExportMenu(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-t-lg">📄 Full Report (.md)</button>
                     <button onClick={() => {
                       const blob = new Blob([pythonCode || analysis.python_code], { type: 'text/python' });
                       const url = URL.createObjectURL(blob);
@@ -1312,6 +1315,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       a.href = url;
                       a.download = `${filename.replace('.cbl', '')}_main.py`;
                       a.click();
+                      setShowExportMenu(false);
                     }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700">🐍 Python Code (.py)</button>
                     <button onClick={() => {
                       const blob = new Blob([validatedTests || (Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || ''))], { type: 'text/python' });
@@ -1320,6 +1324,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       a.href = url;
                       a.download = `${filename.replace('.cbl', '')}_tests.py`;
                       a.click();
+                      setShowExportMenu(false);
                     }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700">🧪 Tests (.py)</button>
                     <button onClick={() => {
                       const blob = new Blob([JSON.stringify(analysis, null, 2)], { type: 'application/json' });
@@ -1328,6 +1333,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       a.href = url;
                       a.download = `${filename.replace('.cbl', '')}_analysis.json`;
                       a.click();
+                      setShowExportMenu(false);
                     }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700">📊 JSON Data (.json)</button>
                     <button onClick={async () => {
                       const reportHtml = `
@@ -1377,8 +1383,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       } finally {
                         document.body.removeChild(container);
                       }
+                      setShowExportMenu(false);
                     }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-b-lg">📥 Download PDF Report</button>
                   </div>
+                  )}
                 </div>
               )}
               <button
