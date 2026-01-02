@@ -537,7 +537,7 @@ COBOL paragraph:
       
       // Build skeleton with translations - VERSION 2.0
       const skeletonLines = [
-        `"""${programId} - Migrated from COBOL (${totalLines} lines). [v2.0]"""`
+        `"""${programId} - Migrated from COBOL (${totalLines} lines). [v2.0]"""`,
         'from dataclasses import dataclass',
         'from decimal import Decimal', 
         'from typing import Optional, List, Dict, Any',
