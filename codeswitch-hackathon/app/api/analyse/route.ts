@@ -462,8 +462,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
       
-      // Translate first 100 paragraphs with LLM (parallel batches)
-      const MAX_TRANSLATE = 100;
+      // Translate first 30 paragraphs with LLM (reduced to avoid timeout)
+      const MAX_TRANSLATE = 30;
       const toTranslate = allParagraphs.slice(0, MAX_TRANSLATE);
       
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -488,10 +488,10 @@ self.process_record()
 COBOL paragraph:
 `;
       
-      // Process in batches of 25 to avoid rate limits
+      // Process in batches of 10 for speed
       const translations: { name: string; logic: string }[] = [];
-      for (let i = 0; i < toTranslate.length; i += 25) {
-        const batch = toTranslate.slice(i, i + 25);
+      for (let i = 0; i < toTranslate.length; i += 10) {
+        const batch = toTranslate.slice(i, i + 10);
         const batchResults = await Promise.all(batch.map(async (p) => {
         const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 30)).join('\n');
         if (cobol.trim().length < 10) return { name: p.name, logic: 'pass' };
@@ -532,7 +532,7 @@ COBOL paragraph:
         } catch { return { name: p.name, logic: '        pass' }; }
         }));
         translations.push(...batchResults);
-        console.log(`[HybridChunk] Batch ${Math.floor(i/25)+1}: ${batchResults.length} paragraphs`);
+        console.log(`[HybridChunk] Batch ${Math.floor(i/10)+1}: ${batchResults.length} paragraphs`);
       }
       
       // Build skeleton with translations
