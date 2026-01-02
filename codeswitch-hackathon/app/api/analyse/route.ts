@@ -464,36 +464,46 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       
-      // Batch prompt: send 20 paragraphs at once - v7.0 commercial quality
-      const BATCH_PROMPT = `Convert COBOL paragraphs to PRODUCTION Python. Output MUST compile.
+      // Batch prompt: send 20 paragraphs at once - v7.1 100% commercial
+      const BATCH_PROMPT = `Convert COBOL to PRODUCTION Python. MUST compile and have REAL logic.
 
 For EACH paragraph output:
 ### PARAGRAPH_NAME
 python code here
 
-STRICT RULES:
+=== TRANSLATION RULES ===
 1. MOVE A TO B → self.b = self.a
 2. ADD A TO B → self.b += self.a  
 3. SUBTRACT A FROM B → self.b -= self.a
 4. COMPUTE X = A * B → self.x = self.a * self.b
-5. PERFORM XXXX → self.p_xxxx() (add p_ prefix for numbered paragraphs)
-6. IF condition → if self.condition:
-7. All variables must be self.lowercase_with_underscores
-8. NO duplicate assignments (don't write same line twice)
-9. NO placeholders or TODO comments - write real code
-10. For file operations: self.read_file(), self.write_file()
-11. For loops: use proper Python for/while
-12. Initialize variables with sensible defaults (0, "", [], {})
+5. PERFORM XXXX → self.p_xxxx()
+6. IF cond THEN → if self.cond:
+7. EVALUATE → if/elif/else
+8. INVALID KEY → try/except with error handling
+9. READ FILE → try: data = self.read_file(name) except: self.handle_error()
+10. All vars: self.lowercase_name
 
-BAD (don't do):
-self.ws_error = True
-self.ws_error = True  # DUPLICATE!
-#Placeholder  # NO COMMENTS LIKE THIS!
+=== CONTROL FLOW (REQUIRED) ===
+if self.tran_type == "DEPOSIT":
+    self.process_deposit()
+elif self.tran_type == "WITHDRAW":
+    self.process_withdrawal()
+else:
+    self.handle_unknown()
 
-GOOD:
-self.ws_error = False
-self.error_count = 0
-self.p_1000_init()
+=== ERROR HANDLING (REQUIRED) ===
+try:
+    record = self.read_file("ACCOUNT-FILE")
+    self.acct_balance = record.balance
+except KeyError:
+    self.err_message = "ACCOUNT NOT FOUND"
+    self.p_9100_log_error()
+    return
+
+=== FORBIDDEN ===
+- NO pass (write real logic)
+- NO TODO/placeholder comments
+- NO duplicate lines
 
 COBOL PARAGRAPHS:
 `;
@@ -639,7 +649,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.0: DYNAMIC HEADER with all imports and complete __init__
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.0]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.1]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -659,32 +669,52 @@ ${initVars.join('\n')}
         // Sanitize name: only keep alphanumeric, spaces, hyphens
         const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 40);
         
-        // v7.0: Allow control flow but ensure indentation is correct
-        const rawLines = t.logic.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        // v7.1: Allow control flow with proper indentation
+        const rawLines = t.logic.split('\n').filter(l => l.trim().length > 0);
         const seen = new Set<string>();
-        const validStatements = rawLines
-          .filter(l => {
-            // Skip bad patterns
-            if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs/i.test(l)) return false;
-            if (/^[A-Z]{2,}/.test(l)) return false;  // COBOL vars
-            // v7.0: Allow if/for/while but track indentation
-            if (l.endsWith(':') && !/^(if |elif |else:|for |while |try:|except)/.test(l)) return false;
-            if (seen.has(l)) return false;  // No duplicates
-            seen.add(l);
-            // Only simple statements
-            return /^(self\.\w+|return |[a-z_]\w*\s*=)/.test(l);
-          })
-          .slice(0, 12);
         
-        // Build the method with proper indentation
+        // Parse lines preserving indentation
+        const validStatements: string[] = [];
+        let inBlock = 0;  // Track indentation level
+        
+        for (const rawLine of rawLines) {
+          const trimmed = rawLine.trim();
+          
+          // Skip bad patterns
+          if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs|^#/i.test(trimmed)) continue;
+          if (/^[A-Z]{2,}-[A-Z]/.test(trimmed)) continue;  // COBOL vars
+          if (seen.has(trimmed)) continue;  // No duplicates
+          seen.add(trimmed);
+          
+          // Determine if this is valid Python
+          const isControlFlow = /^(if |elif |else:|for |while |try:|except|finally:)/.test(trimmed);
+          const isStatement = /^(self\.\w+|return |raise |break|continue|[a-z_]\w*\s*=)/.test(trimmed);
+          
+          if (isControlFlow || isStatement) {
+            // Add with proper indentation based on block level
+            if (trimmed === 'else:' || trimmed.startsWith('elif ') || trimmed.startsWith('except') || trimmed === 'finally:') {
+              inBlock = Math.max(0, inBlock - 1);  // Dedent for else/elif/except
+            }
+            
+            const indent = '    '.repeat(inBlock);
+            validStatements.push(indent + trimmed);
+            
+            if (trimmed.endsWith(':')) {
+              inBlock++;  // Indent after :
+            }
+          }
+          
+          if (validStatements.length >= 20) break;  // More lines allowed
+        }
+        
+        // Build the method
         let methodCode = `    def ${methodName}(self):\n`;
         methodCode += `        """${safeName}."""\n`;
         
         if (validStatements.length > 0) {
-          // Fix method calls: convert word numbers to p_XXXX format
+          // Fix method calls
           const fixedStatements = validStatements
             .map(s => s
-              // Fix "self.one000_x()" → "self.p_1000_x()"
               .replace(/self\.(one|two|three|four|five|six|seven|eight|nine)(\d+)/gi, (_, word, num) => {
                 const wordToNum: Record<string, string> = {
                   'one': '1', 'two': '2', 'three': '3', 'four': '4', 'five': '5',
@@ -692,13 +722,16 @@ ${initVars.join('\n')}
                 };
                 return `self.p_${wordToNum[word.toLowerCase()] || ''}${num}`;
               })
-              // Fix "self.1000_x()" → "self.p_1000_x()"
               .replace(/self\.(\d)/g, 'self.p_$1')
-            )
-            // Remove duplicate pass statements
-            .filter((s, i, arr) => s !== 'pass' || arr.indexOf('pass') === i);
+            );
           
           methodCode += fixedStatements.map(s => `        ${s}`).join('\n') + '\n';
+          
+          // Ensure block ends properly (add pass if ends with :)
+          const lastLine = fixedStatements[fixedStatements.length - 1]?.trim();
+          if (lastLine?.endsWith(':')) {
+            methodCode += `            pass\n`;
+          }
         } else {
           methodCode += `        pass\n`;
         }
@@ -846,6 +879,6 @@ Output ONLY valid Python test code starting with "import pytest":`;
     );
   }
 }
-// v7.0 commercial - auto-init, auto-imports
+// v7.1 - 100% commercial: control flow + try/except
 
 /* DELETED OLD CODE (lines 769-1726 removed) */
