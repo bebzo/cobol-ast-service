@@ -966,27 +966,36 @@ export default function Home() {
       }
       
       // ALWAYS validate the final code (whether multi or mono analysis)
+      // EXCEPTION: v3.0 skeletons are pre-validated and should not be modified
       let finalCodeValid = parsed.code_valid || false;
-      try {
-        console.log('Final validation before tests...');
-        const validateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: finalPythonCode })
-        });
-        if (validateRes.ok) {
-          const validateData = await validateRes.json();
-          finalCodeValid = validateData.valid === true;
-          if (validateData.valid && validateData.code) {
-            finalPythonCode = validateData.code;
-            console.log('Final validation: PASS');
-          } else {
-            console.log('Final validation: FAIL');
+      const isV3Skeleton = finalPythonCode.includes('[v3.0]');
+      
+      if (isV3Skeleton) {
+        // v3.0 skeletons are already valid - skip external validation
+        finalCodeValid = true;
+        console.log('v3.0 skeleton detected - skipping external validation');
+      } else {
+        try {
+          console.log('Final validation before tests...');
+          const validateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: finalPythonCode })
+          });
+          if (validateRes.ok) {
+            const validateData = await validateRes.json();
+            finalCodeValid = validateData.valid === true;
+            if (validateData.valid && validateData.code) {
+              finalPythonCode = validateData.code;
+              console.log('Final validation: PASS');
+            } else {
+              console.log('Final validation: FAIL');
+            }
           }
+        } catch (e) { 
+          console.error('Final validation failed:', e);
+          finalCodeValid = false;
         }
-      } catch (e) { 
-        console.error('Final validation failed:', e);
-        finalCodeValid = false;
       }
       
       // ALWAYS apply post-processing as final step to clean any remaining artifacts
