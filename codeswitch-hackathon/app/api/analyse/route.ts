@@ -543,7 +543,7 @@ COBOL:
       const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
       // FIXED HEADER - cannot be modified by translations
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v5.0]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v5.1]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -641,18 +641,89 @@ class ${className}:
       }
       const unitTests = testLines.join('\n');
       
+      // Generate all metadata for large files
+      const funcNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
+      const archDiagram = `flowchart TB
+    subgraph COBOL[${programId} - COBOL Legacy]
+      direction LR
+      ID[Identification]
+      DATA[Data Division]
+      PROC[Procedure Division]
+    end
+    subgraph Python[Python Modules]
+      direction TB
+      Main[${className}]
+      ${funcNames.slice(0, 6).map((f, i) => `F${i}[${f}]`).join('\n      ')}
+    end
+    COBOL ==>|Migration| Python
+    Main --> F0
+    Main --> F1
+    Main --> F2`;
+
+      const modules = allParagraphs.map(p => ({
+        name: p.name,
+        lines: p.lineEnd - p.lineStart + 1,
+        type: 'PARAGRAPH',
+        description: `Lines ${p.lineStart}-${p.lineEnd}`,
+        complexity: 'MEDIUM'
+      }));
+
+      const issues = [
+        { title: 'Large file', severity: 'HIGH', description: `${totalLines} lines - exceeds 5000 line threshold`, recommendation: 'Split into smaller modules for full translation' },
+        { title: 'Skeleton mode', severity: 'MEDIUM', description: `${allParagraphs.length - MAX_TRANSLATE} paragraphs are stubs`, recommendation: 'Manually translate remaining paragraphs' }
+      ];
+
+      const improvements = [
+        `${translations.length} paragraphs translated with business logic`,
+        'Type-safe class structure generated',
+        'Logging infrastructure added',
+        'Method stubs for remaining paragraphs'
+      ];
+
+      const securityWarnings = cobolCode.toLowerCase().includes('password') 
+        ? [{ title: 'Hardcoded credentials', severity: 'CRITICAL', cvss_score: 9.1, location: 'Source file', description: 'Sensitive data detected', vulnerable_code: 'PASSWORD variable', fix: 'Use environment variables' }]
+        : [];
+
       return NextResponse.json({
         python_code: skeleton,
         unit_tests: unitTests,
-        config_json: JSON.stringify({ fast_mode: true, lines: totalLines }),
+        config_json: JSON.stringify({ fast_mode: true, lines: totalLines, paragraphs: allParagraphs.length, translated: translations.length }),
         cobol_lines: totalLines,
         python_lines: skeleton.split('\n').length,
-        confidence: 60,
+        confidence: 65,
         complexity: 'HIGH',
         risk_level: 'HIGH',
         processing_time_ms: Date.now() - startTime,
         summary: `Large file (${totalLines} lines) - skeleton generated. For full translation, split into files < 5000 lines.`,
-        code_valid: true
+        code_valid: true,
+        // Additional fields for tabs
+        issues,
+        improvements,
+        security_warnings: securityWarnings,
+        architecture_diagram: archDiagram,
+        modules,
+        business_context: {
+          domain: 'Enterprise',
+          detected_year: 'Legacy',
+          is_obsolete: true,
+          regulatory_context: 'Large COBOL system requiring modernization'
+        },
+        migration_score: {
+          complexity: 'HIGH',
+          risk_level: 'HIGH',
+          estimated_effort: `${Math.round(totalLines / 100)} person-days`,
+          confidence: 65
+        },
+        next_steps: ['Review generated skeleton', 'Split file into smaller modules', 'Translate remaining paragraphs', 'Run integration tests'],
+        filename: filename || `${programId}.cbl`,
+        category: 'Enterprise',
+        ast_metrics: {
+          totalLines,
+          paragraphs: allParagraphs.length,
+          variables: 0,
+          copybooks: 0,
+          cyclomaticComplexity: allParagraphs.length
+        }
       }, { headers: corsHeaders });
     }
     
