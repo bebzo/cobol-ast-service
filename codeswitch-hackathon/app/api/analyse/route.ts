@@ -71,8 +71,52 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Prompt for translating COBOL to Python - MINIMAL AND CORRECT
-const CHUNK_PROMPT = `Convert this COBOL code to Python. Output ONLY valid, compilable Python code.
+// Prompt for translating COBOL to Python - COMMERCIAL GRADE
+const CHUNK_PROMPT = `Convert this COBOL code to PRODUCTION-READY Python. Output ONLY valid, compilable Python code.
+
+=== COMMERCIAL-GRADE ARCHITECTURE (HIGHEST PRIORITY) ===
+1. ENCAPSULATE in classes - NO global variables or standalone functions:
+   - Create domain classes: class BankingEngine, class LoanProcessor, class AccountManager
+   - Use @dataclass for data structures, regular classes for business logic
+   - Store state as instance attributes (self.xxx), NOT globals
+   
+2. STRUCTURED ERROR HANDLING - wrap critical operations:
+   - Use try/except for I/O, database, file operations
+   - Use try/except for financial calculations (division, conversions)
+   - Define custom exceptions: class InsufficientFundsError(Exception): pass
+   - Always log errors with context: logger.error(f"Failed: {e}")
+
+3. CLEAN ARCHITECTURE:
+   - Single Responsibility: one class = one purpose
+   - Dependency injection via __init__ parameters
+   - Return Result objects or raise exceptions, never return error codes
+
+CORRECT PATTERN:
+\`\`\`python
+class InsufficientFundsError(Exception):
+    """Raised when account balance is insufficient."""
+    pass
+
+class AccountProcessor:
+    """Handles account operations."""
+    
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
+        self.accounts: Dict[str, Decimal] = {}
+    
+    def withdraw(self, account_id: str, amount: Decimal) -> Decimal:
+        """Withdraw funds with error handling."""
+        try:
+            balance = self.accounts.get(account_id, Decimal("0"))
+            if amount > balance:
+                raise InsufficientFundsError(f"Balance {balance} < {amount}")
+            self.accounts[account_id] = balance - amount
+            self.logger.info(f"Withdrew {amount} from {account_id}")
+            return self.accounts[account_id]
+        except Exception as e:
+            self.logger.error(f"Withdrawal failed: {e}")
+            raise
+\`\`\`
 
 STRICT SYNTAX RULES - VIOLATIONS WILL CAUSE FAILURES:
 1. EVERY class/def MUST have a body - use "pass" if empty
