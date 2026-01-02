@@ -505,24 +505,30 @@ COBOL paragraph:
             .replace(/TODO\.?/g, '') // Remove TODO artifacts
             .replace(/[A-Z]{2,}-[A-Z0-9-]+/g, (m) => 'self.' + m.toLowerCase().replace(/-/g, '_')) // Fix COBOL vars
             .trim();
-          // Filter only valid Python lines - strict filtering
+          // Filter only valid Python lines - ULTRA strict filtering
           const validLines = logic.split('\n')
+            .map(l => l.trim())
             .filter(l => {
-              const t = l.trim();
-              if (!t) return false;
-              if (t.includes('"""')) return false; // No docstrings
-              if (t.includes('TODO')) return false; // No TODO
-              if (t.includes('COBOL')) return false; // No COBOL references
-              if (/^[A-Z]{2,}/.test(t)) return false; // No uppercase words (COBOL)
-              if (t.startsWith('#')) return true;
-              if (/^(self\.|if |else:|elif |for |while |try:|except|return |pass)/.test(t)) return true;
-              if (/^\w+\s*[=+\-*\/]/.test(t)) return true;
-              if (/^\w+\(/.test(t)) return true;
+              if (!l || l.length < 3) return false;
+              // Reject anything with quotes (docstrings/strings often corrupted)
+              if (l.includes('"""')) return false;
+              if (l.includes("'''")) return false;
+              // Reject COBOL/TODO artifacts
+              if (/TODO|COBOL|PERFORM|MOVE|DISPLAY/i.test(l)) return false;
+              // Reject uppercase-heavy lines (COBOL)
+              if (/^[A-Z][A-Z0-9-]{3,}/.test(l)) return false;
+              // Only allow known Python patterns
+              if (/^(self\.|if |else:|elif |for |while |try:|except|return |pass$|#)/.test(l)) return true;
+              if (/^\w+\s*[=+\-*\/]/.test(l)) return true;
+              if (/^\w+\(/.test(l)) return true;
               return false;
             })
-            .slice(0, 15)
-            .map(l => '        ' + l.trim());
-          return { name: p.name, logic: validLines.join('\n') || '        pass' };
+            .slice(0, 10);
+          // Build clean logic with proper indentation
+          const cleanLogic = validLines.length > 0 
+            ? validLines.map(l => '        ' + l).join('\n')
+            : '        pass';
+          return { name: p.name, logic: cleanLogic };
         } catch { return { name: p.name, logic: '        pass' }; }
         }));
         translations.push(...batchResults);
@@ -544,15 +550,26 @@ COBOL paragraph:
         ''
       ];
       
-      // Add translated methods
+      // Add translated methods - CLEAN ASSEMBLY
       for (const t of translations) {
         const methodName = t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
-        const safeName = t.name.replace(/"/g, "'").replace(/\n/g, ' ');
+        // Sanitize docstring: only alphanumeric + basic punctuation
+        const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 50);
+        
+        // Start method
         skeletonLines.push(`    def ${methodName}(self):`);
         skeletonLines.push(`        """${safeName}."""`);
-        // Ensure logic has at least pass
-        const logic = t.logic.trim() || '        pass';
-        skeletonLines.push(logic);
+        
+        // Add logic - ensure it's ONLY valid lines
+        const logicLines = t.logic.split('\n')
+          .map(l => l.trimEnd())
+          .filter(l => l.startsWith('        ') && !l.includes('"""') && !l.includes('TODO'));
+        
+        if (logicLines.length > 0) {
+          skeletonLines.push(...logicLines);
+        } else {
+          skeletonLines.push('        pass');
+        }
         skeletonLines.push('');
       }
       
