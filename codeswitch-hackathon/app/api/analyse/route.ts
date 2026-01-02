@@ -72,32 +72,44 @@ const corsHeaders = {
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 // Prompt for translating COBOL to Python - COMMERCIAL GRADE (PRODUCTION-READY)
-const CHUNK_PROMPT = `Convert this COBOL code to PRODUCTION-READY Python. Output ONLY valid, compilable, FUNCTIONAL Python code.
+const CHUNK_PROMPT = `Convert COBOL to PRODUCTION Python. Output ONLY valid Python code.
 
-=== CRITICAL: PRODUCTION-READY CODE (NOT A SKELETON) ===
-This code will run in PRODUCTION. Every function MUST contain REAL business logic.
-
-=== ABSOLUTE PROHIBITIONS (VIOLATIONS = REJECTION) ===
-❌ NEVER use "pass" in methods - implement REAL logic from COBOL
-❌ NEVER use "TODO" - implement NOW
-❌ NEVER use "= None" placeholder - use Decimal("0") or "" or []
-❌ NEVER use "except: pass" - ALWAYS log with self.logger.error() and re-raise
-❌ NEVER use global variables - ALL state in self.xxx
-❌ NEVER create class without __init__ - EVERY class needs __init__
-
-=== MANDATORY: EVERY CLASS MUST HAVE __init__ ===
-EVERY class (not @dataclass) MUST have def __init__(self): that:
-1. Creates self.logger = logging.getLogger(__name__)
-2. Initializes ALL instance variables with real values
-
-class CustomerProcessor:
+########## RULE 1: EVERY CLASS NEEDS __init__ ##########
+BEFORE writing any class, write __init__ FIRST:
+class AnyClassName:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.customers: Dict[str, Customer] = {}
-        self.total_processed: int = 0
-        self.error_count: int = 0
+        self.data: Dict[str, Any] = {}
+        self.count: int = 0
 
-2. REAL IMPLEMENTATIONS - translate COBOL logic to Python:
+########## RULE 2: NO PASS IN BUSINESS METHODS ##########
+WRONG: def process(self): pass
+RIGHT: def process(self): self.logger.info("Processing"); self.count += 1; return self.data
+
+########## RULE 3: TRANSLATE COBOL LOGIC ##########
+- MOVE A TO B → self.b = self.a
+- ADD A TO B → self.b += self.a  
+- IF condition → if condition:
+- PERFORM X → self.x()
+
+########## CLASS TEMPLATE (COPY THIS) ##########
+class ProcessorName:
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.records: List[Any] = []
+        self.status: str = "ACTIVE"
+    
+    def process(self) -> None:
+        self.logger.info("Starting process")
+        for record in self.records:
+            self.handle_record(record)
+        self.logger.info(f"Processed {len(self.records)} records")
+    
+    def handle_record(self, record: Any) -> None:
+        self.logger.debug(f"Handling: {record}")
+        # Real logic here
+
+########## COBOL TRANSLATION RULES ##########
    - COBOL MOVE A TO B → self.b = self.a
    - COBOL ADD A TO B → self.b += self.a
    - COBOL COMPUTE → Python arithmetic with Decimal
