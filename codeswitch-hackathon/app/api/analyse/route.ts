@@ -539,7 +539,7 @@ COBOL paragraph:
       const className = `${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor`;
       
       // FIXED HEADER - cannot be modified by translations
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v3.0]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v4.0]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
