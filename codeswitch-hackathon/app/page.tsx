@@ -498,6 +498,7 @@ interface AnalysisResult {
   python_code: string;
   python_lines?: number;
   cobol_lines?: number;
+  code_valid?: boolean;
   unit_tests?: string | string[];
   tests?: string | string[];
   config_json?: string;
