@@ -438,11 +438,33 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const totalLines = cobolCode.split('\n').length;
     const MULTI_ANALYSIS_THRESHOLD = 3000;
     
-    // For very large files (>5000 lines), return skeleton only (fast mode)
+    // For very large files (>5000 lines), return minimal skeleton (ultra-fast mode)
     if (totalLines > 5000) {
-      console.log(`[FastMode] File has ${totalLines} lines, returning skeleton only`);
-      const ast: CobolFullAST = parseCobolWithANTLR(cobolCode);
-      const skeleton = generatePythonSkeleton(ast).replace(/# \{\{LOGIC:[^}]+\}\}/g, 'pass  # TODO: Implement');
+      console.log(`[UltraFast] File has ${totalLines} lines, generating minimal skeleton`);
+      // Skip full ANTLR parsing - just extract basic info with regex
+      const programMatch = cobolCode.match(/PROGRAM-ID\.\s+(\w+)/i);
+      const programId = programMatch ? programMatch[1] : 'PROGRAM';
+      const paragraphMatches = [...cobolCode.matchAll(/^\s{7,8}([A-Z0-9][\w-]+)\.\s*$/gm)];
+      const paragraphs = paragraphMatches.map(m => m[1]).slice(0, 500);
+      
+      const skeletonLines = [
+        `"""${programId} - Migrated from COBOL (${totalLines} lines)."""`,
+        'from dataclasses import dataclass',
+        'from decimal import Decimal',
+        'from typing import Optional, List, Dict, Any',
+        'import logging',
+        '',
+        `class ${programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase()}Processor:`,
+        '    """Main processor class."""',
+        '    def __init__(self):',
+        '        self.logger = logging.getLogger(__name__)',
+        ''
+      ];
+      for (const p of paragraphs) {
+        const methodName = p.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
+        skeletonLines.push(`    def ${methodName}(self): pass  # TODO`);
+      }
+      const skeleton = skeletonLines.join('\n');
       return NextResponse.json({
         python_code: skeleton,
         unit_tests: '# Tests pending - file too large for full analysis',
