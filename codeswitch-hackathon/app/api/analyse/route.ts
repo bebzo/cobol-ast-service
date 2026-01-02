@@ -438,19 +438,66 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const totalLines = cobolCode.split('\n').length;
     const MULTI_ANALYSIS_THRESHOLD = 3000;
     
-    // For very large files (>5000 lines), return minimal skeleton (ultra-fast mode)
+    // For very large files (>5000 lines), use hybrid chunking
     if (totalLines > 5000) {
-      console.log(`[UltraFast] File has ${totalLines} lines, generating minimal skeleton`);
-      // Skip full ANTLR parsing - just extract basic info with regex
+      console.log(`[HybridChunk] File has ${totalLines} lines, using smart chunking`);
+      
+      // Fast regex parsing instead of ANTLR
       const programMatch = cobolCode.match(/PROGRAM-ID\.\s+(\w+)/i);
       const programId = programMatch ? programMatch[1] : 'PROGRAM';
-      const paragraphMatches = [...cobolCode.matchAll(/^\s{7,8}([A-Z0-9][\w-]+)\.\s*$/gm)];
-      const paragraphs = paragraphMatches.map(m => m[1]).slice(0, 500);
       
+      // Extract paragraphs with their line ranges
+      const paragraphMatches = [...cobolCode.matchAll(/^(\s{7,8})([A-Z0-9][\w-]+)\.\s*$/gm)];
+      const allParagraphs: { name: string; lineStart: number; lineEnd: number }[] = [];
+      const codeLines = cobolCode.split('\n');
+      
+      for (let i = 0; i < paragraphMatches.length; i++) {
+        const match = paragraphMatches[i];
+        const lineStart = cobolCode.substring(0, match.index).split('\n').length;
+        const lineEnd = i + 1 < paragraphMatches.length 
+          ? cobolCode.substring(0, paragraphMatches[i + 1].index).split('\n').length - 1
+          : Math.min(lineStart + 50, totalLines);
+        allParagraphs.push({ name: match[2], lineStart, lineEnd });
+      }
+      
+      console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
+      
+      // Translate first 30 paragraphs with LLM (parallel)
+      const MAX_TRANSLATE = 30;
+      const toTranslate = allParagraphs.slice(0, MAX_TRANSLATE);
+      
+      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      
+      const PARA_PROMPT_FAST = `Convert COBOL to Python. Output ONLY Python code, no markdown.
+MOVE A TO B → self.b = self.a
+PERFORM X → self.x()
+DISPLAY → self.logger.info()
+All variables: self.var_name
+
+COBOL:
+`;
+      
+      const translations = await Promise.all(toTranslate.map(async (p) => {
+        const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 30)).join('\n');
+        if (cobol.trim().length < 10) return { name: p.name, logic: 'pass' };
+        try {
+          const r = await model.generateContent(PARA_PROMPT_FAST + cobol);
+          let logic = r.response.text()
+            .replace(/```python\s*/gi, '').replace(/```/g, '')
+            .replace(/^\s*def\s+\w+.*$/gm, '')
+            .replace(/^\s*(MOVE|PERFORM|DISPLAY|IF|END-IF).*$/gmi, '')
+            .trim();
+          const lines = logic.split('\n').slice(0, 20).map(l => '        ' + l.trim()).filter(l => l.trim());
+          return { name: p.name, logic: lines.join('\n') || '        pass' };
+        } catch { return { name: p.name, logic: '        pass' }; }
+      }));
+      
+      // Build skeleton with translations
       const skeletonLines = [
         `"""${programId} - Migrated from COBOL (${totalLines} lines)."""`,
         'from dataclasses import dataclass',
-        'from decimal import Decimal',
+        'from decimal import Decimal', 
         'from typing import Optional, List, Dict, Any',
         'import logging',
         '',
@@ -460,10 +507,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         '        self.logger = logging.getLogger(__name__)',
         ''
       ];
-      for (const p of paragraphs) {
-        const methodName = p.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
-        skeletonLines.push(`    def ${methodName}(self): pass  # TODO`);
+      
+      // Add translated methods
+      for (const t of translations) {
+        const methodName = t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
+        skeletonLines.push(`    def ${methodName}(self):`);
+        skeletonLines.push(`        """${t.name}"""`);
+        skeletonLines.push(t.logic);
+        skeletonLines.push('');
       }
+      
+      // Add remaining paragraphs as stubs
+      for (const p of allParagraphs.slice(MAX_TRANSLATE)) {
+        const methodName = p.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
+        skeletonLines.push(`    def ${methodName}(self): pass  # TODO: Lines ${p.lineStart}-${p.lineEnd}`);
+      }
+      
       const skeleton = skeletonLines.join('\n');
       return NextResponse.json({
         python_code: skeleton,
