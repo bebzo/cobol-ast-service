@@ -726,171 +726,53 @@ COBOL PARAGRAPHS:
         initVars.push(`        self.${varName}${typeAndDefault}`);
       }
       
-      // v7.42: COMMERCIAL GRADE HEADER - 100% quality score
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.43 Commercial]"""
+      // v7.11: DYNAMIC HEADER with helper methods
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.44 Stable]"""
 ${imports.join('\n')}
-from abc import ABC, abstractmethod
-import os
-
-# === CONFIGURATION ===
-class Settings:
-    """Application settings from environment variables.
-    
-    Attributes:
-        debug: Enable debug logging.
-        log_level: Logging level (DEBUG, INFO, WARNING, ERROR).
-        max_retries: Maximum retry attempts for operations.
-    """
-    debug: bool = os.getenv("DEBUG", "false").lower() == "true"
-    log_level: str = os.getenv("LOG_LEVEL", "INFO")
-    max_retries: int = int(os.getenv("MAX_RETRIES", "3"))
-
-settings = Settings()
 
 # === BUSINESS EXCEPTIONS ===
 class BusinessError(Exception):
-    """Base exception for business logic errors.
-    
-    Args:
-        message: Human-readable error description.
-        code: Optional error code for programmatic handling.
-    """
-    def __init__(self, message: str, code: Optional[str] = None):
-        super().__init__(message)
-        self.code = code
+    """Base exception for business logic errors."""
+    pass
 
 class ValidationError(BusinessError):
-    """Raised when input validation fails."""
+    """Raised when validation fails."""
     pass
 
 class DataNotFoundError(BusinessError):
-    """Raised when required data cannot be found."""
+    """Raised when required data is not found."""
     pass
 
 class ProcessingError(BusinessError):
-    """Raised when a processing operation fails."""
+    """Raised when processing fails."""
     pass
 
-# === DOMAIN-SPECIFIC EXCEPTIONS (Banking/Finance) ===
-class InsufficientFundsError(BusinessError):
-    """Raised when account has insufficient funds for transaction."""
-    pass
-
-class AMLViolationError(BusinessError):
-    """Raised when Anti-Money Laundering check fails."""
-    pass
-
-class OFACMatchError(BusinessError):
-    """Raised when OFAC sanctions list match is detected."""
-    pass
-
-class AccountFrozenError(BusinessError):
-    """Raised when attempting to transact on frozen account."""
-    pass
-
-class DailyLimitExceededError(BusinessError):
-    """Raised when daily transaction limit is exceeded."""
-    pass
-
-class InvalidAccountError(BusinessError):
-    """Raised when account number is invalid or not found."""
-    pass
-
-# === FILE ADAPTER (Abstract Base Class) ===
-class FileAdapter(ABC):
-    """Abstract base class for file operations.
-    
-    Implement this interface to provide custom file handling.
-    """
-    @abstractmethod
+# === FILE ADAPTER (Dependency Injection) ===
+class FileAdapter:
+    """Abstract file adapter for dependency injection."""
     def read(self, filename: str) -> Dict[str, Any]:
-        """Read data from a file.
-        
-        Args:
-            filename: Path to the file to read.
-            
-        Returns:
-            Dictionary containing the file data.
-            
-        Raises:
-            DataNotFoundError: If file cannot be read.
-        """
-        pass
-    
-    @abstractmethod
+        raise NotImplementedError("Subclass must implement read()")
     def write(self, filename: str, data: Any) -> bool:
-        """Write data to a file.
-        
-        Args:
-            filename: Path to the file to write.
-            data: Data to write to the file.
-            
-        Returns:
-            True if write was successful.
-            
-        Raises:
-            ProcessingError: If file cannot be written.
-        """
-        pass
+        raise NotImplementedError("Subclass must implement write()")
 
 class DefaultFileAdapter(FileAdapter):
-    """Default file adapter implementation for testing."""
-    
+    """Default stub adapter - replace with real implementation."""
     def read(self, filename: str) -> Dict[str, Any]:
-        """Read stub data for testing."""
         return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
-    
     def write(self, filename: str, data: Any) -> bool:
-        """Write stub for testing."""
         return True
 
-# === TEST FIXTURES ===
-class TestFixtures:
-    """Factory for creating test data."""
-    
-    @staticmethod
-    def create_account(balance: Decimal = Decimal("1000")) -> Dict[str, Any]:
-        """Create a test account.
-        
-        Args:
-            balance: Initial account balance.
-            
-        Returns:
-            Account dictionary with test data.
-        """
-        return {"status": "A", "balance": balance, "available": balance}
-
 class ${className}:
-    """Main processor class for ${programId} business logic.
-    
-    Attributes:
-        file_adapter: Injected file adapter for I/O operations.
-        logger: Logger instance for this class.
-        error_count: Count of errors encountered.
-    """
+    """Main processor class for ${programId} business logic."""
     
     def __init__(self, file_adapter: Optional[FileAdapter] = None):
-        """Initialize processor with dependency injection.
-        
-        Args:
-            file_adapter: Optional custom file adapter. Uses DefaultFileAdapter if None.
-        """
+        """Initialize with dependency injection for file operations."""
         self.file_adapter = file_adapter or DefaultFileAdapter()
 ${initVars.join('\n')}
 
-    # === HELPER METHODS ===
+    # === HELPER METHODS (auto-generated) ===
     def read_file(self, filename: str) -> Dict[str, Any]:
-        """Read a record from file via injected adapter.
-        
-        Args:
-            filename: Path to the file to read.
-            
-        Returns:
-            Dictionary containing file data.
-            
-        Raises:
-            DataNotFoundError: If file cannot be read.
-        """
+        """Read a record from file via injected adapter."""
         self.logger.debug(f"Reading from {filename}")
         try:
             return self.file_adapter.read(filename)
@@ -899,18 +781,7 @@ ${initVars.join('\n')}
             raise DataNotFoundError(f"Cannot read {filename}") from e
     
     def write_file(self, filename: str, data: Any) -> bool:
-        """Write a record to file via injected adapter.
-        
-        Args:
-            filename: Path to the file to write.
-            data: Data to write.
-            
-        Returns:
-            True if successful.
-            
-        Raises:
-            ProcessingError: If write fails.
-        """
+        """Write a record from file via injected adapter."""
         self.logger.debug(f"Writing to {filename}")
         try:
             return self.file_adapter.write(filename, data)
@@ -919,23 +790,15 @@ ${initVars.join('\n')}
             raise ProcessingError(f"Cannot write {filename}") from e
     
     def get_next_account(self) -> Dict[str, Any]:
-        """Get next account record from iterator.
-        
-        Returns:
-            Account data dictionary.
-        """
+        """Get next account record."""
         return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
     
     def reset_account_iterator(self) -> None:
-        """Reset account iterator to beginning."""
+        """Reset account iterator."""
         self.logger.debug("Resetting account iterator")
     
     def handle_error(self, msg: str) -> None:
-        """Handle and log an error condition.
-        
-        Args:
-            msg: Error message to log.
-        """
+        """Handle error condition."""
         self.logger.error(msg)
         self.error_count += 1
 
@@ -1051,40 +914,26 @@ ${initVars.join('\n')}
         if (validStatements.length > 0) {
           methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
-          // v7.43: COMMERCIAL GRADE - Smart business logic based on method name
+          // v7.9: Smart default logic based on method name
           const name = methodName.toLowerCase();
-          if (name.includes('aml') || name.includes('screening') || name.includes('sanctions')) {
-            methodCode += `        self.logger.info("Running AML/Sanctions screening")\n        risk_score = Decimal("0.15")  # Low risk default\n        if risk_score > Decimal("0.8"):\n            raise AMLViolationError("High risk transaction flagged", code="AML001")\n        self.status = "AML_CLEARED"\n        return True\n`;
-          } else if (name.includes('ofac')) {
-            methodCode += `        self.logger.info("Checking OFAC sanctions list")\n        is_match = False  # Default: no match\n        if is_match:\n            raise OFACMatchError("OFAC sanctions match detected", code="OFAC001")\n        return True\n`;
-          } else if (name.includes('deposit') || name.includes('credit')) {
-            methodCode += `        self.logger.info("Processing deposit")\n        amount = self.data.get("amount", Decimal("0"))\n        if amount <= Decimal("0"):\n            raise ValidationError("Deposit amount must be positive", code="DEP001")\n        self.data["balance"] = self.data.get("balance", Decimal("0")) + amount\n        self.status = "DEPOSITED"\n        return self.data["balance"]\n`;
-          } else if (name.includes('withdraw') || name.includes('debit')) {
-            methodCode += `        self.logger.info("Processing withdrawal")\n        amount = self.data.get("amount", Decimal("0"))\n        balance = self.data.get("balance", Decimal("0"))\n        if amount > balance:\n            raise InsufficientFundsError(f"Insufficient funds: {balance} < {amount}", code="WTH001")\n        self.data["balance"] = balance - amount\n        self.status = "WITHDRAWN"\n        return self.data["balance"]\n`;
-          } else if (name.includes('transfer')) {
-            methodCode += `        self.logger.info("Processing transfer")\n        amount = self.data.get("amount", Decimal("0"))\n        if amount <= Decimal("0"):\n            raise ValidationError("Transfer amount must be positive", code="TRF001")\n        self.status = "TRANSFERRED"\n        return True\n`;
-          } else if (name.includes('balance') || name.includes('inquiry')) {
-            methodCode += `        self.logger.info("Retrieving balance")\n        return self.data.get("balance", Decimal("0"))\n`;
-          } else if (name.includes('report') || name.includes('regulatory')) {
-            methodCode += `        self.logger.info("Generating regulatory report")\n        report = {"timestamp": datetime.now().isoformat(), "status": self.status, "records": len(self.data)}\n        self.logger.info(f"Report generated: {report}")\n        return report\n`;
-          } else if (name.includes('open') || name.includes('init')) {
+          if (name.includes('open') || name.includes('init')) {
             methodCode += `        self.logger.info("Opening resources")\n        self.status = "OPEN"\n`;
-          } else if (name.includes('close') || name.includes('cleanup') || name.includes('finalize')) {
-            methodCode += `        self.logger.info("Finalizing and closing resources")\n        self.status = "CLOSED"\n        return True\n`;
-          } else if (name.includes('read') || name.includes('load') || name.includes('get')) {
+          } else if (name.includes('close') || name.includes('cleanup')) {
+            methodCode += `        self.logger.info("Closing resources")\n        self.status = "CLOSED"\n`;
+          } else if (name.includes('read') || name.includes('load')) {
             methodCode += `        self.logger.info("Loading data")\n        return self.data\n`;
-          } else if (name.includes('write') || name.includes('save') || name.includes('update')) {
+          } else if (name.includes('write') || name.includes('save')) {
             methodCode += `        self.logger.info("Saving data")\n        return True\n`;
-          } else if (name.includes('validate') || name.includes('check') || name.includes('verify')) {
-            methodCode += `        self.logger.info("Validating input")\n        if not self.data:\n            raise ValidationError("No data to validate", code="VAL001")\n        return True\n`;
-          } else if (name.includes('calculate') || name.includes('compute') || name.includes('calc')) {
-            methodCode += `        self.logger.info("Calculating")\n        result = Decimal("0")\n        for key, val in self.data.items():\n            if isinstance(val, Decimal):\n                result += val\n        return result\n`;
-          } else if (name.includes('process') || name.includes('execute') || name.includes('run')) {
-            methodCode += `        self.logger.info("Processing transaction")\n        self.status = "PROCESSED"\n        return True\n`;
-          } else if (name.includes('error') || name.includes('exception') || name.includes('abort')) {
-            methodCode += `        self.logger.error(f"Error encountered: {self.error_count}")\n        self.error_count += 1\n        self.status = "ERROR"\n`;
+          } else if (name.includes('validate') || name.includes('check')) {
+            methodCode += `        self.logger.info("Validating")\n        return True\n`;
+          } else if (name.includes('calculate') || name.includes('compute')) {
+            methodCode += `        self.logger.info("Calculating")\n        return Decimal("0")\n`;
+          } else if (name.includes('process')) {
+            methodCode += `        self.logger.info("Processing")\n        self.status = "PROCESSED"\n`;
+          } else if (name.includes('error') || name.includes('log')) {
+            methodCode += `        self.logger.error(f"Error: {self.error_count}")\n        self.error_count += 1\n`;
           } else {
-            methodCode += `        self.logger.info("Executing ${safeName}")\n        self.status = "COMPLETED"\n        return True\n`;
+            methodCode += `        raise NotImplementedError("Method '${safeName}' requires business implementation")\n`;
           }
         }
         
@@ -1347,7 +1196,7 @@ ${initVars.join('\n')}
             if (isContaminated) {
               console.log(`[v7.33] Rejected contaminated refactor for ${method.name}`);
               // Use safe fallback instead
-              newMethod = `    def ${method.name}(self):\n        """${method.name.replace(/_/g, ' ')}."""\n        self.logger.info("Executing ${method.name}")\n        self.status = "COMPLETED"\n        return True\n`;
+              newMethod = `    def ${method.name}(self):\n        """${method.name.replace(/_/g, ' ')}"""\n        self.logger.info("Processing ${method.name}")\n        self.status = "PROCESSED"\n`;
             }
             
             if (!newMethod.startsWith('    def ')) newMethod = '    ' + newMethod;
@@ -1371,7 +1220,7 @@ ${initVars.join('\n')}
       // 1. Replace ALL raise NotImplementedError with safe default
       skeleton = skeleton.replace(
         /raise NotImplementedError\([^)]*\)/g,
-        'self.logger.info("Executing business logic")\n        self.status = "COMPLETED"\n        return True'
+        'self.logger.warning("Method requires business implementation")\n        self.status = "PENDING"'
       );
       
       // 2. Remove ALL TODO references
