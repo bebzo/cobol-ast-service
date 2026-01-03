@@ -617,7 +617,7 @@ COBOL PARAGRAPHS:
                 })
                 .slice(0, 15);  // More lines for real logic
               
-              results.push({ name, logic: validLines.join('\n') || 'self.logger.info(f"Executing {self.__class__.__name__}")\n        self.status = "COMPLETED"' });
+              results.push({ name, logic: validLines.join('\n') || 'raise NotImplementedError("Requires business implementation")' });
             }
             
             // Fill in any missing paragraphs from batch
@@ -629,8 +629,8 @@ COBOL PARAGRAPHS:
             
             return results;
           } catch (e) {
-            // On error, return safe defaults for this batch
-            return batch.map(p => ({ name: p.name, logic: 'self.logger.info("Processing")\n        self.status = "COMPLETED"' }));
+            // On error, return pass stubs for this batch
+            return batch.map(p => ({ name: p.name, logic: 'raise NotImplementedError("Requires business implementation")' }));
           }
         }));
         
@@ -727,7 +727,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.48 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.49 Stable]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -756,7 +756,7 @@ class FileAdapter:
         raise NotImplementedError("Subclass must implement write()")
 
 class DefaultFileAdapter(FileAdapter):
-    """Default file adapter with safe fallback values."""
+    """Default stub adapter - replace with real implementation."""
     def read(self, filename: str) -> Dict[str, Any]:
         return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
     def write(self, filename: str, data: Any) -> bool:
@@ -911,108 +911,29 @@ ${initVars.join('\n')}
         let methodCode = `    def ${methodName}(self):\n`;
         methodCode += `        """${safeName}."""\n`;
         
-        // v7.48: ALWAYS use commercial logic based on method name (ignore generic AI output)
-        {
+        if (validStatements.length > 0) {
+          methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
+        } else {
+          // v7.9: Smart default logic based on method name
           const name = methodName.toLowerCase();
-          
-          // BANKING OPERATIONS - Real logic
-          if (name.includes('deposit')) {
-            methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        if amount <= Decimal("0"):\n            raise ValidationError("Deposit amount must be positive")\n        self.data["balance"] = self.data.get("balance", Decimal("0")) + amount\n        self.logger.info(f"Deposited {amount}, new balance: {self.data['balance']}")\n        return self.data["balance"]\n`;
-          } else if (name.includes('withdraw')) {
-            methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        balance = self.data.get("balance", Decimal("0"))\n        if amount > balance:\n            raise ValidationError(f"Insufficient funds: {balance} < {amount}")\n        self.data["balance"] = balance - amount\n        self.logger.info(f"Withdrew {amount}, new balance: {self.data['balance']}")\n        return self.data["balance"]\n`;
-          } else if (name.includes('transfer')) {
-            methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        if amount <= Decimal("0"):\n            raise ValidationError("Transfer amount must be positive")\n        self.data["balance"] = self.data.get("balance", Decimal("0")) - amount\n        self.logger.info(f"Transferred {amount}")\n        return True\n`;
-          } else if (name.includes('interest') || name.includes('rate')) {
-            methodCode += `        balance = self.data.get("balance", Decimal("0"))\n        rate = self.data.get("rate", Decimal("0.05"))\n        interest = balance * rate / Decimal("12")\n        self.data["balance"] = balance + interest\n        self.logger.info(f"Applied interest {interest}")\n        return interest\n`;
-          } else if (name.includes('fee') || name.includes('charge')) {
-            methodCode += `        fee_amount = self.data.get("fee", Decimal("25"))\n        self.data["balance"] = self.data.get("balance", Decimal("0")) - fee_amount\n        self.logger.info(f"Charged fee {fee_amount}")\n        return fee_amount\n`;
-          } else if (name.includes('balance') || name.includes('inquiry')) {
-            methodCode += `        balance = self.data.get("balance", Decimal("0"))\n        self.logger.info(f"Balance inquiry: {balance}")\n        return balance\n`;
-          // COMPLIANCE - AML/KYC
-          } else if (name.includes('aml') || name.includes('screening') || name.includes('sanction')) {
-            methodCode += `        customer_id = self.data.get("customer_id", "")\n        risk_score = Decimal("0.15")\n        if risk_score > Decimal("0.8"):\n            raise ProcessingError("AML check failed - high risk")\n        self.logger.info(f"AML screening passed for {customer_id}")\n        return True\n`;
-          } else if (name.includes('kyc') || name.includes('verification')) {
-            methodCode += `        customer_id = self.data.get("customer_id", "")\n        verified = True\n        self.logger.info(f"KYC verified for {customer_id}")\n        return verified\n`;
-          } else if (name.includes('ofac') || name.includes('pep')) {
-            methodCode += `        name_check = self.data.get("name", "")\n        is_match = False\n        if is_match:\n            raise ProcessingError("OFAC/PEP match found")\n        self.logger.info(f"OFAC/PEP check passed for {name_check}")\n        return True\n`;
-          // LOANS
-          } else if (name.includes('payment') && name.includes('loan')) {
-            methodCode += `        payment = self.data.get("payment", Decimal("0"))\n        principal = self.data.get("principal", Decimal("0"))\n        self.data["principal"] = principal - payment\n        self.logger.info(f"Loan payment {payment}, remaining: {self.data['principal']}")\n        return self.data["principal"]\n`;
-          } else if (name.includes('amortization')) {
-            methodCode += `        principal = self.data.get("principal", Decimal("100000"))\n        rate = self.data.get("rate", Decimal("0.05"))\n        term = self.data.get("term", 360)\n        monthly_rate = rate / Decimal("12")\n        payment = principal * monthly_rate / (Decimal("1") - (Decimal("1") + monthly_rate) ** -term)\n        self.logger.info(f"Amortization payment: {payment}")\n        return payment\n`;
-          } else if (name.includes('delinquen') || name.includes('late')) {
-            methodCode += `        days_past_due = self.data.get("days_past_due", 0)\n        is_delinquent = days_past_due > 30\n        self.logger.info(f"Delinquency check: {days_past_due} days, delinquent: {is_delinquent}")\n        return is_delinquent\n`;
-          // INSURANCE
-          } else if (name.includes('premium')) {
-            methodCode += `        base = self.data.get("base_premium", Decimal("100"))\n        risk_factor = self.data.get("risk_factor", Decimal("1.0"))\n        premium = base * risk_factor\n        self.logger.info(f"Calculated premium: {premium}")\n        return premium\n`;
-          } else if (name.includes('claim')) {
-            methodCode += `        claim_amount = self.data.get("claim_amount", Decimal("0"))\n        deductible = self.data.get("deductible", Decimal("500"))\n        payout = max(claim_amount - deductible, Decimal("0"))\n        self.logger.info(f"Claim processed: payout {payout}")\n        return payout\n`;
-          } else if (name.includes('policy') || name.includes('policies')) {
-            methodCode += `        policy_id = self.data.get("policy_id", "")\n        self.data["status"] = "ACTIVE"\n        self.logger.info(f"Policy {policy_id} processed")\n        return True\n`;
-          } else if (name.includes('risk') || name.includes('underwriting')) {
-            methodCode += `        age = self.data.get("age", 35)\n        risk_score = Decimal("1.0") + (Decimal(str(age)) - Decimal("30")) * Decimal("0.02")\n        self.logger.info(f"Risk score: {risk_score}")\n        return risk_score\n`;
-          } else if (name.includes('renew')) {
-            methodCode += `        expiry = self.data.get("expiry_date", datetime.now())\n        self.data["expiry_date"] = expiry + timedelta(days=365)\n        self.logger.info("Policy renewed")\n        return True\n`;
-          // INVESTMENTS
-          } else if (name.includes('portfolio') || name.includes('position')) {
-            methodCode += `        positions = self.data.get("positions", [])\n        total_value = sum(p.get("value", Decimal("0")) for p in positions) if positions else Decimal("0")\n        self.logger.info(f"Portfolio value: {total_value}")\n        return total_value\n`;
-          } else if (name.includes('trade') || name.includes('order')) {
-            methodCode += `        symbol = self.data.get("symbol", "")\n        quantity = self.data.get("quantity", 0)\n        price = self.data.get("price", Decimal("0"))\n        total = Decimal(str(quantity)) * price\n        self.logger.info(f"Trade executed: {symbol} x {quantity} @ {price} = {total}")\n        return total\n`;
-          } else if (name.includes('dividend')) {
-            methodCode += `        shares = self.data.get("shares", Decimal("0"))\n        div_per_share = self.data.get("dividend_rate", Decimal("0.50"))\n        dividend = shares * div_per_share\n        self.logger.info(f"Dividend calculated: {dividend}")\n        return dividend\n`;
-          } else if (name.includes('gain') || name.includes('loss') || name.includes('return')) {
-            methodCode += `        cost_basis = self.data.get("cost_basis", Decimal("0"))\n        current_value = self.data.get("current_value", Decimal("0"))\n        gain_loss = current_value - cost_basis\n        self.logger.info(f"Gain/Loss: {gain_loss}")\n        return gain_loss\n`;
-          } else if (name.includes('rebalance') || name.includes('allocation')) {
-            methodCode += `        target = self.data.get("target_allocation", {})\n        self.logger.info(f"Rebalancing to target: {target}")\n        return True\n`;
-          // CREDIT CARDS
-          } else if (name.includes('authorize') || name.includes('authorization')) {
-            methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        credit_limit = self.data.get("credit_limit", Decimal("5000"))\n        available = credit_limit - self.data.get("balance", Decimal("0"))\n        approved = amount <= available\n        self.logger.info(f"Authorization {'approved' if approved else 'declined'}: {amount}")\n        return approved\n`;
-          } else if (name.includes('reward') || name.includes('points')) {
-            methodCode += `        spend = self.data.get("amount", Decimal("0"))\n        points = int(spend * Decimal("1.5"))\n        self.data["points"] = self.data.get("points", 0) + points\n        self.logger.info(f"Earned {points} points")\n        return points\n`;
-          } else if (name.includes('credit') && name.includes('limit')) {
-            methodCode += `        income = self.data.get("income", Decimal("0"))\n        limit = income * Decimal("0.3")\n        self.logger.info(f"Credit limit: {limit}")\n        return limit\n`;
-          // MORTGAGE
-          } else if (name.includes('mortgage') || name.includes('escrow')) {
-            methodCode += `        principal = self.data.get("principal", Decimal("0"))\n        taxes = self.data.get("taxes", Decimal("0"))\n        insurance = self.data.get("insurance", Decimal("0"))\n        escrow = (taxes + insurance) / Decimal("12")\n        self.logger.info(f"Monthly escrow: {escrow}")\n        return escrow\n`;
-          } else if (name.includes('appraisal') || name.includes('ltv') || name.includes('dti')) {
-            methodCode += `        value = self.data.get("property_value", Decimal("0"))\n        loan = self.data.get("loan_amount", Decimal("0"))\n        ltv = (loan / value * Decimal("100")) if value > 0 else Decimal("0")\n        self.logger.info(f"LTV ratio: {ltv}%")\n        return ltv\n`;
-          // FRAUD
-          } else if (name.includes('fraud') || name.includes('suspicious')) {
-            methodCode += `        score = self.data.get("fraud_score", Decimal("0.1"))\n        is_fraud = score > Decimal("0.7")\n        if is_fraud:\n            self.logger.warning("Fraud detected!")\n        return is_fraud\n`;
-          } else if (name.includes('alert') || name.includes('flag')) {
-            methodCode += `        alert_type = self.data.get("alert_type", "INFO")\n        self.logger.warning(f"Alert generated: {alert_type}")\n        return {"type": alert_type, "timestamp": datetime.now().isoformat()}\n`;
-          // PAYROLL / HR
-          } else if (name.includes('payroll') || name.includes('salary')) {
-            methodCode += `        gross = self.data.get("gross_salary", Decimal("0"))\n        tax_rate = self.data.get("tax_rate", Decimal("0.25"))\n        net = gross * (Decimal("1") - tax_rate)\n        self.logger.info(f"Net salary: {net}")\n        return net\n`;
-          } else if (name.includes('tax') && !name.includes('report')) {
-            methodCode += `        income = self.data.get("income", Decimal("0"))\n        rate = self.data.get("tax_rate", Decimal("0.25"))\n        tax = income * rate\n        self.logger.info(f"Tax calculated: {tax}")\n        return tax\n`;
-          // RECONCILIATION
-          } else if (name.includes('reconcil') || name.includes('match')) {
-            methodCode += `        expected = self.data.get("expected", Decimal("0"))\n        actual = self.data.get("actual", Decimal("0"))\n        diff = actual - expected\n        matched = abs(diff) < Decimal("0.01")\n        self.logger.info(f"Reconciliation: diff={diff}, matched={matched}")\n        return matched\n`;
-          // REPORTS
-          } else if (name.includes('report') || name.includes('statement')) {
-            methodCode += `        report = {"date": datetime.now().isoformat(), "balance": str(self.data.get("balance", Decimal("0"))), "status": self.status}\n        self.logger.info(f"Generated report: {report}")\n        return report\n`;
-          } else if (name.includes('summary') || name.includes('totals')) {
-            methodCode += `        total = sum(v for v in self.data.values() if isinstance(v, Decimal))\n        self.logger.info(f"Summary total: {total}")\n        return total\n`;
-          // GENERIC OPERATIONS
-          } else if (name.includes('open') || name.includes('init')) {
-            methodCode += `        self.logger.info("Opening resources")\n        self.status = "OPEN"\n        return True\n`;
+          if (name.includes('open') || name.includes('init')) {
+            methodCode += `        self.logger.info("Opening resources")\n        self.status = "OPEN"\n`;
           } else if (name.includes('close') || name.includes('cleanup')) {
-            methodCode += `        self.logger.info("Closing resources")\n        self.status = "CLOSED"\n        return True\n`;
-          } else if (name.includes('read') || name.includes('load') || name.includes('get')) {
+            methodCode += `        self.logger.info("Closing resources")\n        self.status = "CLOSED"\n`;
+          } else if (name.includes('read') || name.includes('load')) {
             methodCode += `        self.logger.info("Loading data")\n        return self.data\n`;
-          } else if (name.includes('write') || name.includes('save') || name.includes('update')) {
+          } else if (name.includes('write') || name.includes('save')) {
             methodCode += `        self.logger.info("Saving data")\n        return True\n`;
           } else if (name.includes('validate') || name.includes('check')) {
-            methodCode += `        if not self.data:\n            raise ValidationError("No data to validate")\n        self.logger.info("Validation passed")\n        return True\n`;
+            methodCode += `        self.logger.info("Validating")\n        return True\n`;
           } else if (name.includes('calculate') || name.includes('compute')) {
-            methodCode += `        result = Decimal("0")\n        for key, val in self.data.items():\n            if isinstance(val, Decimal):\n                result += val\n        self.logger.info(f"Calculated: {result}")\n        return result\n`;
-          } else if (name.includes('process') || name.includes('execute')) {
-            methodCode += `        self.logger.info("Processing transaction")\n        self.status = "PROCESSED"\n        return True\n`;
-          } else if (name.includes('error') || name.includes('exception')) {
-            methodCode += `        self.logger.error(f"Error count: {self.error_count}")\n        self.error_count += 1\n`;
+            methodCode += `        self.logger.info("Calculating")\n        return Decimal("0")\n`;
+          } else if (name.includes('process')) {
+            methodCode += `        self.logger.info("Processing")\n        self.status = "PROCESSED"\n`;
+          } else if (name.includes('error') || name.includes('log')) {
+            methodCode += `        self.logger.error(f"Error: {self.error_count}")\n        self.error_count += 1\n`;
           } else {
-            methodCode += `        self.logger.info("Executing ${safeName}")\n        self.status = "COMPLETED"\n        return True\n`;
+            methodCode += `        raise NotImplementedError("Method '${safeName}' requires business implementation")\n`;
           }
         }
         
@@ -1399,7 +1320,7 @@ class FileAdapter:
         raise NotImplementedError("Subclass must implement write()")
 
 class DefaultFileAdapter(FileAdapter):
-    """Default file adapter with safe fallback values."""
+    """Default stub adapter - replace with real implementation."""
     def read(self, filename: str) -> Dict[str, Any]:
         return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
     def write(self, filename: str, data: Any) -> bool:
@@ -1497,7 +1418,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         `${translations.length}/${allParagraphs.length} paragraphs translated with business logic`,
         'Type-safe class structure generated',
         'Logging infrastructure added',
-        'Complete method implementations for all paragraphs'
+        'Method stubs for remaining paragraphs'
       ];
 
       const securityWarnings = cobolCode.toLowerCase().includes('password') 
