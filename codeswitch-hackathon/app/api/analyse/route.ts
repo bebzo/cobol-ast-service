@@ -724,7 +724,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.27 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.28 Commercial]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -977,12 +977,21 @@ ${initVars.join('\n')}
       // Direct assembly - no extraction from corrupted skeleton
       let skeleton = header + '\n\n' + cleanMethods.join('\n\n');
       
+      // v7.28: FORCE PRISTINE HEADER - Find first business method and replace everything before it
+      const firstBusinessMethodMatch = skeleton.match(/\n(    def p_[a-z0-9_]+\(self\):)/);
+      if (firstBusinessMethodMatch) {
+        const businessMethodsStart = skeleton.indexOf(firstBusinessMethodMatch[1]);
+        const businessMethods = skeleton.substring(businessMethodsStart);
+        skeleton = header + '\n' + businessMethods;
+        console.log('[v7.28] Forced pristine header before business methods');
+      }
+      
       // Final cleanup - remove any remaining TODO patterns
       skeleton = skeleton
         .replace(/"""[^"]*TODO[^"]*"""/g, '"""Process data."""')
         .replace(/TODO/g, '');
       
-      console.log('[v7.24] Final rebuild complete');
+      console.log('[v7.28] Final cleanup complete');
       
       console.log(`[v7.21] Final skeleton: ${skeleton.split('\n').length} lines`);
       
