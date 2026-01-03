@@ -688,6 +688,10 @@ ${initVars.join('\n')}
           if (trimmed.endsWith(':')) continue;  // No control flow
           if (/[+\-*\/,]$/.test(trimmed)) continue;  // No incomplete lines
           if (trimmed.length < 5) continue;  // Too short
+          // v7.9: Check balanced quotes
+          const singleQuotes = (trimmed.match(/'/g) || []).length;
+          const doubleQuotes = (trimmed.match(/"/g) || []).length;
+          if (singleQuotes % 2 !== 0 || doubleQuotes % 2 !== 0) continue;
           
           // Check balanced parens, brackets, and braces
           const opens = (trimmed.match(/\(/g) || []).length;
