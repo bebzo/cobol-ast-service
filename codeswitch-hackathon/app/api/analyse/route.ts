@@ -516,7 +516,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.9] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.10] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -587,7 +587,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.9] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.10] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -650,7 +650,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.0: DYNAMIC HEADER with all imports and complete __init__
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.9]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.10]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -665,8 +665,15 @@ ${initVars.join('\n')}
       // Build methods separately - each method is a clean string
       const methods: string[] = [];
       
+      // v7.10: Python reserved keywords
+      const pythonKeywords = new Set(['def', 'class', 'return', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'finally', 'with', 'as', 'import', 'from', 'global', 'nonlocal', 'lambda', 'yield', 'raise', 'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'async', 'await', 'assert', 'del']);
+      
       for (const t of translations) {
-        const methodName = t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
+        let methodName = t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
+        // v7.10: Prefix Python keywords with 'p_'
+        if (pythonKeywords.has(methodName)) {
+          methodName = 'p_' + methodName;
+        }
         // Sanitize name: only keep alphanumeric, spaces, hyphens
         const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 40);
         
@@ -676,39 +683,76 @@ ${initVars.join('\n')}
         const validStatements: string[] = [];
         
         for (const rawLine of rawLines) {
-          // v7.9: Strip inline comments before processing
+          // v7.10: Strip inline comments before processing
           let trimmed = rawLine.trim().replace(/#.*$/, '').trim();
           
-          // Skip bad patterns
-          if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs|^#/i.test(trimmed)) continue;
-          if (/^[A-Z]{2,}-[A-Z]/.test(trimmed)) continue;
+          // === COMPREHENSIVE PYTHON SYNTAX VALIDATION ===
+          
+          // 1. Skip COBOL artifacts and placeholders
+          if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs|^#|SECTION|DIVISION/i.test(trimmed)) continue;
+          if (/^[A-Z]{2,}-[A-Z]/.test(trimmed)) continue;  // COBOL variable names
+          
+          // 2. Skip duplicates
           if (seen.has(trimmed)) continue;
           seen.add(trimmed);
-          if (trimmed.includes('\\')) continue;
-          if (trimmed.endsWith(':')) continue;  // No control flow
-          if (/[+\-*\/,]$/.test(trimmed)) continue;  // No incomplete lines
-          if (trimmed.length < 5) continue;  // Too short
-          // v7.9: Check balanced quotes
+          
+          // 3. Skip line continuations and control flow
+          if (trimmed.includes('\\')) continue;  // Line continuation
+          if (trimmed.endsWith(':')) continue;   // Control flow (if/for/while/try/except/else/elif)
+          
+          // 4. Skip incomplete expressions (trailing operators)
+          if (/[+\-*\/%&|^~<>=,]$/.test(trimmed)) continue;
+          if (/^[+\-*\/%&|^~<>=,]/.test(trimmed)) continue;  // Leading operators
+          
+          // 5. Skip too short or too long lines
+          if (trimmed.length < 5 || trimmed.length > 200) continue;
+          
+          // 6. Check balanced quotes (single and double)
           const singleQuotes = (trimmed.match(/'/g) || []).length;
           const doubleQuotes = (trimmed.match(/"/g) || []).length;
           if (singleQuotes % 2 !== 0 || doubleQuotes % 2 !== 0) continue;
           
-          // Check balanced parens, brackets, and braces
+          // 7. Check balanced parentheses
           const opens = (trimmed.match(/\(/g) || []).length;
           const closes = (trimmed.match(/\)/g) || []).length;
           if (opens !== closes) continue;
+          
+          // 8. Check balanced brackets
           const openBrackets = (trimmed.match(/\[/g) || []).length;
           const closeBrackets = (trimmed.match(/\]/g) || []).length;
           if (openBrackets !== closeBrackets) continue;
+          
+          // 9. Check balanced braces
           const openBraces = (trimmed.match(/\{/g) || []).length;
           const closeBraces = (trimmed.match(/\}/g) || []).length;
           if (openBraces !== closeBraces) continue;
           
-          // v7.8: Only simple statements (guaranteed to compile)
+          // 10. Skip invalid Python keywords/syntax
+          if (/^(def |class |import |from |global |nonlocal |lambda |yield |async |await |with |assert |del |raise |try |except |finally |elif |else )/.test(trimmed)) continue;
+          
+          // 11. Skip multiline strings (triple quotes)
+          if (trimmed.includes('"""') || trimmed.includes("'''")) continue;
+          
+          // 12. Skip f-strings with expressions that might be broken
+          if (/f['"](.*\{[^}]*$)/.test(trimmed)) continue;  // Unclosed f-string expression
+          
+          // 13. Skip invalid assignment targets
+          if (/^\d+\s*=/.test(trimmed)) continue;  // Can't assign to number
+          if (/^(True|False|None)\s*=/.test(trimmed)) continue;  // Can't assign to literals
+          
+          // 14. Skip lines with syntax errors patterns
+          if (/=\s*=\s*=/.test(trimmed)) continue;  // Triple equals
+          if (/\(\s*\).*=/.test(trimmed) && !trimmed.includes('lambda')) continue;  // Empty call on left of =
+          if (/\[\s*\]\s*=/.test(trimmed)) continue;  // Empty list on left of =
+          
+          // 15. Only allow valid Python statement patterns
           const isStatement = /^(self\.\w+|return |[a-z_]\w*\s*=)/.test(trimmed);
           if (!isStatement) continue;
           
-          validStatements.push(trimmed.replace(/self\.(\d)/g, 'self.p_$1'));
+          // 16. Final cleanup: fix numeric method names
+          const cleaned = trimmed.replace(/self\.(\d)/g, 'self.p_$1');
+          
+          validStatements.push(cleaned);
           if (validStatements.length >= 15) break;
         }
         
@@ -766,7 +810,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.9] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.10] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
