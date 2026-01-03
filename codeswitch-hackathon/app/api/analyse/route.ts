@@ -729,7 +729,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.24 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.25 Commercial]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -942,32 +942,37 @@ ${initVars.join('\n')}
         methods.push(methodCode);
       }
       
-      // v7.20: ULTIMATE SOLUTION - Clean methods first, then build skeleton
-      // Step 1: Clean each method individually before assembly
+      // v7.25: BLOCK-LEVEL VALIDATION - Reject entire method if contaminated
       const cleanMethods: string[] = [];
       for (const method of methods) {
-        const methodLines = method.split('\n');
-        const cleanMethodLines: string[] = [];
+        const methodText = method;
         
-        for (const line of methodLines) {
-          const trimmed = line.trim();
-          // v7.21: AGGRESSIVE cleanup - remove ALL rogue patterns
-          if (/""".*TODO/.test(trimmed)) continue;
-          if (/TODO.*"""/.test(trimmed)) continue;
-          if (/\.TODO\./.test(trimmed)) continue;
-          if (/""".*""".*"""/.test(trimmed)) continue;
-          if (/^class \w+/.test(trimmed)) continue;  // No class definitions
-          if (/^def __init__\(/.test(trimmed)) continue;  // No rogue __init__
-          if (/^from |^import /.test(trimmed)) continue;  // No imports
-          if (/Main processor class/.test(trimmed)) continue;  // Rogue docstring
-          if (/Initialize.*Processor/.test(trimmed)) continue;  // Rogue init docstring
-          if (/"""[^"]*"""[^"]*"""/.test(line)) continue;  // Triple docstring corruption
-          cleanMethodLines.push(line);
-        }
+        // REJECT entire block if it contains contamination
+        if (/class \w+:/.test(methodText)) continue;  // Contains class definition
+        if (/def __init__\(/.test(methodText)) continue;  // Contains __init__
+        if (/""".*TODO/.test(methodText)) continue;  // Contains TODO docstring
+        if (/TODO.*"""/.test(methodText)) continue;
+        if (/Main processor class/.test(methodText)) continue;
+        if (/Initialize.*Processor/.test(methodText)) continue;
+        if (/file_adapter.*DefaultFileAdapter/.test(methodText)) continue;
+        if (/Abstract file adapter/.test(methodText)) continue;
+        if (/FileAdapter/.test(methodText)) continue;  // Any FileAdapter reference
         
-        // Only add method if it has content (at least def line + 1 body line)
-        if (cleanMethodLines.length >= 2) {
-          cleanMethods.push(cleanMethodLines.join('\n'));
+        // Validate structure: must start with def xxx(self):
+        const firstLine = method.split('\n')[0]?.trim() || '';
+        if (!/^def [a-z_][a-z0-9_]*\(self\):$/.test(firstLine)) continue;
+        
+        // Clean remaining lines
+        const cleanLines = method.split('\n').filter(line => {
+          const t = line.trim();
+          if (!t) return true;  // Keep empty lines
+          if (/""".*""".*"""/.test(t)) return false;
+          if (/TODO/.test(t)) return false;
+          return true;
+        });
+        
+        if (cleanLines.length >= 2) {
+          cleanMethods.push(cleanLines.join('\n'));
         }
       }
       
@@ -976,7 +981,7 @@ ${initVars.join('\n')}
       
       // Step 3: FINAL HEADER VALIDATION - Ensure first line is correct
       const firstLine = skeleton.split('\n')[0];
-      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.24 Commercial]"""`;
+      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.25 Commercial]"""`;
       if (!firstLine.startsWith('"""') || !firstLine.endsWith('"""') || firstLine.includes('TODO')) {
         // Header corrupted - rebuild from scratch
         console.log('[v7.21] Header corruption detected, rebuilding...');
