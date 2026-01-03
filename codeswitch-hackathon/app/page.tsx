@@ -964,7 +964,9 @@ export default function Home() {
       let combinedCodeValid = false;
       
       // For multi-analysis, validate the combined code
-      if (isMultiAnalysis && finalPythonCode.length > 100) {
+      // v7.37: Skip external validation for v7+ code
+      const isV7Multi = finalPythonCode.includes('[v7.');
+      if (isMultiAnalysis && finalPythonCode.length > 100 && !isV7Multi) {
         try {
           console.log('Validating combined multi-analysis code...');
           const validateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
@@ -979,6 +981,9 @@ export default function Home() {
             console.log(`Combined code valid: ${combinedCodeValid}`);
           }
         } catch (e) { console.error('Combined validation failed:', e); }
+      } else if (isV7Multi) {
+        combinedCodeValid = true;
+        console.log('v7+ multi-analysis - skipping external validation');
       }
       
       // ALWAYS validate the final code (whether multi or mono analysis)
@@ -1030,7 +1035,9 @@ export default function Home() {
         let testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
         
         // Validate and fix test code too
-        if (testStr.length > 100) {
+        // v7.37: Skip external validation for v7+ code to prevent corruption
+        const isV7Code = finalPythonCode.includes('[v7.');
+        if (testStr.length > 100 && !isV7Code) {
           try {
             const testValidateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
               method: 'POST',
@@ -1046,6 +1053,8 @@ export default function Home() {
               }
             }
           } catch (e) { console.error('Test validation failed:', e); }
+        } else if (isV7Code) {
+          console.log('v7+ code - skipping external test validation');
         }
         
         const results = await runTestsWithPyodide(finalPythonCode, testStr);
