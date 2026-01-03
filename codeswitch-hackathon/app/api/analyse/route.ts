@@ -72,7 +72,7 @@ const corsHeaders = {
   'Expires': '0',
 };
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const GROQ_API_KEY = process.env.GEMINI_API_KEY || '';
 
 // Groq API helper function
 async function callGroq(prompt: string): Promise<string> {
