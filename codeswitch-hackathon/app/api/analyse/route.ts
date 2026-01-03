@@ -670,49 +670,53 @@ ${initVars.join('\n')}
         // Sanitize name: only keep alphanumeric, spaces, hyphens
         const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 40);
         
-        // v7.1: Allow control flow with proper indentation
+        // v7.6: Control flow with safe indentation tracking
         const rawLines = t.logic.split('\n').filter(l => l.trim().length > 0);
         const seen = new Set<string>();
-        
-        // Parse lines preserving indentation
         const validStatements: string[] = [];
-        let inBlock = 0;  // Track indentation level
+        let indent = 0;  // Current indentation level (0=base, 1=inside if, etc.)
         
         for (const rawLine of rawLines) {
           const trimmed = rawLine.trim();
           
           // Skip bad patterns
           if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs|^#/i.test(trimmed)) continue;
-          if (/^[A-Z]{2,}-[A-Z]/.test(trimmed)) continue;  // COBOL vars
-          if (seen.has(trimmed)) continue;  // No duplicates
+          if (/^[A-Z]{2,}-[A-Z]/.test(trimmed)) continue;
+          if (seen.has(trimmed)) continue;
           seen.add(trimmed);
-          
-          // v7.5: SIMPLE & SAFE - no control flow, guaranteed to compile
-          // Only allow simple statements (no if/for/while/try)
-          const isSimpleStatement = /^(self\.\w+|return |[a-z_]\w*\s*=)/.test(trimmed);
-          
-          // Reject anything that could break compilation
-          if (!isSimpleStatement) continue;
-          if (trimmed.endsWith(':')) continue;  // No control flow
-          if (trimmed.includes('\\')) continue;  // No continuations
+          if (trimmed.includes('\\')) continue;
           
           // Check balanced parens
           const opens = (trimmed.match(/\(/g) || []).length;
           const closes = (trimmed.match(/\)/g) || []).length;
           if (opens !== closes) continue;
           
-          validStatements.push(trimmed);
-          if (validStatements.length >= 15) break;
+          // v7.6: Allow control flow with proper indentation
+          const isControlStart = /^(if |elif |else:|try:|except|for |while )/.test(trimmed);
+          const isStatement = /^(self\.\w+|return |raise |break|continue|pass$|[a-z_]\w*\s*=)/.test(trimmed);
+          
+          if (isControlStart && trimmed.endsWith(':')) {
+            // Control flow line - add at current indent, then increase
+            const spaces = '    '.repeat(indent);
+            validStatements.push(spaces + trimmed);
+            indent = Math.min(indent + 1, 2);  // Max 2 levels deep
+          } else if (isStatement) {
+            // Statement - add at current indent
+            const spaces = '    '.repeat(indent);
+            validStatements.push(spaces + trimmed.replace(/self\.(\d)/g, 'self.p_$1'));
+            // After a statement inside a block, reset to base for safety
+            if (indent > 0 && !isControlStart) indent = 0;
+          }
+          
+          if (validStatements.length >= 20) break;
         }
         
-        // v7.5: Build simple method - guaranteed to compile
+        // v7.6: Build method with control flow
         let methodCode = `    def ${methodName}(self):\n`;
         methodCode += `        """${safeName}."""\n`;
         
         if (validStatements.length > 0) {
-          const fixedStatements = validStatements
-            .map(s => s.replace(/self\.(\d)/g, 'self.p_$1'));
-          methodCode += fixedStatements.map(s => `        ${s}`).join('\n') + '\n';
+          methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
           methodCode += `        pass\n`;
         }
