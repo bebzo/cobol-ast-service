@@ -81,23 +81,37 @@ interface ASTValidationResult {
   methodName?: string;
 }
 
-function validatePythonAST(code: string): ASTValidationResult {
+interface ASTAnalysisResult {
+  valid: boolean;
+  error?: string;
+  line?: number;
+  issues: Array<{type: string; severity: string; line?: number; message: string; methods?: string[]}>;
+  methods: Array<{name: string; line_start: number; has_issues: boolean; issue_types: string[]}>;
+  stats: {total_methods: number; problematic_methods: number};
+}
+
+function runASTAnalysis(code: string): ASTAnalysisResult {
   try {
-    // Write code to temp file and validate with Python ast.parse()
     const tempPath = '/tmp/validate_code.py';
+    const validatorPath = require('path').join(process.cwd(), 'lib', 'ast_validator.py');
     require('fs').writeFileSync(tempPath, code, 'utf8');
     
     const result = execSync(
-      `python3 -c "import ast; ast.parse(open('${tempPath}').read())"`,
-      { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] }
+      `python3 ${validatorPath} ${tempPath}`,
+      { encoding: 'utf8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'] }
     );
-    return { valid: true };
+    return JSON.parse(result);
   } catch (e: any) {
     const stderr = e.stderr?.toString() || e.message || '';
-    // Parse error line from Python error
     const lineMatch = stderr.match(/line (\d+)/i);
-    const line = lineMatch ? parseInt(lineMatch[1]) : undefined;
-    return { valid: false, error: stderr.substring(0, 200), line };
+    return { 
+      valid: false, 
+      error: stderr.substring(0, 200), 
+      line: lineMatch ? parseInt(lineMatch[1]) : undefined,
+      issues: [{type: 'syntax_error', severity: 'CRITICAL', message: stderr.substring(0, 100)}],
+      methods: [],
+      stats: {total_methods: 0, problematic_methods: 0}
+    };
   }
 }
 
@@ -555,7 +569,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.16] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.17] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -626,7 +640,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.16] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.17] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -715,7 +729,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.16]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.17]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -977,69 +991,65 @@ ${initVars.join('\n')}
       }
       
       skeleton = validatedLines.join('\n');
-      console.log(`[v7.16] Validated ${validatedLines.length} lines`);
+      console.log(`[v7.17] Validated ${validatedLines.length} lines`);
       
-      // v7.16: AST VALIDATION WITH GEMINI RETRY
-      const MAX_AST_RETRIES = 3;
-      for (let retry = 0; retry < MAX_AST_RETRIES; retry++) {
-        const astResult = validatePythonAST(skeleton);
+      // v7.17: COMPREHENSIVE AST ANALYSIS + GEMINI FIX
+      let astAnalysis = runASTAnalysis(skeleton);
+      console.log(`[v7.17] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats.total_methods}, problematic=${astAnalysis.stats.problematic_methods}`);
+      
+      // Fix syntax errors first (up to 3 attempts)
+      for (let retry = 0; retry < 3 && !astAnalysis.valid; retry++) {
+        const errorLine = astAnalysis.line;
+        if (!errorLine) break;
         
-        if (astResult.valid) {
-          console.log(`[v7.16] AST validation passed${retry > 0 ? ` after ${retry} fix(es)` : ''}`);
-          break;
-        }
+        const badMethod = findMethodAtLine(skeleton, errorLine);
+        if (!badMethod) break;
         
-        console.log(`[v7.16] AST error at line ${astResult.line}: ${astResult.error?.substring(0, 100)}`);
+        console.log(`[v7.17] Fix attempt ${retry + 1}: ${badMethod} (line ${errorLine})`);
         
-        if (!astResult.line) {
-          console.log('[v7.16] Cannot locate error line, skipping retry');
-          break;
-        }
-        
-        // Find the problematic method
-        const badMethod = findMethodAtLine(skeleton, astResult.line);
-        if (!badMethod) {
-          console.log('[v7.16] Cannot find method at error line, skipping');
-          break;
-        }
-        
-        console.log(`[v7.16] Retry ${retry + 1}: Fixing method ${badMethod}`);
-        
-        // Extract the broken method code
         const methodRegex = new RegExp(`(    def ${badMethod}\\(self\\):.*?)(?=\n    def |$)`, 's');
         const methodMatch = skeleton.match(methodRegex);
+        if (!methodMatch) break;
         
-        if (!methodMatch) {
-          console.log('[v7.16] Cannot extract method, skipping');
-          break;
-        }
-        
-        // Ask Gemini to fix the method
         try {
-          const fixPrompt = `Fix this Python method. It has a syntax error: ${astResult.error}
-
-BROKEN CODE:
-${methodMatch[1]}
-
-Output ONLY the fixed method starting with "    def ${badMethod}(self):" and nothing else. Keep it simple.`;
-          
+          const fixPrompt = `Fix this Python method syntax error: ${astAnalysis.error}\n\nBROKEN:\n${methodMatch[1]}\n\nOutput ONLY the fixed method. Keep simple.`;
           const fixResult = await model.generateContent(fixPrompt);
-          let fixedMethod = fixResult.response.text()
-            .replace(/```python\s*/gi, '')
-            .replace(/```/g, '')
-            .trim();
+          let fixed = fixResult.response.text().replace(/```python\s*/gi, '').replace(/```/g, '').trim();
+          if (!fixed.startsWith('    def ')) fixed = '    ' + fixed;
+          skeleton = skeleton.replace(methodRegex, fixed + '\n\n');
+        } catch { break; }
+        
+        astAnalysis = runASTAnalysis(skeleton);
+      }
+      
+      // Now fix problematic methods (empty, high complexity)
+      if (astAnalysis.valid && astAnalysis.stats.problematic_methods > 0) {
+        const badMethods = astAnalysis.methods.filter(m => m.has_issues).slice(0, 5);  // Fix max 5
+        console.log(`[v7.17] Fixing ${badMethods.length} problematic methods`);
+        
+        for (const method of badMethods) {
+          if (!method.issue_types.includes('empty_method')) continue;  // Only fix empty methods
           
-          // Ensure proper indentation
-          if (!fixedMethod.startsWith('    def ')) {
-            fixedMethod = '    ' + fixedMethod;
-          }
+          const methodRegex = new RegExp(`(    def ${method.name}\\(self\\):.*?)(?=\n    def |$)`, 's');
+          const methodMatch = skeleton.match(methodRegex);
+          if (!methodMatch) continue;
           
-          // Replace the method in skeleton
-          skeleton = skeleton.replace(methodRegex, fixedMethod + '\n\n');
-          console.log(`[v7.16] Replaced method ${badMethod}`);
-        } catch (fixError) {
-          console.log(`[v7.16] Gemini fix failed: ${fixError}`);
-          break;
+          // Find original COBOL paragraph
+          const origParagraph = allParagraphs.find(p => 
+            p.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&') === method.name
+          );
+          const cobolContext = origParagraph 
+            ? codeLines.slice(origParagraph.lineStart - 1, origParagraph.lineEnd).join('\n')
+            : '';
+          
+          try {
+            const refactorPrompt = `Generate REAL Python logic for this method. Original COBOL:\n${cobolContext.substring(0, 500)}\n\nOutput ONLY the method starting with "    def ${method.name}(self):". Use self.xxx for all variables.`;
+            const result = await model.generateContent(refactorPrompt);
+            let newMethod = result.response.text().replace(/```python\s*/gi, '').replace(/```/g, '').trim();
+            if (!newMethod.startsWith('    def ')) newMethod = '    ' + newMethod;
+            skeleton = skeleton.replace(methodRegex, newMethod + '\n\n');
+            console.log(`[v7.17] Refactored: ${method.name}`);
+          } catch { /* skip */ }
         }
       }
       
@@ -1059,7 +1069,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.16] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.17] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
