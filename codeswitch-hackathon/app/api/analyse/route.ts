@@ -729,7 +729,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.18]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.19]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -917,14 +917,38 @@ ${initVars.join('\n')}
         skeleton = skeleton.substring(0, firstClassPos + className.length + 7) + cleanedAfter;
       }
       
-      // v7.18: Aggressive cleanup of AI-generated artifacts
-      // Pattern: """...""".TODO."""...""" or any line with multiple """ and TODO
-      skeleton = skeleton
-        .replace(/"""[^"]*"""\s*\.?\s*TODO\s*\.?\s*"""[^"]*"""/g, '')
-        .replace(/^.*""".*TODO.*""".*$/gm, '')  // Any line with TODO between docstrings
-        .replace(/"""[^"]*"""[^\n]*"""[^"]*"""/g, '')  // Multiple docstrings on one line
-        .replace(/^\s*"""Main processor class.*$/gm, '')  // Remove duplicate class docstring
-        .replace(/^\s*\.TODO\..*$/gm, '');  // Remove orphaned .TODO. lines
+      // v7.19: SAFE cleanup - only remove specific problematic patterns, preserve header
+      const lines = skeleton.split('\n');
+      const cleanedLines: string[] = [];
+      let headerEnded = false;
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        
+        // Preserve first 20 lines (header) unconditionally
+        if (i < 20) {
+          cleanedLines.push(line);
+          continue;
+        }
+        
+        // Skip lines with TODO + docstring patterns
+        if (/""".*TODO/.test(trimmed)) continue;
+        if (/TODO.*"""/.test(trimmed)) continue;
+        if (/\.TODO\./.test(trimmed)) continue;
+        
+        // Skip duplicate class definitions (not the first one)
+        if (/^class \w+Processor:/.test(trimmed) && cleanedLines.some(l => /^class \w+Processor:/.test(l.trim()))) {
+          continue;
+        }
+        
+        // Skip orphaned docstrings that look like duplicate init
+        if (/^"""Initialize all business/.test(trimmed) && i > 20) continue;
+        if (/^"""Main processor class/.test(trimmed) && i > 20) continue;
+        
+        cleanedLines.push(line);
+      }
+      skeleton = cleanedLines.join('\n');
       
       // v7.15: ROBUST VALIDATION SYSTEM - Line-by-line Python syntax check
       const skeletonLines = skeleton.split('\n');
