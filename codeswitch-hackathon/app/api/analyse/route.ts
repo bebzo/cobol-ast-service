@@ -1283,7 +1283,7 @@ ${initVars.join('\n')}
       
       // v7.35: HARDCODED REBUILD - Build file from scratch with NO template reuse
       // This bypasses any possible corruption in the header variable
-      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.36 TEST]"""
+      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.37]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -1345,21 +1345,12 @@ ${initVars.slice(4).join('\n')}
         return self.file_adapter.write(filename, data)
 
     # === BUSINESS METHODS ===
-    def p_placeholder(self):
-        """Placeholder method."""
-        self.logger.info("Processing")
+${extractedMethods.map(m => '    ' + m.split('\n').join('\n    ')).join('\n\n')}
 `;
       
-      // v7.37: DEBUG LOGS
-      console.log('[v7.37] DEBUG programId:', JSON.stringify(programId));
-      console.log('[v7.37] DEBUG className:', JSON.stringify(className));
-      console.log('[v7.37] DEBUG totalLines:', JSON.stringify(totalLines));
-      console.log('[v7.37] DEBUG finalFile FIRST 500 chars:', JSON.stringify(finalFile.substring(0, 500)));
-      console.log('[v7.37] DEBUG finalFile lines 40-60:', JSON.stringify(finalFile.split('\n').slice(39, 60)));
-      
-      // v7.36: TEST - Use hardcoded file WITHOUT extractedMethods to verify header is clean
+      // v7.37: Use extracted business methods (external validation bypassed in frontend)
       skeleton = finalFile;
-      console.log('[v7.36] TEST: Hardcoded file without extractedMethods');
+      console.log(`[v7.37] Generated ${extractedMethods.length} business methods`);
       
       // v7.4: Generate tests with LLM (shorter prompt for speed)
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
