@@ -951,13 +951,17 @@ ${initVars.join('\n')}
         
         for (const line of methodLines) {
           const trimmed = line.trim();
-          // Skip any line with problematic patterns
+          // v7.21: AGGRESSIVE cleanup - remove ALL rogue patterns
           if (/""".*TODO/.test(trimmed)) continue;
           if (/TODO.*"""/.test(trimmed)) continue;
           if (/\.TODO\./.test(trimmed)) continue;
           if (/""".*""".*"""/.test(trimmed)) continue;
-          if (/^class \w+/.test(trimmed)) continue;  // No class definitions in methods
-          if (/^from |^import /.test(trimmed)) continue;  // No imports in methods
+          if (/^class \w+/.test(trimmed)) continue;  // No class definitions
+          if (/^def __init__\(/.test(trimmed)) continue;  // No rogue __init__
+          if (/^from |^import /.test(trimmed)) continue;  // No imports
+          if (/Main processor class/.test(trimmed)) continue;  // Rogue docstring
+          if (/Initialize.*Processor/.test(trimmed)) continue;  // Rogue init docstring
+          if (/"""[^"]*"""[^"]*"""/.test(line)) continue;  // Triple docstring corruption
           cleanMethodLines.push(line);
         }
         
@@ -975,7 +979,7 @@ ${initVars.join('\n')}
       const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.21 Commercial]"""`;
       if (!firstLine.startsWith('"""') || !firstLine.endsWith('"""') || firstLine.includes('TODO')) {
         // Header corrupted - rebuild from scratch
-        console.log('[v7.20] Header corruption detected, rebuilding...');
+        console.log('[v7.21] Header corruption detected, rebuilding...');
         skeleton = expectedFirstLine + '\n' + skeleton.split('\n').slice(1).join('\n');
       }
       
@@ -984,8 +988,23 @@ ${initVars.join('\n')}
       if (skeletonParts.length > 2) {
         // Keep only first class definition
         skeleton = skeletonParts[0] + 'class ' + className + ':' + skeletonParts[1];
-        console.log('[v7.20] Removed duplicate class definitions');
+        console.log('[v7.21] Removed duplicate class definitions');
       }
+      
+      // Step 5: FINAL LINE-BY-LINE CLEANUP for line 15 bug
+      const finalLines = skeleton.split('\n');
+      const cleanedFinal: string[] = [];
+      for (let i = 0; i < finalLines.length; i++) {
+        const line = finalLines[i];
+        // Skip any line with known corruption patterns
+        if (/""".*TODO.*"""/.test(line)) continue;
+        if (/"""[^"]+"""[^"]+"""/.test(line)) continue;
+        if (/class \w+Processor:/.test(line) && i > 10) continue;  // Rogue class
+        if (/def __init__\(self\):/.test(line) && i > 20) continue;  // Rogue __init__
+        cleanedFinal.push(line);
+      }
+      skeleton = cleanedFinal.join('\n');
+      console.log('[v7.21] Final cleanup complete');
       
       console.log(`[v7.21] Final skeleton: ${skeleton.split('\n').length} lines`);
       
