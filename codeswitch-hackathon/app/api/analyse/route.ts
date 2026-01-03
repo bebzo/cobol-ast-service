@@ -516,7 +516,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.11] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.12] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -587,7 +587,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.11] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.12] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -676,7 +676,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.11]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.12]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -867,7 +867,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.11] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.12] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
