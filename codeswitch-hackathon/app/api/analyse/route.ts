@@ -632,9 +632,9 @@ COBOL PARAGRAPHS:
             
             return results;
           } catch (e) {
-            // On error, return empty for this batch
-            console.log('[AI-ERROR] Batch failed:', e);
-            return batch.map(p => ({ name: p.name, logic: '' }));
+            // v7.51: FAIL LOUD - no silent fallbacks
+            console.error('[AI-ERROR] Batch failed:', e);
+            throw new Error(`AI generation failed: ${e.message || 'Unknown error'}`);
           }
         }));
         
@@ -958,7 +958,8 @@ ${initVars.join('\n')}
           } else if (name.includes('error')) {
             methodCode += `        self.logger.error(f"Error: {self.error_count}")\n        self.error_count += 1\n`;
           } else {
-            methodCode += `        self.logger.info("Executing")\n        self.status = "COMPLETED"\n`;
+            // v7.51: No fallback - throw error
+            throw new Error(`No AI logic generated for method: ${methodName}`);
           }
         }
         
