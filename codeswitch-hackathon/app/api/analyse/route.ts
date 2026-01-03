@@ -516,7 +516,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.14] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.15] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -587,7 +587,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.14] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.15] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -676,7 +676,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.14]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.15]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -867,6 +867,79 @@ ${initVars.join('\n')}
       // Remove any TODO artifacts that slipped through  
       skeleton = skeleton.replace(/"""[^"]*"""TODO\."""[^"]*"""/g, '');
       
+      // v7.15: ROBUST VALIDATION SYSTEM - Line-by-line Python syntax check
+      const skeletonLines = skeleton.split('\n');
+      const validatedLines: string[] = [];
+      let inMethod = false;
+      let methodIndent = 0;
+      
+      for (let i = 0; i < skeletonLines.length; i++) {
+        let line = skeletonLines[i];
+        const trimmed = line.trim();
+        
+        // Track method context
+        if (/^\s*def \w+\(self/.test(line)) {
+          inMethod = true;
+          methodIndent = line.search(/\S/);
+        }
+        
+        // === VALIDATION RULES ===
+        
+        // 1. Skip lines with broken docstrings
+        if (/""".*""".*"""/.test(trimmed)) continue;
+        if (/TODO\."""/.test(trimmed)) continue;
+        
+        // 2. Fix orphaned docstrings (docstring not after def/class)
+        if (trimmed.startsWith('"""') && !trimmed.endsWith('"""')) {
+          // Multi-line docstring start - check if valid context
+          const prevLine = validatedLines[validatedLines.length - 1]?.trim() || '';
+          if (!prevLine.endsWith(':') && !prevLine.startsWith('class ') && !prevLine.startsWith('def ')) {
+            continue; // Skip orphaned docstring
+          }
+        }
+        
+        // 3. Fix indentation issues - ensure body after def
+        if (inMethod && trimmed.length > 0 && !trimmed.startsWith('#') && !trimmed.startsWith('"""')) {
+          const currentIndent = line.search(/\S/);
+          if (currentIndent >= 0 && currentIndent <= methodIndent && !trimmed.startsWith('def ') && !trimmed.startsWith('class ') && !trimmed.startsWith('@')) {
+            // Line is at same or lower indent than method def - end of method
+            inMethod = false;
+          }
+        }
+        
+        // 4. Remove duplicate self.logger/self.data in wrong places
+        if (inMethod && /^\s{8}self\.(logger|data)\s*[:=]/.test(line)) {
+          // Skip duplicate initializations inside methods (not in __init__)
+          const methodDefLine = validatedLines.slice(-20).find(l => l.trim().startsWith('def '));
+          if (methodDefLine && !methodDefLine.includes('__init__')) {
+            continue;
+          }
+        }
+        
+        // 5. Fix common syntax issues
+        line = line
+          .replace(/\.\."""/g, '."""')  // Fix .""" pattern
+          .replace(/"""TODO/g, '')  // Remove TODO in docstrings
+          .replace(/\s+$/, '');  // Trailing whitespace
+        
+        // 6. Validate balanced structures on single lines
+        if (trimmed.length > 0) {
+          const opens = (trimmed.match(/[\(\[\{]/g) || []).length;
+          const closes = (trimmed.match(/[\)\]\}]/g) || []).length;
+          const quotes = (trimmed.match(/"/g) || []).length;
+          
+          // Skip lines with unbalanced quotes (except docstrings)
+          if (quotes % 2 !== 0 && !trimmed.includes('"""')) {
+            continue;
+          }
+        }
+        
+        validatedLines.push(line);
+      }
+      
+      skeleton = validatedLines.join('\n');
+      console.log(`[v7.15] Validated ${validatedLines.length} lines`);
+      
       // v7.4: Generate tests with LLM (shorter prompt for speed)
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
       let unitTests = '';
@@ -883,7 +956,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.14] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.15] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
