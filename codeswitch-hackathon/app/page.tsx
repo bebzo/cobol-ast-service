@@ -1009,7 +1009,7 @@ export default function Home() {
         if (err.message.includes("API_KEY") || err.message.includes("403")) {
           setError("Invalid API key. Please check your Gemini key.");
         } else if (err.message.includes("429")) {
-          setError("API quota exhausted. Wait or use a new key.");
+          setError(`Rate limit: ${err.message}`);
         } else if (err.message.includes("JSON")) {
           setError("Parsing error. Please try again.");
         } else if (!err.message.includes("405") && !err.message.includes("AST") && !err.message.includes("abort")) {
