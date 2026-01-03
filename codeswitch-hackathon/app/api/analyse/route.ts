@@ -509,13 +509,14 @@ COBOL PARAGRAPHS:
 `;
       
       // Create batches of 20 paragraphs
-      const BATCH_SIZE = 20;
-      const PARALLEL_BATCHES = 5;
+      // v7.3: Maximum parallelism for 10K+ files
+      const BATCH_SIZE = 50;  // 50 paragraphs per LLM call
+      const PARALLEL_BATCHES = 15;  // 15 parallel calls per wave
       const batches: typeof allParagraphs[] = [];
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.0] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.3] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -586,7 +587,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.0] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.3] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -649,7 +650,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.0: DYNAMIC HEADER with all imports and complete __init__
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.1]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.3]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -839,7 +840,7 @@ Output ONLY valid Python test code starting with "import pytest":`;
         complexity: 'HIGH',
         risk_level: 'HIGH',
         processing_time_ms: Date.now() - startTime,
-        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v7.0 (${allSelfVars.size} vars auto-initialized).`,
+        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v7.3 (${allSelfVars.size} vars).`,
         code_valid: true,
         // Additional fields for tabs
         issues,
@@ -879,6 +880,6 @@ Output ONLY valid Python test code starting with "import pytest":`;
     );
   }
 }
-// v7.1 - 100% commercial: control flow + try/except
+// v7.3 - max speed: batch=50, parallel=15
 
 /* DELETED OLD CODE (lines 769-1726 removed) */
