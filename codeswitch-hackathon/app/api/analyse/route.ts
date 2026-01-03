@@ -1283,7 +1283,7 @@ ${initVars.join('\n')}
       
       // v7.35: HARDCODED REBUILD - Build file from scratch with NO template reuse
       // This bypasses any possible corruption in the header variable
-      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.35 Commercial]"""
+      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.36 TEST]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -1345,11 +1345,14 @@ ${initVars.slice(4).join('\n')}
         return self.file_adapter.write(filename, data)
 
     # === BUSINESS METHODS ===
-${extractedMethods.join('\n\n')}
+    def p_placeholder(self):
+        """Placeholder method."""
+        self.logger.info("Processing")
 `;
       
+      // v7.36: TEST - Use hardcoded file WITHOUT extractedMethods to verify header is clean
       skeleton = finalFile;
-      console.log(`[v7.35] Built file from scratch: ${skeleton.split('\\n').length} lines`);
+      console.log('[v7.36] TEST: Hardcoded file without extractedMethods');
       
       // v7.4: Generate tests with LLM (shorter prompt for speed)
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
