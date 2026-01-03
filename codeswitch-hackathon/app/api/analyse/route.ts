@@ -580,6 +580,7 @@ COBOL PARAGRAPHS:
           try {
             const r = await model.generateContent(BATCH_PROMPT + batchCobol);
             const response = r.response.text();
+            console.log('[AI-RAW] Response preview:', response.substring(0, 500));
             
             // Parse response: split by ### PARAGRAPH_NAME
             const results: { name: string; logic: string }[] = [];
@@ -595,27 +596,26 @@ COBOL PARAGRAPHS:
                 .replace(/```python\s*/gi, '').replace(/```/g, '')
                 .trim();
               
-              // v7.27: Filter BODY ONLY - reject any def/class/docstring
+              // v7.51: Filter BODY ONLY - accept more valid Python
               const seen = new Set<string>();
               const validLines = code.split('\n')
                 .map(l => l.trim())
                 .filter(l => {
-                  if (!l || l.length < 3) return false;
-                  // v7.27: REJECT structure elements (AI should only return body)
-                  if (/^def /.test(l)) return false;  // No method definitions
-                  if (/^class /.test(l)) return false;  // No class definitions
-                  if (/"""/.test(l)) return false;  // No docstrings
-                  if (/TODO/i.test(l)) return false;  // No TODO
+                  if (!l || l.length < 2) return false;
+                  // REJECT structure elements
+                  if (/^def /.test(l)) return false;
+                  if (/^class /.test(l)) return false;
+                  if (/^"""/.test(l) || /"""$/.test(l)) return false;
+                  if (/TODO/i.test(l)) return false;
                   // Skip COBOL artifacts
-                  if (/COBOL|MOVE |PERFORM |DISPLAY |Placeholder/i.test(l)) return false;
-                  if (/^[A-Z]{2,}-[A-Z]/.test(l)) return false;
+                  if (/^[A-Z]{2,}[\s-]/.test(l) && !/self\./.test(l)) return false;
                   // Remove duplicates
                   if (seen.has(l)) return false;
                   seen.add(l);
-                  // Allow valid Python statement patterns
-                  return /^(self\.\w+|if |elif |else:|for |while |try:|except|return |[a-z_]\w*\s*=)/.test(l);
+                  // v7.51: Accept ANY line that looks like Python code
+                  return /^(self\.|if |elif |else:|for |while |try:|except|return |raise |print\(|#|[a-z_]\w*\s*[=+\-*\/]|pass$)/.test(l);
                 })
-                .slice(0, 15);  // More lines for real logic
+                .slice(0, 20);  // Allow more lines
               
               results.push({ name, logic: validLines.join('\n') || 'self.logger.info("Processing")\n        self.status = "COMPLETED"' });
             }
