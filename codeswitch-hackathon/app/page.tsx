@@ -884,23 +884,32 @@ export default function Home() {
           })();
         
         // CRITICAL: Validate merged code before marking as valid
+        // v7.37: Skip external validation for v7+ code (it corrupts the output)
         let mergedCodeValid = false;
         let validatedMergedCode = mergedPythonCode;
-        try {
-          console.log('[Merge Validation] Validating merged code...');
-          const validateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: mergedPythonCode }),
-          });
-          if (validateResponse.ok) {
-            const validateResult = await validateResponse.json();
-            mergedCodeValid = validateResult.valid;
-            validatedMergedCode = validateResult.code || mergedPythonCode;
-            console.log(`[Merge Validation] Result: valid=${mergedCodeValid}, fixes=${validateResult.fixes || 0}`);
+        const isV7Merged = mergedPythonCode.includes('[v7.');
+        
+        if (isV7Merged) {
+          // v7+ code is pre-validated - skip external service
+          mergedCodeValid = true;
+          console.log('[Merge Validation] v7+ detected - skipping external validation');
+        } else {
+          try {
+            console.log('[Merge Validation] Validating merged code...');
+            const validateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: mergedPythonCode }),
+            });
+            if (validateResponse.ok) {
+              const validateResult = await validateResponse.json();
+              mergedCodeValid = validateResult.valid;
+              validatedMergedCode = validateResult.code || mergedPythonCode;
+              console.log(`[Merge Validation] Result: valid=${mergedCodeValid}, fixes=${validateResult.fixes || 0}`);
+            }
+          } catch (e) {
+            console.log('[Merge Validation] API error, marking as invalid');
           }
-        } catch (e) {
-          console.log('[Merge Validation] API error, marking as invalid');
         }
         
         parsed = {
@@ -975,7 +984,7 @@ export default function Home() {
       // ALWAYS validate the final code (whether multi or mono analysis)
       // EXCEPTION: v3.0 skeletons are pre-validated and should not be modified
       let finalCodeValid = parsed.code_valid || false;
-      const isV3Skeleton = finalPythonCode.includes('[v4.') || finalPythonCode.includes('[v5.') || finalPythonCode.includes('[v6.');
+      const isV3Skeleton = finalPythonCode.includes('[v4.') || finalPythonCode.includes('[v5.') || finalPythonCode.includes('[v6.') || finalPythonCode.includes('[v7.');
       
       if (isV3Skeleton) {
         // v3.0 skeletons are already valid - skip external validation
