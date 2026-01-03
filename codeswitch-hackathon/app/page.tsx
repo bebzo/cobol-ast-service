@@ -2265,33 +2265,36 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <div className="bg-slate-900/50 rounded-lg p-4">
                   <p className="text-sm text-slate-400 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Exécution des tests en attente...
+                    Waiting for test execution...
                   </p>
                 </div>
               )}
               {testResults.details.some(d => d.status === 'error') && (
                 <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mt-2">
-                  <p className="text-sm text-red-400 font-medium">⚠️ Tests échoués - Erreur de syntaxe dans le code généré</p>
-                  <p className="text-xs text-slate-400 mt-2">Solutions possibles :</p>
+                  <p className="text-sm text-red-400 font-medium">Test Execution Error</p>
+                  <p className="text-xs text-red-300 mt-1 font-mono">
+                    {testResults.details.find(d => d.status === 'error')?.error || 'Unknown error'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-2">Possible solutions:</p>
                   <ul className="text-xs text-slate-400 mt-1 list-disc list-inside">
-                    <li>Relancez l'analyse (cliquez sur "Refactor with Gemini")</li>
-                    <li>Réduisez la taille du fichier COBOL (&lt; 5000 lignes recommandé)</li>
+                    <li>Re-run the analysis (click "Refactor with Gemini")</li>
+                    <li>Reduce COBOL file size (&lt; 5000 lines recommended)</li>
                   </ul>
                 </div>
               )}
               {testResults.failed > 0 && (
                 <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4 mt-4">
-                  <p className="text-sm text-amber-300 font-medium mb-2">💡 Pourquoi certains tests échouent ?</p>
+                  <p className="text-sm text-amber-300 font-medium mb-2">Why some tests fail?</p>
                   <ul className="text-xs text-slate-400 space-y-1 mb-3">
-                    <li>• Les tests sont générés automatiquement et peuvent avoir des attentes différentes</li>
-                    <li>• Les variables COBOL non initialisées ont des valeurs par défaut différentes en Python</li>
-                    <li>• Le code Python compile et est fonctionnellement équivalent</li>
+                    <li>Tests are auto-generated and may have different expectations</li>
+                    <li>Uninitialized COBOL variables have different defaults in Python</li>
+                    <li>The Python code compiles and is functionally equivalent</li>
                   </ul>
                   <button
                     onClick={handleConvert}
                     className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-xs font-medium transition"
                   >
-                    🔄 Ré-analyser pour de nouveaux tests
+                    Re-analyze for new tests
                   </button>
                 </div>
               )}
