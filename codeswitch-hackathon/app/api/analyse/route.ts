@@ -729,7 +729,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.21 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.22 Commercial]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -976,7 +976,7 @@ ${initVars.join('\n')}
       
       // Step 3: FINAL HEADER VALIDATION - Ensure first line is correct
       const firstLine = skeleton.split('\n')[0];
-      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.21 Commercial]"""`;
+      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.22 Commercial]"""`;
       if (!firstLine.startsWith('"""') || !firstLine.endsWith('"""') || firstLine.includes('TODO')) {
         // Header corrupted - rebuild from scratch
         console.log('[v7.21] Header corruption detected, rebuilding...');
@@ -991,20 +991,52 @@ ${initVars.join('\n')}
         console.log('[v7.21] Removed duplicate class definitions');
       }
       
-      // Step 5: FINAL LINE-BY-LINE CLEANUP for line 15 bug
+      // Step 5: v7.22 NUCLEAR OPTION - Detect corruption and rebuild entire header
+      const corruptionPatterns = [
+        /""".*TODO.*"""/,
+        /"""[^"]+"""[^"]+"""/,
+        /class \w+:[\s\S]*?""".*TODO/,
+      ];
+      
+      const hasCorruption = corruptionPatterns.some(p => p.test(skeleton));
+      
+      if (hasCorruption) {
+        console.log('[v7.22] CORRUPTION DETECTED - Rebuilding skeleton from scratch');
+        
+        // Extract ONLY the method definitions (def xxx(self):)
+        const methodRegex = /^    def (?!__init__|read_file|write_file|get_next|reset_account|handle_error)(\w+)\(self\):[\s\S]*?(?=\n    def |\n$)/gm;
+        const extractedMethods: string[] = [];
+        let match;
+        while ((match = methodRegex.exec(skeleton)) !== null) {
+          let methodCode = match[0];
+          // Clean each method of corruption
+          const cleanLines = methodCode.split('\n').filter(line => {
+            if (/""".*TODO/.test(line)) return false;
+            if (/TODO.*"""/.test(line)) return false;
+            if (/class \w+/.test(line.trim())) return false;
+            if (/^    def __init__/.test(line)) return false;
+            return true;
+          });
+          if (cleanLines.length >= 2) {
+            extractedMethods.push(cleanLines.join('\n'));
+          }
+        }
+        
+        // Rebuild with pristine header
+        skeleton = header + extractedMethods.join('\n\n');
+        console.log('[v7.22] Rebuilt with ' + extractedMethods.length + ' clean methods');
+      }
+      
+      // Final line cleanup
       const finalLines = skeleton.split('\n');
       const cleanedFinal: string[] = [];
-      for (let i = 0; i < finalLines.length; i++) {
-        const line = finalLines[i];
-        // Skip any line with known corruption patterns
+      for (const line of finalLines) {
         if (/""".*TODO.*"""/.test(line)) continue;
         if (/"""[^"]+"""[^"]+"""/.test(line)) continue;
-        if (/class \w+Processor:/.test(line) && i > 10) continue;  // Rogue class
-        if (/def __init__\(self\):/.test(line) && i > 20) continue;  // Rogue __init__
         cleanedFinal.push(line);
       }
       skeleton = cleanedFinal.join('\n');
-      console.log('[v7.21] Final cleanup complete');
+      console.log('[v7.22] Final cleanup complete');
       
       console.log(`[v7.21] Final skeleton: ${skeleton.split('\n').length} lines`);
       
