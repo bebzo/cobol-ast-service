@@ -516,7 +516,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.12] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.13] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -587,7 +587,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.12] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.13] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -676,7 +676,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.12]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.13]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -780,8 +780,10 @@ ${initVars.join('\n')}
           // 10. Skip invalid Python keywords/syntax
           if (/^(def |class |import |from |global |nonlocal |lambda |yield |async |await |with |assert |del |raise |try |except |finally |elif |else )/.test(trimmed)) continue;
           
-          // 11. Skip multiline strings (triple quotes)
+          // 11. Skip multiline strings (triple quotes) and docstring artifacts
           if (trimmed.includes('"""') || trimmed.includes("'''")) continue;
+          if (/TODO[."']/.test(trimmed)) continue;  // v7.13: Filter TODO artifacts
+          if (/\."""/.test(trimmed)) continue;  // v7.13: Filter broken docstrings
           
           // 12. Skip f-strings with expressions that might be broken
           if (/f['"](.*\{[^}]*$)/.test(trimmed)) continue;  // Unclosed f-string expression
@@ -867,7 +869,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.12] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.13] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
