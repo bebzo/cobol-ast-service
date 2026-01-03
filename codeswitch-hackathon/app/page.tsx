@@ -292,6 +292,10 @@ async function correctPythonCode(
     attempts++;
     onProgress(attempts, validation.error || 'Unknown error');
     
+    // v7.36 TEST: DISABLE /api/clean to see raw output from /api/analyse
+    console.log('[v7.36 TEST] Skipping /api/clean - testing raw analyse output');
+    break;
+    
     try {
       const cacheKey = `${validation.line}:${validation.error}`;
       
