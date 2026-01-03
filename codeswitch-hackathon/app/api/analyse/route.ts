@@ -977,56 +977,50 @@ ${initVars.join('\n')}
       // Direct assembly - no extraction from corrupted skeleton
       let skeleton = header + '\n\n' + cleanMethods.join('\n\n');
       
-      // v7.30: AGGRESSIVE LINE-BY-LINE CLEANUP of rogue __init__ blocks
-      const lines = skeleton.split('\n');
-      const cleanedLines: string[] = [];
-      let skipUntilDocstring = false;
-      let lastClassLine = '';
+      // v7.31: BULLDOZER APPROACH - Extract ONLY def p_xxx methods, discard everything else
+      console.log('[v7.31] Bulldozer extraction - keeping only def p_xxx methods');
       
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const trimmed = line.trim();
-        
-        // Track class definitions
-        if (/^class \w+/.test(trimmed)) {
-          lastClassLine = trimmed;
-        }
-        
-        // Detect rogue __init__ right after class (within 2 lines)
-        if (/^def __init__\(self\):$/.test(trimmed)) {
-          // Check if previous non-empty line was a class definition
-          let prevIdx = i - 1;
-          while (prevIdx >= 0 && !lines[prevIdx].trim()) prevIdx--;
-          if (prevIdx >= 0 && /^class \w+/.test(lines[prevIdx].trim())) {
-            // This is a rogue __init__ - skip it and next few lines
-            skipUntilDocstring = true;
-            continue;
+      // Split by "def " and extract only business methods (p_xxx)
+      const allBlocks = skeleton.split(/(?=\n    def )/);
+      const businessMethods: string[] = [];
+      
+      for (const block of allBlocks) {
+        // Only keep blocks that start with "def p_" (business methods)
+        const match = block.match(/^\s*def (p_[a-z0-9_]+)\(self\):/m);
+        if (match) {
+          // Extract just this method - find next def or end
+          const methodLines = block.split('\n');
+          const cleanMethod: string[] = [];
+          let inMethod = false;
+          
+          for (const line of methodLines) {
+            const trimmed = line.trim();
+            
+            // Skip contamination
+            if (/^class /.test(trimmed)) break;  // Hit another class = stop
+            if (/^def __init__/.test(trimmed)) continue;  // Skip rogue __init__
+            if (/""".*TODO/.test(trimmed)) continue;  // Skip TODO docstrings
+            if (/FileAdapter/.test(trimmed)) continue;  // Skip FileAdapter references
+            
+            // Start capturing at def p_xxx
+            if (/^def p_[a-z0-9_]+\(self\):$/.test(trimmed)) {
+              inMethod = true;
+            }
+            
+            if (inMethod) {
+              cleanMethod.push(line);
+            }
+          }
+          
+          if (cleanMethod.length >= 2) {
+            businessMethods.push(cleanMethod.join('\n'));
           }
         }
-        
-        // Skip lines while in rogue __init__ block
-        if (skipUntilDocstring) {
-          // Stop skipping when we hit an orphaned docstring or another def
-          if (/^"""[^"]+"""$/.test(trimmed) || /^def /.test(trimmed) || /^class /.test(trimmed)) {
-            skipUntilDocstring = false;
-            // Don't skip this line
-          } else {
-            continue;
-          }
-        }
-        
-        // Fix the corrupted TODO docstring pattern
-        let cleanLine = line.replace(/"""[^"]*"""TODO[^"]*"""/g, '"""Process data."""');
-        cleanedLines.push(cleanLine);
       }
       
-      skeleton = cleanedLines.join('\n');
-      console.log('[v7.30] Removed rogue __init__ blocks line-by-line');
-      
-      // Final cleanup - remove any remaining TODO patterns
-      skeleton = skeleton
-        .replace(/"""[^"]*TODO[^"]*"""/g, '"""Process data."""')
-        .replace(/TODO/g, '');
+      // REBUILD: pristine header + extracted business methods
+      skeleton = header + '\n\n' + businessMethods.join('\n\n');
+      console.log(`[v7.31] Rebuilt with ${businessMethods.length} business methods`);
       
       console.log('[v7.28] Final cleanup complete');
       
