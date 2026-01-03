@@ -745,41 +745,52 @@ ${initVars.join('\n')}
       // FINAL ASSEMBLY: header + methods
       const skeleton = header + methods.join('\n');
       
-      // v7.3: Fast static test generation (no LLM call) for speed
+      // v7.3: Generate tests with LLM (shorter prompt for speed)
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
-      const testMethods = methodNames.slice(0, 30).map(m => 
-        `    def test_${m}(self):\n        """Test ${m} executes without error."""\n        self.processor.${m}()\n        assert True  # Method executed`
-      ).join('\n\n');
+      let unitTests = '';
       
-      const unitTests = `import pytest
-from typing import Any
+      try {
+        // Shorter prompt = faster response
+        const testPrompt = `Generate pytest tests for ${className} with methods: ${methodNames.slice(0, 15).join(', ')}.
+
+TEMPLATE:
+import pytest
 
 class Test${className}:
-    """Auto-generated tests for ${className}."""
-    
     def setup_method(self):
-        """Setup test instance."""
-        from io import StringIO
-        import logging
-        logging.basicConfig(level=logging.DEBUG)
-        # Import dynamically to avoid circular imports
-        self.processor = type('${className}', (), {
-            'logger': logging.getLogger('test'),
-            'data': {},
-            'error_count': 0,
-            'status': 'ACTIVE',
-            **{m: lambda self: None for m in ${JSON.stringify(methodNames.slice(0, 30))}}
-        })()
+        self.obj = ${className}()
     
-${testMethods}
+    def test_method_name(self):
+        self.obj.method_name()
+        assert self.obj.status == "ACTIVE"
+
+Generate 10-15 tests with REAL assertions. Output ONLY Python code:`;
+
+        const testResult = await model.generateContent(testPrompt);
+        let generatedTests = testResult.response.text()
+          .replace(/\`\`\`python\\s*/gi, '')
+          .replace(/\`\`\`\\s*/g, '')
+          .trim();
+        
+        if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
+          unitTests = generatedTests;
+          console.log(\`[v7.3] Generated \${generatedTests.split('def test_').length - 1} tests\`);
+        } else {
+          throw new Error('Invalid tests');
+        }
+      } catch (e: any) {
+        // Fallback: static tests
+        unitTests = \`import pytest
+
+class Test${className}:
+    def setup_method(self):
+        self.obj = None  # TODO: instantiate ${className}
     
-    def test_init_attributes(self):
-        """Test all attributes are initialized."""
-        assert hasattr(self.processor, 'logger')
-        assert hasattr(self.processor, 'data')
-        assert self.processor.status == 'ACTIVE'
-`;
-      console.log(\`[v7.3] Generated \${methodNames.length} static tests (no LLM call)\`);
+\${methodNames.slice(0, 20).map(m => \`    def test_\${m}(self):
+        """Test \${m}."""
+        assert True  # Implement test\`).join('\\n\\n')}
+\`;
+      }
       
       // Generate all metadata for large files
       const funcNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
