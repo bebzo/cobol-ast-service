@@ -509,9 +509,9 @@ COBOL PARAGRAPHS:
 `;
       
       // Create batches of 20 paragraphs
-      // v7.3: Maximum parallelism for 10K+ files
-      const BATCH_SIZE = 50;  // 50 paragraphs per LLM call
-      const PARALLEL_BATCHES = 15;  // 15 parallel calls per wave
+      // v7.4: Quality first - small batches (20) but high parallelism (20)
+      const BATCH_SIZE = 20;  // Keep small for quality
+      const PARALLEL_BATCHES = 20;  // Max parallel for speed
       const batches: typeof allParagraphs[] = [];
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
