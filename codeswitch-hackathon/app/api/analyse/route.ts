@@ -724,7 +724,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.29 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.34 Commercial]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -1224,19 +1224,69 @@ ${initVars.join('\n')}
       skeleton = skeleton.replace(/TODO\.?/gi, '');
       skeleton = skeleton.replace(/# TODO[^\n]*/gi, '');
       
-      // 3. Remove any remaining __init__ in utility classes (final safety)
-      const cleanHeader = header;  // Our pristine template
-      const firstBusinessMethod = skeleton.match(/\n(    def p_[a-z0-9_]+\(self\):)/);
-      if (firstBusinessMethod) {
-        const methodsStart = skeleton.indexOf(firstBusinessMethod[0]);
-        const businessCode = skeleton.substring(methodsStart);
-        skeleton = cleanHeader + '\n' + businessCode;
-        console.log('[v7.33] Rebuilt with pristine header');
+      // v7.34: TOTAL RECONSTRUCTION - Extract methods line by line, rebuild from scratch
+      console.log('[v7.34] Total reconstruction starting...');
+      
+      const lines = skeleton.split('\n');
+      const extractedMethods: string[] = [];
+      let currentMethod: string[] = [];
+      let inBusinessMethod = false;
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        
+        // Detect start of business method (def p_xxx)
+        if (/^def p_[a-z0-9_]+\(self\):$/.test(trimmed)) {
+          // Save previous method if any
+          if (currentMethod.length > 0) {
+            extractedMethods.push(currentMethod.join('\n'));
+          }
+          currentMethod = ['    ' + trimmed];  // Start new method with proper indent
+          inBusinessMethod = true;
+          continue;
+        }
+        
+        // If in business method, collect lines
+        if (inBusinessMethod) {
+          // Stop conditions: new def, class, or unindented line
+          if (/^def /.test(trimmed) || /^class /.test(trimmed)) {
+            // Save and stop
+            if (currentMethod.length > 0) {
+              extractedMethods.push(currentMethod.join('\n'));
+            }
+            currentMethod = [];
+            inBusinessMethod = false;
+            continue;
+          }
+          
+          // Skip contamination
+          if (/^def __init__/.test(trimmed)) continue;
+          if (/TODO/.test(trimmed)) continue;
+          if (/FileAdapter/.test(trimmed)) continue;
+          if (/class /.test(trimmed)) continue;
+          
+          // Add line with proper 8-space indent for method body
+          if (trimmed.length > 0) {
+            currentMethod.push('        ' + trimmed);
+          } else if (currentMethod.length > 1) {
+            currentMethod.push('');  // Keep empty lines within methods
+          }
+        }
       }
       
-      // 4. Final validation - count artifacts
-      const artifactCount = (skeleton.match(/TODO|raise NotImplementedError|class FileAdapter:\s*def __init__|class DefaultFileAdapter:\s*def __init__/g) || []).length;
-      console.log(`[v7.33] Final artifact count: ${artifactCount}`);
+      // Don't forget last method
+      if (currentMethod.length > 0) {
+        extractedMethods.push(currentMethod.join('\n'));
+      }
+      
+      console.log(`[v7.34] Extracted ${extractedMethods.length} business methods`);
+      
+      // TOTAL REBUILD: pristine header + extracted methods
+      skeleton = header + '\n\n' + extractedMethods.join('\n\n');
+      
+      // Final artifact count
+      const artifactCount = (skeleton.match(/TODO|raise NotImplementedError|def __init__\(self\):|class FileAdapter:|class DefaultFileAdapter:/g) || []).length;
+      console.log(`[v7.34] Final artifact count: ${artifactCount}`);
       
       // v7.4: Generate tests with LLM (shorter prompt for speed)
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
