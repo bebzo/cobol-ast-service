@@ -569,7 +569,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.17] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.20] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -640,7 +640,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.17] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.20] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -729,7 +729,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.19]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.20]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -901,56 +901,54 @@ ${initVars.join('\n')}
         methods.push(methodCode);
       }
       
-      // v7.0: No stubs needed - all paragraphs are translated
-      
-      // FINAL ASSEMBLY: header + methods
-      let skeleton = header + methods.join('\n');
-      
-      // v7.14: Clean up any AI-generated class/init artifacts that might have leaked
-      // Remove duplicate class definitions, keep only the first one
-      const classMatches = skeleton.match(/class \w+Processor:/g);
-      if (classMatches && classMatches.length > 1) {
-        // Find and remove all class definitions except the first one in the header
-        const firstClassPos = skeleton.indexOf('class ' + className + ':');
-        const afterFirstClass = skeleton.substring(firstClassPos + className.length + 7);
-        const cleanedAfter = afterFirstClass.replace(/class \w+Processor:[\s\S]*?def __init__\(self\):[\s\S]*?self\.data[^\n]*\n/g, '');
-        skeleton = skeleton.substring(0, firstClassPos + className.length + 7) + cleanedAfter;
-      }
-      
-      // v7.19: SAFE cleanup - only remove specific problematic patterns, preserve header
-      const lines = skeleton.split('\n');
-      const cleanedLines: string[] = [];
-      let headerEnded = false;
-      
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const trimmed = line.trim();
+      // v7.20: ULTIMATE SOLUTION - Clean methods first, then build skeleton
+      // Step 1: Clean each method individually before assembly
+      const cleanMethods: string[] = [];
+      for (const method of methods) {
+        const methodLines = method.split('\n');
+        const cleanMethodLines: string[] = [];
         
-        // Preserve first 20 lines (header) unconditionally
-        if (i < 20) {
-          cleanedLines.push(line);
-          continue;
+        for (const line of methodLines) {
+          const trimmed = line.trim();
+          // Skip any line with problematic patterns
+          if (/""".*TODO/.test(trimmed)) continue;
+          if (/TODO.*"""/.test(trimmed)) continue;
+          if (/\.TODO\./.test(trimmed)) continue;
+          if (/""".*""".*"""/.test(trimmed)) continue;
+          if (/^class \w+/.test(trimmed)) continue;  // No class definitions in methods
+          if (/^from |^import /.test(trimmed)) continue;  // No imports in methods
+          cleanMethodLines.push(line);
         }
         
-        // Skip lines with TODO + docstring patterns
-        if (/""".*TODO/.test(trimmed)) continue;
-        if (/TODO.*"""/.test(trimmed)) continue;
-        if (/\.TODO\./.test(trimmed)) continue;
-        
-        // Skip duplicate class definitions (not the first one)
-        if (/^class \w+Processor:/.test(trimmed) && cleanedLines.some(l => /^class \w+Processor:/.test(l.trim()))) {
-          continue;
+        // Only add method if it has content (at least def line + 1 body line)
+        if (cleanMethodLines.length >= 2) {
+          cleanMethods.push(cleanMethodLines.join('\n'));
         }
-        
-        // Skip orphaned docstrings that look like duplicate init
-        if (/^"""Initialize all business/.test(trimmed) && i > 20) continue;
-        if (/^"""Main processor class/.test(trimmed) && i > 20) continue;
-        
-        cleanedLines.push(line);
       }
-      skeleton = cleanedLines.join('\n');
       
-      // v7.15: ROBUST VALIDATION SYSTEM - Line-by-line Python syntax check
+      // Step 2: Assemble skeleton with GUARANTEED clean header
+      let skeleton = header + cleanMethods.join('\n');
+      
+      // Step 3: FINAL HEADER VALIDATION - Ensure first line is correct
+      const firstLine = skeleton.split('\n')[0];
+      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.20]"""`;
+      if (!firstLine.startsWith('"""') || !firstLine.endsWith('"""') || firstLine.includes('TODO')) {
+        // Header corrupted - rebuild from scratch
+        console.log('[v7.20] Header corruption detected, rebuilding...');
+        skeleton = expectedFirstLine + '\n' + skeleton.split('\n').slice(1).join('\n');
+      }
+      
+      // Step 4: Remove any duplicate class definitions in methods section
+      const skeletonParts = skeleton.split('class ' + className + ':');
+      if (skeletonParts.length > 2) {
+        // Keep only first class definition
+        skeleton = skeletonParts[0] + 'class ' + className + ':' + skeletonParts[1];
+        console.log('[v7.20] Removed duplicate class definitions');
+      }
+      
+      console.log(`[v7.20] Final skeleton: ${skeleton.split('\n').length} lines`);
+      
+      // v7.20: ROBUST VALIDATION SYSTEM - Line-by-line Python syntax check
       const skeletonLines = skeleton.split('\n');
       const validatedLines: string[] = [];
       let inMethod = false;
@@ -1023,11 +1021,11 @@ ${initVars.join('\n')}
       }
       
       skeleton = validatedLines.join('\n');
-      console.log(`[v7.17] Validated ${validatedLines.length} lines`);
+      console.log(`[v7.20] Validated ${validatedLines.length} lines`);
       
       // v7.17: COMPREHENSIVE AST ANALYSIS + GEMINI FIX
       let astAnalysis = runASTAnalysis(skeleton);
-      console.log(`[v7.17] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats.total_methods}, problematic=${astAnalysis.stats.problematic_methods}`);
+      console.log(`[v7.20] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats.total_methods}, problematic=${astAnalysis.stats.problematic_methods}`);
       
       // Fix syntax errors first (up to 3 attempts)
       for (let retry = 0; retry < 3 && !astAnalysis.valid; retry++) {
@@ -1037,7 +1035,7 @@ ${initVars.join('\n')}
         const badMethod = findMethodAtLine(skeleton, errorLine);
         if (!badMethod) break;
         
-        console.log(`[v7.17] Fix attempt ${retry + 1}: ${badMethod} (line ${errorLine})`);
+        console.log(`[v7.20] Fix attempt ${retry + 1}: ${badMethod} (line ${errorLine})`);
         
         const methodRegex = new RegExp(`(    def ${badMethod}\\(self\\):.*?)(?=\n    def |$)`, 's');
         const methodMatch = skeleton.match(methodRegex);
@@ -1057,7 +1055,7 @@ ${initVars.join('\n')}
       // Now fix problematic methods (empty, high complexity)
       if (astAnalysis.valid && astAnalysis.stats.problematic_methods > 0) {
         const badMethods = astAnalysis.methods.filter(m => m.has_issues).slice(0, 5);  // Fix max 5
-        console.log(`[v7.17] Fixing ${badMethods.length} problematic methods`);
+        console.log(`[v7.20] Fixing ${badMethods.length} problematic methods`);
         
         for (const method of badMethods) {
           if (!method.issue_types.includes('empty_method')) continue;  // Only fix empty methods
@@ -1080,7 +1078,7 @@ ${initVars.join('\n')}
             let newMethod = result.response.text().replace(/```python\s*/gi, '').replace(/```/g, '').trim();
             if (!newMethod.startsWith('    def ')) newMethod = '    ' + newMethod;
             skeleton = skeleton.replace(methodRegex, newMethod + '\n\n');
-            console.log(`[v7.17] Refactored: ${method.name}`);
+            console.log(`[v7.20] Refactored: ${method.name}`);
           } catch { /* skip */ }
         }
       }
@@ -1101,7 +1099,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.17] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.20] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
