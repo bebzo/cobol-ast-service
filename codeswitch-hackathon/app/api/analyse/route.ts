@@ -600,12 +600,15 @@ COBOL PARAGRAPHS:
       const needsJson = cobolCode.toLowerCase().includes('json') || cobolCode.toLowerCase().includes('parse');
       
       // First pass: collect all self.xxx variables from translations
+      // v7.10: Exclude method names (p_xxxx pattern) - they are methods, not variables
       for (const t of translations) {
         const varMatches = t.logic.matchAll(/self\.([a-z_][a-z0-9_]*)/gi);
         for (const m of varMatches) {
-          if (!['logger', 'data'].includes(m[1])) {
-            allSelfVars.add(m[1].toLowerCase());
-          }
+          const varName = m[1].toLowerCase();
+          // Skip: logger, data, and method calls (p_xxxx pattern)
+          if (['logger', 'data'].includes(varName)) continue;
+          if (/^p_\d/.test(varName)) continue;  // Method names like p_1000_xxx
+          allSelfVars.add(varName);
         }
       }
       console.log(`[v7.0] Detected ${allSelfVars.size} unique self.xxx variables`);
