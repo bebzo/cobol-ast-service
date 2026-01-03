@@ -729,7 +729,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.25 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.26 Commercial]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -976,71 +976,13 @@ ${initVars.join('\n')}
         }
       }
       
-      // Step 2: Assemble skeleton with GUARANTEED clean header
-      let skeleton = header + cleanMethods.join('\n');
+      // Step 2: v7.26 SIMPLE ASSEMBLY - header + cleanMethods only
+      console.log('[v7.26] Assembling ' + cleanMethods.length + ' clean methods with pristine header');
       
-      // Step 3: FINAL HEADER VALIDATION - Ensure first line is correct
-      const firstLine = skeleton.split('\n')[0];
-      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.25 Commercial]"""`;
-      if (!firstLine.startsWith('"""') || !firstLine.endsWith('"""') || firstLine.includes('TODO')) {
-        // Header corrupted - rebuild from scratch
-        console.log('[v7.21] Header corruption detected, rebuilding...');
-        skeleton = expectedFirstLine + '\n' + skeleton.split('\n').slice(1).join('\n');
-      }
+      // Direct assembly - no extraction from corrupted skeleton
+      let skeleton = header + '\n\n' + cleanMethods.join('\n\n');
       
-      // Step 4: Remove any duplicate class definitions in methods section
-      const skeletonParts = skeleton.split('class ' + className + ':');
-      if (skeletonParts.length > 2) {
-        // Keep only first class definition
-        skeleton = skeletonParts[0] + 'class ' + className + ':' + skeletonParts[1];
-        console.log('[v7.21] Removed duplicate class definitions');
-      }
-      
-      // Step 5: v7.24 ALWAYS REBUILD - Extract only business methods, ignore AI-generated class/init
-      console.log('[v7.24] ALWAYS REBUILD - Extracting business methods only');
-      
-      // Extract ONLY business method definitions (def xxx(self): where xxx is not a system method)
-      const businessMethods: string[] = [];
-      const methodMatches = skeleton.matchAll(/^    def (\w+)\(self\):\s*\n([\s\S]*?)(?=\n    def |\n\nclass |\n$)/gm);
-      
-      for (const match of methodMatches) {
-        const methodName = match[1];
-        const methodBody = match[2];
-        
-        // Skip system methods - they're in the header template
-        if (['__init__', 'read_file', 'write_file', 'get_next_account', 'reset_account_iterator', 'handle_error'].includes(methodName)) {
-          continue;
-        }
-        
-        // Clean the method body
-        const cleanBodyLines = methodBody.split('\n').filter(line => {
-          const trimmed = line.trim();
-          if (/""".*TODO/.test(trimmed)) return false;
-          if (/TODO.*"""/.test(trimmed)) return false;
-          if (/^class \w+/.test(trimmed)) return false;
-          if (/^def __init__/.test(trimmed)) return false;
-          if (/Main processor class/.test(trimmed)) return false;
-          if (/Initialize.*Processor/.test(trimmed)) return false;
-          if (/file_adapter.*DefaultFileAdapter/.test(trimmed)) return false;
-          return true;
-        });
-        
-        // Build clean method
-        const safeMethodName = methodName.replace(/TODO/gi, '');
-        if (safeMethodName && cleanBodyLines.length > 0) {
-          let cleanMethod = `    def ${safeMethodName}(self):\n`;
-          cleanMethod += `        """${safeMethodName.replace(/_/g, ' ')}."""\n`;
-          cleanMethod += cleanBodyLines.filter(l => l.trim()).join('\n');
-          businessMethods.push(cleanMethod);
-        }
-      }
-      
-      console.log('[v7.24] Extracted ' + businessMethods.length + ' clean business methods');
-      
-      // ALWAYS rebuild with pristine header + clean methods
-      skeleton = header + '\n' + businessMethods.join('\n\n');
-      
-      // Final cleanup - remove any remaining TODO
+      // Final cleanup - remove any remaining TODO patterns
       skeleton = skeleton
         .replace(/"""[^"]*TODO[^"]*"""/g, '"""Process data."""')
         .replace(/TODO/g, '');
