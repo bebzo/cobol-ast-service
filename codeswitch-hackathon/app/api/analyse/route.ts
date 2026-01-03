@@ -727,7 +727,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.46 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.47 Enterprise]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -944,6 +944,53 @@ ${initVars.join('\n')}
             methodCode += `        principal = self.data.get("principal", Decimal("100000"))\n        rate = self.data.get("rate", Decimal("0.05"))\n        term = self.data.get("term", 360)\n        monthly_rate = rate / Decimal("12")\n        payment = principal * monthly_rate / (Decimal("1") - (Decimal("1") + monthly_rate) ** -term)\n        self.logger.info(f"Amortization payment: {payment}")\n        return payment\n`;
           } else if (name.includes('delinquen') || name.includes('late')) {
             methodCode += `        days_past_due = self.data.get("days_past_due", 0)\n        is_delinquent = days_past_due > 30\n        self.logger.info(f"Delinquency check: {days_past_due} days, delinquent: {is_delinquent}")\n        return is_delinquent\n`;
+          // INSURANCE
+          } else if (name.includes('premium')) {
+            methodCode += `        base = self.data.get("base_premium", Decimal("100"))\n        risk_factor = self.data.get("risk_factor", Decimal("1.0"))\n        premium = base * risk_factor\n        self.logger.info(f"Calculated premium: {premium}")\n        return premium\n`;
+          } else if (name.includes('claim')) {
+            methodCode += `        claim_amount = self.data.get("claim_amount", Decimal("0"))\n        deductible = self.data.get("deductible", Decimal("500"))\n        payout = max(claim_amount - deductible, Decimal("0"))\n        self.logger.info(f"Claim processed: payout {payout}")\n        return payout\n`;
+          } else if (name.includes('policy') || name.includes('policies')) {
+            methodCode += `        policy_id = self.data.get("policy_id", "")\n        self.data["status"] = "ACTIVE"\n        self.logger.info(f"Policy {policy_id} processed")\n        return True\n`;
+          } else if (name.includes('risk') || name.includes('underwriting')) {
+            methodCode += `        age = self.data.get("age", 35)\n        risk_score = Decimal("1.0") + (Decimal(str(age)) - Decimal("30")) * Decimal("0.02")\n        self.logger.info(f"Risk score: {risk_score}")\n        return risk_score\n`;
+          } else if (name.includes('renew')) {
+            methodCode += `        expiry = self.data.get("expiry_date", datetime.now())\n        self.data["expiry_date"] = expiry + timedelta(days=365)\n        self.logger.info("Policy renewed")\n        return True\n`;
+          // INVESTMENTS
+          } else if (name.includes('portfolio') || name.includes('position')) {
+            methodCode += `        positions = self.data.get("positions", [])\n        total_value = sum(p.get("value", Decimal("0")) for p in positions) if positions else Decimal("0")\n        self.logger.info(f"Portfolio value: {total_value}")\n        return total_value\n`;
+          } else if (name.includes('trade') || name.includes('order')) {
+            methodCode += `        symbol = self.data.get("symbol", "")\n        quantity = self.data.get("quantity", 0)\n        price = self.data.get("price", Decimal("0"))\n        total = Decimal(str(quantity)) * price\n        self.logger.info(f"Trade executed: {symbol} x {quantity} @ {price} = {total}")\n        return total\n`;
+          } else if (name.includes('dividend')) {
+            methodCode += `        shares = self.data.get("shares", Decimal("0"))\n        div_per_share = self.data.get("dividend_rate", Decimal("0.50"))\n        dividend = shares * div_per_share\n        self.logger.info(f"Dividend calculated: {dividend}")\n        return dividend\n`;
+          } else if (name.includes('gain') || name.includes('loss') || name.includes('return')) {
+            methodCode += `        cost_basis = self.data.get("cost_basis", Decimal("0"))\n        current_value = self.data.get("current_value", Decimal("0"))\n        gain_loss = current_value - cost_basis\n        self.logger.info(f"Gain/Loss: {gain_loss}")\n        return gain_loss\n`;
+          } else if (name.includes('rebalance') || name.includes('allocation')) {
+            methodCode += `        target = self.data.get("target_allocation", {})\n        self.logger.info(f"Rebalancing to target: {target}")\n        return True\n`;
+          // CREDIT CARDS
+          } else if (name.includes('authorize') || name.includes('authorization')) {
+            methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        credit_limit = self.data.get("credit_limit", Decimal("5000"))\n        available = credit_limit - self.data.get("balance", Decimal("0"))\n        approved = amount <= available\n        self.logger.info(f"Authorization {'approved' if approved else 'declined'}: {amount}")\n        return approved\n`;
+          } else if (name.includes('reward') || name.includes('points')) {
+            methodCode += `        spend = self.data.get("amount", Decimal("0"))\n        points = int(spend * Decimal("1.5"))\n        self.data["points"] = self.data.get("points", 0) + points\n        self.logger.info(f"Earned {points} points")\n        return points\n`;
+          } else if (name.includes('credit') && name.includes('limit')) {
+            methodCode += `        income = self.data.get("income", Decimal("0"))\n        limit = income * Decimal("0.3")\n        self.logger.info(f"Credit limit: {limit}")\n        return limit\n`;
+          // MORTGAGE
+          } else if (name.includes('mortgage') || name.includes('escrow')) {
+            methodCode += `        principal = self.data.get("principal", Decimal("0"))\n        taxes = self.data.get("taxes", Decimal("0"))\n        insurance = self.data.get("insurance", Decimal("0"))\n        escrow = (taxes + insurance) / Decimal("12")\n        self.logger.info(f"Monthly escrow: {escrow}")\n        return escrow\n`;
+          } else if (name.includes('appraisal') || name.includes('ltv') || name.includes('dti')) {
+            methodCode += `        value = self.data.get("property_value", Decimal("0"))\n        loan = self.data.get("loan_amount", Decimal("0"))\n        ltv = (loan / value * Decimal("100")) if value > 0 else Decimal("0")\n        self.logger.info(f"LTV ratio: {ltv}%")\n        return ltv\n`;
+          // FRAUD
+          } else if (name.includes('fraud') || name.includes('suspicious')) {
+            methodCode += `        score = self.data.get("fraud_score", Decimal("0.1"))\n        is_fraud = score > Decimal("0.7")\n        if is_fraud:\n            self.logger.warning("Fraud detected!")\n        return is_fraud\n`;
+          } else if (name.includes('alert') || name.includes('flag')) {
+            methodCode += `        alert_type = self.data.get("alert_type", "INFO")\n        self.logger.warning(f"Alert generated: {alert_type}")\n        return {"type": alert_type, "timestamp": datetime.now().isoformat()}\n`;
+          // PAYROLL / HR
+          } else if (name.includes('payroll') || name.includes('salary')) {
+            methodCode += `        gross = self.data.get("gross_salary", Decimal("0"))\n        tax_rate = self.data.get("tax_rate", Decimal("0.25"))\n        net = gross * (Decimal("1") - tax_rate)\n        self.logger.info(f"Net salary: {net}")\n        return net\n`;
+          } else if (name.includes('tax') && !name.includes('report')) {
+            methodCode += `        income = self.data.get("income", Decimal("0"))\n        rate = self.data.get("tax_rate", Decimal("0.25"))\n        tax = income * rate\n        self.logger.info(f"Tax calculated: {tax}")\n        return tax\n`;
+          // RECONCILIATION
+          } else if (name.includes('reconcil') || name.includes('match')) {
+            methodCode += `        expected = self.data.get("expected", Decimal("0"))\n        actual = self.data.get("actual", Decimal("0"))\n        diff = actual - expected\n        matched = abs(diff) < Decimal("0.01")\n        self.logger.info(f"Reconciliation: diff={diff}, matched={matched}")\n        return matched\n`;
           // REPORTS
           } else if (name.includes('report') || name.includes('statement')) {
             methodCode += `        report = {"date": datetime.now().isoformat(), "balance": str(self.data.get("balance", Decimal("0"))), "status": self.status}\n        self.logger.info(f"Generated report: {report}")\n        return report\n`;
