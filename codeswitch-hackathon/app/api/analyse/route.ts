@@ -617,20 +617,24 @@ COBOL PARAGRAPHS:
                 })
                 .slice(0, 20);  // Allow more lines
               
-              results.push({ name, logic: validLines.join('\n') || 'self.logger.info("Processing")\n        self.status = "COMPLETED"' });
+              // v7.51: NO FALLBACK - use AI output or empty
+              const aiLogic = validLines.join('\n');
+              console.log(`[AI-PARSED] ${name}: ${validLines.length} lines`);
+              results.push({ name, logic: aiLogic });
             }
             
             // Fill in any missing paragraphs from batch
             for (const p of batch) {
               if (!results.find(r => r.name.toUpperCase() === p.name.toUpperCase())) {
-                results.push({ name: p.name, logic: 'pass' });
+                results.push({ name: p.name, logic: '' });
               }
             }
             
             return results;
           } catch (e) {
-            // On error, return pass stubs for this batch
-            return batch.map(p => ({ name: p.name, logic: 'self.logger.info("Processing")\n        self.status = "COMPLETED"' }));
+            // On error, return empty for this batch
+            console.log('[AI-ERROR] Batch failed:', e);
+            return batch.map(p => ({ name: p.name, logic: '' }));
           }
         }));
         
