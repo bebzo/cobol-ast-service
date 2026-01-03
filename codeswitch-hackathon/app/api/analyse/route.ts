@@ -691,6 +691,16 @@ ${initVars.join('\n')}
           const isControlFlow = /^(if |elif |else:|for |while |try:|except|finally:)/.test(trimmed);
           const isStatement = /^(self\.\w+|return |raise |break|continue|[a-z_]\w*\s*=)/.test(trimmed);
           
+          // v7.4: Reject lines with syntax issues
+          const openParens = (trimmed.match(/\(/g) || []).length;
+          const closeParens = (trimmed.match(/\)/g) || []).length;
+          const openBrackets = (trimmed.match(/\[/g) || []).length;
+          const closeBrackets = (trimmed.match(/\]/g) || []).length;
+          const hasContinuation = trimmed.endsWith('\\\\');
+          const hasUnbalanced = openParens !== closeParens || openBrackets !== closeBrackets;
+          
+          if (hasUnbalanced || hasContinuation) continue;  // Skip bad lines
+          
           if (isControlFlow || isStatement) {
             // v7.4: Fix indentation - add pass for empty blocks BEFORE adding new line
             if (validStatements.length > 0) {
