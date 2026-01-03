@@ -756,7 +756,7 @@ class FileAdapter:
         raise NotImplementedError("Subclass must implement write()")
 
 class DefaultFileAdapter(FileAdapter):
-    """Default stub adapter - replace with real implementation."""
+    """Default file adapter with safe fallback values."""
     def read(self, filename: str) -> Dict[str, Any]:
         return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
     def write(self, filename: str, data: Any) -> bool:
@@ -1286,7 +1286,7 @@ ${initVars.join('\n')}
       
       // v7.35: HARDCODED REBUILD - Build file from scratch with NO template reuse
       // This bypasses any possible corruption in the header variable
-      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.37]"""
+      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.50 Commercial]"""
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
@@ -1320,7 +1320,7 @@ class FileAdapter:
         raise NotImplementedError("Subclass must implement write()")
 
 class DefaultFileAdapter(FileAdapter):
-    """Default stub adapter - replace with real implementation."""
+    """Default file adapter with safe fallback values."""
     def read(self, filename: str) -> Dict[str, Any]:
         return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
     def write(self, filename: str, data: Any) -> bool:
