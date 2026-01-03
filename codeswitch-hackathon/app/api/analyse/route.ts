@@ -729,7 +729,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.17]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.18]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -917,8 +917,14 @@ ${initVars.join('\n')}
         skeleton = skeleton.substring(0, firstClassPos + className.length + 7) + cleanedAfter;
       }
       
-      // Remove any TODO artifacts that slipped through  
-      skeleton = skeleton.replace(/"""[^"]*"""TODO\."""[^"]*"""/g, '');
+      // v7.18: Aggressive cleanup of AI-generated artifacts
+      // Pattern: """...""".TODO."""...""" or any line with multiple """ and TODO
+      skeleton = skeleton
+        .replace(/"""[^"]*"""\s*\.?\s*TODO\s*\.?\s*"""[^"]*"""/g, '')
+        .replace(/^.*""".*TODO.*""".*$/gm, '')  // Any line with TODO between docstrings
+        .replace(/"""[^"]*"""[^\n]*"""[^"]*"""/g, '')  // Multiple docstrings on one line
+        .replace(/^\s*"""Main processor class.*$/gm, '')  // Remove duplicate class docstring
+        .replace(/^\s*\.TODO\..*$/gm, '');  // Remove orphaned .TODO. lines
       
       // v7.15: ROBUST VALIDATION SYSTEM - Line-by-line Python syntax check
       const skeletonLines = skeleton.split('\n');
@@ -938,9 +944,11 @@ ${initVars.join('\n')}
         
         // === VALIDATION RULES ===
         
-        // 1. Skip lines with broken docstrings
+        // 1. Skip lines with broken docstrings or TODO artifacts
         if (/""".*""".*"""/.test(trimmed)) continue;
-        if (/TODO\."""/.test(trimmed)) continue;
+        if (/TODO/.test(trimmed) && /"""/.test(trimmed)) continue;  // Any TODO with docstrings
+        if (/\.TODO\./.test(trimmed)) continue;  // .TODO. pattern
+        if (/""".*TODO/.test(trimmed)) continue;  // Docstring followed by TODO
         
         // 2. Fix orphaned docstrings (docstring not after def/class)
         if (trimmed.startsWith('"""') && !trimmed.endsWith('"""')) {
