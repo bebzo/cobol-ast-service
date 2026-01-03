@@ -977,26 +977,51 @@ ${initVars.join('\n')}
       // Direct assembly - no extraction from corrupted skeleton
       let skeleton = header + '\n\n' + cleanMethods.join('\n\n');
       
-      // v7.29: REMOVE ROGUE __init__ - They appear inside FileAdapter/DefaultFileAdapter
-      // Pattern: class Xxx:\n    def __init__(self):\n        """..."""\n        self.logger...\n        self.data...
-      skeleton = skeleton.replace(
-        /class FileAdapter:\n    def __init__\(self\):\n        """[^"]*"""\n        self\.logger[^\n]*\n        self\.data[^\n]*\n/g,
-        'class FileAdapter:\n'
-      );
-      skeleton = skeleton.replace(
-        /class DefaultFileAdapter\(FileAdapter\):\n    def __init__\(self\):\n        """[^"]*"""\n        self\.logger[^\n]*\n        self\.data[^\n]*\n/g,
-        'class DefaultFileAdapter(FileAdapter):\n'
-      );
-      skeleton = skeleton.replace(
-        /class MegaProcessor:\n    def __init__\(self\):\n        """[^"]*"""\n        self\.logger[^\n]*\n        self\.data[^\n]*\n/g,
-        'class MegaProcessor:\n'
-      );
-      // Also fix the corrupted docstring pattern
-      skeleton = skeleton.replace(
-        /"""Main processor class[^"]*"""TODO[^"]*"""/g,
-        '"""Main processor class."""'
-      );
-      console.log('[v7.29] Removed rogue __init__ from adapter classes');
+      // v7.30: AGGRESSIVE LINE-BY-LINE CLEANUP of rogue __init__ blocks
+      const lines = skeleton.split('\n');
+      const cleanedLines: string[] = [];
+      let skipUntilDocstring = false;
+      let lastClassLine = '';
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const trimmed = line.trim();
+        
+        // Track class definitions
+        if (/^class \w+/.test(trimmed)) {
+          lastClassLine = trimmed;
+        }
+        
+        // Detect rogue __init__ right after class (within 2 lines)
+        if (/^def __init__\(self\):$/.test(trimmed)) {
+          // Check if previous non-empty line was a class definition
+          let prevIdx = i - 1;
+          while (prevIdx >= 0 && !lines[prevIdx].trim()) prevIdx--;
+          if (prevIdx >= 0 && /^class \w+/.test(lines[prevIdx].trim())) {
+            // This is a rogue __init__ - skip it and next few lines
+            skipUntilDocstring = true;
+            continue;
+          }
+        }
+        
+        // Skip lines while in rogue __init__ block
+        if (skipUntilDocstring) {
+          // Stop skipping when we hit an orphaned docstring or another def
+          if (/^"""[^"]+"""$/.test(trimmed) || /^def /.test(trimmed) || /^class /.test(trimmed)) {
+            skipUntilDocstring = false;
+            // Don't skip this line
+          } else {
+            continue;
+          }
+        }
+        
+        // Fix the corrupted TODO docstring pattern
+        let cleanLine = line.replace(/"""[^"]*"""TODO[^"]*"""/g, '"""Process data."""');
+        cleanedLines.push(cleanLine);
+      }
+      
+      skeleton = cleanedLines.join('\n');
+      console.log('[v7.30] Removed rogue __init__ blocks line-by-line');
       
       // Final cleanup - remove any remaining TODO patterns
       skeleton = skeleton
