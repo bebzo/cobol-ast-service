@@ -1101,6 +1101,23 @@ ${initVars.join('\n')}
       skeleton = validatedLines.join('\n');
       console.log(`[v7.21] Validated ${validatedLines.length} lines`);
       
+      // v7.32: FINAL NUCLEAR CLEANUP - Remove ALL rogue __init__ from utility classes
+      // Pattern: class X:\n    def __init__(self):\n        ...\n    """docstring"""
+      // We keep ONLY the __init__ from ${className} (the main processor)
+      const mainClass = className;
+      const utilityClasses = ['FileAdapter', 'DefaultFileAdapter', 'BusinessError', 'ValidationError', 'DataNotFoundError', 'ProcessingError'];
+      
+      for (const utilClass of utilityClasses) {
+        // Remove any __init__ block injected after utility class definitions
+        // Match: "class X:\n    def __init__(self):\n    [any lines with indent]\n    """docstring"""
+        const roguePattern = new RegExp(
+          `(class ${utilClass}[^:]*:)\\n(\\s*def __init__\\(self\\):.*\\n(?:\\s+.*\\n)*?)(\\s*"""[^"]+""")`,
+          'g'
+        );
+        skeleton = skeleton.replace(roguePattern, '$1\n$3');
+      }
+      console.log('[v7.32] Removed rogue __init__ from utility classes');
+      
       // v7.17: COMPREHENSIVE AST ANALYSIS + GEMINI FIX
       let astAnalysis = runASTAnalysis(skeleton);
       console.log(`[v7.21] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats.total_methods}, problematic=${astAnalysis.stats.problematic_methods}`);
