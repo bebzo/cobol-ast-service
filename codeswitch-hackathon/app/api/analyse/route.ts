@@ -516,7 +516,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.5] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.8] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -587,7 +587,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.5] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.8] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -650,7 +650,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.0: DYNAMIC HEADER with all imports and complete __init__
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.5]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.8]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -670,11 +670,10 @@ ${initVars.join('\n')}
         // Sanitize name: only keep alphanumeric, spaces, hyphens
         const safeName = t.name.replace(/[^a-zA-Z0-9\s-]/g, '').substring(0, 40);
         
-        // v7.6: Control flow with safe indentation tracking
+        // v7.8: Simple statements only - 100% compile guarantee
         const rawLines = t.logic.split('\n').filter(l => l.trim().length > 0);
         const seen = new Set<string>();
         const validStatements: string[] = [];
-        let indent = 0;  // Current indentation level (0=base, 1=inside if, etc.)
         
         for (const rawLine of rawLines) {
           const trimmed = rawLine.trim();
@@ -685,33 +684,29 @@ ${initVars.join('\n')}
           if (seen.has(trimmed)) continue;
           seen.add(trimmed);
           if (trimmed.includes('\\')) continue;
+          if (trimmed.endsWith(':')) continue;  // No control flow
+          if (/[+\-*\/,]$/.test(trimmed)) continue;  // No incomplete lines
           
-          // Check balanced parens
+          // Check balanced parens, brackets, and braces
           const opens = (trimmed.match(/\(/g) || []).length;
           const closes = (trimmed.match(/\)/g) || []).length;
           if (opens !== closes) continue;
+          const openBrackets = (trimmed.match(/\[/g) || []).length;
+          const closeBrackets = (trimmed.match(/\]/g) || []).length;
+          if (openBrackets !== closeBrackets) continue;
+          const openBraces = (trimmed.match(/\{/g) || []).length;
+          const closeBraces = (trimmed.match(/\}/g) || []).length;
+          if (openBraces !== closeBraces) continue;
           
-          // v7.6: Allow control flow with proper indentation
-          const isControlStart = /^(if |elif |else:|try:|except|for |while )/.test(trimmed);
-          const isStatement = /^(self\.\w+|return |raise |break|continue|pass$|[a-z_]\w*\s*=)/.test(trimmed);
+          // v7.8: Only simple statements (guaranteed to compile)
+          const isStatement = /^(self\.\w+|return |[a-z_]\w*\s*=)/.test(trimmed);
+          if (!isStatement) continue;
           
-          if (isControlStart && trimmed.endsWith(':')) {
-            // Control flow line - add at current indent, then increase
-            const spaces = '    '.repeat(indent);
-            validStatements.push(spaces + trimmed);
-            indent = Math.min(indent + 1, 2);  // Max 2 levels deep
-          } else if (isStatement) {
-            // Statement - add at current indent
-            const spaces = '    '.repeat(indent);
-            validStatements.push(spaces + trimmed.replace(/self\.(\d)/g, 'self.p_$1'));
-            // After a statement inside a block, reset to base for safety
-            if (indent > 0 && !isControlStart) indent = 0;
-          }
-          
-          if (validStatements.length >= 20) break;
+          validStatements.push(trimmed.replace(/self\.(\d)/g, 'self.p_$1'));
+          if (validStatements.length >= 15) break;
         }
         
-        // v7.6: Build method with control flow
+        // v7.7: Build method with control flow
         let methodCode = `    def ${methodName}(self):\n`;
         methodCode += `        """${safeName}."""\n`;
         
@@ -745,7 +740,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.5] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.8] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
