@@ -74,16 +74,16 @@ const corsHeaders = {
 
 const GROQ_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// DeepSeek API helper function
+// Cerebras API helper function
 async function callGroq(prompt: string): Promise<string> {
-  const response = await fetch('https://api.deepseek.com/chat/completions', {
+  const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${GROQ_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: 'llama-3.3-70b',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
       max_tokens: 8000,
@@ -91,7 +91,7 @@ async function callGroq(prompt: string): Promise<string> {
   });
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`DeepSeek API error: ${response.status} - ${error}`);
+    throw new Error(`Cerebras API error: ${response.status} - ${error}`);
   }
   const data = await response.json();
   return data.choices[0]?.message?.content || '';
