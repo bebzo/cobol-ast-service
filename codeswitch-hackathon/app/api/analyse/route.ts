@@ -516,7 +516,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.3] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.4] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -587,7 +587,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.3] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.4] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -650,7 +650,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.0: DYNAMIC HEADER with all imports and complete __init__
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.3]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.4]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -692,20 +692,39 @@ ${initVars.join('\n')}
           const isStatement = /^(self\.\w+|return |raise |break|continue|[a-z_]\w*\s*=)/.test(trimmed);
           
           if (isControlFlow || isStatement) {
-            // Add with proper indentation based on block level
+            // v7.4: Fix indentation - add pass for empty blocks BEFORE adding new line
+            if (validStatements.length > 0) {
+              const prevLine = validStatements[validStatements.length - 1];
+              if (prevLine.trim().endsWith(':') && !isStatement) {
+                // Previous was control flow, current is also control flow - need pass
+                const prevIndent = prevLine.match(/^(\s*)/)?.[1] || '';
+                validStatements.push(prevIndent + '    pass');
+              }
+            }
+            
+            // Adjust block level for dedent keywords
             if (trimmed === 'else:' || trimmed.startsWith('elif ') || trimmed.startsWith('except') || trimmed === 'finally:') {
-              inBlock = Math.max(0, inBlock - 1);  // Dedent for else/elif/except
+              inBlock = Math.max(0, inBlock - 1);
             }
             
             const indent = '    '.repeat(inBlock);
             validStatements.push(indent + trimmed);
             
             if (trimmed.endsWith(':')) {
-              inBlock++;  // Indent after :
+              inBlock++;
             }
           }
           
-          if (validStatements.length >= 20) break;  // More lines allowed
+          if (validStatements.length >= 20) break;
+        }
+        
+        // v7.4: Final pass for any trailing control flow
+        if (validStatements.length > 0) {
+          const lastLine = validStatements[validStatements.length - 1];
+          if (lastLine.trim().endsWith(':')) {
+            const lastIndent = lastLine.match(/^(\s*)/)?.[1] || '';
+            validStatements.push(lastIndent + '    pass');
+          }
         }
         
         // Build the method
@@ -727,12 +746,6 @@ ${initVars.join('\n')}
             );
           
           methodCode += fixedStatements.map(s => `        ${s}`).join('\n') + '\n';
-          
-          // Ensure block ends properly (add pass if ends with :)
-          const lastLine = fixedStatements[fixedStatements.length - 1]?.trim();
-          if (lastLine?.endsWith(':')) {
-            methodCode += `            pass\n`;
-          }
         } else {
           methodCode += `        pass\n`;
         }
@@ -844,7 +857,7 @@ class Test${className}:
         complexity: 'HIGH',
         risk_level: 'HIGH',
         processing_time_ms: Date.now() - startTime,
-        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v7.3 (${allSelfVars.size} vars).`,
+        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v7.4 (${allSelfVars.size} vars).`,
         code_valid: true,
         // Additional fields for tabs
         issues,
@@ -884,6 +897,6 @@ class Test${className}:
     );
   }
 }
-// v7.3 - max speed: batch=50, parallel=15
+// v7.4 - fixed indentation for nested control flow
 
 /* DELETED OLD CODE (lines 769-1726 removed) */
