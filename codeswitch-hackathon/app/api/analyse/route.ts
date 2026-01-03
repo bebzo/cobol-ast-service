@@ -633,24 +633,45 @@ COBOL PARAGRAPHS:
         '        self.status: str = "ACTIVE"'
       ];
       
-      // Add all detected variables with inferred types
+      // Add all detected variables with inferred types - v7.11 enhanced
       for (const varName of Array.from(allSelfVars).sort()) {
         if (['logger', 'data', 'error_count', 'status'].includes(varName)) continue;
-        // Infer type from variable name
+        // Infer type from variable name - ORDER MATTERS (more specific first)
         let typeAndDefault = ': Any = None';
-        if (varName.includes('count') || varName.includes('total') || varName.includes('num')) {
-          typeAndDefault = ': int = 0';
-        } else if (varName.includes('amount') || varName.includes('balance') || varName.includes('rate') || varName.includes('price')) {
-          typeAndDefault = ': Decimal = Decimal("0")';
-        } else if (varName.includes('flag') || varName.includes('is_') || varName.includes('has_') || varName.includes('error')) {
-          typeAndDefault = ': bool = False';
-        } else if (varName.includes('list') || varName.includes('items') || varName.includes('records')) {
+        
+        // Dict patterns (check first - most specific)
+        if (/_master$|_data$|_dict$|_map$|_config$|_record$|_info$/.test(varName)) {
+          typeAndDefault = ': Dict[str, Any] = {}';
+        }
+        // List patterns
+        else if (varName.includes('list') || varName.includes('items') || varName.includes('records') || /_array$|_set$/.test(varName)) {
           typeAndDefault = ': List[Any] = []';
-        } else if (varName.includes('name') || varName.includes('id') || varName.includes('code') || varName.includes('msg')) {
+        }
+        // Numeric patterns
+        else if (varName.includes('count') || varName.includes('total') || varName.includes('num') || /_index$|_idx$|_len$/.test(varName)) {
+          typeAndDefault = ': int = 0';
+        }
+        // Decimal patterns
+        else if (varName.includes('amount') || varName.includes('balance') || varName.includes('rate') || varName.includes('price') || /_sum$|_avg$/.test(varName)) {
+          typeAndDefault = ': Decimal = Decimal("0")';
+        }
+        // Boolean patterns
+        else if (varName.includes('flag') || /^is_|^has_|^can_|^should_|_ok$|_valid$/.test(varName)) {
+          typeAndDefault = ': bool = False';
+        }
+        // String patterns
+        else if (varName.includes('name') || varName.includes('code') || varName.includes('msg') || /_text$|_str$|_file$/.test(varName)) {
           typeAndDefault = ': str = ""';
-        } else if (varName.includes('date') || varName.includes('time')) {
+        }
+        // Date patterns
+        else if (varName.includes('date') || varName.includes('time') || /_dt$|_ts$/.test(varName)) {
           typeAndDefault = ': Optional[datetime] = None';
         }
+        // ID patterns (check after dict to avoid false positives)
+        else if (/_id$/.test(varName)) {
+          typeAndDefault = ': str = ""';
+        }
+        
         initVars.push(`        self.${varName}${typeAndDefault}`);
       }
       
