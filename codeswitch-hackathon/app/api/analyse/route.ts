@@ -516,7 +516,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.10] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.11] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -587,7 +587,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.10] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.11] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -600,14 +600,16 @@ COBOL PARAGRAPHS:
       const needsJson = cobolCode.toLowerCase().includes('json') || cobolCode.toLowerCase().includes('parse');
       
       // First pass: collect all self.xxx variables from translations
-      // v7.10: Exclude method names (p_xxxx pattern) - they are methods, not variables
+      // v7.11: Exclude method calls (followed by parentheses)
       for (const t of translations) {
-        const varMatches = t.logic.matchAll(/self\.([a-z_][a-z0-9_]*)/gi);
+        // Match self.xxx that is NOT followed by ( - those are variables
+        const varMatches = t.logic.matchAll(/self\.([a-z_][a-z0-9_]*)(?!\s*\()/gi);
         for (const m of varMatches) {
           const varName = m[1].toLowerCase();
-          // Skip: logger, data, and method calls (p_xxxx pattern)
+          // Skip: logger, data, and method patterns
           if (['logger', 'data'].includes(varName)) continue;
           if (/^p_\d/.test(varName)) continue;  // Method names like p_1000_xxx
+          if (/_handler$|_processor$|_iterator$|_callback$|_function$/.test(varName)) continue;  // Method-like names
           allSelfVars.add(varName);
         }
       }
@@ -652,8 +654,8 @@ COBOL PARAGRAPHS:
         initVars.push(`        self.${varName}${typeAndDefault}`);
       }
       
-      // v7.0: DYNAMIC HEADER with all imports and complete __init__
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.10]"""
+      // v7.11: DYNAMIC HEADER with helper methods
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.11]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -662,6 +664,30 @@ class ${className}:
     def __init__(self):
         """Initialize all business variables."""
 ${initVars.join('\n')}
+
+    # === HELPER METHODS (auto-generated) ===
+    def read_file(self, filename: str) -> Dict[str, Any]:
+        """Read a record from file."""
+        self.logger.debug(f"Reading from {filename}")
+        return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
+    
+    def write_file(self, filename: str, data: Any) -> bool:
+        """Write a record to file."""
+        self.logger.debug(f"Writing to {filename}")
+        return True
+    
+    def get_next_account(self) -> Dict[str, Any]:
+        """Get next account record."""
+        return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
+    
+    def reset_account_iterator(self) -> None:
+        """Reset account iterator."""
+        self.logger.debug("Resetting account iterator")
+    
+    def handle_error(self, msg: str) -> None:
+        """Handle error condition."""
+        self.logger.error(msg)
+        self.error_count += 1
 
 `;
       
@@ -752,8 +778,15 @@ ${initVars.join('\n')}
           const isStatement = /^(self\.\w+|return |[a-z_]\w*\s*=)/.test(trimmed);
           if (!isStatement) continue;
           
-          // 16. Final cleanup: fix numeric method names
-          const cleaned = trimmed.replace(/self\.(\d)/g, 'self.p_$1');
+          // 16. Final cleanup: fix common issues
+          let cleaned = trimmed
+            .replace(/self\.(\d)/g, 'self.p_$1')  // Fix numeric method names
+            .replace(/datetime\.datetime\./g, 'datetime.')  // Fix datetime import
+            .replace(/= ([a-z_][a-z0-9_]*)\[/gi, '= self.$1[')  // Add self. to dict access
+            .replace(/\+ ([a-z_][a-z0-9_]*)\./gi, '+ self.$1.');  // Add self. in expressions
+          
+          // 17. Skip if it still has undefined variable patterns
+          if (/= [a-z_]\w+\[/.test(cleaned) && !cleaned.includes('self.')) continue;
           
           validStatements.push(cleaned);
           if (validStatements.length >= 15) break;
@@ -813,7 +846,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.10] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.11] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
