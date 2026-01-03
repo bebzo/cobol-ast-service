@@ -1350,6 +1350,13 @@ ${initVars.slice(4).join('\n')}
         self.logger.info("Processing")
 `;
       
+      // v7.37: DEBUG LOGS
+      console.log('[v7.37] DEBUG programId:', JSON.stringify(programId));
+      console.log('[v7.37] DEBUG className:', JSON.stringify(className));
+      console.log('[v7.37] DEBUG totalLines:', JSON.stringify(totalLines));
+      console.log('[v7.37] DEBUG finalFile FIRST 500 chars:', JSON.stringify(finalFile.substring(0, 500)));
+      console.log('[v7.37] DEBUG finalFile lines 40-60:', JSON.stringify(finalFile.split('\n').slice(39, 60)));
+      
       // v7.36: TEST - Use hardcoded file WITHOUT extractedMethods to verify header is clean
       skeleton = finalFile;
       console.log('[v7.36] TEST: Hardcoded file without extractedMethods');
