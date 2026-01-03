@@ -724,7 +724,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.28 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.29 Commercial]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -977,14 +977,26 @@ ${initVars.join('\n')}
       // Direct assembly - no extraction from corrupted skeleton
       let skeleton = header + '\n\n' + cleanMethods.join('\n\n');
       
-      // v7.28: FORCE PRISTINE HEADER - Find first business method and replace everything before it
-      const firstBusinessMethodMatch = skeleton.match(/\n(    def p_[a-z0-9_]+\(self\):)/);
-      if (firstBusinessMethodMatch) {
-        const businessMethodsStart = skeleton.indexOf(firstBusinessMethodMatch[1]);
-        const businessMethods = skeleton.substring(businessMethodsStart);
-        skeleton = header + '\n' + businessMethods;
-        console.log('[v7.28] Forced pristine header before business methods');
-      }
+      // v7.29: REMOVE ROGUE __init__ - They appear inside FileAdapter/DefaultFileAdapter
+      // Pattern: class Xxx:\n    def __init__(self):\n        """..."""\n        self.logger...\n        self.data...
+      skeleton = skeleton.replace(
+        /class FileAdapter:\n    def __init__\(self\):\n        """[^"]*"""\n        self\.logger[^\n]*\n        self\.data[^\n]*\n/g,
+        'class FileAdapter:\n'
+      );
+      skeleton = skeleton.replace(
+        /class DefaultFileAdapter\(FileAdapter\):\n    def __init__\(self\):\n        """[^"]*"""\n        self\.logger[^\n]*\n        self\.data[^\n]*\n/g,
+        'class DefaultFileAdapter(FileAdapter):\n'
+      );
+      skeleton = skeleton.replace(
+        /class MegaProcessor:\n    def __init__\(self\):\n        """[^"]*"""\n        self\.logger[^\n]*\n        self\.data[^\n]*\n/g,
+        'class MegaProcessor:\n'
+      );
+      // Also fix the corrupted docstring pattern
+      skeleton = skeleton.replace(
+        /"""Main processor class[^"]*"""TODO[^"]*"""/g,
+        '"""Main processor class."""'
+      );
+      console.log('[v7.29] Removed rogue __init__ from adapter classes');
       
       // Final cleanup - remove any remaining TODO patterns
       skeleton = skeleton
