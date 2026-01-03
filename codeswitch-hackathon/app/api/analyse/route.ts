@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// Using Groq API via fetch (OpenAI-compatible)
 import { parseCobolWithANTLR, generateANTLRSummary, generatePythonSkeleton, CobolFullAST } from '@/lib/cobol-antlr-parser';
 
 // Validate that input is actually COBOL code
@@ -72,7 +72,30 @@ const corsHeaders = {
   'Expires': '0',
 };
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+
+// Groq API helper function
+async function callGroq(prompt: string): Promise<string> {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      max_tokens: 8000,
+    }),
+  });
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Groq API error: ${response.status} - ${error}`);
+  }
+  const data = await response.json();
+  return data.choices[0]?.message?.content || '';
+}
 
 // v7.16: AST Validation via Python subprocess
 import { execSync } from 'child_process';
@@ -517,8 +540,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
       
       // v7.0: Translate ALL paragraphs using batch+parallel approach
-      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      // Using Groq API (Llama 3.3 70B)
       
       // v7.27: AI generates ONLY method body (statements), not signature
       const BATCH_PROMPT = `Convert COBOL paragraphs to Python STATEMENTS ONLY.
@@ -578,8 +600,7 @@ COBOL PARAGRAPHS:
           }).join('\n\n');
           
           try {
-            const r = await model.generateContent(BATCH_PROMPT + batchCobol);
-            const response = r.response.text();
+            const response = await callGroq(BATCH_PROMPT + batchCobol);
             console.log('[AI-RAW] Response preview:', response.substring(0, 500));
             
             // Parse response: split by ### PARAGRAPH_NAME
@@ -1167,8 +1188,8 @@ ${initVars.join('\n')}
         
         try {
           const fixPrompt = `Fix this Python method syntax error: ${astAnalysis.error}\n\nBROKEN:\n${methodMatch[1]}\n\nOutput ONLY the fixed method. Keep simple. NO class, NO __init__, NO TODO.`;
-          const fixResult = await model.generateContent(fixPrompt);
-          let fixed = fixResult.response.text().replace(/```python\s*/gi, '').replace(/```/g, '').trim();
+          const fixResultText = await callGroq(fixPrompt);
+          let fixed = fixResultText.replace(/```python\s*/gi, '').replace(/```/g, '').trim();
           
           // v7.33: VALIDATE AI response before injection
           const isContaminated = /class\s|def __init__|TODO|FileAdapter|raise NotImplementedError/.test(fixed);
@@ -1214,8 +1235,8 @@ ${initVars.join('\n')}
           
           try {
             const refactorPrompt = `Generate REAL Python logic for this method. Original COBOL:\n${cobolContext.substring(0, 500)}\n\nOutput ONLY the method starting with "    def ${method.name}(self):". Use self.xxx for all variables. NO class, NO __init__, NO TODO, NO raise NotImplementedError.`;
-            const result = await model.generateContent(refactorPrompt);
-            let newMethod = result.response.text().replace(/```python\s*/gi, '').replace(/```/g, '').trim();
+            const resultText = await callGroq(refactorPrompt);
+            let newMethod = resultText.replace(/```python\s*/gi, '').replace(/```/g, '').trim();
             
             // v7.33: VALIDATE AI response before injection
             const isContaminated = /class\s|def __init__|TODO|FileAdapter|raise NotImplementedError/.test(newMethod);
@@ -1389,8 +1410,8 @@ ${extractedMethods.map(m => '    ' + m.split('\n').join('\n    ')).join('\n\n')}
         const testPrompt = `Generate pytest tests for ${className}. Methods: ${methodNames.slice(0, 10).join(', ')}.
 Output ONLY valid Python starting with "import pytest". Create 10 tests with real assertions.`;
 
-        const testResult = await model.generateContent(testPrompt);
-        let generatedTests = testResult.response.text()
+        const testResultText = await callGroq(testPrompt);
+        let generatedTests = testResultText
           .replace(/```python\s*/gi, '')
           .replace(/```\s*/g, '')
           .trim();
