@@ -517,46 +517,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       
-      // Batch prompt: send 20 paragraphs at once - v7.1 100% commercial
-      const BATCH_PROMPT = `Convert COBOL to PRODUCTION Python. MUST compile and have REAL logic.
+      // v7.27: AI generates ONLY method body (statements), not signature
+      const BATCH_PROMPT = `Convert COBOL paragraphs to Python STATEMENTS ONLY.
+
+CRITICAL: Return ONLY the method body lines. NO "def", NO "class", NO docstrings.
 
 For EACH paragraph output:
 ### PARAGRAPH_NAME
-python code here
+self.statement1
+self.statement2
+
+=== EXAMPLE ===
+COBOL: MOVE AMOUNT TO WS-BALANCE. ADD 1 TO WS-COUNT.
+Output:
+### 1000-PROCESS
+self.ws_balance = self.amount
+self.ws_count += 1
 
 === TRANSLATION RULES ===
 1. MOVE A TO B → self.b = self.a
 2. ADD A TO B → self.b += self.a  
-3. SUBTRACT A FROM B → self.b -= self.a
-4. COMPUTE X = A * B → self.x = self.a * self.b
-5. PERFORM XXXX → self.p_xxxx()
-6. IF cond THEN → if self.cond:
-7. EVALUATE → if/elif/else
-8. INVALID KEY → try/except with error handling
-9. READ FILE → try: data = self.read_file(name) except: self.handle_error()
-10. All vars: self.lowercase_name
+3. PERFORM XXXX → self.p_xxxx()
+4. IF cond → if self.cond:
+5. All vars: self.lowercase_name
 
-=== CONTROL FLOW (REQUIRED) ===
-if self.tran_type == "DEPOSIT":
-    self.process_deposit()
-elif self.tran_type == "WITHDRAW":
-    self.process_withdrawal()
-else:
-    self.handle_unknown()
-
-=== ERROR HANDLING (REQUIRED) ===
-try:
-    record = self.read_file("ACCOUNT-FILE")
-    self.acct_balance = record.balance
-except KeyError:
-    self.err_message = "ACCOUNT NOT FOUND"
-    self.p_9100_log_error()
-    return
-
-=== FORBIDDEN ===
-- NO pass (write real logic)
-- NO TODO/placeholder comments
-- NO duplicate lines
+=== FORBIDDEN (WILL BE REJECTED) ===
+- NO "def " (we add it ourselves)
+- NO "class " 
+- NO """ docstrings
+- NO TODO
+- NO pass
 
 COBOL PARAGRAPHS:
 `;
@@ -602,22 +592,27 @@ COBOL PARAGRAPHS:
                 .replace(/```python\s*/gi, '').replace(/```/g, '')
                 .trim();
               
-              // Filter valid Python - v7.0 allow more patterns, remove duplicates
+              // v7.27: Filter BODY ONLY - reject any def/class/docstring
               const seen = new Set<string>();
               const validLines = code.split('\n')
                 .map(l => l.trim())
                 .filter(l => {
                   if (!l || l.length < 3) return false;
-                  // Skip COBOL artifacts and placeholders
-                  if (/TODO|COBOL|MOVE |PERFORM |DISPLAY |Placeholder|Needs.*logic/i.test(l)) return false;
-                  if (/^[A-Z]{2,}-[A-Z]/.test(l)) return false;  // COBOL variable names
-                  // Remove duplicate lines
+                  // v7.27: REJECT structure elements (AI should only return body)
+                  if (/^def /.test(l)) return false;  // No method definitions
+                  if (/^class /.test(l)) return false;  // No class definitions
+                  if (/"""/.test(l)) return false;  // No docstrings
+                  if (/TODO/i.test(l)) return false;  // No TODO
+                  // Skip COBOL artifacts
+                  if (/COBOL|MOVE |PERFORM |DISPLAY |Placeholder/i.test(l)) return false;
+                  if (/^[A-Z]{2,}-[A-Z]/.test(l)) return false;
+                  // Remove duplicates
                   if (seen.has(l)) return false;
                   seen.add(l);
-                  // Allow valid Python patterns
-                  return /^(self\.\w+|if |elif |else:|for |while |try:|except|return |pass$|[a-z_]\w*\s*=)/.test(l);
+                  // Allow valid Python statement patterns
+                  return /^(self\.\w+|if |elif |else:|for |while |try:|except|return |[a-z_]\w*\s*=)/.test(l);
                 })
-                .slice(0, 12);  // Allow more lines for real logic
+                .slice(0, 15);  // More lines for real logic
               
               results.push({ name, logic: validLines.join('\n') || 'raise NotImplementedError("Requires business implementation")' });
             }
@@ -729,7 +724,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.26 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.27 Commercial]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -977,7 +972,7 @@ ${initVars.join('\n')}
       }
       
       // Step 2: v7.26 SIMPLE ASSEMBLY - header + cleanMethods only
-      console.log('[v7.26] Assembling ' + cleanMethods.length + ' clean methods with pristine header');
+      console.log('[v7.27] Assembling ' + cleanMethods.length + ' clean methods (body-only from AI)');
       
       // Direct assembly - no extraction from corrupted skeleton
       let skeleton = header + '\n\n' + cleanMethods.join('\n\n');
