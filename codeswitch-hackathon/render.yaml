@@ -1,13 +1,9 @@
 services:
   - type: web
-    name: codeswitch
+    name: cobol-ast-service
     env: node
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
       - key: GEMINI_API_KEY
-        sync: false
-      - key: NEXT_PUBLIC_SUPABASE_URL
-        sync: false
-      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false
