@@ -703,6 +703,7 @@ ${initVars.join('\n')}
           
           validStatements.push(trimmed);
           if (validStatements.length >= 15) break;
+        }
         
         // v7.5: Build simple method - guaranteed to compile
         let methodCode = `    def ${methodName}(self):\n`;
