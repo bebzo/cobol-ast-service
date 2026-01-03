@@ -655,7 +655,7 @@ COBOL PARAGRAPHS:
           } catch (e) {
             // v7.51: FAIL LOUD - no silent fallbacks
             console.error('[AI-ERROR] Batch failed:', e);
-            throw new Error(`AI generation failed: ${e.message || 'Unknown error'}`);
+            throw new Error(`AI generation failed: ${(e as Error).message || 'Unknown error'}`);
           }
         }));
         
