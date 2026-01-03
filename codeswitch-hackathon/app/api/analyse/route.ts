@@ -71,6 +71,45 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
+// v7.16: AST Validation via Python subprocess
+import { execSync } from 'child_process';
+
+interface ASTValidationResult {
+  valid: boolean;
+  error?: string;
+  line?: number;
+  methodName?: string;
+}
+
+function validatePythonAST(code: string): ASTValidationResult {
+  try {
+    // Write code to temp file and validate with Python ast.parse()
+    const tempPath = '/tmp/validate_code.py';
+    require('fs').writeFileSync(tempPath, code, 'utf8');
+    
+    const result = execSync(
+      `python3 -c "import ast; ast.parse(open('${tempPath}').read())"`,
+      { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] }
+    );
+    return { valid: true };
+  } catch (e: any) {
+    const stderr = e.stderr?.toString() || e.message || '';
+    // Parse error line from Python error
+    const lineMatch = stderr.match(/line (\d+)/i);
+    const line = lineMatch ? parseInt(lineMatch[1]) : undefined;
+    return { valid: false, error: stderr.substring(0, 200), line };
+  }
+}
+
+function findMethodAtLine(code: string, targetLine: number): string | null {
+  const lines = code.split('\n');
+  for (let i = targetLine - 1; i >= 0; i--) {
+    const match = lines[i]?.match(/^\s*def (\w+)\(self/);
+    if (match) return match[1];
+  }
+  return null;
+}
+
 // Prompt for translating COBOL to Python - COMMERCIAL GRADE (PRODUCTION-READY)
 const CHUNK_PROMPT = `Convert COBOL to PRODUCTION Python. Output ONLY valid Python code.
 
@@ -516,7 +555,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.15] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.16] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -587,7 +626,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.15] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.16] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -676,7 +715,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.15]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.16]"""
 ${imports.join('\n')}
 
 class ${className}:
@@ -938,7 +977,71 @@ ${initVars.join('\n')}
       }
       
       skeleton = validatedLines.join('\n');
-      console.log(`[v7.15] Validated ${validatedLines.length} lines`);
+      console.log(`[v7.16] Validated ${validatedLines.length} lines`);
+      
+      // v7.16: AST VALIDATION WITH GEMINI RETRY
+      const MAX_AST_RETRIES = 3;
+      for (let retry = 0; retry < MAX_AST_RETRIES; retry++) {
+        const astResult = validatePythonAST(skeleton);
+        
+        if (astResult.valid) {
+          console.log(`[v7.16] AST validation passed${retry > 0 ? ` after ${retry} fix(es)` : ''}`);
+          break;
+        }
+        
+        console.log(`[v7.16] AST error at line ${astResult.line}: ${astResult.error?.substring(0, 100)}`);
+        
+        if (!astResult.line) {
+          console.log('[v7.16] Cannot locate error line, skipping retry');
+          break;
+        }
+        
+        // Find the problematic method
+        const badMethod = findMethodAtLine(skeleton, astResult.line);
+        if (!badMethod) {
+          console.log('[v7.16] Cannot find method at error line, skipping');
+          break;
+        }
+        
+        console.log(`[v7.16] Retry ${retry + 1}: Fixing method ${badMethod}`);
+        
+        // Extract the broken method code
+        const methodRegex = new RegExp(`(    def ${badMethod}\\(self\\):.*?)(?=\n    def |$)`, 's');
+        const methodMatch = skeleton.match(methodRegex);
+        
+        if (!methodMatch) {
+          console.log('[v7.16] Cannot extract method, skipping');
+          break;
+        }
+        
+        // Ask Gemini to fix the method
+        try {
+          const fixPrompt = `Fix this Python method. It has a syntax error: ${astResult.error}
+
+BROKEN CODE:
+${methodMatch[1]}
+
+Output ONLY the fixed method starting with "    def ${badMethod}(self):" and nothing else. Keep it simple.`;
+          
+          const fixResult = await model.generateContent(fixPrompt);
+          let fixedMethod = fixResult.response.text()
+            .replace(/```python\s*/gi, '')
+            .replace(/```/g, '')
+            .trim();
+          
+          // Ensure proper indentation
+          if (!fixedMethod.startsWith('    def ')) {
+            fixedMethod = '    ' + fixedMethod;
+          }
+          
+          // Replace the method in skeleton
+          skeleton = skeleton.replace(methodRegex, fixedMethod + '\n\n');
+          console.log(`[v7.16] Replaced method ${badMethod}`);
+        } catch (fixError) {
+          console.log(`[v7.16] Gemini fix failed: ${fixError}`);
+          break;
+        }
+      }
       
       // v7.4: Generate tests with LLM (shorter prompt for speed)
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
@@ -956,7 +1059,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.15] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.16] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
