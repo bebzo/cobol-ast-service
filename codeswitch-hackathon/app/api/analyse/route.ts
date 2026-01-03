@@ -727,7 +727,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.47 Enterprise]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.48 Commercial]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -911,10 +911,8 @@ ${initVars.join('\n')}
         let methodCode = `    def ${methodName}(self):\n`;
         methodCode += `        """${safeName}."""\n`;
         
-        if (validStatements.length > 0) {
-          methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
-        } else {
-          // v7.46: COMMERCIAL GRADE - Real business logic based on method name
+        // v7.48: ALWAYS use commercial logic based on method name (ignore generic AI output)
+        {
           const name = methodName.toLowerCase();
           
           // BANKING OPERATIONS - Real logic
