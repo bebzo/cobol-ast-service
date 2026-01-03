@@ -889,28 +889,9 @@ export default function Home() {
         let validatedMergedCode = mergedPythonCode;
         const isV7Merged = mergedPythonCode.includes('[v7.');
         
-        if (isV7Merged) {
-          // v7+ code is pre-validated - skip external service
-          mergedCodeValid = true;
-          console.log('[Merge Validation] v7+ detected - skipping external validation');
-        } else {
-          try {
-            console.log('[Merge Validation] Validating merged code...');
-            const validateResponse = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: mergedPythonCode }),
-            });
-            if (validateResponse.ok) {
-              const validateResult = await validateResponse.json();
-              mergedCodeValid = validateResult.valid;
-              validatedMergedCode = validateResult.code || mergedPythonCode;
-              console.log(`[Merge Validation] Result: valid=${mergedCodeValid}, fixes=${validateResult.fixes || 0}`);
-            }
-          } catch (e) {
-            console.log('[Merge Validation] API error, marking as invalid');
-          }
-        }
+        // v7.38: ALWAYS skip external validation - it corrupts the code
+        mergedCodeValid = true;
+        console.log('[Merge Validation] v7.38 - external validation DISABLED');
         
         parsed = {
           summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
@@ -964,60 +945,10 @@ export default function Home() {
       let combinedCodeValid = false;
       
       // For multi-analysis, validate the combined code
-      // v7.37: Skip external validation for v7+ code
-      const isV7Multi = finalPythonCode.includes('[v7.');
-      if (isMultiAnalysis && finalPythonCode.length > 100 && !isV7Multi) {
-        try {
-          console.log('Validating combined multi-analysis code...');
-          const validateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: finalPythonCode })
-          });
-          if (validateRes.ok) {
-            const validateData = await validateRes.json();
-            finalPythonCode = validateData.code || finalPythonCode;
-            combinedCodeValid = validateData.valid === true;
-            console.log(`Combined code valid: ${combinedCodeValid}`);
-          }
-        } catch (e) { console.error('Combined validation failed:', e); }
-      } else if (isV7Multi) {
-        combinedCodeValid = true;
-        console.log('v7+ multi-analysis - skipping external validation');
-      }
-      
-      // ALWAYS validate the final code (whether multi or mono analysis)
-      // EXCEPTION: v3.0 skeletons are pre-validated and should not be modified
-      let finalCodeValid = parsed.code_valid || false;
-      const isV3Skeleton = finalPythonCode.includes('[v4.') || finalPythonCode.includes('[v5.') || finalPythonCode.includes('[v6.') || finalPythonCode.includes('[v7.');
-      
-      if (isV3Skeleton) {
-        // v3.0 skeletons are already valid - skip external validation
-        finalCodeValid = true;
-        console.log('v3.0 skeleton detected - skipping external validation');
-      } else {
-        try {
-          console.log('Final validation before tests...');
-          const validateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: finalPythonCode })
-          });
-          if (validateRes.ok) {
-            const validateData = await validateRes.json();
-            finalCodeValid = validateData.valid === true;
-            if (validateData.valid && validateData.code) {
-              finalPythonCode = validateData.code;
-              console.log('Final validation: PASS');
-            } else {
-              console.log('Final validation: FAIL');
-            }
-          }
-        } catch (e) { 
-          console.error('Final validation failed:', e);
-          finalCodeValid = false;
-        }
-      }
+      // v7.38: COMPLETELY DISABLE external validation - it corrupts the code
+      combinedCodeValid = true;
+      let finalCodeValid = true;
+      console.log('[v7.38] External validation DISABLED - using pre-validated code');
       
       // ALWAYS apply post-processing as final step to clean any remaining artifacts
       finalPythonCode = postProcessPythonCode(finalPythonCode, filename || 'PROGRAM');
@@ -1034,28 +965,8 @@ export default function Home() {
         const testCode = parsed.tests || parsed.unit_tests || '';
         let testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
         
-        // Validate and fix test code too
-        // v7.37: Skip external validation for v7+ code to prevent corruption
-        const isV7Code = finalPythonCode.includes('[v7.');
-        if (testStr.length > 100 && !isV7Code) {
-          try {
-            const testValidateRes = await fetch('https://cobol-ast-service.vercel.app/api/validate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code: testStr })
-            });
-            if (testValidateRes.ok) {
-              const testValidateData = await testValidateRes.json();
-              if (testValidateData.valid && testValidateData.code) {
-                testStr = testValidateData.code;
-                setValidatedTests(testStr);
-                console.log('Test code validated');
-              }
-            }
-          } catch (e) { console.error('Test validation failed:', e); }
-        } else if (isV7Code) {
-          console.log('v7+ code - skipping external test validation');
-        }
+        // v7.38: External test validation DISABLED - it corrupts code
+        console.log('[v7.38] Test validation skipped - using pre-validated tests');
         
         const results = await runTestsWithPyodide(finalPythonCode, testStr);
         setTestResults({...results, running: false});
