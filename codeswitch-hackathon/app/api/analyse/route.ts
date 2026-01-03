@@ -507,7 +507,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (!GEMINI_API_KEY) {
+    if (!GROQ_API_KEY) {
       return NextResponse.json(
         { error: 'GEMINI_API_KEY not configured' },
         { status: 500, headers: corsHeaders }
