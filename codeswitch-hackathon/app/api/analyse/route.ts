@@ -569,7 +569,7 @@ COBOL PARAGRAPHS:
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.20] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.21] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -619,7 +619,7 @@ COBOL PARAGRAPHS:
                 })
                 .slice(0, 12);  // Allow more lines for real logic
               
-              results.push({ name, logic: validLines.join('\n') || 'pass' });
+              results.push({ name, logic: validLines.join('\n') || 'raise NotImplementedError("TODO: implement")' });
             }
             
             // Fill in any missing paragraphs from batch
@@ -632,7 +632,7 @@ COBOL PARAGRAPHS:
             return results;
           } catch (e) {
             // On error, return pass stubs for this batch
-            return batch.map(p => ({ name: p.name, logic: 'pass' }));
+            return batch.map(p => ({ name: p.name, logic: 'raise NotImplementedError("TODO: implement")' }));
           }
         }));
         
@@ -640,7 +640,7 @@ COBOL PARAGRAPHS:
         for (const batchResults of waveResults) {
           translations.push(...batchResults);
         }
-        console.log(`[v7.20] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
+        console.log(`[v7.21] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
       
       // v7.0: Build skeleton with AUTO-DETECTED variables and imports
@@ -690,7 +690,7 @@ COBOL PARAGRAPHS:
       for (const varName of Array.from(allSelfVars).sort()) {
         if (['logger', 'data', 'error_count', 'status'].includes(varName)) continue;
         // Infer type from variable name - ORDER MATTERS (more specific first)
-        let typeAndDefault = ': Any = None';
+        let typeAndDefault = ': str = ""';  // v7.21: No None - always safe defaults
         
         // Dict patterns (check first - most specific)
         if (/_master$|_data$|_dict$|_map$|_config$|_record$|_info$/.test(varName)) {
@@ -729,26 +729,67 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.20]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.21 Commercial]"""
 ${imports.join('\n')}
+
+# === BUSINESS EXCEPTIONS ===
+class BusinessError(Exception):
+    """Base exception for business logic errors."""
+    pass
+
+class ValidationError(BusinessError):
+    """Raised when validation fails."""
+    pass
+
+class DataNotFoundError(BusinessError):
+    """Raised when required data is not found."""
+    pass
+
+class ProcessingError(BusinessError):
+    """Raised when processing fails."""
+    pass
+
+# === FILE ADAPTER (Dependency Injection) ===
+class FileAdapter:
+    """Abstract file adapter for dependency injection."""
+    def read(self, filename: str) -> Dict[str, Any]:
+        raise NotImplementedError("Subclass must implement read()")
+    def write(self, filename: str, data: Any) -> bool:
+        raise NotImplementedError("Subclass must implement write()")
+
+class DefaultFileAdapter(FileAdapter):
+    """Default stub adapter - replace with real implementation."""
+    def read(self, filename: str) -> Dict[str, Any]:
+        return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
+    def write(self, filename: str, data: Any) -> bool:
+        return True
 
 class ${className}:
     """Main processor class for ${programId} business logic."""
     
-    def __init__(self):
-        """Initialize all business variables."""
+    def __init__(self, file_adapter: Optional[FileAdapter] = None):
+        """Initialize with dependency injection for file operations."""
+        self.file_adapter = file_adapter or DefaultFileAdapter()
 ${initVars.join('\n')}
 
     # === HELPER METHODS (auto-generated) ===
     def read_file(self, filename: str) -> Dict[str, Any]:
-        """Read a record from file."""
+        """Read a record from file via injected adapter."""
         self.logger.debug(f"Reading from {filename}")
-        return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
+        try:
+            return self.file_adapter.read(filename)
+        except Exception as e:
+            self.logger.error(f"Failed to read {filename}: {e}")
+            raise DataNotFoundError(f"Cannot read {filename}") from e
     
     def write_file(self, filename: str, data: Any) -> bool:
-        """Write a record to file."""
+        """Write a record from file via injected adapter."""
         self.logger.debug(f"Writing to {filename}")
-        return True
+        try:
+            return self.file_adapter.write(filename, data)
+        except Exception as e:
+            self.logger.error(f"Failed to write {filename}: {e}")
+            raise ProcessingError(f"Cannot write {filename}") from e
     
     def get_next_account(self) -> Dict[str, Any]:
         """Get next account record."""
@@ -894,7 +935,7 @@ ${initVars.join('\n')}
           } else if (name.includes('error') || name.includes('log')) {
             methodCode += `        self.logger.error(f"Error: {self.error_count}")\n        self.error_count += 1\n`;
           } else {
-            methodCode += `        self.logger.debug("${safeName}")\n`;
+            methodCode += `        raise NotImplementedError("TODO: Implement ${safeName}")\n`;
           }
         }
         
@@ -931,7 +972,7 @@ ${initVars.join('\n')}
       
       // Step 3: FINAL HEADER VALIDATION - Ensure first line is correct
       const firstLine = skeleton.split('\n')[0];
-      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.20]"""`;
+      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.21 Commercial]"""`;
       if (!firstLine.startsWith('"""') || !firstLine.endsWith('"""') || firstLine.includes('TODO')) {
         // Header corrupted - rebuild from scratch
         console.log('[v7.20] Header corruption detected, rebuilding...');
@@ -946,7 +987,7 @@ ${initVars.join('\n')}
         console.log('[v7.20] Removed duplicate class definitions');
       }
       
-      console.log(`[v7.20] Final skeleton: ${skeleton.split('\n').length} lines`);
+      console.log(`[v7.21] Final skeleton: ${skeleton.split('\n').length} lines`);
       
       // v7.20: ROBUST VALIDATION SYSTEM - Line-by-line Python syntax check
       const skeletonLines = skeleton.split('\n');
@@ -1021,11 +1062,11 @@ ${initVars.join('\n')}
       }
       
       skeleton = validatedLines.join('\n');
-      console.log(`[v7.20] Validated ${validatedLines.length} lines`);
+      console.log(`[v7.21] Validated ${validatedLines.length} lines`);
       
       // v7.17: COMPREHENSIVE AST ANALYSIS + GEMINI FIX
       let astAnalysis = runASTAnalysis(skeleton);
-      console.log(`[v7.20] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats.total_methods}, problematic=${astAnalysis.stats.problematic_methods}`);
+      console.log(`[v7.21] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats.total_methods}, problematic=${astAnalysis.stats.problematic_methods}`);
       
       // Fix syntax errors first (up to 3 attempts)
       for (let retry = 0; retry < 3 && !astAnalysis.valid; retry++) {
@@ -1035,7 +1076,7 @@ ${initVars.join('\n')}
         const badMethod = findMethodAtLine(skeleton, errorLine);
         if (!badMethod) break;
         
-        console.log(`[v7.20] Fix attempt ${retry + 1}: ${badMethod} (line ${errorLine})`);
+        console.log(`[v7.21] Fix attempt ${retry + 1}: ${badMethod} (line ${errorLine})`);
         
         const methodRegex = new RegExp(`(    def ${badMethod}\\(self\\):.*?)(?=\n    def |$)`, 's');
         const methodMatch = skeleton.match(methodRegex);
@@ -1055,7 +1096,7 @@ ${initVars.join('\n')}
       // Now fix problematic methods (empty, high complexity)
       if (astAnalysis.valid && astAnalysis.stats.problematic_methods > 0) {
         const badMethods = astAnalysis.methods.filter(m => m.has_issues).slice(0, 5);  // Fix max 5
-        console.log(`[v7.20] Fixing ${badMethods.length} problematic methods`);
+        console.log(`[v7.21] Fixing ${badMethods.length} problematic methods`);
         
         for (const method of badMethods) {
           if (!method.issue_types.includes('empty_method')) continue;  // Only fix empty methods
@@ -1078,7 +1119,7 @@ ${initVars.join('\n')}
             let newMethod = result.response.text().replace(/```python\s*/gi, '').replace(/```/g, '').trim();
             if (!newMethod.startsWith('    def ')) newMethod = '    ' + newMethod;
             skeleton = skeleton.replace(methodRegex, newMethod + '\n\n');
-            console.log(`[v7.20] Refactored: ${method.name}`);
+            console.log(`[v7.21] Refactored: ${method.name}`);
           } catch { /* skip */ }
         }
       }
@@ -1099,7 +1140,7 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           unitTests = generatedTests;
-          console.log(`[v7.20] Generated ${generatedTests.split('def test_').length - 1} tests`);
+          console.log(`[v7.21] Generated ${generatedTests.split('def test_').length - 1} tests`);
         } else {
           throw new Error('Invalid tests');
         }
