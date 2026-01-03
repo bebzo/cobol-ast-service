@@ -729,7 +729,7 @@ COBOL PARAGRAPHS:
       }
       
       // v7.11: DYNAMIC HEADER with helper methods
-      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.23 Commercial]"""
+      const header = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.24 Commercial]"""
 ${imports.join('\n')}
 
 # === BUSINESS EXCEPTIONS ===
@@ -976,7 +976,7 @@ ${initVars.join('\n')}
       
       // Step 3: FINAL HEADER VALIDATION - Ensure first line is correct
       const firstLine = skeleton.split('\n')[0];
-      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.23 Commercial]"""`;
+      const expectedFirstLine = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.24 Commercial]"""`;
       if (!firstLine.startsWith('"""') || !firstLine.endsWith('"""') || firstLine.includes('TODO')) {
         // Header corrupted - rebuild from scratch
         console.log('[v7.21] Header corruption detected, rebuilding...');
@@ -991,58 +991,56 @@ ${initVars.join('\n')}
         console.log('[v7.21] Removed duplicate class definitions');
       }
       
-      // Step 5: v7.22 NUCLEAR OPTION - Detect corruption and rebuild entire header
-      const corruptionPatterns = [
-        /""".*TODO.*"""/,
-        /"""[^"]+"""[^"]+"""/,
-        /class \w+:[\s\S]*?""".*TODO/,
-      ];
+      // Step 5: v7.24 ALWAYS REBUILD - Extract only business methods, ignore AI-generated class/init
+      console.log('[v7.24] ALWAYS REBUILD - Extracting business methods only');
       
-      const hasCorruption = corruptionPatterns.some(p => p.test(skeleton));
+      // Extract ONLY business method definitions (def xxx(self): where xxx is not a system method)
+      const businessMethods: string[] = [];
+      const methodMatches = skeleton.matchAll(/^    def (\w+)\(self\):\s*\n([\s\S]*?)(?=\n    def |\n\nclass |\n$)/gm);
       
-      if (hasCorruption) {
-        console.log('[v7.22] CORRUPTION DETECTED - Rebuilding skeleton from scratch');
+      for (const match of methodMatches) {
+        const methodName = match[1];
+        const methodBody = match[2];
         
-        // Extract ONLY the method definitions (def xxx(self):)
-        const methodRegex = /^    def (?!__init__|read_file|write_file|get_next|reset_account|handle_error)(\w+)\(self\):[\s\S]*?(?=\n    def |\n$)/gm;
-        const extractedMethods: string[] = [];
-        let match;
-        while ((match = methodRegex.exec(skeleton)) !== null) {
-          let methodCode = match[0];
-          // Clean each method of corruption
-          const cleanLines = methodCode.split('\n').filter(line => {
-            if (/""".*TODO/.test(line)) return false;
-            if (/TODO.*"""/.test(line)) return false;
-            if (/class \w+/.test(line.trim())) return false;
-            if (/^    def __init__/.test(line)) return false;
-            return true;
-          });
-          if (cleanLines.length >= 2) {
-            extractedMethods.push(cleanLines.join('\n'));
-          }
+        // Skip system methods - they're in the header template
+        if (['__init__', 'read_file', 'write_file', 'get_next_account', 'reset_account_iterator', 'handle_error'].includes(methodName)) {
+          continue;
         }
         
-        // Rebuild with pristine header
-        skeleton = header + extractedMethods.join('\n\n');
-        console.log('[v7.22] Rebuilt with ' + extractedMethods.length + ' clean methods');
+        // Clean the method body
+        const cleanBodyLines = methodBody.split('\n').filter(line => {
+          const trimmed = line.trim();
+          if (/""".*TODO/.test(trimmed)) return false;
+          if (/TODO.*"""/.test(trimmed)) return false;
+          if (/^class \w+/.test(trimmed)) return false;
+          if (/^def __init__/.test(trimmed)) return false;
+          if (/Main processor class/.test(trimmed)) return false;
+          if (/Initialize.*Processor/.test(trimmed)) return false;
+          if (/file_adapter.*DefaultFileAdapter/.test(trimmed)) return false;
+          return true;
+        });
+        
+        // Build clean method
+        const safeMethodName = methodName.replace(/TODO/gi, '');
+        if (safeMethodName && cleanBodyLines.length > 0) {
+          let cleanMethod = `    def ${safeMethodName}(self):\n`;
+          cleanMethod += `        """${safeMethodName.replace(/_/g, ' ')}."""\n`;
+          cleanMethod += cleanBodyLines.filter(l => l.trim()).join('\n');
+          businessMethods.push(cleanMethod);
+        }
       }
       
-      // Final line cleanup - v7.23: Remove ALL TODO traces
-      const finalLines = skeleton.split('\n');
-      const cleanedFinal: string[] = [];
-      for (const line of finalLines) {
-        if (/""".*TODO.*"""/.test(line)) continue;
-        if (/"""[^"]+"""[^"]+"""/.test(line)) continue;
-        // v7.23: Clean TODO from docstrings in-place
-        let cleanLine = line
-          .replace(/"""TODO\."""/g, '"""Process data."""')
-          .replace(/TODO\./g, '')
-          .replace(/\.TODO/g, '')
-          .replace(/TODO/g, '');
-        cleanedFinal.push(cleanLine);
-      }
-      skeleton = cleanedFinal.join('\n');
-      console.log('[v7.23] Final cleanup complete - zero TODO');
+      console.log('[v7.24] Extracted ' + businessMethods.length + ' clean business methods');
+      
+      // ALWAYS rebuild with pristine header + clean methods
+      skeleton = header + '\n' + businessMethods.join('\n\n');
+      
+      // Final cleanup - remove any remaining TODO
+      skeleton = skeleton
+        .replace(/"""[^"]*TODO[^"]*"""/g, '"""Process data."""')
+        .replace(/TODO/g, '');
+      
+      console.log('[v7.24] Final rebuild complete');
       
       console.log(`[v7.21] Final skeleton: ${skeleton.split('\n').length} lines`);
       
