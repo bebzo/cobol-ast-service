@@ -97,8 +97,8 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 // Gemini API helper
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-// v10.1: Use Gemini 2.5 Pro - most powerful model available
-const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+// v10.1: Use Gemini 2.0 Flash - fast and reliable
+const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 async function callGroq(prompt: string): Promise<string> {
   const result = await geminiModel.generateContent(prompt);
