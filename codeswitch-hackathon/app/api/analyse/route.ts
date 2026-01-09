@@ -890,7 +890,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   
   try {
-    const { cobolCode, filename } = await request.json();
+    const { cobolCode, filename, patternOnly = false } = await request.json();
+    
+    // v10.1: Pattern-only mode flag (reduces AI calls to zero)
+    let usePatternOnly = patternOnly === true || patternOnly === 'true';
 
     if (!cobolCode) {
       return NextResponse.json(
@@ -1089,7 +1092,8 @@ COBOL PARAGRAPHS:
               const cobolText = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 40));
               const { patternMatched, needsAI, patternCoverage, averageConfidence } = translateWithPatternFirst(cobolText);
               
-              if (patternCoverage >= 70) {
+              // v10.1: Lower threshold to reduce AI calls (70% -> 50%)
+              if (patternCoverage >= 50) {
                 // High pattern coverage - use patterns directly, no AI needed
                 const pythonLogic = patternMatched.map(pm => pm.python).join('\n');
                 console.log(`[v10.0-PATTERN] ${p.name}: ${patternCoverage}% coverage, skipping AI`);
@@ -1124,6 +1128,16 @@ COBOL PARAGRAPHS:
             
             console.log(`[v10.0] ${patternResults.length} by patterns, ${needsAIBatch.length} need AI`);
             
+            // v10.1: Pattern-only mode - skip AI completely
+            if (usePatternOnly) {
+              console.log(`[v10.1-PATTERN-ONLY] Skipping AI for ${needsAIBatch.length} paragraphs`);
+              const stubResults = needsAIBatch.map(p => ({
+                name: p.name,
+                logic: `# Pattern coverage insufficient - manual review needed\n# Original COBOL: ${p.name}\npass  # TODO: Implement complex logic`
+              }));
+              return [...cachedResults, ...patternResults.map(pr => ({ name: pr.name, logic: pr.logic })), ...stubResults];
+            }
+            
             const uncachedCobol = needsAIBatch.map(p => {
               const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 40)).join('\n');
               const structure = analyzeCobolStructure(cobol);
@@ -1145,8 +1159,23 @@ COBOL PARAGRAPHS:
               return fullContext;
             }).join('\n\n');
             
-            const response = await callGroq(BATCH_PROMPT + uncachedCobol);
-            console.log('[AI-RAW] Response preview:', response.substring(0, 500));
+            // v10.1: Try AI call with rate limit fallback
+            let response: string;
+            try {
+              response = await callGroq(BATCH_PROMPT + uncachedCobol);
+              console.log('[AI-RAW] Response preview:', response.substring(0, 500));
+            } catch (aiError: any) {
+              const errorMsg = aiError?.message || String(aiError);
+              if (errorMsg.includes('429') || errorMsg.includes('Resource exhausted') || errorMsg.includes('rate limit')) {
+                console.log(`[v10.1-RATE-LIMIT] AI rate limit hit, falling back to pattern-only`);
+                const stubResults = needsAIBatch.map(p => ({
+                  name: p.name,
+                  logic: `# AI rate limit - using pattern stub\n# Original: ${p.name}\npass  # TODO: Retry later`
+                }));
+                return [...cachedResults, ...patternResults.map(pr => ({ name: pr.name, logic: pr.logic })), ...stubResults];
+              }
+              throw aiError;  // Re-throw non-rate-limit errors
+            }
             
             // Parse response: split by ### PARAGRAPH_NAME
             const results: { name: string; logic: string }[] = [];
@@ -2416,7 +2445,7 @@ ${testLines}
       
       // v10.0: Calculate pattern-based confidence metrics
       const allConfidences = Array.from(paragraphConfidences.values());
-      const patternCoveredParagraphs = allConfidences.filter(c => c.patternCoverage >= 70).length;
+      const patternCoveredParagraphs = allConfidences.filter(c => c.patternCoverage >= 50).length;
       const avgPatternConfidence = allConfidences.length > 0 
         ? Math.round(allConfidences.reduce((s, c) => s + c.overallConfidence, 0) / allConfidences.length)
         : 0;
