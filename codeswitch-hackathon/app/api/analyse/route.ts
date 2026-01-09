@@ -1195,14 +1195,28 @@ ${initVars.join('\n')}
           trimmed = trimmed.replace(/FUNCTION\s+LOWER-CASE\s*\(([^)]+)\)/gi, '$1.lower()');
           trimmed = trimmed.replace(/FUNCTION\s+TRIM\s*\(([^)]+)\)/gi, '$1.strip()');
           trimmed = trimmed.replace(/FUNCTION\s+NUMVAL\s*\(([^)]+)\)/gi, 'Decimal($1)');
+          trimmed = trimmed.replace(/FUNCTION\s+ABS\s*\(([^)]+)\)/gi, 'abs($1)');
+          trimmed = trimmed.replace(/FUNCTION\s+MAX\s*\(([^)]+)\)/gi, 'max($1)');
+          trimmed = trimmed.replace(/FUNCTION\s+MIN\s*\(([^)]+)\)/gi, 'min($1)');
+          trimmed = trimmed.replace(/FUNCTION\s+MOD\s*\(([^,]+),\s*([^)]+)\)/gi, '($1 % $2)');
+          trimmed = trimmed.replace(/FUNCTION\s+INTEGER\s*\(([^)]+)\)/gi, 'int($1)');
+          trimmed = trimmed.replace(/FUNCTION\s+SQRT\s*\(([^)]+)\)/gi, 'Decimal($1).sqrt()');
+          // v8.1: Generic fallback for unknown FUNCTION - convert to method call with warning
+          trimmed = trimmed.replace(/FUNCTION\s+([A-Z][A-Z0-9-]*)\s*\(([^)]*)\)/gi, (match, funcName, args) => {
+            const pyName = funcName.toLowerCase().replace(/-/g, '_');
+            return `self._cobol_${pyName}(${args})  # ⚠️ COBOL-FUNCTION: ${funcName}`;
+          });
+          trimmed = trimmed.replace(/FUNCTION\s+([A-Z][A-Z0-9-]*)/gi, (match, funcName) => {
+            const pyName = funcName.toLowerCase().replace(/-/g, '_');
+            return `self._cobol_${pyName}()  # ⚠️ COBOL-FUNCTION: ${funcName}`;
+          });
           
           // === COMPREHENSIVE PYTHON SYNTAX VALIDATION ===
           
           // 1. Skip COBOL artifacts and placeholders
           if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs|^#|SECTION|DIVISION/i.test(trimmed)) continue;
           if (/^[A-Z]{2,}-[A-Z]/.test(trimmed)) continue;  // COBOL variable names
-          // v8.1: Skip remaining COBOL intrinsic functions that weren't handled above
-          if (/FUNCTION\s+[A-Z-]+/i.test(trimmed)) continue;
+          // v8.1: FUNCTION xxx now converted above - no rejection needed
           
           // 2. Skip duplicates
           if (seen.has(trimmed)) continue;
