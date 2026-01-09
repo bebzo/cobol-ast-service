@@ -647,6 +647,64 @@ def validate_and_fix(code: str) -> dict:
             
             code = '\n'.join(lines)
     
+    # === PHASE 3: Fix unclosed dict/list before commented lines ===
+    lines = code.split('\n')
+    open_brackets = 0  # Track { and [
+    for i, line in enumerate(lines):
+        trimmed = line.strip()
+        if trimmed.startswith('#'):
+            # If we have open brackets and hit a comment, close them on previous line
+            if open_brackets > 0 and i > 0:
+                closing = ('}' * line.count('{') + ']' * line.count('['))[:open_brackets]
+                if not closing:
+                    closing = '}' * open_brackets  # Default to closing braces
+                # Find last non-comment, non-empty line
+                for j in range(i - 1, -1, -1):
+                    if lines[j].strip() and not lines[j].strip().startswith('#'):
+                        lines[j] = lines[j].rstrip() + closing
+                        fixes_applied += 1
+                        open_brackets = 0
+                        break
+            continue
+        
+        # Count brackets (simplified)
+        for c in trimmed:
+            if c == '{' or c == '[':
+                open_brackets += 1
+            elif c == '}' or c == ']':
+                open_brackets = max(0, open_brackets - 1)
+    code = '\n'.join(lines)
+    
+    # === PHASE 4: Fix orphan function bodies (def was commented but body remains) ===
+    lines = code.split('\n')
+    fixed_lines = []
+    skip_until_dedent = False
+    base_indent = 0
+    for i, line in enumerate(lines):
+        trimmed = line.strip()
+        current_indent = len(line) - len(line.lstrip()) if line.strip() else 0
+        
+        # Detect commented function definition (# SYNTAX: def, # def, etc.)
+        if re.match(r'^\s*#\s*(SYNTAX:\s*)?def\s+', line):
+            skip_until_dedent = True
+            base_indent = current_indent
+            fixed_lines.append(line)
+            continue
+        
+        if skip_until_dedent:
+            # We're in an orphan body - comment out lines that are indented more
+            if trimmed and current_indent > base_indent:
+                indent_str = ' ' * current_indent
+                fixed_lines.append(f"{indent_str}# ORPHAN_BODY: {trimmed}")
+                fixes_applied += 1
+                continue
+            elif trimmed and current_indent <= base_indent:
+                # Back to normal indentation, stop skipping
+                skip_until_dedent = False
+        
+        fixed_lines.append(line)
+    code = '\n'.join(fixed_lines)
+    
     # === FINAL PHASE: Fix any remaining empty blocks ===
     lines = code.split('\n')
     i = 0
