@@ -3177,6 +3177,49 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
         },
         next_steps: ['Review generated skeleton', 'Split file into smaller modules', 'Translate remaining paragraphs', 'Run integration tests'],
         coverage_metrics: coverageMetrics,
+        // v10.2: GO/NO-GO DECISION with thresholds from expert review
+        go_no_go: (() => {
+          const patternCov = coverageMetrics?.pattern_library?.paragraphs_by_pattern || 0;
+          const aiCov = coverageMetrics?.pattern_library?.paragraphs_by_ai || 0;
+          const totalParas = patternCov + aiCov;
+          const patternPercent = totalParas > 0 ? Math.round((patternCov / totalParas) * 100) : 0;
+          const aiPercent = totalParas > 0 ? Math.round((aiCov / totalParas) * 100) : 0;
+          const stubPercent = 100 - patternPercent - aiPercent;
+          
+          // Thresholds from expert analysis
+          const THRESHOLDS = {
+            pattern_coverage_min: 70,   // ≥ 70% pattern coverage
+            ai_coverage_max: 25,        // ≤ 25% AI coverage  
+            stub_coverage_max: 5,       // ≤ 5% stubs
+            production_ready_min: 85,   // ≥ 85% production readiness
+            ast_fix_loops_max: 3        // ≤ 3 AST fix iterations
+          };
+          
+          const checks = {
+            pattern_coverage: { value: patternPercent, threshold: `≥${THRESHOLDS.pattern_coverage_min}%`, pass: patternPercent >= THRESHOLDS.pattern_coverage_min },
+            ai_coverage: { value: aiPercent, threshold: `≤${THRESHOLDS.ai_coverage_max}%`, pass: aiPercent <= THRESHOLDS.ai_coverage_max },
+            stub_coverage: { value: stubPercent, threshold: `≤${THRESHOLDS.stub_coverage_max}%`, pass: stubPercent <= THRESHOLDS.stub_coverage_max },
+            production_readiness: { value: productionReadiness, threshold: `≥${THRESHOLDS.production_ready_min}%`, pass: productionReadiness >= THRESHOLDS.production_ready_min }
+          };
+          
+          const allPassed = Object.values(checks).every(c => c.pass);
+          const failedChecks = Object.entries(checks).filter(([_, c]) => !c.pass).map(([name, _]) => name);
+          
+          return {
+            decision: allPassed ? 'GO' : 'NO-GO',
+            confidence: allPassed ? 'HIGH' : (failedChecks.length <= 1 ? 'MEDIUM' : 'LOW'),
+            checks,
+            failed_checks: failedChecks,
+            recommendation: allPassed 
+              ? '✅ Code is ready for merge with standard review'
+              : failedChecks.length === 1
+                ? `⚠️ Review required: ${failedChecks[0]} threshold not met`
+                : `❌ Deep review required: ${failedChecks.length} thresholds not met (${failedChecks.join(', ')})`,
+            next_actions: allPassed 
+              ? ['Run Golden Master tests', 'Code review', 'Merge to staging']
+              : ['Segment COBOL into smaller blocks (<500 lines)', 'Manual review of AI-translated sections', 'Architect validation of stubs']
+          };
+        })(),
         // v10.0: Confidence scoring
         confidence_report: {
           overall_score: avgPatternConfidence,
