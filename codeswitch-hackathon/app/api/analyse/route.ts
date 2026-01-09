@@ -1707,18 +1707,44 @@ ${initVars.join('\n')}
       
       console.log(`[v7.34] Extracted ${extractedMethods.length} business methods`);
       
-      // v8.1: Generate stubs for unknown COBOL functions
+      // v8.1: Translate unknown COBOL functions via Gemini, fallback to stubs
       let cobolFunctionStubs = '';
       if (unknownCobolFunctions.size > 0) {
-        console.log(`[v8.1] Generating stubs for ${unknownCobolFunctions.size} unknown COBOL functions`);
-        const stubs = Array.from(unknownCobolFunctions).map(fn => {
+        console.log(`[v8.1] Translating ${unknownCobolFunctions.size} unknown COBOL functions via AI`);
+        const stubs: string[] = [];
+        
+        for (const fn of Array.from(unknownCobolFunctions)) {
           const cobolName = fn.toUpperCase().replace(/_/g, '-');
-          return `    def _cobol_${fn}(self, *args) -> Any:
+          try {
+            const translatePrompt = `Translate this COBOL intrinsic function to Python.
+COBOL: FUNCTION ${cobolName}
+Output ONLY the Python equivalent expression or a short function body (2-5 lines max).
+Examples:
+- FUNCTION CURRENT-DATE → datetime.now().strftime("%Y%m%d%H%M%S")
+- FUNCTION LENGTH(X) → len(X)
+- FUNCTION REVERSE(X) → X[::-1]
+Answer:`;
+            const translation = await callGroq(translatePrompt);
+            const cleanTranslation = translation.replace(/```python\s*/gi, '').replace(/```/g, '').trim();
+            
+            // If we got a valid short translation, use it
+            if (cleanTranslation.length > 0 && cleanTranslation.length < 200 && !cleanTranslation.includes('def ')) {
+              stubs.push(`    def _cobol_${fn}(self, *args) -> Any:
+        """COBOL FUNCTION ${cobolName} - AI translated."""
+        return ${cleanTranslation.includes('args') ? cleanTranslation : cleanTranslation.replace(/X/g, 'args[0] if args else ""')}`);
+              console.log(`[v8.1] Translated ${cobolName} → ${cleanTranslation.substring(0, 50)}`);
+            } else {
+              throw new Error('Translation too complex');
+            }
+          } catch {
+            // Fallback to stub
+            stubs.push(`    def _cobol_${fn}(self, *args) -> Any:
         """⚠️ COBOL FUNCTION ${cobolName}: Needs manual implementation."""
         self.logger.warning(f"Unimplemented COBOL function: ${fn}")
-        raise NotImplementedError("COBOL function ${cobolName} needs manual translation")`;
-        });
-        cobolFunctionStubs = `    # === COBOL FUNCTION STUBS (need manual implementation) ===\n${stubs.join('\n\n')}\n`;
+        raise NotImplementedError("COBOL function ${cobolName} needs manual translation")`);
+          }
+        }
+        cobolFunctionStubs = `    # === COBOL FUNCTION IMPLEMENTATIONS ===\n${stubs.join('\n\n')}\n`;
       }
       
       // v7.35: HARDCODED REBUILD - Build file from scratch with NO template reuse
