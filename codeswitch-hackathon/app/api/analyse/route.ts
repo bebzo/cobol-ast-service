@@ -2443,13 +2443,13 @@ ${testLines}
         // v10.0: Pattern Library metrics
         pattern_library: {
           total_patterns_available: PATTERN_STATS.totalPatterns,
-          paragraphs_by_pattern: patternCoveredParagraphs,
-          paragraphs_by_ai: allParagraphs.length - patternCoveredParagraphs,
+          paragraphs_by_pattern: Math.min(patternCoveredParagraphs, allParagraphs.length),
+          paragraphs_by_ai: Math.max(0, allParagraphs.length - patternCoveredParagraphs),
           average_confidence: avgPatternConfidence,
           high_confidence_paragraphs: highConfidenceCount,
           low_confidence_paragraphs: lowConfidenceCount,
           production_readiness: productionReadiness,
-          estimated_review_time_minutes: Math.round(lowConfidenceCount * 5 + (allParagraphs.length - patternCoveredParagraphs) * 2)
+          estimated_review_time_minutes: Math.round(lowConfidenceCount * 5 + Math.max(0, allParagraphs.length - patternCoveredParagraphs) * 2)
         }
       };
       console.log('[v10.0] Coverage metrics:', coverageMetrics);
