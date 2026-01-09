@@ -1179,10 +1179,43 @@ class FileAdapter:
         raise NotImplementedError("Subclass must implement write()")
 
 class DefaultFileAdapter(FileAdapter):
-    """Default file adapter with safe fallback values."""
+    """Production file adapter with real file I/O operations."""
+    
+    def __init__(self, base_path: str = "./data"):
+        self.base_path = base_path
+        import os
+        os.makedirs(base_path, exist_ok=True)
+    
     def read(self, filename: str) -> Dict[str, Any]:
-        return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
+        """Read record from JSON file - REAL implementation."""
+        import os
+        filepath = os.path.join(self.base_path, filename)
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Record file not found: {filepath}")
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        # Convert string decimals back to Decimal
+        for key, value in data.items():
+            if isinstance(value, str) and value.replace('.', '').replace('-', '').isdigit():
+                try:
+                    data[key] = Decimal(value)
+                except:
+                    pass
+        return data
+    
     def write(self, filename: str, data: Any) -> bool:
+        """Write record to JSON file - REAL implementation."""
+        import os
+        filepath = os.path.join(self.base_path, filename)
+        # Convert Decimal to string for JSON serialization
+        serializable = {}
+        for key, value in (data.items() if isinstance(data, dict) else [("data", data)]):
+            if isinstance(value, Decimal):
+                serializable[key] = str(value)
+            else:
+                serializable[key] = value
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(serializable, f, indent=2, default=str)
         return True
 
 class ${className}:
@@ -1213,8 +1246,15 @@ ${initVars.join('\n')}
             raise ProcessingError(f"Cannot write {filename}") from e
     
     def get_next_account(self) -> Dict[str, Any]:
-        """Get next account record."""
-        return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
+        """Get next account record from data iterator."""
+        if not hasattr(self, '_account_cursor'):
+            self._account_cursor = 0
+            self._accounts = self.data.get('accounts', [])
+        if self._account_cursor >= len(self._accounts):
+            raise StopIteration("No more accounts to process")
+        account = self._accounts[self._account_cursor]
+        self._account_cursor += 1
+        return account
     
     def reset_account_iterator(self) -> None:
         """Reset account iterator."""
@@ -1381,11 +1421,15 @@ ${initVars.join('\n')}
           
           methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
-          // ⚠️ AI did not generate logic - using pattern-based fallback
-          methodCode += `        # ⚠️ PATTERN-FALLBACK: AI did not generate logic, using name-based template\n`;
+          // v9.0 PRODUCTION: NO FALLBACKS - Explicit failure for untranslated methods
+          methodCode += `        # v9.0 PRODUCTION: AI translation failed - requires manual COBOL analysis\n`;
+          methodCode += `        raise NotImplementedError(\n`;
+          methodCode += `            "Method '${methodName}' requires manual translation from COBOL paragraph '${safeName}'. "\n`;
+          methodCode += `            "Analyze source COBOL and implement equivalent Python logic."\n`;
+          methodCode += `        )\n`;
+          // REMOVED ALL PATTERN FALLBACKS - Production requires real translations
           const name = methodName.toLowerCase();
-          // BANKING patterns
-          if (name.includes('deposit')) {
+          if (false) {  // DISABLED - was: name.includes('deposit')
             methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        self.data["balance"] = self.data.get("balance", Decimal("0")) + amount\n        self.logger.info(f"Deposited {amount}")\n        return self.data["balance"]\n`;
           } else if (name.includes('withdraw')) {
             methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        self.data["balance"] = self.data.get("balance", Decimal("0")) - amount\n        self.logger.info(f"Withdrew {amount}")\n        return self.data["balance"]\n`;
@@ -1492,10 +1536,8 @@ ${initVars.join('\n')}
           } else if (name.includes('call') || name.includes('invoke') || name.includes('request')) {
             methodCode += `        self.logger.info("Invoking external service")\n        return {"status": "OK"}\n`;
           } else {
-            // v8.4: LAST RESORT - generate a minimal valid method instead of NotImplementedError
-            methodCode += `        # v8.4: Generic fallback - no specific pattern matched\n`;
-            methodCode += `        self.logger.info("Executing ${methodName}")\n`;
-            methodCode += `        return True\n`;
+            // v9.0: All fallbacks disabled - this branch never executes
+            // NotImplementedError already raised above
           }
         }
         
@@ -1920,10 +1962,43 @@ class FileAdapter:
         raise NotImplementedError("Subclass must implement write()")
 
 class DefaultFileAdapter(FileAdapter):
-    """Default file adapter with safe fallback values."""
+    """Production file adapter with real file I/O operations."""
+    
+    def __init__(self, base_path: str = "./data"):
+        self.base_path = base_path
+        import os
+        os.makedirs(base_path, exist_ok=True)
+    
     def read(self, filename: str) -> Dict[str, Any]:
-        return {"status": "A", "balance": Decimal("0"), "available": Decimal("0")}
+        """Read record from JSON file - REAL implementation."""
+        import os
+        filepath = os.path.join(self.base_path, filename)
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(f"Record file not found: {filepath}")
+        with open(filepath, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        # Convert string decimals back to Decimal
+        for key, value in data.items():
+            if isinstance(value, str) and value.replace('.', '').replace('-', '').isdigit():
+                try:
+                    data[key] = Decimal(value)
+                except:
+                    pass
+        return data
+    
     def write(self, filename: str, data: Any) -> bool:
+        """Write record to JSON file - REAL implementation."""
+        import os
+        filepath = os.path.join(self.base_path, filename)
+        # Convert Decimal to string for JSON serialization
+        serializable = {}
+        for key, value in (data.items() if isinstance(data, dict) else [("data", data)]):
+            if isinstance(value, Decimal):
+                serializable[key] = str(value)
+            else:
+                serializable[key] = value
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(serializable, f, indent=2, default=str)
         return True
 
 class ${className}:
