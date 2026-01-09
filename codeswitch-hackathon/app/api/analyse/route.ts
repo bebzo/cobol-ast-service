@@ -1009,6 +1009,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
     
+    if (!cobolCode) {
+      return NextResponse.json(
+        { error: 'cobolCode is required' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
     // v10.2: Also infer copybook from DATA DIVISION if no copybooks provided
     if (copybookStructures.length === 0) {
       const inferred = inferCopybookFromDataDivision(cobolCode);
@@ -1016,13 +1023,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         copybookStructures.push(inferred);
         console.log(`[v10.2] Inferred copybook from DATA DIVISION: ${inferred.fields.length} fields`);
       }
-    }
-
-    if (!cobolCode) {
-      return NextResponse.json(
-        { error: 'cobolCode is required' },
-        { status: 400, headers: corsHeaders }
-      );
     }
 
     // Validate that input is actually COBOL
