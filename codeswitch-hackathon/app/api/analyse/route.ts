@@ -466,13 +466,26 @@ function sanitizePythonCode(code: string): string {
   sanitized = sanitized.replace(/^(\s+)(self\.[a-z_][a-z0-9_]*)(\s*)$/gim, '$1_ = $2  # expression$3');
   
   // 4. Fix uppercase variable names (COBOL style): WS_STMT_IDX -> self.ws_stmt_idx
-  sanitized = sanitized.replace(/\b([A-Z][A-Z0-9_]{2,})\b(?!\s*=)/g, (match) => {
-    // Convert to self.lowercase if it looks like a COBOL variable
-    if (/^[A-Z][A-Z0-9_]+$/.test(match) && !['TRUE', 'FALSE', 'NONE', 'AND', 'OR', 'NOT', 'IN', 'IS'].includes(match)) {
-      return `self.${match.toLowerCase()}`;
+  // ONLY on lines that look like Python code (start with self. or =), not in comments/strings
+  const codeLines = sanitized.split('\n');
+  sanitized = codeLines.map(line => {
+    const trimmed = line.trim();
+    // Skip comments, docstrings, and string literals
+    if (trimmed.startsWith('#') || trimmed.startsWith('"""') || trimmed.startsWith("'''")) {
+      return line;
     }
-    return match;
-  });
+    // Only convert uppercase variables in actual code (lines with = or self.)
+    if (trimmed.includes('=') || trimmed.includes('self.')) {
+      return line.replace(/\b([A-Z][A-Z0-9_]{2,})\b(?!\s*=)/g, (match) => {
+        // Skip common Python/type names
+        if (['TRUE', 'FALSE', 'NONE', 'AND', 'OR', 'NOT', 'IN', 'IS', 'ANY', 'LIST', 'DICT', 'OPTIONAL', 'DECIMAL', 'STRING', 'INT', 'FLOAT', 'BOOL', 'TYPE', 'CLASS', 'DEF', 'RETURN', 'IMPORT', 'FROM', 'EXCEPTION', 'ERROR', 'THRESHOLDS'].includes(match)) {
+          return match;
+        }
+        return `self.${match.toLowerCase()}`;
+      });
+    }
+    return line;
+  }).join('\n');
   
   // 5. Fix array access with uppercase index: stmt_status[WS_STMT_IDX] -> stmt_status[self.ws_stmt_idx]
   sanitized = sanitized.replace(/\[([A-Z][A-Z0-9_]+)\]/g, (match, varName) => {
@@ -1882,17 +1895,26 @@ ${initVars.join('\n')}
       // Direct assembly - no extraction from corrupted skeleton
       let skeleton = header + '\n\n' + cleanMethods.join('\n\n');
       
-      // v7.31: BULLDOZER APPROACH - Extract ONLY def p_xxx methods, discard everything else
-      console.log('[v7.31] Bulldozer extraction - keeping only def p_xxx methods');
+      // v7.31: BULLDOZER APPROACH - Extract business methods, discard framework cruft
+      console.log('[v7.31] Bulldozer extraction - keeping business methods');
       
-      // Split by "def " and extract only business methods (p_xxx)
+      // Split by "def " and extract business methods (any name that's not __init__, __str__, etc.)
       const allBlocks = skeleton.split(/(?=\n    def )/);
       const businessMethods: string[] = [];
       
+      // Methods to exclude (framework/utility methods)
+      const excludedMethods = new Set(['__init__', '__str__', '__repr__', 'read_file', 'write_file', 'get_next_account', 'reset_account_iterator', 'handle_error']);
+      
       for (const block of allBlocks) {
-        // Only keep blocks that start with "def p_" (business methods)
-        const match = block.match(/^\s*def (p_[a-z0-9_]+)\(self\):/m);
+        // Match any method that's a business method (starts with letter, not in excluded list)
+        const match = block.match(/^\s*def ([a-z][a-z0-9_]*)\(self\):/m);
         if (match) {
+          const methodName = match[1];
+          
+          // Skip excluded/framework methods
+          if (excludedMethods.has(methodName)) continue;
+          if (methodName.startsWith('_')) continue;  // Skip private methods
+          
           // Extract just this method - find next def or end
           const methodLines = block.split('\n');
           const cleanMethod: string[] = [];
@@ -1907,8 +1929,8 @@ ${initVars.join('\n')}
             if (/""".*TODO/.test(trimmed)) continue;  // Skip TODO docstrings
             if (/FileAdapter/.test(trimmed)) continue;  // Skip FileAdapter references
             
-            // Start capturing at def p_xxx
-            if (/^def p_[a-z0-9_]+\(self\):$/.test(trimmed)) {
+            // Start capturing at any def xxx(self): that's a business method
+            if (/^def [a-z][a-z0-9_]*\(self\):$/.test(trimmed)) {
               inMethod = true;
             }
             
@@ -2025,7 +2047,7 @@ ${initVars.join('\n')}
       
       // v7.17: COMPREHENSIVE AST ANALYSIS + GEMINI FIX
       let astAnalysis = runASTAnalysis(skeleton);
-      console.log(`[v7.21] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats.total_methods}, problematic=${astAnalysis.stats.problematic_methods}`);
+      console.log(`[v7.21] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats?.total_methods || 0}, problematic=${astAnalysis.stats?.problematic_methods || 0}`);
       
       // Fix syntax errors first (up to 3 attempts)
       for (let retry = 0; retry < 3 && !astAnalysis.valid; retry++) {
@@ -2135,17 +2157,27 @@ ${initVars.join('\n')}
       let currentMethodName = '';
       let inBusinessMethod = false;
       
+      // Excluded utility methods
+      const v92ExcludedMethods = new Set(['__init__', '__str__', '__repr__', 'read_file', 'write_file', 'get_next_account', 'reset_account_iterator', 'handle_error']);
+      
       for (const line of lines) {
         const trimmed = line.trim();
         
-        // Detect start of business method (def p_xxx)
-        const methodMatch = trimmed.match(/^def (p_[a-z0-9_]+)\(self\):$/);
+        // Detect start of business method (any method that's not utility)
+        const methodMatch = trimmed.match(/^def ([a-z][a-z0-9_]*)\(self\):$/);
         if (methodMatch) {
+          const methodName = methodMatch[1];
+          
+          // Skip excluded/utility methods
+          if (v92ExcludedMethods.has(methodName) || methodName.startsWith('_')) {
+            continue;
+          }
+          
           // Save previous method if any
           if (currentMethod.length > 0) {
             extractedMethods.push(enhanceMethod(currentMethod, currentMethodName));
           }
-          currentMethodName = methodMatch[1];
+          currentMethodName = methodName;
           // v9.2: Add return type hint -> None:
           currentMethod = [`    def ${currentMethodName}(self) -> None:`];
           inBusinessMethod = true;
