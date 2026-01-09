@@ -965,8 +965,10 @@ ${initVars.join('\n')}
           } else if (name.includes('error')) {
             methodCode += `        self.logger.error(f"Error: {self.error_count}")\n        self.error_count += 1\n`;
           } else {
-            // Generic fallback for unmatched methods
-            methodCode += `        self.logger.info("Executing ${methodName}")\n        # TODO: Implement business logic\n`;
+            // Generic fallback - clearly marked as needing manual implementation
+            methodCode += `        # ⚠️ FALLBACK: AI did not generate logic for this method\n`;
+            methodCode += `        # Manual implementation required\n`;
+            methodCode += `        raise NotImplementedError("${methodName}: AI generation failed - manual implementation needed")\n`;
           }
         }
         
