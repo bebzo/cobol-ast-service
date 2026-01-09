@@ -116,6 +116,63 @@ function cacheTranslation(cobolSnippet: string, pythonCode: string): void {
   }
 }
 
+// v8.1: PERFORM RESOLVER - Extract called paragraph code
+function extractPerformTargets(
+  paragraphCode: string,
+  allParagraphs: { name: string; lineStart: number; lineEnd: number }[],
+  codeLines: string[],
+  maxDepth: number = 2
+): string {
+  if (maxDepth <= 0) return '';
+  
+  // Find all PERFORM calls in this paragraph
+  const performMatches = paragraphCode.matchAll(/\bPERFORM\s+([A-Z0-9][A-Z0-9-]+)/gi);
+  const calledParagraphs: string[] = [];
+  
+  for (const match of performMatches) {
+    const targetName = match[1].toUpperCase();
+    // Skip PERFORM UNTIL/VARYING (loops, not calls)
+    if (['UNTIL', 'VARYING', 'TIMES', 'THRU', 'THROUGH'].includes(targetName)) continue;
+    calledParagraphs.push(targetName);
+  }
+  
+  if (calledParagraphs.length === 0) return '';
+  
+  // Extract code for each called paragraph (max 3 to avoid token explosion)
+  const extraContext: string[] = [];
+  const uniqueCalls = [...new Set(calledParagraphs)].slice(0, 3);
+  
+  for (const targetName of uniqueCalls) {
+    const targetParagraph = allParagraphs.find(p => 
+      p.name.toUpperCase() === targetName || 
+      p.name.toUpperCase().startsWith(targetName)
+    );
+    
+    if (targetParagraph) {
+      const targetCode = codeLines.slice(
+        targetParagraph.lineStart - 1, 
+        Math.min(targetParagraph.lineEnd, targetParagraph.lineStart + 25)
+      ).join('\n');
+      
+      extraContext.push(`--- CALLED: ${targetParagraph.name} ---\n${targetCode}`);
+    }
+  }
+  
+  return extraContext.join('\n\n');
+}
+
+// v8.1: RETRY PROMPT for failed translations
+const RETRY_PROMPT = `You MUST generate Python code for this COBOL paragraph. No excuses.
+
+CRITICAL RULES:
+1. Output ONLY Python statements (self.xxx = ...)
+2. NO "def", NO "class", NO docstrings
+3. Translate EVERY COBOL statement to Python
+4. If unsure, make reasonable assumptions
+
+COBOL TO TRANSLATE:
+`;
+
 // v8.0: COBOL STRUCTURE ANALYZER - Pre-parse nested IF/PERFORM
 interface CobolStructure {
   hasNestedIf: boolean;
@@ -795,12 +852,22 @@ COBOL PARAGRAPHS:
             const uncachedCobol = uncachedBatch.map(p => {
               const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 40)).join('\n');
               const structure = analyzeCobolStructure(cobol);
+              
+              // v8.1: Extract PERFORM targets for context enrichment
+              const performContext = extractPerformTargets(cobol, allParagraphs, codeLines, 1);
+              
               let hints = '';
               if (structure.hasNestedIf) hints += '[NESTED-IF] ';
               if (structure.hasNestedPerform) hints += '[NESTED-PERFORM] ';
               if (structure.performCalls.length > 0) hints += `[CALLS: ${structure.performCalls.slice(0, 5).join(', ')}] `;
               hints += `[COMPLEXITY: ${structure.complexity}]`;
-              return `=== ${p.name} ${hints} ===\n${cobol}`;
+              
+              // v8.1: Include called paragraph code in context
+              let fullContext = `=== ${p.name} ${hints} ===\n${cobol}`;
+              if (performContext) {
+                fullContext += `\n\n${performContext}`;
+              }
+              return fullContext;
             }).join('\n\n');
             
             const response = await callGroq(BATCH_PROMPT + uncachedCobol);
@@ -854,7 +921,45 @@ COBOL PARAGRAPHS:
               }
             }
             
-            // Fill in any missing paragraphs from uncached batch
+            // v8.1: RETRY for failed/empty translations
+            const failedParagraphs = uncachedBatch.filter(p => 
+              !results.find(r => r.name.toUpperCase() === p.name.toUpperCase() && r.logic.length > 10)
+            );
+            
+            if (failedParagraphs.length > 0 && failedParagraphs.length <= 5) {
+              console.log(`[v8.1-RETRY] Retrying ${failedParagraphs.length} failed paragraphs`);
+              
+              for (const p of failedParagraphs) {
+                try {
+                  const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 50)).join('\n');
+                  const performContext = extractPerformTargets(cobol, allParagraphs, codeLines, 2);
+                  const fullContext = performContext ? `${cobol}\n\n${performContext}` : cobol;
+                  
+                  const retryResponse = await callGroq(RETRY_PROMPT + fullContext);
+                  const retryCode = retryResponse
+                    .replace(/```python\s*/gi, '').replace(/```/g, '')
+                    .split('\n')
+                    .map(l => l.trim())
+                    .filter(l => /^(self\.|if |elif |else:|for |while |return )/.test(l))
+                    .slice(0, 20)
+                    .join('\n');
+                  
+                  if (retryCode.length > 10) {
+                    console.log(`[v8.1-RETRY] Success for ${p.name}: ${retryCode.split('\n').length} lines`);
+                    const existing = results.find(r => r.name.toUpperCase() === p.name.toUpperCase());
+                    if (existing) {
+                      existing.logic = retryCode;
+                    } else {
+                      results.push({ name: p.name, logic: retryCode });
+                    }
+                  }
+                } catch (e) {
+                  console.log(`[v8.1-RETRY] Failed for ${p.name}`);
+                }
+              }
+            }
+            
+            // Fill in any still-missing paragraphs
             for (const p of uncachedBatch) {
               if (!results.find(r => r.name.toUpperCase() === p.name.toUpperCase())) {
                 results.push({ name: p.name, logic: '' });
