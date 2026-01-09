@@ -238,12 +238,34 @@ function analyzeCobolStructure(cobolCode: string): CobolStructure {
   };
 }
 
+// v8.2: Global set of Python keywords for sanitization
+const PYTHON_KEYWORDS = new Set(['def', 'class', 'return', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'finally', 'with', 'as', 'import', 'from', 'global', 'nonlocal', 'lambda', 'yield', 'raise', 'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'async', 'await', 'assert', 'del']);
+
+// v8.2: Function to sanitize variable names that are Python keywords
+function sanitizeVarName(varName: string): string {
+  const lower = varName.toLowerCase();
+  if (PYTHON_KEYWORDS.has(lower)) {
+    return lower + '_val';  // continue -> continue_val, pass -> pass_val
+  }
+  return lower;
+}
+
 // v7.60: Sanitize Python numbers - remove leading zeros (invalid in Python 3)
 // v8.1: Also convert COBOL intrinsic functions to Python
+// v8.2: Also fix Python keyword variable names (continue, pass, etc.)
 function sanitizePythonCode(code: string): string {
   // Fix leading zeros in integer literals: 01 -> 1, 05 -> 5, 077 -> 77
   // But preserve: 0, 0.5, 0x1F, 0b101, 0o17, "05", '05'
   let sanitized = code;
+  
+  // v8.2: Fix Python keyword variable names in self.xxx patterns
+  const pythonKeywordsForVars = ['continue', 'pass', 'break', 'return', 'yield', 'raise', 'import', 'from', 'class', 'def', 'try', 'except', 'finally', 'with', 'as', 'global', 'nonlocal', 'lambda', 'assert', 'del', 'if', 'else', 'elif', 'for', 'while', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'async', 'await'];
+  for (const kw of pythonKeywordsForVars) {
+    // Replace self.keyword with self.keyword_val (case insensitive)
+    sanitized = sanitized.replace(new RegExp(`self\\.${kw}\\b`, 'gi'), `self.${kw}_val`);
+    // Also fix in type annotations like :continue: -> :continue_val:
+    sanitized = sanitized.replace(new RegExp(`:${kw}:`, 'gi'), `:${kw}_val:`);
+  }
   
   // v8.1: Convert COBOL intrinsic functions to Python
   sanitized = sanitized.replace(/FUNCTION\s+CURRENT-DATE/gi, 'datetime.now().strftime("%Y%m%d%H%M%S")');
@@ -1015,7 +1037,8 @@ COBOL PARAGRAPHS:
         // Match self.xxx that is NOT followed by ( - those are variables
         const varMatches = t.logic.matchAll(/self\.([a-z_][a-z0-9_]*)(?!\s*\()/gi);
         for (const m of varMatches) {
-          const varName = m[1].toLowerCase();
+          // v8.2: Sanitize variable names that are Python keywords
+          const varName = sanitizeVarName(m[1]);
           // Skip: logger, data, and method patterns
           if (['logger', 'data'].includes(varName)) continue;
           if (/^p_\d/.test(varName)) continue;  // Method names like p_1000_xxx
@@ -1166,8 +1189,7 @@ ${initVars.join('\n')}
       // Build methods separately - each method is a clean string
       const methods: string[] = [];
       
-      // v7.10: Python reserved keywords
-      const pythonKeywords = new Set(['def', 'class', 'return', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'finally', 'with', 'as', 'import', 'from', 'global', 'nonlocal', 'lambda', 'yield', 'raise', 'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'async', 'await', 'assert', 'del']);
+      // v7.10: Python reserved keywords (used below for method name sanitization)
       
       // v8.1: Track unknown COBOL functions for stub generation
       const unknownCobolFunctions = new Set<string>();
@@ -1175,7 +1197,7 @@ ${initVars.join('\n')}
       for (const t of translations) {
         let methodName = t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
         // v7.10: Prefix Python keywords with 'p_'
-        if (pythonKeywords.has(methodName)) {
+        if (PYTHON_KEYWORDS.has(methodName)) {
           methodName = 'p_' + methodName;
         }
         // Sanitize name: only keep alphanumeric, spaces, hyphens - NO TODO
