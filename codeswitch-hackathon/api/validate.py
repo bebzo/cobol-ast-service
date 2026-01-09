@@ -94,10 +94,37 @@ def validate_and_fix(code: str) -> dict:
             code = '\n'.join(lines)
     
     # === PHASE 0.55: Flatten deeply nested parentheses (Python limit ~100) ===
-    # Prevent "too many nested parentheses" error
+    # Prevent "too many nested parentheses" error - AGGRESSIVE FIX
+    
+    # First pass: count global nesting depth across all lines
+    global_depth = 0
+    max_global_depth = 0
+    lines = code.split('\n')
+    
+    for line in lines:
+        for char in line:
+            if char == '(':
+                global_depth += 1
+                max_global_depth = max(max_global_depth, global_depth)
+            elif char == ')':
+                global_depth -= 1
+    
+    # If global nesting is too deep, aggressively simplify
+    if max_global_depth > 80:
+        # Remove ALL redundant double parens throughout the code
+        original_code = code
+        for _ in range(50):  # Multiple passes
+            code = re.sub(r'\(\(([^()]+)\)\)', r'(\1)', code)
+            code = re.sub(r'\(\s*\(', '(', code)  # Remove (( 
+            code = re.sub(r'\)\s*\)', ')', code)  # Remove ))
+            if code == original_code:
+                break
+            original_code = code
+        fixes_applied += 1
+    
+    # Second pass: per-line check for remaining deep nesting
     lines = code.split('\n')
     for i, line in enumerate(lines):
-        # Count max nesting depth on this line
         max_depth = 0
         current_depth = 0
         for char in line:
@@ -107,16 +134,25 @@ def validate_and_fix(code: str) -> dict:
             elif char == ')':
                 current_depth -= 1
         
-        # If nesting exceeds 50, flatten redundant parens
-        if max_depth > 50:
-            # Remove redundant double/triple parentheses
+        # If line still has deep nesting, simplify or comment out
+        if max_depth > 40:
             original = line
-            while '((' in line:
-                # Only flatten if matched pairs
+            # Try to flatten
+            for _ in range(20):
                 line = re.sub(r'\(\(([^()]*)\)\)', r'(\1)', line)
-                if line == original:  # No change, prevent infinite loop
+                if line == original:
                     break
                 original = line
+            
+            # If still too deep, comment out the problematic line
+            if max_depth > 60:
+                indent = len(lines[i]) - len(lines[i].lstrip())
+                lines[i] = ' ' * indent + '# NESTED_PAREN_OVERFLOW: ' + line.strip()
+                fixes_applied += 1
+            else:
+                lines[i] = line
+                if lines[i] != original:
+                    fixes_applied += 1
             if lines[i] != line:
                 lines[i] = line
                 fixes_applied += 1
@@ -859,22 +895,33 @@ def validate_and_fix(code: str) -> dict:
             
             elif 'too many nested parentheses' in error_msg:
                 # Python parser limit exceeded (~100 nesting levels)
-                # Flatten the problematic expression by removing redundant parentheses
-                if line_num - 1 < len(lines):
-                    problem_line = lines[line_num - 1]
-                    # Remove redundant double parentheses like ((...))
-                    flattened = re.sub(r'\(\(([^()]+)\)\)', r'(\1)', problem_line)
-                    # If still has too many, just simplify aggressively
-                    if flattened == problem_line:
-                        # Remove every other opening paren at start of nested expression
-                        flattened = re.sub(r'\(\(', '(', problem_line)
-                    if flattened != problem_line:
-                        lines[line_num - 1] = flattened
-                        fixes_applied += 1
-                    else:
-                        # Last resort: comment out and replace with placeholder
-                        lines[line_num - 1] = '# NESTED_PAREN: ' + problem_line.strip()
-                        fixes_applied += 1
+                # This is a GLOBAL issue - need to simplify the ENTIRE code
+                
+                # AGGRESSIVE GLOBAL FIX: Simplify all nested parens in the file
+                code = '\n'.join(lines)
+                original_code = code
+                
+                # Multiple passes to flatten nested structures
+                for _ in range(100):
+                    prev_code = code
+                    # Remove redundant double parens
+                    code = re.sub(r'\(\(([^()]+)\)\)', r'(\1)', code)
+                    # Remove spaces between parens
+                    code = re.sub(r'\(\s+\(', '((', code)
+                    code = re.sub(r'\)\s+\)', '))', code)
+                    # Flatten (( and ))
+                    code = re.sub(r'\(\(([^()]{0,50})\)\)', r'(\1)', code)
+                    
+                    if code == prev_code:
+                        break
+                
+                # If still failing, comment out the specific problematic line
+                if code == original_code and line_num - 1 < len(lines):
+                    lines[line_num - 1] = '# NESTED_OVERFLOW: ' + lines[line_num - 1].strip()
+                    code = '\n'.join(lines)
+                
+                lines = code.split('\n')
+                fixes_applied += 1
             
             elif 'unexpected eof' in error_msg:
                 # EOF while parsing - usually unclosed parens
