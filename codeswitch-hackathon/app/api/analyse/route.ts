@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-// Using Groq API via fetch (OpenAI-compatible)
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseCobolWithANTLR, generateANTLRSummary, generatePythonSkeleton, CobolFullAST } from '@/lib/cobol-antlr-parser';
 
 // Validate that input is actually COBOL code
@@ -72,29 +72,15 @@ const corsHeaders = {
   'Expires': '0',
 };
 
-const GROQ_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Cerebras API helper function
+// Gemini API helper
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
 async function callGroq(prompt: string): Promise<string> {
-  const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-      max_tokens: 8000,
-    }),
-  });
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Cerebras API error: ${response.status} - ${error}`);
-  }
-  const data = await response.json();
-  return data.choices[0]?.message?.content || '';
+  const result = await geminiModel.generateContent(prompt);
+  return result.response.text();
 }
 
 // v7.16: AST Validation via Python subprocess
@@ -507,7 +493,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    if (!GROQ_API_KEY) {
+    if (!GEMINI_API_KEY) {
       return NextResponse.json(
         { error: 'GEMINI_API_KEY not configured' },
         { status: 500, headers: corsHeaders }
