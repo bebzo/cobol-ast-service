@@ -1187,12 +1187,21 @@ ${initVars.join('\n')}
           // v7.10: Strip inline comments before processing
           let trimmed = rawLine.trim().replace(/#.*$/, '').trim();
           
+          // v8.1: Convert COBOL intrinsic functions BEFORE filtering
+          trimmed = trimmed.replace(/FUNCTION\s+CURRENT-DATE/gi, 'datetime.now().strftime("%Y%m%d%H%M%S")');
+          trimmed = trimmed.replace(/FUNCTION\s+CURRENT-TIME/gi, 'datetime.now().strftime("%H%M%S")');
+          trimmed = trimmed.replace(/FUNCTION\s+LENGTH\s*\(([^)]+)\)/gi, 'len($1)');
+          trimmed = trimmed.replace(/FUNCTION\s+UPPER-CASE\s*\(([^)]+)\)/gi, '$1.upper()');
+          trimmed = trimmed.replace(/FUNCTION\s+LOWER-CASE\s*\(([^)]+)\)/gi, '$1.lower()');
+          trimmed = trimmed.replace(/FUNCTION\s+TRIM\s*\(([^)]+)\)/gi, '$1.strip()');
+          trimmed = trimmed.replace(/FUNCTION\s+NUMVAL\s*\(([^)]+)\)/gi, 'Decimal($1)');
+          
           // === COMPREHENSIVE PYTHON SYNTAX VALIDATION ===
           
           // 1. Skip COBOL artifacts and placeholders
           if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs|^#|SECTION|DIVISION/i.test(trimmed)) continue;
           if (/^[A-Z]{2,}-[A-Z]/.test(trimmed)) continue;  // COBOL variable names
-          // v8.1: Skip COBOL intrinsic functions that weren't translated
+          // v8.1: Skip remaining COBOL intrinsic functions that weren't handled above
           if (/FUNCTION\s+[A-Z-]+/i.test(trimmed)) continue;
           
           // 2. Skip duplicates
