@@ -762,7 +762,7 @@ function generateIssues(ast: any, cobolCode: string): any[] {
   const lower = cobolCode.toLowerCase();
   const lines = cobolCode.split('\n');
   
-  if (ast.metrics.totalLines > 5000) issues.push({
+  if (ast.metrics.totalLines > 2000) issues.push({
     title: `Large codebase: ${ast.metrics.totalLines} lines`,
     severity: 'HIGH',
     description: 'Incremental testing strategy required',

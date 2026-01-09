@@ -2588,7 +2588,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <p className="text-xs text-slate-400 mt-2">Possible solutions:</p>
                   <ul className="text-xs text-slate-400 mt-1 list-disc list-inside">
                     <li>Re-run the analysis (click "Refactor with Gemini")</li>
-                    <li>Reduce COBOL file size (&lt; 5000 lines recommended)</li>
+                    <li>Reduce COBOL file size (&lt; 2000 lines recommended)</li>
                   </ul>
                 </div>
               )}
