@@ -1424,6 +1424,42 @@ ${extractedMethods.join('\n\n')}
       skeleton = sanitizePythonCode(skeleton);
       console.log('[v7.60] Sanitized leading zeros in Python numbers');
       
+      // v7.63: FINAL AST VALIDATION - Ensure code is syntactically valid AFTER all transformations
+      const finalAstCheck = runASTAnalysis(skeleton);
+      if (!finalAstCheck.valid) {
+        console.log(`[v7.63] Final AST check failed at line ${finalAstCheck.line}: ${finalAstCheck.error}`);
+        
+        // Try to fix the specific error
+        if (finalAstCheck.line) {
+          const skeletonLines = skeleton.split('\n');
+          const errorLine = skeletonLines[finalAstCheck.line - 1] || '';
+          console.log(`[v7.63] Problematic line: ${errorLine.substring(0, 100)}`);
+          
+          // Common fixes
+          // 1. Fix self.self. typo
+          skeleton = skeleton.replace(/self\.self\./g, 'self.');
+          
+          // 2. Fix double colons
+          skeleton = skeleton.replace(/::/g, ':');
+          
+          // 3. Fix trailing operators
+          skeleton = skeleton.replace(/([+\-*\/=])\s*\n\s*\n/g, '\n\n');
+          
+          // 4. Fix empty method bodies - add pass
+          skeleton = skeleton.replace(/(def \w+\(self\):\s*"""[^"]+""")\s*\n(\s*def |\s*$)/g, '$1\n        pass\n$2');
+          
+          // Re-check after fixes
+          const recheck = runASTAnalysis(skeleton);
+          if (recheck.valid) {
+            console.log('[v7.63] AST fixed successfully');
+          } else {
+            console.log(`[v7.63] AST still invalid: ${recheck.error}`);
+          }
+        }
+      } else {
+        console.log(`[v7.63] Final AST check passed: ${finalAstCheck.stats.total_methods} methods validated`);
+      }
+      
       // v7.61: Generate REAL tests based on actual code - proportional to methods
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
       let unitTests = '';
