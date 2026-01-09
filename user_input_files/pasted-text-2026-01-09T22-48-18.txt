@@ -1,0 +1,535 @@
+import pytest
+from decimal import Decimal
+from datetime import date
+from typing import Tuple
+
+from dataclasses import dataclass
+
+@dataclass
+class WorkingStorage:
+    """
+    working_storage - Generated from working_storage.cpy
+    Record length: 1012 bytes
+    """
+    ws_cust_status: str = ""
+    ws_acct_status: str = ""
+    ws_tran_status: str = ""
+    ws_loan_status: str = ""
+    ws_ins_status: str = ""
+    ws_inv_status: str = ""
+    ws_aud_status: str = ""
+    ws_rpt_status: str = ""
+    ws_current_date: int = 0
+    ws_current_time: int = 0
+    ws_current_timestamp: str = ""
+    ws_cust_count: int = 0
+    ws_acct_count: int = 0
+    ws_tran_count: int = 0
+    ws_loan_count: int = 0
+    ws_ins_count: int = 0
+    ws_inv_count: int = 0
+    ws_error_count: int = 0
+    ws_process_count: int = 0
+    ws_total_deposits: int = 0
+    ws_total_withdrawals: int = 0
+    ws_total_transfers: int = 0
+    ws_total_loans: int = 0
+    ws_total_payments: int = 0
+    ws_total_interest: int = 0
+    ws_total_fees: int = 0
+    ws_total_premiums: int = 0
+    ws_total_claims: int = 0
+    ws_total_investments: int = 0
+    ws_total_dividends: int = 0
+    ws_calc_amount: int = 0
+    ws_calc_rate: int = 0
+    ws_calc_term: int = 0
+    ws_calc_result: int = 0
+    ws_calc_interest: int = 0
+    ws_calc_principal: int = 0
+    ws_calc_payment: int = 0
+    ws_calc_balance: int = 0
+    ws_calc_fee: int = 0
+    ws_calc_tax: int = 0
+    ws_eof_flag: str = ""
+    ws_eof: str = ""
+    ws_not_eof: str = ""
+    ws_error_flag: str = ""
+    ws_error: str = ""
+    ws_n: str = ""
+
+
+class MegaProcessor:
+    def __init__(self):
+        self.working_storage = WorkingStorage()
+
+    def p_0000_main_control(self):
+        """Main control program."""
+        self.p_1000_initialization()
+        self.p_2000_process_banking()
+        self.p_3000_process_loans()
+        # Simplified for testing
+        return "Main Control Complete"
+
+    def p_1000_initialization(self):
+        """Initializes the system."""
+        self.p_1200_initialize_counters()
+        self.p_1400_load_parameters()
+        self.p_1500_validate_system()
+        self.p_1100_open_files()
+        self.p_1300_get_current_date()
+        return "Initialization Complete"
+
+    def p_1200_initialize_counters(self):
+        """Initializes counters to zero."""
+        self.working_storage.ws_cust_count = 0
+        self.working_storage.ws_acct_count = 0
+        self.working_storage.ws_tran_count = 0
+        self.working_storage.ws_loan_count = 0
+        self.working_storage.ws_error_count = 0
+        self.working_storage.ws_process_count = 0
+        return "Counters Initialized"
+
+    def p_1400_load_parameters(self):
+        """Loads system parameters (placeholder)."""
+        # Example: Load interest rate from a config file/database
+        self.system_interest_rate = 0.05  # Example
+        return "Parameters Loaded"
+
+    def p_1500_validate_system(self):
+        """Validates system environment (placeholder)."""
+        # Example: Check disk space, database connection, etc.
+        # For now, always return True
+        return True
+
+    def p_2000_process_banking(self):
+        """Processes banking transactions."""
+        self.p_2100_process_deposits()
+        self.p_2200_process_withdrawals()
+        self.p_2300_process_transfers()
+        self.p_2400_calculate_interest()
+        self.p_2500_apply_fees()
+        return "Banking Processed"
+
+    def p_2100_process_deposits(self):
+         """Processes deposits."""
+         deposit_amount = 100
+         account_number = "12345"
+         if self.p_2110_validate_deposit(account_number, deposit_amount):
+            self.p_2120_post_deposit(account_number, deposit_amount)
+            self.p_2130_update_balance(account_number, deposit_amount)
+            return "Deposit Processed"
+         else:
+            return "Deposit Failed"
+
+    def p_2110_validate_deposit(self, account_number, amount):
+        """Validates a deposit (placeholder)."""
+        # Example: Check account status, deposit limits, etc.
+        if not account_number or not amount or amount <= 0:
+            return False
+        return True
+
+    def p_2120_post_deposit(self, account_number, amount):
+        """Posts a deposit (placeholder)."""
+        # Example: Update transaction log, audit trail, etc.
+        self.working_storage.ws_total_deposits += amount
+        return "Deposit Posted"
+
+    def p_2130_update_balance(self, account_number, amount):
+        """Updates the account balance (placeholder)."""
+        # Assume a simple in-memory account balance for testing.
+        if not hasattr(self, 'account_balances'):
+            self.account_balances = {}
+        if account_number not in self.account_balances:
+            self.account_balances[account_number] = 0
+        self.account_balances[account_number] += amount
+        return "Balance Updated"
+
+    def p_2200_process_withdrawals(self):
+        """Processes withdrawals."""
+        withdrawal_amount = 50
+        account_number = "12345"
+        if self.p_2210_validate_withdrawal(account_number, withdrawal_amount):
+           self.p_2220_post_withdrawal(account_number, withdrawal_amount)
+           self.p_2130_update_balance(account_number, -withdrawal_amount)
+           return "Withdrawal Processed"
+        else:
+           return "Withdrawal Failed"
+
+    def p_2210_validate_withdrawal(self, account_number, amount):
+        """Validates a withdrawal (placeholder)."""
+        # Example: Check account status, sufficient funds, etc.
+        if not hasattr(self, 'account_balances') or account_number not in self.account_balances:
+            return False
+        if self.account_balances[account_number] < amount:
+            if amount <= 100:
+                self.p_2215_apply_overdraft_fee(account_number)
+                return True
+            else:
+                return False
+        return True
+
+    def p_2215_apply_overdraft_fee(self, account_number):
+        """Applies an overdraft fee (placeholder)."""
+        fee_amount = 25
+        if not hasattr(self, 'account_balances'):
+            self.account_balances = {}
+        if account_number not in self.account_balances:
+            self.account_balances[account_number] = 0
+        self.account_balances[account_number] -= fee_amount
+        self.working_storage.ws_total_fees += fee_amount
+        return "Overdraft Fee Applied"
+
+    def p_2220_post_withdrawal(self, account_number, amount):
+        """Posts a withdrawal (placeholder)."""
+        # Example: Update transaction log, audit trail, etc.
+        self.working_storage.ws_total_withdrawals += amount
+        return "Withdrawal Posted"
+
+    def p_2300_process_transfers(self):
+        """Processes transfers."""
+        from_account = "12345"
+        to_account = "67890"
+        transfer_amount = 25
+        self.p_2310_internal_transfer(from_account, to_account, transfer_amount)
+        self.p_2320_wire_transfer(from_account, to_account, transfer_amount)
+        self.p_2330_ach_transfer(from_account, to_account, transfer_amount)
+        return "Transfers Processed"
+
+    def p_2310_internal_transfer(self, from_account, to_account, amount):
+        """Processes an internal transfer."""
+        if self.p_2210_validate_withdrawal(from_account, amount):
+            self.p_2220_post_withdrawal(from_account, amount)
+            self.p_2130_update_balance(from_account, -amount)
+            self.p_2120_post_deposit(to_account, amount)
+            self.p_2130_update_balance(to_account, amount)
+            self.working_storage.ws_total_transfers += amount
+            return "Internal Transfer Complete"
+        else:
+            return "Internal Transfer Failed"
+
+    def p_2320_wire_transfer(self, from_account, to_account, amount):
+        """Processes a wire transfer."""
+        # Placeholder for wire transfer logic
+        self.working_storage.ws_total_transfers += amount
+        return "Wire Transfer Complete"
+
+    def file_control(self):
+       return "file control"
+
+    def p_1100_open_files(self):
+       return "open files"
+
+    def p_1300_get_current_date(self):
+        """Gets the current date."""
+        self.working_storage.ws_current_date = int(date.today().strftime("%Y%m%d"))
+        return "Current Date Retrieved"
+
+    def p_2330_ach_transfer(self, from_account, to_account, amount):
+        """Processes an ACH transfer."""
+        # Placeholder for ACH transfer logic
+        return "ACH Transfer Complete"
+
+    def p_2400_calculate_interest(self):
+        """Calculates interest."""
+        account_number = "12345"
+        self.p_2410_determine_rate()
+        interest = (self.account_balances[account_number] * self.system_interest_rate) if hasattr(self, 'account_balances') and account_number in self.account_balances else 0
+        self.p_2430_post_interest(account_number, interest)
+        return "Interest Calculated"
+
+    def p_2410_determine_rate(self):
+        """Determines the interest rate."""
+        # Placeholder for rate determination logic
+        self.working_storage.ws_calc_rate = self.system_interest_rate
+        return "Rate Determined"
+
+    def p_2430_post_interest(self, account_number, interest):
+        """Posts interest to the account."""
+        if not hasattr(self, 'account_balances'):
+            self.account_balances = {}
+        if account_number not in self.account_balances:
+            self.account_balances[account_number] = 0
+        self.account_balances[account_number] += interest
+        self.working_storage.ws_total_interest += interest
+        return "Interest Posted"
+
+    def p_2500_apply_fees(self):
+        """Applies fees."""
+        account_number = "12345"
+        self.p_2510_check_minimum_balance(account_number)
+        return "Fees Applied"
+
+    def p_2510_check_minimum_balance(self, account_number):
+        """Checks for minimum balance and applies fee if necessary."""
+        minimum_balance = 100
+        fee_amount = 10
+        if not hasattr(self, 'account_balances') or account_number not in self.account_balances:
+             return "Minimum balance check skipped due to missing account"
+        if self.account_balances[account_number] < minimum_balance:
+            if self.p_2520_waive_fee(account_number):
+                return "Fee Waived"
+            else:
+                self.p_2530_charge_fee(account_number, fee_amount)
+                return "Fee Charged"
+        return "Minimum Balance Met"
+
+    def p_2520_waive_fee(self, account_number):
+        """Waives the fee based on some criteria (placeholder)."""
+        # Example: Waive fee for senior citizens, etc.
+        return False
+
+    def p_2530_charge_fee(self, account_number, amount):
+        """Charges a fee to the account."""
+        if not hasattr(self, 'account_balances'):
+            self.account_balances = {}
+        if account_number not in self.account_balances:
+            self.account_balances[account_number] = 0
+        self.account_balances[account_number] -= amount
+        self.working_storage.ws_total_fees += amount
+        return "Fee Charged"
+
+    def p_3000_process_loans(self):
+        """Processes loans (placeholder)."""
+        return "Loans Processed"
+
+    def p_3200_process_payments(self):
+        """Processes payments (placeholder)."""
+        return "Payments Processed"
+
+@pytest.fixture
+def mega_processor():
+    """Fixture to create a MegaProcessor instance."""
+    return MegaProcessor()
+
+@pytest.fixture
+def working_storage():
+    """Fixture to create a WorkingStorage instance."""
+    return WorkingStorage()
+
+def test_p_0000_main_control(mega_processor):
+    """Tests the main control program execution."""
+    result = mega_processor.p_0000_main_control()
+    assert result == "Main Control Complete"
+
+def test_p_1000_initialization(mega_processor):
+    """Tests the initialization process."""
+    result = mega_processor.p_1000_initialization()
+    assert result == "Initialization Complete"
+
+def test_p_1200_initialize_counters(mega_processor):
+    """Tests that counters are initialized to zero."""
+    mega_processor.p_1200_initialize_counters()
+    assert mega_processor.working_storage.ws_cust_count == 0
+    assert mega_processor.working_storage.ws_acct_count == 0
+    assert mega_processor.working_storage.ws_tran_count == 0
+    assert mega_processor.working_storage.ws_loan_count == 0
+    assert mega_processor.working_storage.ws_error_count == 0
+    assert mega_processor.working_storage.ws_process_count == 0
+
+def test_p_1400_load_parameters(mega_processor):
+    """Tests that parameters are loaded."""
+    result = mega_processor.p_1400_load_parameters()
+    assert result == "Parameters Loaded"
+    assert hasattr(mega_processor, 'system_interest_rate')
+
+def test_p_1500_validate_system(mega_processor):
+    """Tests system validation (currently always returns True)."""
+    assert mega_processor.p_1500_validate_system() is True
+
+def test_p_2000_process_banking(mega_processor):
+    """Tests the banking processing flow."""
+    result = mega_processor.p_2000_process_banking()
+    assert result == "Banking Processed"
+
+def test_p_2100_process_deposits(mega_processor):
+   """Tests the deposit processing flow."""
+   mega_processor.account_balances = {}
+   result = mega_processor.p_2100_process_deposits()
+   assert result == "Deposit Processed"
+   assert mega_processor.account_balances["12345"] == 100
+   assert mega_processor.working_storage.ws_total_deposits == 100
+
+def test_p_2110_validate_deposit_valid(mega_processor):
+    """Tests deposit validation with valid input."""
+    assert mega_processor.p_2110_validate_deposit("12345", 100) is True
+
+def test_p_2110_validate_deposit_invalid(mega_processor):
+    """Tests deposit validation with invalid input (empty account)."""
+    assert mega_processor.p_2110_validate_deposit("", 100) is False
+
+def test_p_2110_validate_deposit_negative(mega_processor):
+    """Tests deposit validation with invalid input (negative amount)."""
+    assert mega_processor.p_2110_validate_deposit("12345", -100) is False
+
+def test_p_2120_post_deposit(mega_processor):
+    """Tests posting a deposit."""
+    mega_processor.working_storage.ws_total_deposits = 0
+    result = mega_processor.p_2120_post_deposit("12345", 100)
+    assert result == "Deposit Posted"
+    assert mega_processor.working_storage.ws_total_deposits == 100
+
+def test_p_2130_update_balance(mega_processor):
+    """Tests updating the account balance."""
+    result = mega_processor.p_2130_update_balance("12345", 100)
+    assert result == "Balance Updated"
+    assert mega_processor.account_balances["12345"] == 100
+
+def test_p_2200_process_withdrawals(mega_processor):
+   """Tests the withdrawal processing flow."""
+   mega_processor.account_balances = {"12345": 100}
+   result = mega_processor.p_2200_process_withdrawals()
+   assert result == "Withdrawal Processed"
+   assert mega_processor.account_balances["12345"] == 50
+   assert mega_processor.working_storage.ws_total_withdrawals == 50
+
+def test_p_2210_validate_withdrawal_valid(mega_processor):
+    """Tests withdrawal validation with valid input."""
+    mega_processor.account_balances = {"12345": 100}
+    assert mega_processor.p_2210_validate_withdrawal("12345", 50) is True
+
+def test_p_2210_validate_withdrawal_invalid_funds(mega_processor):
+    """Tests withdrawal validation with insufficient funds."""
+    mega_processor.account_balances = {"12345": 20}
+    assert mega_processor.p_2210_validate_withdrawal("12345", 50) is False
+
+def test_p_2210_validate_withdrawal_invalid_account(mega_processor):
+    """Tests withdrawal validation with non-existent account."""
+    assert mega_processor.p_2210_validate_withdrawal("67890", 50) is False
+
+def test_p_2215_apply_overdraft_fee(mega_processor):
+    """Tests applying an overdraft fee."""
+    mega_processor.account_balances = {"12345": 0}
+    result = mega_processor.p_2215_apply_overdraft_fee("12345")
+    assert result == "Overdraft Fee Applied"
+    assert mega_processor.account_balances["12345"] == -25
+    assert mega_processor.working_storage.ws_total_fees == 25
+
+def test_p_2220_post_withdrawal(mega_processor):
+    """Tests posting a withdrawal."""
+    mega_processor.working_storage.ws_total_withdrawals = 0
+    result = mega_processor.p_2220_post_withdrawal("12345", 50)
+    assert result == "Withdrawal Posted"
+    assert mega_processor.working_storage.ws_total_withdrawals == 50
+
+def test_p_2300_process_transfers(mega_processor):
+    """Tests the transfer processing flow."""
+    result = mega_processor.p_2300_process_transfers()
+    assert result == "Transfers Processed"
+
+def test_p_2310_internal_transfer(mega_processor):
+   """Tests processing an internal transfer."""
+   mega_processor.account_balances = {"12345": 100, "67890": 0}
+   result = mega_processor.p_2310_internal_transfer("12345", "67890", 25)
+   assert result == "Internal Transfer Complete"
+   assert mega_processor.account_balances["12345"] == 75
+   assert mega_processor.account_balances["67890"] == 25
+   assert mega_processor.working_storage.ws_total_transfers == 25
+
+def test_p_2320_wire_transfer(mega_processor):
+    """Tests processing a wire transfer."""
+    result = mega_processor.p_2320_wire_transfer("12345", "67890", 50)
+    assert result == "Wire Transfer Complete"
+    assert mega_processor.working_storage.ws_total_transfers == 50
+
+def test_file_control(mega_processor):
+    assert mega_processor.file_control() == "file control"
+
+def test_p_1100_open_files(mega_processor):
+    assert mega_processor.p_1100_open_files() == "open files"
+
+def test_p_1300_get_current_date(mega_processor):
+    """Tests getting the current date."""
+    result = mega_processor.p_1300_get_current_date()
+    assert result == "Current Date Retrieved"
+    assert mega_processor.working_storage.ws_current_date == int(date.today().strftime("%Y%m%d"))
+
+def test_p_2330_ach_transfer(mega_processor):
+    """Tests processing an ACH transfer."""
+    result = mega_processor.p_2330_ach_transfer("12345", "67890", 50)
+    assert result == "self.ach Transfer Complete"
+
+def test_p_2400_calculate_interest(mega_processor):
+   """Tests calculating interest."""
+   mega_processor.account_balances = {"12345": 1000}
+   mega_processor.system_interest_rate = 0.05
+   result = mega_processor.p_2400_calculate_interest()
+   assert result == "Interest Calculated"
+   assert mega_processor.account_balances["12345"] == 1050.0
+   assert mega_processor.working_storage.ws_total_interest == 50.0
+
+def test_p_2410_determine_rate(mega_processor):
+    """Tests determining the interest rate."""
+    mega_processor.system_interest_rate = 0.05
+    result = mega_processor.p_2410_determine_rate()
+    assert result == "Rate Determined"
+    assert mega_processor.working_storage.ws_calc_rate == mega_processor.system_interest_rate
+
+def test_p_2430_post_interest(mega_processor):
+    """Tests posting interest."""
+    mega_processor.account_balances = {"12345": 1000}
+    result = mega_processor.p_2430_post_interest("12345", 50)
+    assert result == "Interest Posted"
+    assert mega_processor.account_balances["12345"] == 1050
+    assert mega_processor.working_storage.ws_total_interest == 50
+
+def test_p_2500_apply_fees(mega_processor):
+   """Tests applying fees."""
+   mega_processor.account_balances = {"12345": 50}
+   result = mega_processor.p_2500_apply_fees()
+   assert result == "Fees Applied"
+   assert mega_processor.account_balances["12345"] == 40
+   assert mega_processor.working_storage.ws_total_fees == 10
+
+def test_p_2510_check_minimum_balance(mega_processor):
+    """Tests checking minimum balance."""
+    mega_processor.account_balances = {"12345": 50}
+    result = mega_processor.p_2510_check_minimum_balance("12345")
+    assert result == "Fee Charged"
+
+def test_p_2520_waive_fee(mega_processor):
+    """Tests waiving a fee (currently always returns False)."""
+    assert mega_processor.p_2520_waive_fee("12345") is False
+
+def test_p_2530_charge_fee(mega_processor):
+    """Tests charging a fee."""
+    mega_processor.account_balances = {"12345": 100}
+    result = mega_processor.p_2530_charge_fee("12345", 10)
+    assert result == "Fee Charged"
+    assert mega_processor.account_balances["12345"] == 90
+    assert mega_processor.working_storage.ws_total_fees == 10
+
+def test_p_3000_process_loans(mega_processor):
+    """Tests the loan processing (placeholder)."""
+    assert mega_processor.p_3000_process_loans() == "Loans Processed"
+
+def test_p_3200_process_payments(mega_processor):
+    """Tests the payment processing (placeholder)."""
+    assert mega_processor.p_3200_process_payments() == "Payments Processed"
+
+# --- INTEGRATION TESTS ---
+def test_deposit_and_withdrawal_integration(mega_processor):
+    """Integration test: Deposits, then withdraws, verifies balances."""
+    mega_processor.account_balances = {"12345": 0}
+    mega_processor.p_2100_process_deposits()
+    mega_processor.p_2200_process_withdrawals()
+    assert mega_processor.account_balances["12345"] == 50
+    assert mega_processor.working_storage.ws_total_deposits == 100
+    assert mega_processor.working_storage.ws_total_withdrawals == 50
+
+def test_interest_and_fees_integration(mega_processor):
+    """Integration test: Calculates and posts interest, then applies fees."""
+    mega_processor.account_balances = {"12345": 50}
+    mega_processor.system_interest_rate = 0.05
+    mega_processor.p_2400_calculate_interest()
+    mega_processor.p_2500_apply_fees()
+    assert mega_processor.account_balances["12345"] == 32.5
+    assert mega_processor.working_storage.ws_total_interest == 2.5
+    assert mega_processor.working_storage.ws_total_fees == 10
+
+def test_initialization_and_banking_integration(mega_processor):
+    """Integration test: Initializes system, then processes banking."""
+    mega_processor.p_1000_initialization()
+    mega_processor.p_2000_process_banking()
+    # Simple assertions to check if the processes executed
+    assert mega_processor.working_storage.ws_total_deposits > 0 or mega_processor.working_storage.ws_total_withdrawals > 0
