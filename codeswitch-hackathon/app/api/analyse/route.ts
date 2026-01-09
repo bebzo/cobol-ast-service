@@ -30,6 +30,28 @@ import {
   ConfidenceSummary
 } from '@/lib/confidence';
 
+// v10.0: CONTEXT SYSTEM - Enrich translations with business context
+import {
+  parseContext,
+  generateContextHeader,
+  generatePythonEnums,
+  generatePythonThresholds,
+  generatePythonDataclasses,
+  generateSubprogramStubs,
+  enrichCodeWithContext,
+  createDefaultContext,
+  ContextConfig
+} from '@/lib/context_parser';
+
+import {
+  parseCopybook,
+  generateDataclass,
+  generateCopybookModule,
+  extractCopyStatements,
+  inferCopybookFromDataDivision,
+  Copybook
+} from '@/lib/copybook_parser';
+
 // Validate that input is actually COBOL code
 function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
   if (!code || code.trim().length < 50) {
@@ -898,10 +920,47 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   
   try {
-    const { cobolCode, filename, patternOnly = false } = await request.json();
+    const { cobolCode, filename, patternOnly = false, contextYaml = '', copybooks = [] } = await request.json();
     
     // v10.1: Pattern-only mode flag (reduces AI calls to zero)
     let usePatternOnly = patternOnly === true || patternOnly === 'true';
+    
+    // v10.2: Parse context configuration if provided
+    let contextConfig: ContextConfig = createDefaultContext();
+    let copybookStructures: Copybook[] = [];
+    
+    if (contextYaml && contextYaml.trim().length > 0) {
+      try {
+        contextConfig = parseContext(contextYaml);
+        console.log(`[v10.2] Loaded context: ${Object.keys(contextConfig.enums).length} enums, ${Object.keys(contextConfig.thresholds).length} thresholds`);
+      } catch (e) {
+        console.log(`[v10.2] Context parse error, using defaults: ${e}`);
+      }
+    }
+    
+    // v10.2: Parse copybooks if provided
+    if (copybooks && Array.isArray(copybooks)) {
+      for (const cb of copybooks) {
+        if (cb.content && cb.filename) {
+          try {
+            const parsed = parseCopybook(cb.content, cb.filename);
+            copybookStructures.push(parsed);
+            console.log(`[v10.2] Parsed copybook ${cb.filename}: ${parsed.fields.length} fields, ${parsed.totalLength} bytes`);
+          } catch (e) {
+            console.log(`[v10.2] Copybook parse error for ${cb.filename}: ${e}`);
+          }
+        }
+      }
+    }
+    
+    // v10.2: Also infer copybook from DATA DIVISION if no copybooks provided
+    if (copybookStructures.length === 0) {
+      const inferred = inferCopybookFromDataDivision(cobolCode);
+      if (inferred.fields.length > 0) {
+        copybookStructures.push(inferred);
+        console.log(`[v10.2] Inferred copybook from DATA DIVISION: ${inferred.fields.length} fields`);
+      }
+    }
 
     if (!cobolCode) {
       return NextResponse.json(
@@ -2299,16 +2358,30 @@ Answer:`;
         cobolFunctionStubs = `    # === COBOL FUNCTION IMPLEMENTATIONS ===\n${stubs.join('\n\n')}\n`;
       }
       
+      // v10.2: Generate context-based code components
+      const contextHeader = generateContextHeader(contextConfig);
+      const copybookClasses = copybookStructures.length > 0 
+        ? generateCopybookModule(copybookStructures) 
+        : '';
+      const subprogramMethods = generateSubprogramStubs(contextConfig);
+      
+      console.log(`[v10.2] Generated context: ${Object.keys(contextConfig.enums).length} enums, ${copybookStructures.length} copybooks`);
+      
       // v7.35: HARDCODED REBUILD - Build file from scratch with NO template reuse
       // This bypasses any possible corruption in the header variable
-      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.50 Commercial]"""
-from dataclasses import dataclass
+      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v10.2 Commercial + Context]"""
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
+from enum import Enum
 import logging
 import random
 from datetime import datetime, date, timedelta
 import json
+
+${contextHeader}
+
+${copybookClasses}
 
 # === BUSINESS EXCEPTIONS ===
 class BusinessError(Exception):
@@ -2586,6 +2659,13 @@ ${extractedMethods.join('\n\n')}
       skeleton = skeleton.trimStart();
       // Ensure file ends with single newline
       skeleton = skeleton.trimEnd() + '\n';
+      
+      // v10.2: CONTEXT ENRICHMENT - Replace magic numbers with constants, codes with enums
+      if (contextConfig && (Object.keys(contextConfig.thresholds).length > 0 || Object.keys(contextConfig.enums).length > 0)) {
+        console.log('[v10.2] Enriching code with context...');
+        skeleton = enrichCodeWithContext(skeleton, contextConfig);
+        console.log('[v10.2] Code enriched with thresholds and enums');
+      }
       
       // v7.61: Generate REAL tests based on actual code - proportional to methods
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
@@ -2972,8 +3052,12 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
         `${translations.length}/${allParagraphs.length} paragraphs translated with business logic`,
         'Type-safe class structure generated',
         'Logging infrastructure added',
-        'Complete method implementations for all paragraphs'
-      ];
+        'Complete method implementations for all paragraphs',
+        // v10.2: Context-based improvements
+        Object.keys(contextConfig.enums).length > 0 ? `${Object.keys(contextConfig.enums).length} enum types generated from context` : null,
+        Object.keys(contextConfig.thresholds).length > 0 ? `${Object.keys(contextConfig.thresholds).length} threshold constants defined` : null,
+        copybookStructures.length > 0 ? `${copybookStructures.length} copybook dataclasses generated` : null
+      ].filter(Boolean) as string[];
 
       const securityWarnings = cobolCode.toLowerCase().includes('password') 
         ? [{ title: 'Hardcoded credentials', severity: 'CRITICAL', cvss_score: 9.1, location: 'Source file', description: 'Sensitive data detected', vulnerable_code: 'PASSWORD variable', fix: 'Use environment variables' }]
@@ -3056,6 +3140,18 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
 ${activeDomains.map(d => `├── ${d}.py              # ${d.charAt(0).toUpperCase() + d.slice(1)} domain (${domainMethods[d].length} methods)`).join('\n')}
 └── tests/
     └── test_*.py        # Unit tests per domain`
+        },
+        // v10.2: CONTEXT SYSTEM
+        context_info: {
+          enabled: Object.keys(contextConfig.enums).length > 0 || Object.keys(contextConfig.thresholds).length > 0,
+          enums_count: Object.keys(contextConfig.enums).length,
+          thresholds_count: Object.keys(contextConfig.thresholds).length,
+          copybooks_count: copybookStructures.length,
+          copybook_fields: copybookStructures.reduce((sum, cb) => sum + cb.fields.length, 0),
+          subprograms_count: Object.keys(contextConfig.subprograms).length,
+          enums: Object.keys(contextConfig.enums),
+          thresholds: Object.keys(contextConfig.thresholds),
+          file_layouts: copybookStructures.map(cb => ({ name: cb.name, fields: cb.fields.length, bytes: cb.totalLength }))
         }
       }, { headers: corsHeaders });
     
