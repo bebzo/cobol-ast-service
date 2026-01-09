@@ -69,6 +69,35 @@ def validate_and_fix(code: str) -> dict:
             break
     code = '\n'.join(lines)
     
+    # === PHASE 0.55: Flatten deeply nested parentheses (Python limit ~100) ===
+    # Prevent "too many nested parentheses" error
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        # Count max nesting depth on this line
+        max_depth = 0
+        current_depth = 0
+        for char in line:
+            if char == '(':
+                current_depth += 1
+                max_depth = max(max_depth, current_depth)
+            elif char == ')':
+                current_depth -= 1
+        
+        # If nesting exceeds 50, flatten redundant parens
+        if max_depth > 50:
+            # Remove redundant double/triple parentheses
+            original = line
+            while '((' in line:
+                # Only flatten if matched pairs
+                line = re.sub(r'\(\(([^()]*)\)\)', r'(\1)', line)
+                if line == original:  # No change, prevent infinite loop
+                    break
+                original = line
+            if lines[i] != line:
+                lines[i] = line
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # === PHASE 0.6: Fix @decorator without following def/class ===
     lines = code.split('\n')
     i = 0
@@ -803,6 +832,25 @@ def validate_and_fix(code: str) -> dict:
                 # Global/nonlocal declaration issue - remove the global line
                 lines[line_num - 1] = '# GLOBAL: ' + error_line
                 fixes_applied += 1
+            
+            elif 'too many nested parentheses' in error_msg:
+                # Python parser limit exceeded (~100 nesting levels)
+                # Flatten the problematic expression by removing redundant parentheses
+                if line_num - 1 < len(lines):
+                    problem_line = lines[line_num - 1]
+                    # Remove redundant double parentheses like ((...))
+                    flattened = re.sub(r'\(\(([^()]+)\)\)', r'(\1)', problem_line)
+                    # If still has too many, just simplify aggressively
+                    if flattened == problem_line:
+                        # Remove every other opening paren at start of nested expression
+                        flattened = re.sub(r'\(\(', '(', problem_line)
+                    if flattened != problem_line:
+                        lines[line_num - 1] = flattened
+                        fixes_applied += 1
+                    else:
+                        # Last resort: comment out and replace with placeholder
+                        lines[line_num - 1] = '# NESTED_PAREN: ' + problem_line.strip()
+                        fixes_applied += 1
             
             elif 'unexpected eof' in error_msg:
                 # EOF while parsing - usually unclosed parens
