@@ -388,6 +388,18 @@ def validate_and_fix(code: str) -> dict:
                 fixes_applied += 1
     code = '\n'.join(lines)
     
+    # Fix lines ending with backslash continuation followed by empty/comment line
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        s = line.rstrip()
+        if s.endswith('\\') and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            if not next_line or next_line.startswith('#'):
+                # Remove the backslash and add a placeholder
+                lines[i] = s[:-1].rstrip() + ' 0  # continuation_fix'
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # Remove duplicate blank lines (more than 2 in a row)
     code = re.sub(r'\n{4,}', '\n\n\n', code)
     
@@ -403,8 +415,74 @@ def validate_and_fix(code: str) -> dict:
                     fixes_applied += 1
     code = '\n'.join(lines)
     
-    # === PHASE 2: Iterative AST-based fixing ===
-    max_iterations = 200
+    # === PHASE 2.5: Fix empty if/elif/else blocks preemptively ===
+    lines = code.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+        
+        # Handle try blocks - must have except or finally
+        if stripped == 'try:':
+            # Find if there's an except/finally at same indent level
+            j = i + 1
+            has_except = False
+            while j < len(lines):
+                check_line = lines[j]
+                check_stripped = check_line.strip()
+                if not check_stripped:
+                    j += 1
+                    continue
+                check_indent = len(check_line) - len(check_line.lstrip())
+                if check_indent == indent and (check_stripped.startswith('except') or check_stripped.startswith('finally')):
+                    has_except = True
+                    break
+                if check_indent <= indent and not check_stripped.startswith('#'):
+                    # Hit same or lower indent without except/finally
+                    break
+                j += 1
+            if not has_except:
+                # Insert except after try body
+                # Find end of try body (first line at same indent)
+                k = i + 1
+                while k < len(lines):
+                    kline = lines[k]
+                    kstripped = kline.strip()
+                    if not kstripped:
+                        k += 1
+                        continue
+                    kindent = len(kline) - len(kline.lstrip())
+                    if kindent <= indent:
+                        break
+                    k += 1
+                lines.insert(k, ' ' * indent + 'except Exception:\n' + ' ' * (indent + 4) + 'pass')
+                fixes_applied += 1
+        
+        # Check for if/elif/else/for/while/except/finally/with ending with :
+        elif stripped.endswith(':') and any(stripped.startswith(kw) for kw in ['if ', 'elif ', 'else', 'for ', 'while ', 'except', 'finally', 'with ']):
+            # Check if next non-empty line needs a pass
+            j = i + 1
+            needs_pass = False
+            while j < len(lines):
+                next_line = lines[j]
+                next_stripped = next_line.strip()
+                if not next_stripped:
+                    j += 1
+                    continue
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent <= indent:
+                    needs_pass = True
+                break
+            if needs_pass:
+                lines.insert(i + 1, ' ' * (indent + 4) + 'pass')
+                fixes_applied += 1
+                i += 1
+        i += 1
+    code = '\n'.join(lines)
+    
+    # === PHASE 3: Iterative AST-based fixing ===
+    max_iterations = 500
     fixed_lines_set = set()
     
     for iteration in range(max_iterations):
@@ -486,27 +564,37 @@ def validate_and_fix(code: str) -> dict:
                 fixes_applied += 1
             
             elif 'expected an indented block' in error_msg:
-                # Find the class/def that needs the pass - search further back
-                found = False
-                for j in range(line_num - 2, max(-1, line_num - 50), -1):
-                    if j < 0:
-                        break
-                    prev = lines[j].rstrip()
-                    prev_stripped = prev.strip()
-                    # Skip empty lines and comments
-                    if prev_stripped == '' or prev_stripped.startswith('#'):
-                        continue
-                    if prev.endswith(':') and (prev_stripped.startswith('class ') or prev_stripped.startswith('def ') or prev_stripped.startswith('if ') or prev_stripped.startswith('else') or prev_stripped.startswith('elif ') or prev_stripped.startswith('try') or prev_stripped.startswith('except') or prev_stripped.startswith('finally') or prev_stripped.startswith('for ') or prev_stripped.startswith('while ') or prev_stripped.startswith('with ')):
-                        indent = len(lines[j]) - len(lines[j].lstrip())
-                        lines.insert(j + 1, ' ' * (indent + 4) + 'pass')
-                        fixes_applied += 1
-                        found = True
-                        break
-                if not found:
-                    # Fallback: add pass at current position
+                # Check if current line is elif/else - need pass before it
+                error_stripped = error_line.strip()
+                if error_stripped.startswith('elif ') or error_stripped.startswith('else'):
                     indent = len(error_line) - len(error_line.lstrip())
                     lines.insert(line_num - 1, ' ' * (indent + 4) + 'pass')
                     fixes_applied += 1
+                    fixed_lines_set.discard(line_num)  # Don't mark as fixed, line numbers shifted
+                    code = '\n'.join(lines)
+                    continue
+                else:
+                    # Find the class/def that needs the pass - search further back
+                    found = False
+                    for j in range(line_num - 2, max(-1, line_num - 50), -1):
+                        if j < 0:
+                            break
+                        prev = lines[j].rstrip()
+                        prev_stripped = prev.strip()
+                        # Skip empty lines and comments
+                        if prev_stripped == '' or prev_stripped.startswith('#'):
+                            continue
+                        if prev.endswith(':') and (prev_stripped.startswith('class ') or prev_stripped.startswith('def ') or prev_stripped.startswith('if ') or prev_stripped.startswith('else') or prev_stripped.startswith('elif ') or prev_stripped.startswith('try') or prev_stripped.startswith('except') or prev_stripped.startswith('finally') or prev_stripped.startswith('for ') or prev_stripped.startswith('while ') or prev_stripped.startswith('with ')):
+                            indent = len(lines[j]) - len(lines[j].lstrip())
+                            lines.insert(j + 1, ' ' * (indent + 4) + 'pass')
+                            fixes_applied += 1
+                            found = True
+                            break
+                    if not found:
+                        # Fallback: add pass at current position
+                        indent = len(error_line) - len(error_line.lstrip())
+                        lines.insert(line_num - 1, ' ' * (indent + 4) + 'pass')
+                        fixes_applied += 1
             
             elif "expected 'except' or 'finally'" in error_msg:
                 # Find the try block and add except
@@ -616,6 +704,15 @@ def validate_and_fix(code: str) -> dict:
                 fixes_applied += 1
             
             elif 'invalid syntax' in error_msg or 'expected' in error_msg or 'forgot a comma' in error_msg:
+                # Check if previous line has backslash continuation
+                if line_num > 1:
+                    prev_line = lines[line_num - 2].rstrip()
+                    if prev_line.endswith('\\'):
+                        # Remove backslash and add 0
+                        lines[line_num - 2] = prev_line[:-1].rstrip() + ' 0  # continuation_fix'
+                        fixes_applied += 1
+                        code = '\n'.join(lines)
+                        continue
                 # Comment out the line
                 if not error_line.strip().startswith('#'):
                     lines[line_num - 1] = '# SYNTAX: ' + error_line
