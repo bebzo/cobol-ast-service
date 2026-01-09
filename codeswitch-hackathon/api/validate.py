@@ -69,6 +69,30 @@ def validate_and_fix(code: str) -> dict:
             break
     code = '\n'.join(lines)
     
+    # === PHASE 0.52: Fix unclosed triple-quoted strings at end of file ===
+    # Count triple quotes - if odd, add closing
+    triple_double = code.count('"""')
+    triple_single = code.count("'''")
+    if triple_double % 2 == 1:
+        # Unclosed docstring - close it
+        code = code.rstrip() + '\n"""'
+        fixes_applied += 1
+    if triple_single % 2 == 1:
+        code = code.rstrip() + "\n'''"
+        fixes_applied += 1
+    
+    # === PHASE 0.53: Fix truncated function/class bodies ===
+    # If file ends abruptly without proper closure
+    lines = code.split('\n')
+    if lines:
+        last_line = lines[-1].strip()
+        # If last line is incomplete (ends with operator, comma, etc.)
+        if last_line and last_line[-1] in ',:+-*/=(&|':
+            lines[-1] = '# TRUNCATED: ' + last_line
+            lines.append('    pass  # End of truncated code')
+            fixes_applied += 1
+            code = '\n'.join(lines)
+    
     # === PHASE 0.55: Flatten deeply nested parentheses (Python limit ~100) ===
     # Prevent "too many nested parentheses" error
     lines = code.split('\n')
