@@ -925,9 +925,10 @@ ${initVars.join('\n')}
         if (validStatements.length > 0) {
           methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
-          // v7.50: Smart business logic - SPECIFIC patterns FIRST, generic patterns LAST
+          // ⚠️ AI did not generate logic - using pattern-based fallback
+          methodCode += `        # ⚠️ PATTERN-FALLBACK: AI did not generate logic, using name-based template\n`;
           const name = methodName.toLowerCase();
-          // BANKING - specific patterns first
+          // BANKING patterns
           if (name.includes('deposit')) {
             methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        self.data["balance"] = self.data.get("balance", Decimal("0")) + amount\n        self.logger.info(f"Deposited {amount}")\n        return self.data["balance"]\n`;
           } else if (name.includes('withdraw')) {
@@ -940,12 +941,10 @@ ${initVars.join('\n')}
             methodCode += `        fee = Decimal("25")\n        self.data["balance"] = self.data.get("balance", Decimal("0")) - fee\n        self.logger.info(f"Fee charged: {fee}")\n        return fee\n`;
           } else if (name.includes('balance')) {
             methodCode += `        balance = self.data.get("balance", Decimal("0"))\n        self.logger.info(f"Balance: {balance}")\n        return balance\n`;
-          // COMPLIANCE
           } else if (name.includes('aml') || name.includes('screening')) {
             methodCode += `        self.logger.info("AML screening passed")\n        return True\n`;
           } else if (name.includes('kyc') || name.includes('verification')) {
             methodCode += `        self.logger.info("KYC verified")\n        return True\n`;
-          // GENERIC - last
           } else if (name.includes('open') || name.includes('init')) {
             methodCode += `        self.logger.info("Opening resources")\n        self.status = "OPEN"\n`;
           } else if (name.includes('close') || name.includes('cleanup')) {
@@ -965,10 +964,9 @@ ${initVars.join('\n')}
           } else if (name.includes('error')) {
             methodCode += `        self.logger.error(f"Error: {self.error_count}")\n        self.error_count += 1\n`;
           } else {
-            // Generic fallback - clearly marked as needing manual implementation
-            methodCode += `        # ⚠️ FALLBACK: AI did not generate logic for this method\n`;
-            methodCode += `        # Manual implementation required\n`;
-            methodCode += `        raise NotImplementedError("${methodName}: AI generation failed - manual implementation needed")\n`;
+            // No pattern match - explicit failure
+            methodCode += `        # ❌ NO-MATCH: No pattern found for this method\n`;
+            methodCode += `        raise NotImplementedError("${methodName}: AI generation failed, no fallback pattern available")\n`;
           }
         }
         
@@ -1230,8 +1228,8 @@ ${initVars.join('\n')}
             const isContaminated = /class\s|def __init__|TODO|FileAdapter|raise NotImplementedError/.test(newMethod);
             if (isContaminated) {
               console.log(`[v7.33] Rejected contaminated refactor for ${method.name}`);
-              // Use safe fallback instead
-              newMethod = `    def ${method.name}(self):\n        """${method.name.replace(/_/g, ' ')}"""\n        self.logger.info("Processing ${method.name}")\n        self.status = "PROCESSED"\n`;
+              // Use clearly marked fallback
+              newMethod = `    def ${method.name}(self):\n        """${method.name.replace(/_/g, ' ')}"""\n        # ⚠️ REFACTOR-FALLBACK: AI response was contaminated\n        raise NotImplementedError("${method.name}: Refactor failed - manual implementation needed")\n`;
             }
             
             if (!newMethod.startsWith('    def ')) newMethod = '    ' + newMethod;
@@ -1252,11 +1250,8 @@ ${initVars.join('\n')}
       // v7.33: FINAL COMMERCIAL CLEANUP - Guarantee 0 artifacts
       console.log('[v7.33] Final commercial cleanup...');
       
-      // 1. Replace ALL raise NotImplementedError with safe default
-      skeleton = skeleton.replace(
-        /raise NotImplementedError\([^)]*\)/g,
-        'self.logger.info("Processing")\n        self.status = "COMPLETED"'
-      );
+      // 1. Keep NotImplementedError for transparency - do NOT replace with silent fallback
+      // (NotImplementedError clearly shows which methods need manual work)
       
       // 2. Remove ALL TODO references
       skeleton = skeleton.replace(/TODO\.?/gi, '');
@@ -1411,11 +1406,11 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
           throw new Error('Invalid tests');
         }
       } catch (e: any) {
-        // Fallback: minimal static tests
+        // Fallback: clearly marked as AI-generation failure
         const testLines = methodNames.slice(0, 15).map(m => 
-          `    def test_${m}(self):\n        assert True`
+          `    def test_${m}(self):\n        # ⚠️ TEST-FALLBACK: AI did not generate real tests\n        pytest.skip("AI test generation failed - manual test required")`
         ).join('\n\n');
-        unitTests = `import pytest\n\nclass Test${className}:\n    def setup_method(self):\n        pass\n\n${testLines}\n`;
+        unitTests = `import pytest\n\n# ⚠️ WARNING: These are placeholder tests - AI generation failed\nclass Test${className}:\n    def setup_method(self):\n        pass\n\n${testLines}\n`;
       }
       
       // Generate all metadata for large files
