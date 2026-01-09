@@ -512,6 +512,19 @@ interface CoverageMetrics {
   lines_of_python: number;
 }
 
+interface ModularArchitecture {
+  enabled: boolean;
+  domains: string[];
+  files: Record<string, string>;
+  structure: {
+    description: string;
+    total_files: number;
+    domains_count: number;
+    methods_per_domain: Record<string, number>;
+  };
+  folder_structure: string;
+}
+
 interface AnalysisResult {
   summary: string;
   business_context: BusinessContext;
@@ -532,6 +545,7 @@ interface AnalysisResult {
   modules?: { name: string; lines: number; type: string; description: string; complexity?: string; pythonTarget?: string; risk?: string }[];
   ast_metrics?: { paragraphs?: number; variables?: number; copybooks?: number; totalLines?: number; cyclomaticComplexity?: number };
   coverage_metrics?: CoverageMetrics;
+  modular_architecture?: ModularArchitecture;
 }
 
 interface HistoryItem {
@@ -563,7 +577,8 @@ export default function Home() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [modulesLimit, setModulesLimit] = useState(50);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "impact" | "report">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "ddd" | "impact" | "report">("code");
+  const [selectedDddFile, setSelectedDddFile] = useState<string>("shared.py");
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
@@ -1519,6 +1534,15 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <span className="px-1.5 py-0.5 bg-pink-500/30 text-pink-300 text-[10px] rounded">NEW</span>
                 </button>
                 <button
+                  onClick={() => setActiveTab("ddd")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "ddd" ? "bg-emerald-500/20 text-emerald-400 border-b-2 border-emerald-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Package className="w-4 h-4" />DDD
+                  <span className="px-1.5 py-0.5 bg-emerald-500/30 text-emerald-300 text-[10px] rounded">v9.0</span>
+                </button>
+                <button
                   onClick={() => setActiveTab("impact")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
                     activeTab === "impact" ? "bg-orange-500/20 text-orange-400 border-b-2 border-orange-400" : "text-slate-400 hover:text-white"
@@ -1923,6 +1947,97 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         <Layers className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>Module analysis appears for large files (200+ lines)</p>
                         <p className="text-xs mt-2 text-slate-500">CodeSwitch automatically splits large COBOL files into logical modules</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "ddd" && (
+                <div className="h-[400px] overflow-hidden bg-slate-900">
+                  {analysis?.modular_architecture?.enabled ? (
+                    <div className="flex h-full">
+                      {/* File list sidebar */}
+                      <div className="w-56 border-r border-slate-700 overflow-y-auto">
+                        <div className="p-3 bg-emerald-500/10 border-b border-slate-700">
+                          <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
+                            <Package className="w-4 h-4" />
+                            DDD Architecture v9.0
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {analysis.modular_architecture.structure?.domains_count || 0} domains • {analysis.modular_architecture.structure?.total_files || 0} files
+                          </p>
+                        </div>
+                        <div className="p-2 space-y-1">
+                          <p className="text-[10px] text-slate-500 uppercase px-2 py-1">Files</p>
+                          {analysis.modular_architecture.files && Object.keys(analysis.modular_architecture.files).map((filename) => (
+                            <button
+                              key={filename}
+                              onClick={() => setSelectedDddFile(filename)}
+                              className={`w-full text-left px-3 py-2 rounded text-xs transition flex items-center gap-2 ${
+                                selectedDddFile === filename 
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-l-2 border-emerald-400' 
+                                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                              }`}
+                            >
+                              <FileCode className="w-3 h-3" />
+                              {filename}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="p-3 border-t border-slate-700">
+                          <p className="text-[10px] text-slate-500 uppercase mb-2">Domains</p>
+                          <div className="flex flex-wrap gap-1">
+                            {analysis.modular_architecture.domains?.map((domain: string) => (
+                              <span key={domain} className="px-2 py-0.5 bg-slate-700 text-slate-300 text-[10px] rounded">
+                                {domain}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Code viewer */}
+                      <div className="flex-1 flex flex-col">
+                        <div className="px-4 py-2 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <FileCode className="w-4 h-4 text-emerald-400" />
+                            <span className="text-white font-mono text-sm">{selectedDddFile}</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const code = analysis?.modular_architecture?.files?.[selectedDddFile];
+                              if (code) {
+                                navigator.clipboard.writeText(code);
+                              }
+                            }}
+                            className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-700"
+                          >
+                            Copy
+                          </button>
+                        </div>
+                        <div className="flex-1 overflow-auto">
+                          <Editor
+                            height="100%"
+                            language="python"
+                            theme="vs-dark"
+                            value={analysis?.modular_architecture?.files?.[selectedDddFile] || '# Select a file'}
+                            options={{
+                              readOnly: true,
+                              minimap: { enabled: false },
+                              fontSize: 12,
+                              lineNumbers: 'on',
+                              scrollBeyondLastLine: false,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-400">
+                      <div className="text-center">
+                        <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>DDD Architecture generation available after analysis</p>
+                        <p className="text-xs mt-2 text-slate-500">Clean modular Python code with Service/Repository patterns</p>
                       </div>
                     </div>
                   )}
