@@ -1166,7 +1166,7 @@ ${initVars.join('\n')}
           methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
           // ⚠️ AI did not generate logic - using pattern-based fallback
-          // Fallback uses pattern-based template (no visible marker in output)
+          methodCode += `        # ⚠️ PATTERN-FALLBACK: AI did not generate logic, using name-based template\n`;
           const name = methodName.toLowerCase();
           // BANKING patterns
           if (name.includes('deposit')) {
@@ -1204,9 +1204,9 @@ ${initVars.join('\n')}
           } else if (name.includes('error')) {
             methodCode += `        self.logger.error(f"Error: {self.error_count}")\n        self.error_count += 1\n`;
           } else {
-            // No pattern match - use safe default
-            methodCode += `        self.logger.debug("${methodName} executed")\n`;
-            methodCode += `        return None\n`;
+            // No pattern match - explicit failure
+            methodCode += `        # ❌ NO-MATCH: No pattern found for this method\n`;
+            methodCode += `        raise NotImplementedError("${methodName}: AI generation failed, no fallback pattern available")\n`;
           }
         }
         
@@ -1468,8 +1468,8 @@ ${initVars.join('\n')}
             const isContaminated = /class\s|def __init__|TODO|FileAdapter|raise NotImplementedError/.test(newMethod);
             if (isContaminated) {
               console.log(`[v7.33] Rejected contaminated refactor for ${method.name}`);
-              // Use safe default implementation
-              newMethod = `    def ${method.name}(self):\n        """${method.name.replace(/_/g, ' ')}"""\n        self.logger.debug("${method.name} executed")\n        return None\n`;
+              // Use clearly marked fallback
+              newMethod = `    def ${method.name}(self):\n        """${method.name.replace(/_/g, ' ')}"""\n        # ⚠️ REFACTOR-FALLBACK: AI response was contaminated\n        raise NotImplementedError("${method.name}: Refactor failed - manual implementation needed")\n`;
             }
             
             if (!newMethod.startsWith('    def ')) newMethod = '    ' + newMethod;
@@ -1730,10 +1730,13 @@ Output ONLY valid Python starting with imports. NO explanations.`;
         // Fallback: clearly marked as AI-generation failure
         console.log(`[v7.61] Test generation failed: ${e.message}`);
         const testLines = methodsToTest.map(m => 
-          `    def test_${m}(self):\n        """Test ${m} method."""\n        processor = self.processor\n        result = processor.${m}()\n        assert result is None or result is not None  # Placeholder assertion`
+          `    def test_${m}(self):\n        """Test ${m} method."""\n        # ⚠️ TEST-FALLBACK: AI did not generate real tests\n        pytest.skip("AI test generation failed - manual test required")`
         ).join('\n\n');
         unitTests = `import pytest
 from decimal import Decimal
+
+# ⚠️ WARNING: These are placeholder tests - AI generation failed
+# TODO: Implement real tests based on the generated Python code
 
 class Test${className}:
     """Test suite for ${className} - migrated from COBOL."""
