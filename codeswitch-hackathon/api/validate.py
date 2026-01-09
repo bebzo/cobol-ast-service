@@ -42,6 +42,9 @@ class handler(BaseHTTPRequestHandler):
 
 def validate_and_fix(code: str) -> dict:
     """Validate Python code and fix ALL errors aggressively."""
+    # Normalize line endings (remove Windows \r)
+    code = code.replace('\r\n', '\n').replace('\r', '\n')
+    
     original_lines = len(code.split('\n'))
     fixes_applied = 0
     
@@ -53,7 +56,105 @@ def validate_and_fix(code: str) -> dict:
         except:
             pass  # Continue with manual fixes if autopep8 fails
     
+    # === PHASE 0.5: Clean garbage at end of file ===
+    # Remove trailing garbage parentheses
+    lines = code.split('\n')
+    while lines:
+        last = lines[-1].strip()
+        # Remove lines that are just closing brackets/parens
+        if last and all(c in ')]}' for c in last):
+            lines.pop()
+            fixes_applied += 1
+        else:
+            break
+    code = '\n'.join(lines)
+    
+    # === PHASE 0.6: Fix @decorator without following def/class ===
+    lines = code.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        # Check for @classmethod, @staticmethod, @property without a def following
+        if stripped.startswith('@') and stripped in ['@classmethod', '@staticmethod', '@property', '@abstractmethod']:
+            # Look at next non-empty, non-comment line
+            j = i + 1
+            while j < len(lines) and (not lines[j].strip() or lines[j].strip().startswith('#')):
+                j += 1
+            if j < len(lines):
+                next_stripped = lines[j].strip()
+                # If next line is not a def, comment out the decorator
+                if not next_stripped.startswith('def '):
+                    lines[i] = '# ORPHAN_DEC: ' + stripped
+                    fixes_applied += 1
+        i += 1
+    code = '\n'.join(lines)
+    
+    # === PHASE 0.7: Fix @dataclass) -> @dataclass ===
+    code = re.sub(r'@dataclass\)', '@dataclass', code)
+    
+    # === PHASE 0.8: Fix docstring fragments without quotes ===
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Lines that look like docstring content but aren't in quotes
+        # Pattern: text followed by " - description"
+        if stripped and not stripped.startswith('#') and not stripped.startswith('"""'):
+            # Check if it's a naked docstring-like line inside a class (no = sign, ends with description-like text)
+            if ' - ' in stripped and not '=' in stripped.split(' - ')[0]:
+                # Check if previous line is a class definition
+                if i > 0:
+                    prev = lines[i-1].strip()
+                    if prev.startswith('class ') or prev.startswith('def ') or prev == '"""':
+                        # This is likely a docstring fragment - make it a comment
+                        indent = len(line) - len(line.lstrip())
+                        lines[i] = ' ' * indent + '# ' + stripped
+                        fixes_applied += 1
+    code = '\n'.join(lines)
+    
+    # === PHASE 0.9: Fix """...""") -> """...""" ===
+    code = re.sub(r'"""\s*\)', '"""', code)
+    
+    # === PHASE 0.95: Comment out lines that are clearly not Python ===
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#') or stripped.startswith('"""') or stripped.startswith("'''"):
+            continue
+        # Lines that are not valid Python but look like docstring fragments/metadata
+        # Pattern 1: "word word - description" without assignment
+        # Pattern 2: "Word word: number unit" like "Record length: 1012 bytes"
+        if re.match(r'^[a-z_]+\s+[a-z_]+\s*-\s+', stripped, re.IGNORECASE):
+            indent = len(line) - len(line.lstrip())
+            lines[i] = ' ' * indent + '# META: ' + stripped
+            fixes_applied += 1
+        elif re.match(r'^[A-Z][a-z]+\s+\w+:\s*\d+\s+\w+$', stripped):
+            indent = len(line) - len(line.lstrip())
+            lines[i] = ' ' * indent + '# META: ' + stripped
+            fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # === PHASE 1: Pre-processing fixes ===
+    
+    # Fix lines with unclosed parentheses (truncated expressions)
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        # Count parens on this line
+        open_p = stripped.count('(')
+        close_p = stripped.count(')')
+        # If more opens than closes, and line doesn't end with operator/comma, close it
+        if open_p > close_p:
+            # Check if next line continues this expression
+            if i + 1 < len(lines):
+                next_stripped = lines[i + 1].strip()
+                # If next line is except/finally/else or at lower indent, close the parens
+                if next_stripped.startswith(('except', 'finally', 'else', 'elif')):
+                    lines[i] = line.rstrip() + ')' * (open_p - close_p)
+                    fixes_applied += 1
+    code = '\n'.join(lines)
     
     # Fix unbalanced triple quotes - more robust approach
     # Find lines with only one """ and close them
@@ -703,6 +804,20 @@ def validate_and_fix(code: str) -> dict:
                 lines[line_num - 1] = '# GLOBAL: ' + error_line
                 fixes_applied += 1
             
+            elif 'unexpected eof' in error_msg:
+                # EOF while parsing - usually unclosed parens
+                # Count parens in entire code
+                open_parens = code.count('(') - code.count(')')
+                open_brackets = code.count('[') - code.count(']')
+                open_braces = code.count('{') - code.count('}')
+                closing = ')' * max(0, open_parens) + ']' * max(0, open_brackets) + '}' * max(0, open_braces)
+                if closing:
+                    code = code.rstrip() + closing
+                    fixes_applied += 1
+                else:
+                    code = code.rstrip() + '\npass'
+                    fixes_applied += 1
+            
             elif 'invalid syntax' in error_msg or 'expected' in error_msg or 'forgot a comma' in error_msg:
                 # Check if previous line has backslash continuation
                 if line_num > 1:
@@ -744,7 +859,76 @@ def validate_and_fix(code: str) -> dict:
             
             code = '\n'.join(lines)
     
-    # === PHASE 3: Fix unclosed dict/list before commented lines ===
+    # === PHASE 3: Fix unclosed parentheses in return/call statements ===
+    # This handles multi-line function calls - find the end and close parens there
+    lines = code.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        if stripped.startswith('return cls(') or stripped.startswith('return self(') or (stripped.startswith('return ') and '(' in stripped):
+            # Count parens on this line
+            open_p = stripped.count('(')
+            close_p = stripped.count(')')
+            if open_p > close_p:
+                # This is a multi-line call - find where it ends
+                # Look for consecutive lines ending with comma (arguments)
+                j = i + 1
+                last_arg_idx = i  # Track the last argument line
+                while j < len(lines):
+                    next_line = lines[j]
+                    next_stripped = next_line.strip()
+                    
+                    # Empty line - check if next non-empty is a def/class (end of call)
+                    if not next_stripped:
+                        # Look ahead to see if call continues
+                        k = j + 1
+                        while k < len(lines) and not lines[k].strip():
+                            k += 1
+                        if k < len(lines):
+                            peek = lines[k].strip()
+                            if peek.startswith('def ') or peek.startswith('class ') or peek.startswith('@'):
+                                # Call ends here
+                                break
+                        j += 1
+                        continue
+                    
+                    # Check if it's an argument line (has = or starts with keyword arg pattern)
+                    if '=' in next_stripped and (next_stripped.endswith(',') or next_stripped.endswith('),') or next_stripped.endswith(')')):
+                        open_p += next_stripped.count('(')
+                        close_p += next_stripped.count(')')
+                        last_arg_idx = j
+                        j += 1
+                        continue
+                    
+                    # Check if it ends with just ) - the closing
+                    if next_stripped == ')' or next_stripped == '),':
+                        close_p += 1
+                        last_arg_idx = j
+                        j += 1
+                        continue
+                    
+                    # If line starts with def/class, the call should end before
+                    if next_stripped.startswith('def ') or next_stripped.startswith('class ') or next_stripped.startswith('@'):
+                        break
+                    
+                    # Not part of the call - we need to close before this line
+                    break
+                
+                # Now close the parens at the last argument line
+                if open_p > close_p and last_arg_idx > i:
+                    # Close the parens on the last argument line
+                    last_line = lines[last_arg_idx].rstrip()
+                    if last_line.endswith(','):
+                        last_line = last_line[:-1]  # Remove trailing comma
+                    lines[last_arg_idx] = last_line + ')' * (open_p - close_p)
+                    fixes_applied += 1
+                i = j if j > i else i + 1
+                continue
+        i += 1
+    code = '\n'.join(lines)
+    
+    # === PHASE 3.1: Fix unclosed dict/list before commented lines ===
     lines = code.split('\n')
     open_brackets = 0  # Track { and [
     for i, line in enumerate(lines):
@@ -772,35 +956,106 @@ def validate_and_fix(code: str) -> dict:
                 open_brackets = max(0, open_brackets - 1)
     code = '\n'.join(lines)
     
-    # === PHASE 4: Fix orphan function bodies (def was commented but body remains) ===
-    lines = code.split('\n')
-    fixed_lines = []
-    skip_until_dedent = False
-    base_indent = 0
-    for i, line in enumerate(lines):
-        trimmed = line.strip()
-        current_indent = len(line) - len(line.lstrip()) if line.strip() else 0
+    # === PHASE 4: Fix orphan code lines (code outside of valid def/class) ===
+    # Multi-pass: find commented def/class and comment out their body
+    for pass_num in range(20):  # Up to 20 passes
+        lines = code.split('\n')
+        fixed_lines = []
+        orphan_base_indent = None  # The indentation level of the commented def/class
+        changes_made = False
         
-        # Detect commented function definition (# SYNTAX: def, # def, etc.)
-        if re.match(r'^\s*#\s*(SYNTAX:\s*)?def\s+', line):
-            skip_until_dedent = True
-            base_indent = current_indent
-            fixed_lines.append(line)
-            continue
-        
-        if skip_until_dedent:
-            # We're in an orphan body - comment out lines that are indented more
-            if trimmed and current_indent > base_indent:
-                indent_str = ' ' * current_indent
-                fixed_lines.append(f"{indent_str}# ORPHAN_BODY: {trimmed}")
-                fixes_applied += 1
+        for i, line in enumerate(lines):
+            trimmed = line.strip()
+            current_indent = len(line) - len(line.lstrip()) if line.strip() else 0
+            
+            # If we have an orphan context, check if we should exit it
+            if orphan_base_indent is not None:
+                # Check if this line starts a new def/class at same or lower indent (valid code resumes)
+                if trimmed.startswith('def ') or trimmed.startswith('class ') or trimmed.startswith('@'):
+                    if current_indent <= orphan_base_indent:
+                        orphan_base_indent = None  # Exit orphan context
+            
+            # Detect commented function/class definition at start of line
+            # Pattern: "# SOMETHING:     def ..." or "# SOMETHING: def ..."
+            if re.match(r'^#\s*\w+:\s*(def\s+|class\s+)', trimmed):
+                # This line is a commented def/class - anything indented after should be orphaned
+                # Set base_indent to current line's indent (0 for top-level comment)
+                orphan_base_indent = current_indent
+                fixed_lines.append(line)
                 continue
-            elif trimmed and current_indent <= base_indent:
-                # Back to normal indentation, stop skipping
-                skip_until_dedent = False
+            
+            # If we're in an orphaned body (inside a commented def/class)
+            if orphan_base_indent is not None and current_indent > orphan_base_indent:
+                if trimmed and not trimmed.startswith('#'):
+                    indent_str = ' ' * current_indent
+                    fixed_lines.append(f"{indent_str}# ORPHAN: {trimmed}")
+                    fixes_applied += 1
+                    changes_made = True
+                    continue
+            
+            fixed_lines.append(line)
         
-        fixed_lines.append(line)
-    code = '\n'.join(fixed_lines)
+        code = '\n'.join(fixed_lines)
+        if not changes_made:
+            break
+    
+    # === PHASE 4.5: Fix lines with unclosed parens followed by comments ===
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        # Count parens on this line
+        open_p = stripped.count('(') - stripped.count(')')
+        if open_p > 0:
+            # This line has unclosed parens - check if next lines are comments
+            if i + 1 < len(lines):
+                next_stripped = lines[i + 1].strip()
+                if next_stripped.startswith('#'):
+                    # Next line is a comment - close the parens here
+                    lines[i] = line.rstrip() + ')' * open_p
+                    fixes_applied += 1
+    code = '\n'.join(lines)
+    
+    # === PHASE 4.6: Fix try blocks whose except was commented out ===
+    lines = code.split('\n')
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+        
+        if stripped == 'try:':
+            # Find if there's an except/finally at same indent level (not commented)
+            j = i + 1
+            has_except = False
+            try_body_end = i + 1
+            while j < len(lines):
+                check_line = lines[j]
+                check_stripped = check_line.strip()
+                if not check_stripped:
+                    j += 1
+                    continue
+                check_indent = len(check_line) - len(check_line.lstrip())
+                # If we're back at try's indent and it's except/finally, we're good
+                if check_indent == indent and (check_stripped.startswith('except') or check_stripped.startswith('finally')):
+                    has_except = True
+                    break
+                # If we hit same indent that's not except/finally or lower indent, try needs except
+                if check_indent <= indent and not check_stripped.startswith('#'):
+                    try_body_end = j
+                    break
+                # Track body
+                if check_indent > indent:
+                    try_body_end = j + 1
+                j += 1
+            
+            if not has_except:
+                # Insert except after try body
+                lines.insert(try_body_end, ' ' * indent + 'except Exception:\n' + ' ' * (indent + 4) + 'pass')
+                fixes_applied += 1
+        i += 1
+    code = '\n'.join(lines)
     
     # === FINAL PHASE: Fix any remaining empty blocks ===
     lines = code.split('\n')
