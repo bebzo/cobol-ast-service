@@ -213,13 +213,15 @@ function extractPerformTargets(
 }
 
 // v8.1: RETRY PROMPT for failed translations
-const RETRY_PROMPT = `You MUST generate Python code for this COBOL paragraph. No excuses.
+// v10.2: STRICT OUTPUT - no markdown, pure Python statements only
+const RETRY_PROMPT = `Generate Python code for this COBOL paragraph.
 
-CRITICAL RULES:
-1. Output ONLY Python statements (self.xxx = ...)
-2. NO "def", NO "class", NO docstrings
-3. Translate EVERY COBOL statement to Python
-4. If unsure, make reasonable assumptions
+OUTPUT RULES (STRICT):
+1. Output ONLY Python statements (self.xxx = ...) - nothing else
+2. NO "def", NO "class", NO docstrings, NO comments
+3. NO markdown, NO headers, NO explanations
+4. Start immediately with Python code, end with Python code
+5. Translate EVERY COBOL statement to Python
 
 COBOL TO TRANSLATE:
 `;
@@ -443,8 +445,43 @@ function sanitizeVarName(varName: string): string {
 // v8.1: Also convert COBOL intrinsic functions to Python
 // v8.2: Also fix Python keyword variable names (continue, pass, etc.)
 // v8.3: COMPREHENSIVE AUTO-FIX for common syntax errors
+// v10.2: STRIP LLM ARTIFACTS - remove markdown headers, text explanations, trailing garbage
 function sanitizePythonCode(code: string): string {
   let sanitized = code;
+  
+  // === v10.2: STRIP LLM ARTIFACTS FIRST ===
+  
+  // 1. Remove lines that are pure text artifacts (not valid Python)
+  const artifactPatterns = [
+    /^COBOL\s+(Copybook|Data|Program|Module|Structure)/i,
+    /^(Here|Below|The|This)\s+(is|are)\s+(the|a|an)/i,
+    /^(Python|Converted|Generated|Translated)\s+(code|output|result)/i,
+    /^#{2,}\s*\w/,           // Markdown headers (##, ###, etc.)
+    /^={3,}\s*\w/,           // === SECTION === style headers
+    /^-{3,}\s*$/,            // --- separators
+    /^```/,                  // Code fence markers
+    /^\[PARA:/,              // Our paragraph delimiters (should be removed from final output)
+    /^Note:/i,               // "Note: ..." explanations
+    /^Output:/i,             // "Output:" labels
+  ];
+  
+  // 2. Remove trailing garbage (repeated parentheses, brackets)
+  sanitized = sanitized.replace(/\){4,}/g, ')');  // ))))) -> )
+  sanitized = sanitized.replace(/\]{4,}/g, ']');  // ]]]]] -> ]
+  sanitized = sanitized.replace(/\}{4,}/g, '}');  // }}}}} -> }
+  
+  // 3. Filter out artifact lines
+  const lines = sanitized.split('\n');
+  sanitized = lines.filter(line => {
+    const trimmed = line.trim();
+    // Keep empty lines and valid Python
+    if (!trimmed) return true;
+    // Remove lines matching artifact patterns
+    for (const pattern of artifactPatterns) {
+      if (pattern.test(trimmed)) return false;
+    }
+    return true;
+  }).join('\n');
   
   // === v8.3: FIX CRITICAL SYNTAX ERRORS ===
   
@@ -596,9 +633,18 @@ function findMethodAtLine(code: string, targetLine: number): string | null {
 }
 
 // Prompt for translating COBOL to Python - COMMERCIAL GRADE (PRODUCTION-READY)
-const CHUNK_PROMPT = `Convert COBOL to PRODUCTION Python. Output ONLY valid Python code.
+// v10.2: STRICT OUTPUT FORMAT - No markdown, no headers, pure Python only
+const CHUNK_PROMPT = `You are a COBOL-to-Python translator. Output ONLY executable Python code.
 
-########## RULE 1: EVERY CLASS NEEDS __init__ ##########
+=== CRITICAL OUTPUT RULES (VIOLATION = FAILURE) ===
+1. Your ENTIRE response must be valid Python code - nothing else
+2. NO markdown formatting (no backticks, no headers like "###" or "===" or "---")
+3. NO explanations, NO comments outside code, NO section titles
+4. NO text like "Here is the code" or "COBOL Copybook Data Structures"
+5. Start DIRECTLY with Python imports or class definitions
+6. End with valid Python code - no trailing text or explanations
+
+RULE 1: EVERY CLASS NEEDS __init__
 BEFORE writing any class, write __init__ FIRST:
 class AnyClassName:
     def __init__(self):
@@ -606,17 +652,17 @@ class AnyClassName:
         self.data: Dict[str, Any] = {}
         self.count: int = 0
 
-########## RULE 2: NO PASS IN BUSINESS METHODS ##########
+RULE 2: NO PASS IN BUSINESS METHODS
 WRONG: def process(self): pass
 RIGHT: def process(self): self.logger.info("Processing"); self.count += 1; return self.data
 
-########## RULE 3: TRANSLATE COBOL LOGIC ##########
-- MOVE A TO B → self.b = self.a
-- ADD A TO B → self.b += self.a  
-- IF condition → if condition:
-- PERFORM X → self.x()
+RULE 3: TRANSLATE COBOL LOGIC
+- MOVE A TO B -> self.b = self.a
+- ADD A TO B -> self.b += self.a  
+- IF condition -> if condition:
+- PERFORM X -> self.x()
 
-########## CLASS TEMPLATE (COPY THIS) ##########
+CLASS TEMPLATE (copy this structure):
 class ProcessorName:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -633,7 +679,7 @@ class ProcessorName:
         self.logger.debug(f"Handling: {record}")
         # Real logic here
 
-########## COBOL TRANSLATION RULES ##########
+COBOL TRANSLATION RULES:
    - COBOL MOVE A TO B → self.b = self.a
    - COBOL ADD A TO B → self.b += self.a
    - COBOL COMPUTE → Python arithmetic with Decimal
@@ -654,8 +700,7 @@ class ProcessorName:
        self.status: str = "ACTIVE"
        self.records: List[Record] = []
 
-=== REQUIRED PATTERNS ===
-\`\`\`python
+# REQUIRED PATTERNS (copy this structure, no backticks in output):
 class BankingError(Exception):
     """Base exception for banking operations."""
     pass
@@ -696,10 +741,8 @@ class AccountManager:
         interest = balance * rate / Decimal("100")
         self.accounts[account_id] = balance + interest
         return interest
-\`\`\`
 
-=== FILE I/O PATTERN (REAL IMPLEMENTATION) ===
-\`\`\`python
+# FILE I/O PATTERN:
 def read_records(self, filepath: str) -> List[Record]:
     """Read records from file - REAL implementation."""
     records = []
@@ -715,16 +758,16 @@ def read_records(self, filepath: str) -> List[Record]:
         self.logger.error(f"Error reading {filepath}: {e}")
         raise
     return records
-\`\`\`
 
-=== SYNTAX RULES ===
+# SYNTAX RULES:
 1. EVERY string closed on SAME line - use \\n for newlines
 2. EVERY parenthesis closed on SAME line
 3. Docstrings: """Single line.""" only
 4. @dataclass on line before class
 5. Use Decimal for ALL financial values
 
-Convert this COBOL (implement REAL logic, no pass/TODO):
+Convert this COBOL (implement REAL logic, no pass/TODO).
+REMEMBER: Output ONLY Python code. No markdown. No headers. No explanations.
 `;
 
 // Prompt for generating analysis metadata
@@ -1029,23 +1072,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       // v7.27: AI generates ONLY method body (statements), not signature
       // v8.0: ENHANCED BATCH PROMPT with structure awareness
+// v10.2: STRICT OUTPUT - use [PARA:name] delimiters instead of markdown headers
 const BATCH_PROMPT = `Convert COBOL paragraphs to Python STATEMENTS ONLY.
 
-CRITICAL: Return ONLY the method body lines. NO "def", NO "class", NO docstrings.
+OUTPUT RULES (STRICT - VIOLATION = REJECTION):
+1. Return ONLY Python statements - no markdown, no headers, no explanations
+2. NO "def", NO "class", NO docstrings, NO comments outside code
+3. Use [PARA:name] as delimiter (NOT ###, NOT ===, NOT ---)
+4. Start each paragraph with [PARA:paragraph_name] on its own line
+5. Then Python statements only
 
 For EACH paragraph output:
-### PARAGRAPH_NAME
+[PARA:PARAGRAPH_NAME]
 self.statement1
 self.statement2
 
-=== EXAMPLE 1 (Simple) ===
+EXAMPLE 1 (Simple):
 COBOL: MOVE AMOUNT TO WS-BALANCE. ADD 1 TO WS-COUNT.
 Output:
-### 1000-PROCESS
+[PARA:1000-PROCESS]
 self.ws_balance = self.amount
 self.ws_count += 1
 
-=== EXAMPLE 2 (Nested IF - TRANSLATE FULLY) ===
+EXAMPLE 2 (Nested IF):
 COBOL:
 IF WS-AMOUNT > 1000
    IF WS-STATUS = "A"
@@ -1057,7 +1106,7 @@ ELSE
    MOVE "REJECTED" TO WS-RESULT
 END-IF
 Output:
-### 2000-VALIDATE
+[PARA:2000-VALIDATE]
 if self.ws_amount > 1000:
     if self.ws_status == "A":
         self.ws_result = "APPROVED"
@@ -1066,15 +1115,14 @@ if self.ws_amount > 1000:
 else:
     self.ws_result = "REJECTED"
 
-=== EXAMPLE 3 (PERFORM with loop) ===
-COBOL:
-PERFORM 3000-PROCESS UNTIL WS-EOF = "Y"
+EXAMPLE 3 (PERFORM loop):
+COBOL: PERFORM 3000-PROCESS UNTIL WS-EOF = "Y"
 Output:
-### 2500-MAIN-LOOP
+[PARA:2500-MAIN-LOOP]
 while self.ws_eof != "Y":
     self.p_3000_process()
 
-=== EXAMPLE 4 (EVALUATE/WHEN) ===
+EXAMPLE 4 (EVALUATE):
 COBOL:
 EVALUATE WS-TYPE
    WHEN "C" PERFORM CREDIT-PROCESS
@@ -1082,7 +1130,7 @@ EVALUATE WS-TYPE
    WHEN OTHER PERFORM ERROR-PROCESS
 END-EVALUATE
 Output:
-### 4000-ROUTE
+[PARA:4000-ROUTE]
 if self.ws_type == "C":
     self.p_credit_process()
 elif self.ws_type == "D":
@@ -1090,7 +1138,7 @@ elif self.ws_type == "D":
 else:
     self.p_error_process()
 
-=== TRANSLATION RULES ===
+TRANSLATION RULES:
 1. MOVE A TO B → self.b = self.a
 2. ADD A TO B → self.b += self.a  
 3. PERFORM XXXX → self.p_xxxx()
@@ -1100,12 +1148,13 @@ else:
 7. All vars: self.lowercase_name
 8. GENERATE UP TO 30 LINES PER METHOD
 
-=== FORBIDDEN (WILL BE REJECTED) ===
+FORBIDDEN (WILL BE REJECTED):
 - NO "def " (we add it ourselves)
 - NO "class " 
 - NO """ docstrings
-- NO TODO
-- NO pass
+- NO TODO, NO pass
+- NO markdown (###, ===, ---, backticks)
+- NO text explanations
 
 COBOL PARAGRAPHS:
 `;
@@ -1257,9 +1306,10 @@ COBOL PARAGRAPHS:
               throw aiError;  // Re-throw non-rate-limit errors
             }
             
-            // Parse response: split by ### PARAGRAPH_NAME
+            // Parse response: split by [PARA:name] delimiter (v10.2 format)
             const results: { name: string; logic: string }[] = [];
-            const sections = response.split(/###\s*/).filter(s => s.trim());
+            // Support both old ### format and new [PARA:] format for compatibility
+            const sections = response.split(/\[PARA:|###\s*/).filter(s => s.trim());
             
             for (const section of sections) {
               const lines = section.split('\n');
