@@ -48,6 +48,45 @@ def validate_and_fix(code: str) -> dict:
     original_lines = len(code.split('\n'))
     fixes_applied = 0
     
+    # === PHASE -1: Remove LLM text artifacts (non-code lines) ===
+    # These are headers/descriptions the LLM outputs that are NOT Python code
+    llm_artifact_patterns = [
+        r'^COBOL\s+',  # "COBOL Copybook Data Structures"
+        r'^Copybook\s+',
+        r'^working_storage\s+-\s+',  # "working_storage - Generated from..."
+        r'^Generated\s+from\s+',
+        r'^File\s+Section\s*$',
+        r'^Data\s+Structures?\s*$',
+        r'^Record\s+Definitions?\s*$',
+        r'^Main\s+Program\s*$',
+        r'^Procedure\s+Division\s*$',
+        r'^Working.?Storage\s*$',
+        r'^Python\s+equivalent\s+',
+        r'^Converted\s+from\s+',
+        r'^Translation\s+of\s+',
+        r'^#\s*={10,}',  # Lines with many = signs that might be headers
+    ]
+    lines = code.split('\n')
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        # Check if line matches LLM artifact patterns
+        for pattern in llm_artifact_patterns:
+            if re.match(pattern, stripped, re.IGNORECASE):
+                indent = len(line) - len(line.lstrip())
+                lines[i] = ' ' * indent + '# LLM_ARTIFACT: ' + stripped
+                fixes_applied += 1
+                break
+        else:
+            # Also catch lines that are just English text (no Python keywords or operators)
+            # Pattern: Line starts with capital letter, contains only words/spaces, no = or : or ( etc
+            if re.match(r'^[A-Z][a-zA-Z\s]+$', stripped) and len(stripped) > 10:
+                indent = len(line) - len(line.lstrip())
+                lines[i] = ' ' * indent + '# TEXT_ARTIFACT: ' + stripped
+                fixes_applied += 1
+    code = '\n'.join(lines)
+    
     # === PHASE 0: autopep8 automatic fixes ===
     if HAS_AUTOPEP8:
         try:
