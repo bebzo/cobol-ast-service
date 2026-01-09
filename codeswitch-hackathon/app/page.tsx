@@ -43,7 +43,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode } from "@/lib/postprocess";
 import { generateTestOracle, TestOracleResult } from "@/lib/test_oracle";
-import { compareVersions, VersionComparison } from "@/lib/versioning";
+import { compareVersions, VersionComparison, RiskArea } from "@/lib/versioning";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -2838,14 +2838,50 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       </div>
                     </div>
                     <div className="bg-slate-900/50 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-amber-400 mb-2">Risk Areas</h4>
-                      <div className="flex flex-wrap gap-1">
-                        {versionComparison.migrationImpact.riskAreas.map((r, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-xs rounded">{r}</span>
+                      <h4 className="text-sm font-semibold text-amber-400 mb-2">Risk Areas ({versionComparison.migrationImpact.riskAreas.length})</h4>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {versionComparison.migrationImpact.riskAreas.map((r: RiskArea, i: number) => (
+                          <div key={i} className={`p-2 rounded border-l-2 ${r.severity === 'CRITICAL' ? 'bg-red-500/10 border-red-500' : r.severity === 'HIGH' ? 'bg-orange-500/10 border-orange-500' : 'bg-yellow-500/10 border-yellow-500'}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${r.severity === 'CRITICAL' ? 'bg-red-500 text-white' : r.severity === 'HIGH' ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-black'}`}>{r.severity}</span>
+                              <span className="text-xs text-slate-300">{r.category}</span>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-1">{r.description}</p>
+                          </div>
                         ))}
+                        {versionComparison.migrationImpact.riskAreas.length === 0 && (
+                          <p className="text-xs text-green-400">No significant risks detected</p>
+                        )}
                       </div>
                     </div>
                   </div>
+
+                  {/* Dependencies */}
+                  {versionComparison.dependencies && (
+                    <div className="bg-slate-900/50 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-purple-400 mb-2">Dependencies Detected</h4>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div>
+                          <p className="text-slate-500">Copybooks</p>
+                          {versionComparison.dependencies.copybooks.length > 0 
+                            ? versionComparison.dependencies.copybooks.map((c, i) => <span key={i} className="block text-purple-300">{c}</span>)
+                            : <span className="text-slate-600">None</span>}
+                        </div>
+                        <div>
+                          <p className="text-slate-500">Called Programs</p>
+                          {versionComparison.dependencies.calledPrograms.length > 0 
+                            ? versionComparison.dependencies.calledPrograms.map((c, i) => <span key={i} className="block text-blue-300">{c}</span>)
+                            : <span className="text-slate-600">None</span>}
+                        </div>
+                        <div>
+                          <p className="text-slate-500">SQL Tables</p>
+                          {versionComparison.dependencies.sqlTables.length > 0 
+                            ? versionComparison.dependencies.sqlTables.map((c, i) => <span key={i} className="block text-green-300">{c}</span>)
+                            : <span className="text-slate-600">None</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Diff View */}
                   <div className="bg-slate-900 rounded-lg p-4 max-h-64 overflow-auto font-mono text-xs">
@@ -3071,7 +3107,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
       {/* Footer */}
       <footer className="bg-slate-800/50 border-t border-slate-700 px-6 py-4">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between text-sm text-slate-400">
-          <span>CodeSwitch Pro v9.2 - Batch + Versioning + Test Oracle</span>
+          <span>CodeSwitch Pro v9.3 - Production Grade (Real Diff + Golden Master)</span>
           <span>Hackathon Gemini 3</span>
         </div>
       </footer>

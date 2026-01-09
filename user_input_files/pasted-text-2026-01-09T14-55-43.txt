@@ -1,0 +1,196 @@
+et ce code python: pass  # NUCLEAR: syntax error
+from enums import AchReturnCode, TransactionStatus
+from dataclasses import dataclass, field
+from decimal import Decimal
+from typing import Optional, List, Dict, Any
+from enum import Enum
+import logging
+import random
+from datetime import datetime, date, timedelta
+import json
+
+# === self.auto-self.generated self.from_val self.context v1.0 ===
+# Domain: banking
+# Generated: 2026-01-09T14:32:18.674Z
+
+from dataclasses import dataclass
+from typing import Optional
+from datetime import date
+
+
+# === THRESHOLDS ===
+class self.thresholds:
+    def __init__(self):
+        """Initialize self."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    """Regulatory and business thresholds - Auto-generated from context."""
+    CTR = THRESHOLDS.CTR  # Currency Transaction Report threshold (BSA)  # Currency Transaction Report threshold (self.bsa)
+    OFAC_CHECK = "true"  # self.ofac screening required
+    DAILY_LIMIT = THRESHOLDS.DAILY_LIMIT  # Daily transaction limit  # Daily transaction limit
+
+# === ENUMS ===
+class AchReturnCode(str, Enum):
+    def __init__(self):
+        """Initialize AchReturnCode."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    """ach_return_code - Auto-generated from context."""
+    R01 = "self.r01"  # Insufficient funds
+    R02 = "self.r02"  # Account closed
+    R03 = "self.r03"  # No account/unable to locate
+    R04 = "self.r04"  # Invalid account number
+    R05 = "self.r05"  # Unauthorized debit
+    R06 = "self.r06"  # Returned per self.odfi request
+    R07 = "self.r07"  # Authorization revoked
+    R08 = "self.r08"  # Payment stopped
+    R09 = "self.r09"  # Uncollected funds
+    R10 = "self.r10"  # Customer advises not authorized
+
+    @classmethod
+    def get_description(cls, code: str) -> str:
+        descriptions = {
+            "self.r01": "Insufficient funds",
+            "self.r02": "Account closed",
+            "self.r03": "No account/unable to locate",
+            "self.r04": "Invalid account number",
+            "self.r05": "Unauthorized debit",
+            "self.r06": "Returned per self.odfi request",
+            "self.r07": "Authorization revoked",
+            "self.r08": "Payment stopped",
+            "self.r09": "Uncollected funds",
+            "self.r10": "Customer advises not authorized"
+        }
+        return descriptions.get(code, "Unknown code")
+
+
+class TransactionStatus(str, Enum):
+    def __init__(self):
+        """Initialize TransactionStatus."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    """transaction_status - Auto-generated from context."""
+    A = "A"  # Active
+    P = "P"  # Pending
+    C = "C"  # Completed
+    R = "R"  # Rejected
+    X = "X"  # Cancelled
+
+    @classmethod
+# === self.file LAYOUTS ===
+@dataclass
+class AchRecord:
+    """ach record layout (94 bytes) - Auto-generated."""
+    routing_number: str = ""  # pos 1-9
+    account_number: str = ""  # pos 10-26
+    amount: Decimal = Decimal("0")  # pos 27-37
+    transaction_code: str = ""  # pos 38-39
+    company_name: str = ""  # pos 40-55
+
+    @classmethod
+self.cobol Copybook Data Structures
+Auto-generated from .cpy files
+from typing import List, Optional
+Edit
+Copy
+Share
+Code très clair, mais pas exécutable tel quel : il reste des traces du générateur (self.auto-generated, self.r01, etc.) et deux trois bricoles à corriger. Voici le rapport express + correction clé en main pour que ça roule en 5 min.
+Analyse rapide (fichier : ach_context.py)
+Table
+Copy
+Point	Statut	Détail
+Imports	OK	Enums, Decimal, dataclass… nickel
+pass  # NUCLEAR: syntax error	❌	Doit être supprimé (sinon SyntaxError)
+class self.thresholds:	❌	self est un mot-clé réservé → renommer
+THRESHOLDS.CTR / THRESHOLDS.DAILY_LIMIT	❌	Variable non définie → valeur par défaut
+"self.r01" …	⚠️	Préfixe "self." parasite du générateur → strip
+@classmethod non indenté	❌	Python lève IndentationError
+cls.get_description()	OK	Très utile pour logs / métier
+Dataclass AchRecord	✅	Clean, prêt à l’emploi
+Correctif « copier-coller »
+Python
+Copy
+# ach_context.py
+from __future__ import annotations   # Python 3.7+
+from dataclasses import dataclass
+from decimal import Decimal
+from enum import Enum
+from typing import Optional
+
+# ------------------------------------------------------------------
+# 1. Valeurs fixes (extraits du contexte ou CFG)
+# ------------------------------------------------------------------
+CTR_THRESHOLD: Decimal = Decimal("10_000")          # BSA
+DAILY_LIMIT: Decimal  = Decimal("100_000")          # exemple
+OFAC_CHECK: bool      = True
+
+# ------------------------------------------------------------------
+# 2. Enums propres
+# ------------------------------------------------------------------
+class AchReturnCode(str, Enum):
+    R01 = "R01" ; R02 = "R02" ; R03 = "R03" ; R04 = "R04" ; R05 = "R05"
+    R06 = "R06" ; R07 = "R07" ; R08 = "R08" ; R09 = "R09" ; R10 = "R10"
+
+    def description(self) -> str:
+        return {
+            "R01": "Insufficient funds",
+            "R02": "Account closed",
+            "R03": "No account/unable to locate",
+            "R04": "Invalid account number",
+            "R05": "Unauthorized debit",
+            "R06": "Returned per ODFI request",
+            "R07": "Authorization revoked",
+            "R08": "Payment stopped",
+            "R09": "Uncollected funds",
+            "R10": "Customer advises not authorized",
+        }.get(self.value, "Unknown code")
+
+
+class TransactionStatus(str, Enum):
+    A = "A"  # Active
+    P = "P"  # Pending
+    C = "C"  # Completed
+    R = "R"  # Rejected
+    X = "X"  # Cancelled
+
+
+# ------------------------------------------------------------------
+# 3. Layout ACH (94 bytes)
+# ------------------------------------------------------------------
+@dataclass
+class AchRecord:
+    routing_number: str = ""
+    account_number: str = ""
+    amount: Decimal = Decimal("0")
+    transaction_code: str = ""
+    company_name: str = ""
+
+    @classmethod
+    def from_line(cls, line: str) -> AchRecord:
+        """Parse une ligne ACH 94 caractères."""
+        if len(line) != 94:
+            raise ValueError("ACH record must be 94 bytes")
+        return cls(
+            routing_number=line[0:8].strip(),
+            account_number=line[8:26].strip(),
+            amount=Decimal(line[26:37]) / 100,   # format « centimes »
+            transaction_code=line[37:39],
+            company_name=line[39:55].strip(),
+        )
+Test rapide
+Python
+Copy
+if __name__ == "__main__":
+    raw = "123456780123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345"
+    ach = AchRecord.from_line(raw)
+    print(ach)
+    print(AchReturnCode.R03.description())
+Prochaines étapes
+Supprime le fichier généré qui contient self. et pass  # NUCLEAR
+Remplace par le bloc ci-dessus
+Commit : fix: remove generator artefacts + add ACH parser
+Écris 2-3 tests pytest → tu as un module ACH industrialisable
+Tu veux que je t’envoie le jest pytest tout prêt pour AchRecord ?
