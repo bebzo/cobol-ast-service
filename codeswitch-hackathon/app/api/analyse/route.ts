@@ -2267,7 +2267,8 @@ ${extractedMethods.join('\n\n')}
 `;
       
       // v7.37: Use extracted business methods (external validation bypassed in frontend)
-      skeleton = finalFile;
+      // v9.1: Ensure no leading whitespace (causes "unexpected indent line 1")
+      skeleton = finalFile.trimStart();
       console.log(`[v7.37] Generated ${extractedMethods.length} business methods`);
       
       // v8.4: ROBUST ITERATIVE VALIDATION LOOP with NUCLEAR FIX
@@ -2445,6 +2446,11 @@ ${extractedMethods.join('\n\n')}
           console.log(`[v8.4] WARNING: NUCLEAR FIX could not fully validate. Line ${astCheck.line}: ${astCheck.error?.substring(0, 80)}`);
         }
       }
+      
+      // v9.1: Final cleanup - ensure no leading/trailing whitespace issues
+      skeleton = skeleton.trimStart();
+      // Ensure file ends with single newline
+      skeleton = skeleton.trimEnd() + '\n';
       
       // v7.61: Generate REAL tests based on actual code - proportional to methods
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
