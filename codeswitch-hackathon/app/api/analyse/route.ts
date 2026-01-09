@@ -2,6 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { parseCobolWithANTLR, generateANTLRSummary, generatePythonSkeleton, CobolFullAST } from '@/lib/cobol-antlr-parser';
 
+// v10.0: PATTERN LIBRARY + CONFIDENCE SCORING
+import { 
+  ALL_PATTERNS, 
+  PATTERN_STATS,
+  applyPattern, 
+  translateWithPatterns,
+  matchPattern,
+  CobolPattern 
+} from '@/lib/patterns';
+import { 
+  ConfidenceSystem,
+  calculateLineConfidence,
+  calculateMethodConfidence,
+  calculateFileConfidence,
+  generateConfidenceReport,
+  LineConfidence,
+  MethodConfidence,
+  FileConfidence,
+  ConfidenceSummary
+} from '@/lib/confidence';
+
 // Validate that input is actually COBOL code
 function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
   if (!code || code.trim().length < 50) {
@@ -235,6 +256,144 @@ function analyzeCobolStructure(cobolCode: string): CobolStructure {
     performCalls: [...new Set(performCalls)],
     conditionals,
     complexity
+  };
+}
+
+// v10.0: PATTERN-FIRST TRANSLATION
+// Try deterministic patterns before falling back to AI
+interface PatternTranslation {
+  python: string;
+  confidence: number;
+  patternId: string | null;
+  source: 'PATTERN' | 'AI' | 'STUB';
+}
+
+interface ParagraphConfidence {
+  paragraphName: string;
+  lines: Array<{
+    lineNumber: number;
+    cobol: string;
+    python: string;
+    confidence: number;
+    patternId: string | null;
+    source: 'PATTERN' | 'AI' | 'STUB';
+  }>;
+  overallConfidence: number;
+  patternCoverage: number;
+}
+
+// Global confidence tracking
+const paragraphConfidences: Map<string, ParagraphConfidence> = new Map();
+
+/**
+ * Translate a COBOL paragraph using Pattern-First approach.
+ * Returns pattern-matched lines with high confidence, marks others for AI.
+ */
+function translateWithPatternFirst(cobolLines: string[]): {
+  patternMatched: Array<{ lineNum: number; cobol: string; python: string; confidence: number; patternId: string }>;
+  needsAI: Array<{ lineNum: number; cobol: string }>;
+  patternCoverage: number;
+  averageConfidence: number;
+} {
+  const patternMatched: Array<{ lineNum: number; cobol: string; python: string; confidence: number; patternId: string }> = [];
+  const needsAI: Array<{ lineNum: number; cobol: string }> = [];
+  
+  for (let i = 0; i < cobolLines.length; i++) {
+    const line = cobolLines[i];
+    const trimmed = line.trim();
+    
+    // Skip empty lines and comments
+    if (!trimmed || trimmed.startsWith('*')) continue;
+    
+    // Try pattern matching
+    const result = applyPattern(trimmed);
+    
+    if (result && result.confidence >= 80) {
+      patternMatched.push({
+        lineNum: i + 1,
+        cobol: trimmed,
+        python: result.python,
+        confidence: result.confidence,
+        patternId: result.patternId
+      });
+    } else {
+      needsAI.push({ lineNum: i + 1, cobol: trimmed });
+    }
+  }
+  
+  const totalLines = cobolLines.filter(l => l.trim() && !l.trim().startsWith('*')).length;
+  const patternCoverage = totalLines > 0 ? Math.round((patternMatched.length / totalLines) * 100) : 0;
+  const averageConfidence = patternMatched.length > 0 
+    ? Math.round(patternMatched.reduce((s, p) => s + p.confidence, 0) / patternMatched.length)
+    : 0;
+  
+  console.log(`[v10.0-PATTERN] Coverage: ${patternCoverage}% (${patternMatched.length}/${totalLines} lines)`);
+  
+  return { patternMatched, needsAI, patternCoverage, averageConfidence };
+}
+
+/**
+ * Merge pattern results with AI results, preferring patterns for matched lines.
+ */
+function mergePatternAndAI(
+  patternResults: Array<{ lineNum: number; python: string; confidence: number; patternId: string }>,
+  aiResult: string,
+  paragraphName: string
+): { mergedLogic: string; confidence: ParagraphConfidence } {
+  // Parse AI result into lines
+  const aiLines = aiResult.split('\n').filter(l => l.trim());
+  
+  const confidenceData: ParagraphConfidence = {
+    paragraphName,
+    lines: [],
+    overallConfidence: 0,
+    patternCoverage: 0
+  };
+  
+  // Create merged output: pattern results first, then AI for remaining
+  const pythonLines: string[] = [];
+  
+  // Add pattern-matched lines (high confidence)
+  for (const pr of patternResults) {
+    pythonLines.push(pr.python);
+    confidenceData.lines.push({
+      lineNumber: pr.lineNum,
+      cobol: '',
+      python: pr.python,
+      confidence: pr.confidence,
+      patternId: pr.patternId,
+      source: 'PATTERN'
+    });
+  }
+  
+  // Add AI-generated lines (lower confidence)
+  for (const aiLine of aiLines) {
+    if (!patternResults.some(pr => pr.python === aiLine)) {
+      pythonLines.push(aiLine);
+      confidenceData.lines.push({
+        lineNumber: pythonLines.length,
+        cobol: '',
+        python: aiLine,
+        confidence: 55,  // AI baseline confidence
+        patternId: null,
+        source: 'AI'
+      });
+    }
+  }
+  
+  // Calculate overall confidence
+  if (confidenceData.lines.length > 0) {
+    confidenceData.overallConfidence = Math.round(
+      confidenceData.lines.reduce((s, l) => s + l.confidence, 0) / confidenceData.lines.length
+    );
+    confidenceData.patternCoverage = Math.round(
+      (confidenceData.lines.filter(l => l.source === 'PATTERN').length / confidenceData.lines.length) * 100
+    );
+  }
+  
+  return {
+    mergedLogic: pythonLines.join('\n'),
+    confidence: confidenceData
   };
 }
 
@@ -922,7 +1081,50 @@ COBOL PARAGRAPHS:
               return cachedResults;
             }
             
-            const uncachedCobol = uncachedBatch.map(p => {
+            // v10.0: PATTERN-FIRST - Try deterministic patterns before AI
+            const patternResults: { name: string; logic: string; confidence: ParagraphConfidence }[] = [];
+            const needsAIBatch: typeof uncachedBatch = [];
+            
+            for (const p of uncachedBatch) {
+              const cobolText = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 40));
+              const { patternMatched, needsAI, patternCoverage, averageConfidence } = translateWithPatternFirst(cobolText);
+              
+              if (patternCoverage >= 70) {
+                // High pattern coverage - use patterns directly, no AI needed
+                const pythonLogic = patternMatched.map(pm => pm.python).join('\n');
+                console.log(`[v10.0-PATTERN] ${p.name}: ${patternCoverage}% coverage, skipping AI`);
+                
+                const conf: ParagraphConfidence = {
+                  paragraphName: p.name,
+                  lines: patternMatched.map(pm => ({
+                    lineNumber: pm.lineNum,
+                    cobol: pm.cobol,
+                    python: pm.python,
+                    confidence: pm.confidence,
+                    patternId: pm.patternId,
+                    source: 'PATTERN' as const
+                  })),
+                  overallConfidence: averageConfidence,
+                  patternCoverage
+                };
+                paragraphConfidences.set(p.name, conf);
+                
+                patternResults.push({ name: p.name, logic: pythonLogic, confidence: conf });
+              } else {
+                // Low coverage - needs AI help
+                needsAIBatch.push(p);
+              }
+            }
+            
+            // If all paragraphs handled by patterns, return early
+            if (needsAIBatch.length === 0) {
+              console.log(`[v10.0] All ${uncachedBatch.length} paragraphs handled by patterns!`);
+              return [...cachedResults, ...patternResults.map(pr => ({ name: pr.name, logic: pr.logic }))];
+            }
+            
+            console.log(`[v10.0] ${patternResults.length} by patterns, ${needsAIBatch.length} need AI`);
+            
+            const uncachedCobol = needsAIBatch.map(p => {
               const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 40)).join('\n');
               const structure = analyzeCobolStructure(cobol);
               
@@ -1039,8 +1241,8 @@ COBOL PARAGRAPHS:
               }
             }
             
-            // v8.0: Merge cached + fresh results
-            return [...cachedResults, ...results];
+            // v10.0: Merge cached + pattern + AI results
+            return [...cachedResults, ...patternResults.map(pr => ({ name: pr.name, logic: pr.logic })), ...results];
           } catch (e) {
             // v7.51: FAIL LOUD - no silent fallbacks
             console.error('[AI-ERROR] Batch failed:', e);
@@ -2212,6 +2414,21 @@ ${testLines}
       const aiTranslatedFunctions = cobolFunctionStubs.split('AI translated').length - 1;
       const stubFunctions = cobolFunctionStubs.split('NotImplementedError').length - 1;
       
+      // v10.0: Calculate pattern-based confidence metrics
+      const allConfidences = Array.from(paragraphConfidences.values());
+      const patternCoveredParagraphs = allConfidences.filter(c => c.patternCoverage >= 70).length;
+      const avgPatternConfidence = allConfidences.length > 0 
+        ? Math.round(allConfidences.reduce((s, c) => s + c.overallConfidence, 0) / allConfidences.length)
+        : 0;
+      const highConfidenceCount = allConfidences.filter(c => c.overallConfidence >= 85).length;
+      const lowConfidenceCount = allConfidences.filter(c => c.overallConfidence < 60).length;
+      
+      // Calculate production readiness score
+      const patternScore = (patternCoveredParagraphs / Math.max(1, allParagraphs.length)) * 40;
+      const confidenceScore = (avgPatternConfidence / 100) * 30;
+      const translationScore = (translationRate / 100) * 30;
+      const productionReadiness = Math.round(patternScore + confidenceScore + translationScore);
+      
       const coverageMetrics = {
         total_paragraphs: allParagraphs.length,
         successful_translations: successfulTranslations.length,
@@ -2222,9 +2439,20 @@ ${testLines}
         cobol_functions_ai_translated: aiTranslatedFunctions,
         cobol_functions_stubbed: stubFunctions,
         python_methods_generated: extractedMethods.length,
-        lines_of_python: skeleton.split('\n').length
+        lines_of_python: skeleton.split('\n').length,
+        // v10.0: Pattern Library metrics
+        pattern_library: {
+          total_patterns_available: PATTERN_STATS.totalPatterns,
+          paragraphs_by_pattern: patternCoveredParagraphs,
+          paragraphs_by_ai: allParagraphs.length - patternCoveredParagraphs,
+          average_confidence: avgPatternConfidence,
+          high_confidence_paragraphs: highConfidenceCount,
+          low_confidence_paragraphs: lowConfidenceCount,
+          production_readiness: productionReadiness,
+          estimated_review_time_minutes: Math.round(lowConfidenceCount * 5 + (allParagraphs.length - patternCoveredParagraphs) * 2)
+        }
       };
-      console.log('[v8.1] Coverage metrics:', coverageMetrics);
+      console.log('[v10.0] Coverage metrics:', coverageMetrics);
       
       // Generate all metadata for large files
       const funcNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
@@ -2300,6 +2528,22 @@ ${testLines}
         },
         next_steps: ['Review generated skeleton', 'Split file into smaller modules', 'Translate remaining paragraphs', 'Run integration tests'],
         coverage_metrics: coverageMetrics,
+        // v10.0: Confidence scoring
+        confidence_report: {
+          overall_score: avgPatternConfidence,
+          production_readiness: productionReadiness,
+          pattern_coverage_percent: Math.round((patternCoveredParagraphs / Math.max(1, allParagraphs.length)) * 100),
+          review_priority: lowConfidenceCount > 0 ? 'HIGH' : (avgPatternConfidence < 70 ? 'MEDIUM' : 'LOW'),
+          paragraphs_needing_review: allConfidences
+            .filter(c => c.overallConfidence < 70)
+            .map(c => ({ name: c.paragraphName, confidence: c.overallConfidence, patternCoverage: c.patternCoverage }))
+            .slice(0, 20),
+          recommendation: productionReadiness >= 70 
+            ? 'Code is production-ready with minor review'
+            : productionReadiness >= 50 
+              ? 'Code requires significant review before production'
+              : 'Code needs substantial manual work - use as reference only'
+        },
         filename: filename || `${programId}.cbl`,
         category: 'Enterprise',
         ast_metrics: {
