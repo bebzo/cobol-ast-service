@@ -1036,7 +1036,9 @@ export default function Home() {
       clearInterval(progressInterval);
       setAnalysisProgress(100);
       setAbortController(null);
-      setTimeout(() => setIsLoading(false), 300);
+      setAnalysisStatus("Complete");
+      // v8.1: Immediate loading stop, no delay
+      setIsLoading(false);
     }
   };
 
