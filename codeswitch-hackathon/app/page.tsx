@@ -105,6 +105,43 @@ def check_syntax(code):
   }
 }
 
+// v9.4: Validate and auto-repair Python code via server-side AST
+async function validateAndRepairPython(code: string): Promise<{valid: boolean; code: string; repaired: boolean; repairs: string[]; error?: string}> {
+  try {
+    const response = await fetch('/api/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    });
+    
+    if (!response.ok) {
+      return { valid: false, code, repaired: false, repairs: [], error: 'Validation API error' };
+    }
+    
+    const result = await response.json();
+    
+    if (result.valid) {
+      return {
+        valid: true,
+        code: result.repaired_code || code,
+        repaired: result.repaired || false,
+        repairs: result.repairs || []
+      };
+    } else {
+      return {
+        valid: false,
+        code: result.repaired_code || code,
+        repaired: result.repaired || false,
+        repairs: result.repairs_attempted || [],
+        error: result.error
+      };
+    }
+  } catch (e) {
+    console.error('AST validation error:', e);
+    return { valid: false, code, repaired: false, repairs: [], error: String(e) };
+  }
+}
+
 // Run tests using Pyodide
 async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
   // Try server-side pytest first (real execution)
@@ -1010,16 +1047,28 @@ export default function Home() {
       
       // Quick fixes only (fast) - full correction available via button
       let finalPythonCode = parsed.python_code || '# No code generated';
-      let combinedCodeValid = false;
-      
-      // For multi-analysis, validate the combined code
-      // v7.38: COMPLETELY DISABLE external validation - it corrupts the code
-      combinedCodeValid = true;
-      let finalCodeValid = true;
-      console.log('[v7.38] External validation DISABLED - using pre-validated code');
-      
       // ALWAYS apply post-processing as final step to clean any remaining artifacts
       finalPythonCode = postProcessPythonCode(finalPythonCode, filename || 'PROGRAM');
+      
+      // v9.4: AST validation and auto-repair
+      let finalCodeValid = true;
+      try {
+        console.log('[v9.4] Running AST validation and auto-repair...');
+        const validationResult = await validateAndRepairPython(finalPythonCode);
+        finalCodeValid = validationResult.valid;
+        
+        if (validationResult.repaired && validationResult.code !== finalPythonCode) {
+          console.log('[v9.4] Code was auto-repaired:', validationResult.repairs);
+          finalPythonCode = validationResult.code;
+        }
+        
+        if (!validationResult.valid) {
+          console.warn('[v9.4] Code still has syntax errors after repair:', validationResult.error);
+        }
+      } catch (e) {
+        console.error('[v9.4] AST validation failed:', e);
+        // Continue with unvalidated code
+      }
       
       setPythonCode(finalPythonCode);
       // Create new object to trigger React state update - include code_valid!
