@@ -1424,13 +1424,36 @@ ${extractedMethods.map(m => '    ' + m.split('\n').join('\n    ')).join('\n\n')}
       skeleton = sanitizePythonCode(skeleton);
       console.log('[v7.60] Sanitized leading zeros in Python numbers');
       
-      // v7.4: Generate tests with LLM (shorter prompt for speed)
+      // v7.61: Generate REAL tests based on actual code - proportional to methods
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
       let unitTests = '';
       
+      // Calculate number of tests: 1 per method, min 5, max 30
+      const numTests = Math.min(30, Math.max(5, methodNames.length));
+      const methodsToTest = methodNames.slice(0, numTests);
+      
+      // Get a sample of the generated code to give context to Gemini
+      const codeSample = skeleton.substring(0, 3000);
+      
       try {
-        const testPrompt = `Generate pytest tests for ${className}. Methods: ${methodNames.slice(0, 10).join(', ')}.
-Output ONLY valid Python starting with "import pytest". Create 10 tests with real assertions.`;
+        const testPrompt = `You are a senior Python test engineer. Generate pytest unit tests for this migrated COBOL code.
+
+CLASS: ${className}
+METHODS TO TEST (${methodsToTest.length} total): ${methodsToTest.join(', ')}
+
+CODE SAMPLE (for context):
+\`\`\`python
+${codeSample}
+\`\`\`
+
+REQUIREMENTS:
+1. Create ${numTests} test functions with REAL assertions
+2. Test edge cases: empty data, negative values, boundary conditions
+3. Use fixtures for setup
+4. Include docstrings explaining what each test verifies
+5. Test both success and error paths
+
+Output ONLY valid Python starting with imports. NO explanations.`;
 
         const testResultText = await callGroq(testPrompt);
         let generatedTests = testResultText
@@ -1441,16 +1464,33 @@ Output ONLY valid Python starting with "import pytest". Create 10 tests with rea
         if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
           // v7.60: Also sanitize tests for leading zeros
           unitTests = sanitizePythonCode(generatedTests);
-          console.log(`[v7.60] Generated and sanitized ${generatedTests.split('def test_').length - 1} tests`);
+          const actualTestCount = (generatedTests.match(/def test_/g) || []).length;
+          console.log(`[v7.61] Generated ${actualTestCount} contextual tests for ${methodsToTest.length} methods`);
         } else {
           throw new Error('Invalid tests');
         }
       } catch (e: any) {
         // Fallback: clearly marked as AI-generation failure
-        const testLines = methodNames.slice(0, 15).map(m => 
-          `    def test_${m}(self):\n        # ⚠️ TEST-FALLBACK: AI did not generate real tests\n        pytest.skip("AI test generation failed - manual test required")`
+        console.log(`[v7.61] Test generation failed: ${e.message}`);
+        const testLines = methodsToTest.map(m => 
+          `    def test_${m}(self):\n        """Test ${m} method."""\n        # ⚠️ TEST-FALLBACK: AI did not generate real tests\n        pytest.skip("AI test generation failed - manual test required")`
         ).join('\n\n');
-        unitTests = `import pytest\n\n# ⚠️ WARNING: These are placeholder tests - AI generation failed\nclass Test${className}:\n    def setup_method(self):\n        pass\n\n${testLines}\n`;
+        unitTests = `import pytest
+from decimal import Decimal
+
+# ⚠️ WARNING: These are placeholder tests - AI generation failed
+# TODO: Implement real tests based on the generated Python code
+
+class Test${className}:
+    """Test suite for ${className} - migrated from COBOL."""
+    
+    @pytest.fixture
+    def processor(self):
+        """Create processor instance for testing."""
+        return ${className}()
+
+${testLines}
+`;
       }
       
       // Generate all metadata for large files
