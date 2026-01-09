@@ -1944,6 +1944,30 @@ ${testLines}
 `;
       }
       
+      // v8.1: Calculate coverage metrics
+      const successfulTranslations = translations.filter(t => t.logic.length > 10 && !t.logic.includes('NotImplementedError'));
+      const fallbackCount = translations.filter(t => t.logic.length <= 10 || t.logic.includes('FALLBACK') || t.logic.includes('NotImplementedError')).length;
+      const translationRate = allParagraphs.length > 0 ? Math.round((successfulTranslations.length / allParagraphs.length) * 100) : 0;
+      const cobolFunctionsConverted = unknownCobolFunctions.size;
+      
+      // Count AI-translated vs stub functions
+      const aiTranslatedFunctions = cobolFunctionStubs.split('AI translated').length - 1;
+      const stubFunctions = cobolFunctionStubs.split('NotImplementedError').length - 1;
+      
+      const coverageMetrics = {
+        total_paragraphs: allParagraphs.length,
+        successful_translations: successfulTranslations.length,
+        fallback_count: fallbackCount,
+        translation_rate: translationRate,
+        variables_detected: allSelfVars.size,
+        cobol_functions_unknown: unknownCobolFunctions.size,
+        cobol_functions_ai_translated: aiTranslatedFunctions,
+        cobol_functions_stubbed: stubFunctions,
+        python_methods_generated: extractedMethods.length,
+        lines_of_python: skeleton.split('\n').length
+      };
+      console.log('[v8.1] Coverage metrics:', coverageMetrics);
+      
       // Generate all metadata for large files
       const funcNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
       const archDiagram = `flowchart TB
@@ -2017,6 +2041,7 @@ ${testLines}
           confidence: 65
         },
         next_steps: ['Review generated skeleton', 'Split file into smaller modules', 'Translate remaining paragraphs', 'Run integration tests'],
+        coverage_metrics: coverageMetrics,
         filename: filename || `${programId}.cbl`,
         category: 'Enterprise',
         ast_metrics: {

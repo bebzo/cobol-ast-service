@@ -499,6 +499,19 @@ interface SecurityWarning {
   fix: string;
 }
 
+interface CoverageMetrics {
+  total_paragraphs: number;
+  successful_translations: number;
+  fallback_count: number;
+  translation_rate: number;
+  variables_detected: number;
+  cobol_functions_unknown: number;
+  cobol_functions_ai_translated: number;
+  cobol_functions_stubbed: number;
+  python_methods_generated: number;
+  lines_of_python: number;
+}
+
 interface AnalysisResult {
   summary: string;
   business_context: BusinessContext;
@@ -518,6 +531,7 @@ interface AnalysisResult {
   next_steps: string[];
   modules?: { name: string; lines: number; type: string; description: string; complexity?: string; pythonTarget?: string; risk?: string }[];
   ast_metrics?: { paragraphs?: number; variables?: number; copybooks?: number; totalLines?: number; cyclomaticComplexity?: number };
+  coverage_metrics?: CoverageMetrics;
 }
 
 interface HistoryItem {
@@ -2131,6 +2145,56 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '80').replace(/[^0-9]/g, ''))) < 70 ? '(needs review)' : '(validated)'}</p>
                 </div>
               </div>
+              
+              {/* v8.1: Coverage Metrics Panel */}
+              {analysis.coverage_metrics && (
+                <div className="mt-4 bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-lg p-4 border border-indigo-500/30">
+                  <h4 className="text-sm font-semibold text-indigo-300 mb-3 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" />
+                    Coverage Metrics v8.1
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {/* Translation Rate - Main metric */}
+                    <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/10 rounded-lg p-3 text-center border border-green-500/40 col-span-2 md:col-span-1">
+                      <p className={`text-3xl font-bold tabular-nums ${analysis.coverage_metrics.translation_rate >= 90 ? 'text-green-400' : analysis.coverage_metrics.translation_rate >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        {analysis.coverage_metrics.translation_rate}%
+                      </p>
+                      <p className="text-xs text-slate-300 mt-1 font-medium">Translation Rate</p>
+                      <p className="text-[10px] text-slate-500">{analysis.coverage_metrics.successful_translations}/{analysis.coverage_metrics.total_paragraphs} paragraphs</p>
+                    </div>
+                    
+                    {/* Fallbacks */}
+                    <div className="bg-slate-700/40 rounded-lg p-2.5 text-center">
+                      <p className={`text-xl font-bold tabular-nums ${analysis.coverage_metrics.fallback_count === 0 ? 'text-green-400' : 'text-amber-400'}`}>
+                        {analysis.coverage_metrics.fallback_count}
+                      </p>
+                      <p className="text-[10px] text-slate-400">Fallbacks</p>
+                    </div>
+                    
+                    {/* Variables */}
+                    <div className="bg-slate-700/40 rounded-lg p-2.5 text-center">
+                      <p className="text-xl font-bold text-blue-400 tabular-nums">{analysis.coverage_metrics.variables_detected}</p>
+                      <p className="text-[10px] text-slate-400">Variables</p>
+                    </div>
+                    
+                    {/* Methods */}
+                    <div className="bg-slate-700/40 rounded-lg p-2.5 text-center">
+                      <p className="text-xl font-bold text-purple-400 tabular-nums">{analysis.coverage_metrics.python_methods_generated}</p>
+                      <p className="text-[10px] text-slate-400">Methods</p>
+                    </div>
+                    
+                    {/* COBOL Functions */}
+                    <div className="bg-slate-700/40 rounded-lg p-2.5 text-center">
+                      <p className="text-xl font-bold text-cyan-400 tabular-nums">
+                        {analysis.coverage_metrics.cobol_functions_ai_translated}
+                        <span className="text-sm text-slate-500">/{analysis.coverage_metrics.cobol_functions_unknown}</span>
+                      </p>
+                      <p className="text-[10px] text-slate-400">COBOL Funcs</p>
+                      <p className="text-[9px] text-slate-500">{analysis.coverage_metrics.cobol_functions_stubbed} stubs</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
