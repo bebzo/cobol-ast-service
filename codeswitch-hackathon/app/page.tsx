@@ -1472,10 +1472,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               <button
                 onClick={async () => {
                   try {
-                    const res = await fetch('/MEGA-ENTERPRISE.CBL');
+                    const res = await fetch('/demo/ENTERPRISE-BANKING.cbl');
                     const text = await res.text();
                     setCobolCode(text);
-                    setFilename('MEGA-ENTERPRISE.CBL');
+                    setFilename('ENTERPRISE-BANKING.cbl');
                     setAnalysis(null);
                   } catch (e) {
                     console.error(e);
@@ -1484,7 +1484,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-lg transition text-sm font-medium"
               >
                 <FileCode className="w-4 h-4" />
-                <span>Load Demo (10K LOC)</span>
+                <span>Load Demo (1.8K LOC)</span>
               </button>
               {filename && (
                 <div className="flex items-center gap-2 text-slate-400">
