@@ -86,6 +86,101 @@ async function callGroq(prompt: string): Promise<string> {
 // v7.16: AST Validation via Python subprocess
 import { execSync } from 'child_process';
 
+// v8.0: TRANSLATION CACHE - Memoize successful patterns
+const translationCache = new Map<string, string>();
+
+function getCacheKey(cobolSnippet: string): string {
+  // Normalize COBOL to create cache key
+  return cobolSnippet
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[A-Z0-9]+-[A-Z0-9]+/g, 'VAR')  // Normalize variable names
+    .trim()
+    .substring(0, 200);
+}
+
+function getCachedTranslation(cobolSnippet: string): string | null {
+  const key = getCacheKey(cobolSnippet);
+  return translationCache.get(key) || null;
+}
+
+function cacheTranslation(cobolSnippet: string, pythonCode: string): void {
+  if (pythonCode && pythonCode.length > 10 && !pythonCode.includes('NotImplementedError')) {
+    const key = getCacheKey(cobolSnippet);
+    translationCache.set(key, pythonCode);
+    if (translationCache.size > 1000) {
+      // LRU eviction - delete oldest entries
+      const firstKey = translationCache.keys().next().value;
+      if (firstKey) translationCache.delete(firstKey);
+    }
+  }
+}
+
+// v8.0: COBOL STRUCTURE ANALYZER - Pre-parse nested IF/PERFORM
+interface CobolStructure {
+  hasNestedIf: boolean;
+  hasNestedPerform: boolean;
+  performCalls: string[];
+  conditionals: number;
+  complexity: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+}
+
+function analyzeCobolStructure(cobolCode: string): CobolStructure {
+  const upper = cobolCode.toUpperCase();
+  const lines = upper.split('\n');
+  
+  // Count nested structures
+  let ifDepth = 0, maxIfDepth = 0;
+  let performDepth = 0, maxPerformDepth = 0;
+  const performCalls: string[] = [];
+  let conditionals = 0;
+  
+  for (const line of lines) {
+    // Track IF nesting
+    if (/\bIF\b/.test(line)) {
+      ifDepth++;
+      maxIfDepth = Math.max(maxIfDepth, ifDepth);
+      conditionals++;
+    }
+    if (/\bEND-IF\b/.test(line)) {
+      ifDepth = Math.max(0, ifDepth - 1);
+    }
+    
+    // Track PERFORM
+    const performMatch = line.match(/\bPERFORM\s+([A-Z0-9-]+)/);
+    if (performMatch) {
+      performCalls.push(performMatch[1]);
+      performDepth++;
+    }
+    if (/\bEND-PERFORM\b/.test(line)) {
+      performDepth = Math.max(0, performDepth - 1);
+      maxPerformDepth = Math.max(maxPerformDepth, performDepth);
+    }
+    
+    // Count other conditionals
+    if (/\bEVALUATE\b/.test(line)) conditionals++;
+    if (/\bWHEN\b/.test(line)) conditionals++;
+  }
+  
+  // Determine complexity
+  let complexity: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' = 'LOW';
+  if (maxIfDepth >= 4 || conditionals >= 10 || performCalls.length >= 8) {
+    complexity = 'VERY_HIGH';
+  } else if (maxIfDepth >= 3 || conditionals >= 6 || performCalls.length >= 5) {
+    complexity = 'HIGH';
+  } else if (maxIfDepth >= 2 || conditionals >= 3 || performCalls.length >= 2) {
+    complexity = 'MEDIUM';
+  }
+  
+  return {
+    hasNestedIf: maxIfDepth >= 2,
+    hasNestedPerform: maxPerformDepth >= 2,
+    performCalls: [...new Set(performCalls)],
+    conditionals,
+    complexity
+  };
+}
+
 // v7.60: Sanitize Python numbers - remove leading zeros (invalid in Python 3)
 function sanitizePythonCode(code: string): string {
   // Fix leading zeros in integer literals: 01 -> 1, 05 -> 5, 077 -> 77
@@ -561,7 +656,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Using Groq API (Llama 3.3 70B)
       
       // v7.27: AI generates ONLY method body (statements), not signature
-      const BATCH_PROMPT = `Convert COBOL paragraphs to Python STATEMENTS ONLY.
+      // v8.0: ENHANCED BATCH PROMPT with structure awareness
+const BATCH_PROMPT = `Convert COBOL paragraphs to Python STATEMENTS ONLY.
 
 CRITICAL: Return ONLY the method body lines. NO "def", NO "class", NO docstrings.
 
@@ -570,19 +666,67 @@ For EACH paragraph output:
 self.statement1
 self.statement2
 
-=== EXAMPLE ===
+=== EXAMPLE 1 (Simple) ===
 COBOL: MOVE AMOUNT TO WS-BALANCE. ADD 1 TO WS-COUNT.
 Output:
 ### 1000-PROCESS
 self.ws_balance = self.amount
 self.ws_count += 1
 
+=== EXAMPLE 2 (Nested IF - TRANSLATE FULLY) ===
+COBOL:
+IF WS-AMOUNT > 1000
+   IF WS-STATUS = "A"
+      MOVE "APPROVED" TO WS-RESULT
+   ELSE
+      MOVE "REVIEW" TO WS-RESULT
+   END-IF
+ELSE
+   MOVE "REJECTED" TO WS-RESULT
+END-IF
+Output:
+### 2000-VALIDATE
+if self.ws_amount > 1000:
+    if self.ws_status == "A":
+        self.ws_result = "APPROVED"
+    else:
+        self.ws_result = "REVIEW"
+else:
+    self.ws_result = "REJECTED"
+
+=== EXAMPLE 3 (PERFORM with loop) ===
+COBOL:
+PERFORM 3000-PROCESS UNTIL WS-EOF = "Y"
+Output:
+### 2500-MAIN-LOOP
+while self.ws_eof != "Y":
+    self.p_3000_process()
+
+=== EXAMPLE 4 (EVALUATE/WHEN) ===
+COBOL:
+EVALUATE WS-TYPE
+   WHEN "C" PERFORM CREDIT-PROCESS
+   WHEN "D" PERFORM DEBIT-PROCESS
+   WHEN OTHER PERFORM ERROR-PROCESS
+END-EVALUATE
+Output:
+### 4000-ROUTE
+if self.ws_type == "C":
+    self.p_credit_process()
+elif self.ws_type == "D":
+    self.p_debit_process()
+else:
+    self.p_error_process()
+
 === TRANSLATION RULES ===
 1. MOVE A TO B → self.b = self.a
 2. ADD A TO B → self.b += self.a  
 3. PERFORM XXXX → self.p_xxxx()
-4. IF cond → if self.cond:
-5. All vars: self.lowercase_name
+4. PERFORM UNTIL → while not condition:
+5. IF/ELSE/END-IF → if/else: (PRESERVE ALL NESTING)
+6. EVALUATE/WHEN → if/elif/else
+7. All vars: self.lowercase_name
+8. GENERATE UP TO 30 LINES PER METHOD
 
 === FORBIDDEN (WILL BE REJECTED) ===
 - NO "def " (we add it ourselves)
@@ -613,12 +757,53 @@ COBOL PARAGRAPHS:
         const waveResults = await Promise.all(waveBatches.map(async (batch) => {
           // Build COBOL text for all paragraphs in batch
           const batchCobol = batch.map(p => {
-            const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 20)).join('\n');
-            return `=== ${p.name} ===\n${cobol}`;
+            // v8.0: Increase context to 40 lines for deeper logic capture
+            const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 40)).join('\n');
+            
+            // v8.0: Analyze structure and add hints
+            const structure = analyzeCobolStructure(cobol);
+            let hints = '';
+            if (structure.hasNestedIf) hints += '[NESTED-IF] ';
+            if (structure.hasNestedPerform) hints += '[NESTED-PERFORM] ';
+            if (structure.performCalls.length > 0) hints += `[CALLS: ${structure.performCalls.slice(0, 5).join(', ')}] `;
+            hints += `[COMPLEXITY: ${structure.complexity}]`;
+            
+            return `=== ${p.name} ${hints} ===\n${cobol}`;
           }).join('\n\n');
           
           try {
-            const response = await callGroq(BATCH_PROMPT + batchCobol);
+            // v8.0: Check cache first for each paragraph
+            const cachedResults: { name: string; logic: string }[] = [];
+            const uncachedBatch: typeof batch = [];
+            
+            for (const p of batch) {
+              const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 40)).join('\n');
+              const cached = getCachedTranslation(cobol);
+              if (cached) {
+                cachedResults.push({ name: p.name, logic: cached });
+                console.log(`[v8.0-CACHE] Hit for ${p.name}`);
+              } else {
+                uncachedBatch.push(p);
+              }
+            }
+            
+            // Only call AI for uncached paragraphs
+            if (uncachedBatch.length === 0) {
+              return cachedResults;
+            }
+            
+            const uncachedCobol = uncachedBatch.map(p => {
+              const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 40)).join('\n');
+              const structure = analyzeCobolStructure(cobol);
+              let hints = '';
+              if (structure.hasNestedIf) hints += '[NESTED-IF] ';
+              if (structure.hasNestedPerform) hints += '[NESTED-PERFORM] ';
+              if (structure.performCalls.length > 0) hints += `[CALLS: ${structure.performCalls.slice(0, 5).join(', ')}] `;
+              hints += `[COMPLEXITY: ${structure.complexity}]`;
+              return `=== ${p.name} ${hints} ===\n${cobol}`;
+            }).join('\n\n');
+            
+            const response = await callGroq(BATCH_PROMPT + uncachedCobol);
             console.log('[AI-RAW] Response preview:', response.substring(0, 500));
             
             // Parse response: split by ### PARAGRAPH_NAME
@@ -660,16 +845,24 @@ COBOL PARAGRAPHS:
               const aiLogic = validLines.join('\n');
               console.log(`[AI-PARSED] ${name}: ${validLines.length} lines`);
               results.push({ name, logic: aiLogic });
+              
+              // v8.0: Cache successful translation
+              const origP = uncachedBatch.find(p => p.name.toUpperCase() === name.toUpperCase());
+              if (origP && aiLogic.length > 10) {
+                const origCobol = codeLines.slice(origP.lineStart - 1, Math.min(origP.lineEnd, origP.lineStart + 40)).join('\n');
+                cacheTranslation(origCobol, aiLogic);
+              }
             }
             
-            // Fill in any missing paragraphs from batch
-            for (const p of batch) {
+            // Fill in any missing paragraphs from uncached batch
+            for (const p of uncachedBatch) {
               if (!results.find(r => r.name.toUpperCase() === p.name.toUpperCase())) {
                 results.push({ name: p.name, logic: '' });
               }
             }
             
-            return results;
+            // v8.0: Merge cached + fresh results
+            return [...cachedResults, ...results];
           } catch (e) {
             // v7.51: FAIL LOUD - no silent fallbacks
             console.error('[AI-ERROR] Batch failed:', e);
@@ -950,7 +1143,8 @@ ${initVars.join('\n')}
           if (/= [a-z_]\w+\[/.test(cleaned) && !cleaned.includes('self.')) continue;
           
           validStatements.push(cleaned);
-          if (validStatements.length >= 15) break;
+          // v8.0: Increase to 30 lines per method for deeper logic
+          if (validStatements.length >= 30) break;
         }
         
         // v7.7: Build method with control flow
@@ -958,6 +1152,17 @@ ${initVars.join('\n')}
         methodCode += `        """${safeName}."""\n`;
         
         if (validStatements.length > 0) {
+          // v8.0: Add input validation for methods with parameters inferred from COBOL
+          const hasAmountVar = validStatements.some(s => /amount|balance|total|price/i.test(s));
+          const hasStatusVar = validStatements.some(s => /status|flag|indicator/i.test(s));
+          
+          if (hasAmountVar || hasStatusVar) {
+            methodCode += `        # v8.0: Business validation\n`;
+            if (hasAmountVar) {
+              methodCode += `        assert self.data is not None, "Data not initialized"\n`;
+            }
+          }
+          
           methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
           // ⚠️ AI did not generate logic - using pattern-based fallback
@@ -1472,10 +1677,24 @@ ${extractedMethods.join('\n\n')}
       const codeSample = skeleton.substring(0, 3000);
       
       try {
+        // v8.0: Extract COBOL data samples for realistic test data
+        const cobolDataSamples: string[] = [];
+        const picMatches = cobolCode.matchAll(/\b(\w+)\s+PIC\s+([X9]+)(?:\(\d+\))?(?:\s+VALUE\s+["']?([^"'\s.]+)["']?)?/gi);
+        for (const m of picMatches) {
+          const varName = m[1].toLowerCase().replace(/-/g, '_');
+          const picType = m[2].toUpperCase();
+          const value = m[3] || (picType.startsWith('9') ? '0' : '""');
+          cobolDataSamples.push(`${varName}: ${value}`);
+          if (cobolDataSamples.length >= 10) break;
+        }
+        
         const testPrompt = `You are a senior Python test engineer. Generate pytest unit tests for this migrated COBOL code.
 
 CLASS: ${className}
 METHODS TO TEST (${methodsToTest.length} total): ${methodsToTest.join(', ')}
+
+COBOL DATA SAMPLES (use these for realistic test values):
+${cobolDataSamples.join('\n')}
 
 CODE SAMPLE (for context):
 \`\`\`python
@@ -1484,10 +1703,12 @@ ${codeSample}
 
 REQUIREMENTS:
 1. Create ${numTests} test functions with REAL assertions
-2. Test edge cases: empty data, negative values, boundary conditions
-3. Use fixtures for setup
-4. Include docstrings explaining what each test verifies
-5. Test both success and error paths
+2. Use COBOL data samples above for test values
+3. Test edge cases: empty data, negative values, boundary conditions, COBOL-style status codes ("A", "I", "C")
+4. Use fixtures for setup with realistic COBOL-derived data
+5. Include docstrings explaining what each test verifies
+6. Test both success and error paths
+7. Include at least 3 integration tests that call multiple methods
 
 Output ONLY valid Python starting with imports. NO explanations.`;
 
@@ -1621,6 +1842,12 @@ ${testLines}
     );
   }
 }
+// v8.0 - COMMERCIAL GRADE IMPROVEMENTS:
+//   - Translation cache (memoization) for repeated patterns
+//   - COBOL structure analyzer (nested IF/PERFORM detection)
+//   - 30 lines/method (was 15) for deeper logic
+//   - Business validation (assert) in methods
+//   - COBOL data samples injected into tests
 // v7.60 - Added Python number sanitization (leading zeros fix)
 // v7.5 - simple statements only, guaranteed compile
 // Commercial grade: All numbers sanitized, valid Python 3 syntax guaranteed
