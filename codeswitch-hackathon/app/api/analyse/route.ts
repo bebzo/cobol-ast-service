@@ -239,10 +239,20 @@ function analyzeCobolStructure(cobolCode: string): CobolStructure {
 }
 
 // v7.60: Sanitize Python numbers - remove leading zeros (invalid in Python 3)
+// v8.1: Also convert COBOL intrinsic functions to Python
 function sanitizePythonCode(code: string): string {
   // Fix leading zeros in integer literals: 01 -> 1, 05 -> 5, 077 -> 77
   // But preserve: 0, 0.5, 0x1F, 0b101, 0o17, "05", '05'
   let sanitized = code;
+  
+  // v8.1: Convert COBOL intrinsic functions to Python
+  sanitized = sanitized.replace(/FUNCTION\s+CURRENT-DATE/gi, 'datetime.now().strftime("%Y%m%d%H%M%S")');
+  sanitized = sanitized.replace(/FUNCTION\s+CURRENT-TIME/gi, 'datetime.now().strftime("%H%M%S")');
+  sanitized = sanitized.replace(/FUNCTION\s+LENGTH\s*\(([^)]+)\)/gi, 'len($1)');
+  sanitized = sanitized.replace(/FUNCTION\s+UPPER-CASE\s*\(([^)]+)\)/gi, '$1.upper()');
+  sanitized = sanitized.replace(/FUNCTION\s+LOWER-CASE\s*\(([^)]+)\)/gi, '$1.lower()');
+  sanitized = sanitized.replace(/FUNCTION\s+TRIM\s*\(([^)]+)\)/gi, '$1.strip()');
+  sanitized = sanitized.replace(/FUNCTION\s+NUMVAL\s*\(([^)]+)\)/gi, 'Decimal($1)');
   
   // 1. Fix assignments: self.x = 05 -> self.x = 5
   sanitized = sanitized.replace(/= 0+([1-9]\d*)(?![.xXbBoO])/g, '= $1');
@@ -975,9 +985,17 @@ COBOL PARAGRAPHS:
           }
         }));
         
-        // Flatten results
+        // v8.1: Flatten results with deduplication
         for (const batchResults of waveResults) {
-          translations.push(...batchResults);
+          for (const result of batchResults) {
+            const existingIdx = translations.findIndex(t => t.name.toUpperCase() === result.name.toUpperCase());
+            if (existingIdx === -1) {
+              translations.push(result);
+            } else if (result.logic.length > translations[existingIdx].logic.length) {
+              // Keep the one with more logic
+              translations[existingIdx] = result;
+            }
+          }
         }
         console.log(`[v7.21] Wave ${Math.floor(wave/PARALLEL_BATCHES)+1}/${Math.ceil(batches.length/PARALLEL_BATCHES)}: ${translations.length} translated`);
       }
@@ -1174,6 +1192,8 @@ ${initVars.join('\n')}
           // 1. Skip COBOL artifacts and placeholders
           if (/TODO|COBOL|MOVE |PERFORM |DISPLAY|Placeholder|Needs|^#|SECTION|DIVISION/i.test(trimmed)) continue;
           if (/^[A-Z]{2,}-[A-Z]/.test(trimmed)) continue;  // COBOL variable names
+          // v8.1: Skip COBOL intrinsic functions that weren't translated
+          if (/FUNCTION\s+[A-Z-]+/i.test(trimmed)) continue;
           
           // 2. Skip duplicates
           if (seen.has(trimmed)) continue;
