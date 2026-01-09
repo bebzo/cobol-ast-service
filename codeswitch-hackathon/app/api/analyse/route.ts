@@ -1413,7 +1413,7 @@ ${initVars.slice(4).join('\n')}
         return self.file_adapter.write(filename, data)
 
     # === BUSINESS METHODS ===
-${extractedMethods.map(m => '    ' + m.split('\n').join('\n    ')).join('\n\n')}
+${extractedMethods.join('\n\n')}
 `;
       
       // v7.37: Use extracted business methods (external validation bypassed in frontend)
