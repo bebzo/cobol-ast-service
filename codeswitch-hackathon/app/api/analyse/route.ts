@@ -1169,6 +1169,9 @@ ${initVars.join('\n')}
       // v7.10: Python reserved keywords
       const pythonKeywords = new Set(['def', 'class', 'return', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'finally', 'with', 'as', 'import', 'from', 'global', 'nonlocal', 'lambda', 'yield', 'raise', 'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'async', 'await', 'assert', 'del']);
       
+      // v8.1: Track unknown COBOL functions for stub generation
+      const unknownCobolFunctions = new Set<string>();
+      
       for (const t of translations) {
         let methodName = t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&');
         // v7.10: Prefix Python keywords with 'p_'
@@ -1204,10 +1207,12 @@ ${initVars.join('\n')}
           // v8.1: Generic fallback for unknown FUNCTION - convert to method call with warning
           trimmed = trimmed.replace(/FUNCTION\s+([A-Z][A-Z0-9-]*)\s*\(([^)]*)\)/gi, (match, funcName, args) => {
             const pyName = funcName.toLowerCase().replace(/-/g, '_');
+            unknownCobolFunctions.add(pyName);
             return `self._cobol_${pyName}(${args})  # ⚠️ COBOL-FUNCTION: ${funcName}`;
           });
           trimmed = trimmed.replace(/FUNCTION\s+([A-Z][A-Z0-9-]*)/gi, (match, funcName) => {
             const pyName = funcName.toLowerCase().replace(/-/g, '_');
+            unknownCobolFunctions.add(pyName);
             return `self._cobol_${pyName}()  # ⚠️ COBOL-FUNCTION: ${funcName}`;
           });
           
@@ -1702,6 +1707,20 @@ ${initVars.join('\n')}
       
       console.log(`[v7.34] Extracted ${extractedMethods.length} business methods`);
       
+      // v8.1: Generate stubs for unknown COBOL functions
+      let cobolFunctionStubs = '';
+      if (unknownCobolFunctions.size > 0) {
+        console.log(`[v8.1] Generating stubs for ${unknownCobolFunctions.size} unknown COBOL functions`);
+        const stubs = Array.from(unknownCobolFunctions).map(fn => {
+          const cobolName = fn.toUpperCase().replace(/_/g, '-');
+          return `    def _cobol_${fn}(self, *args) -> Any:
+        """⚠️ COBOL FUNCTION ${cobolName}: Needs manual implementation."""
+        self.logger.warning(f"Unimplemented COBOL function: ${fn}")
+        raise NotImplementedError("COBOL function ${cobolName} needs manual translation")`;
+        });
+        cobolFunctionStubs = `    # === COBOL FUNCTION STUBS (need manual implementation) ===\n${stubs.join('\n\n')}\n`;
+      }
+      
       // v7.35: HARDCODED REBUILD - Build file from scratch with NO template reuse
       // This bypasses any possible corruption in the header variable
       const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.50 Commercial]"""
@@ -1765,6 +1784,7 @@ ${initVars.slice(4).join('\n')}
         """Write a record to file via injected adapter."""
         return self.file_adapter.write(filename, data)
 
+${cobolFunctionStubs}
     # === BUSINESS METHODS ===
 ${extractedMethods.join('\n\n')}
 `;
