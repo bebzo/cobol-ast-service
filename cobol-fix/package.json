@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test": "npx tsx tests/e2e.test.ts",
-    "test:e2e": "npx tsx tests/e2e.test.ts"
+    "test:e2e": "npx tsx tests/e2e.test.ts",
+    "test:postprocess": "npx tsx tests/postprocess.test.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
