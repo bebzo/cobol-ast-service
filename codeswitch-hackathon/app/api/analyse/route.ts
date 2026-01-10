@@ -429,6 +429,118 @@ function mergePatternAndAI(
   };
 }
 
+// v10.4: CONSOLIDATION - Remove duplicate classes/functions from chunked output
+function consolidatePythonCode(code: string): string {
+  const lines = code.split('\n');
+  const seenClasses = new Set<string>();
+  const seenFunctions = new Set<string>();
+  const seenDataclasses = new Set<string>();
+  const consolidatedLines: string[] = [];
+  
+  let skipUntilNextDef = false;
+  let currentIndent = 0;
+  let skipClass = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // Detect @dataclass
+    if (trimmed === '@dataclass') {
+      const nextLine = lines[i + 1]?.trim() || '';
+      const classMatch = nextLine.match(/^class\s+(\w+)/);
+      if (classMatch) {
+        const className = classMatch[1];
+        // Remove chunk suffix (e.g., CustomerMasterC14 -> CustomerMaster)
+        const baseClassName = className.replace(/_?C\d+$/, '');
+        if (seenDataclasses.has(baseClassName)) {
+          // Skip this entire dataclass
+          skipUntilNextDef = true;
+          currentIndent = line.search(/\S/);
+          skipClass = baseClassName;
+          continue;
+        }
+        seenDataclasses.add(baseClassName);
+      }
+    }
+    
+    // Detect class definition
+    const classMatch = trimmed.match(/^class\s+(\w+)/);
+    if (classMatch && !trimmed.includes('@')) {
+      const className = classMatch[1];
+      const baseClassName = className.replace(/_?C\d+$/, '');
+      if (seenClasses.has(baseClassName)) {
+        skipUntilNextDef = true;
+        currentIndent = line.search(/\S/);
+        skipClass = baseClassName;
+        continue;
+      }
+      seenClasses.add(baseClassName);
+      // Also rename the class to remove suffix
+      if (className !== baseClassName) {
+        consolidatedLines.push(line.replace(className, baseClassName));
+        continue;
+      }
+    }
+    
+    // Detect function definition
+    const funcMatch = trimmed.match(/^def\s+(\w+)\s*\(/);
+    if (funcMatch) {
+      const funcName = funcMatch[1];
+      // Remove chunk suffix (e.g., process_customer_C14 -> process_customer)
+      const baseFuncName = funcName.replace(/_C\d+$/, '');
+      
+      if (skipUntilNextDef) {
+        // Check if we're still inside the skipped class
+        const indent = line.search(/\S/);
+        if (indent <= currentIndent && indent >= 0) {
+          skipUntilNextDef = false;
+        }
+      }
+      
+      if (!skipUntilNextDef) {
+        if (seenFunctions.has(baseFuncName)) {
+          // Skip duplicate function
+          skipUntilNextDef = true;
+          currentIndent = line.search(/\S/);
+          continue;
+        }
+        seenFunctions.add(baseFuncName);
+        // Rename function to remove suffix
+        if (funcName !== baseFuncName) {
+          consolidatedLines.push(line.replace(funcName, baseFuncName));
+          continue;
+        }
+      }
+    }
+    
+    // Skip lines if we're in a duplicate block
+    if (skipUntilNextDef) {
+      const indent = line.search(/\S/);
+      // Check if we've exited the block (lower or equal indentation with content)
+      if (indent >= 0 && indent <= currentIndent && trimmed && !trimmed.startsWith('#')) {
+        // Check if this is a new class/def at same level
+        if (trimmed.startsWith('class ') || trimmed.startsWith('def ') || trimmed.startsWith('@')) {
+          skipUntilNextDef = false;
+        }
+      }
+      if (skipUntilNextDef) continue;
+    }
+    
+    // Remove chunk suffix from function calls (e.g., self.process_C14() -> self.process())
+    let cleanedLine = line.replace(/(\w+)_C\d+\(/g, '$1(');
+    // Remove chunk suffix from class references
+    cleanedLine = cleanedLine.replace(/(\w+)C\d+(?=[^a-zA-Z0-9]|$)/g, '$1');
+    
+    consolidatedLines.push(cleanedLine);
+  }
+  
+  console.log(`[v10.4-CONSOLIDATE] Removed duplicates: ${seenClasses.size} unique classes, ${seenFunctions.size} unique functions`);
+  console.log(`[v10.4-CONSOLIDATE] Lines: ${lines.length} -> ${consolidatedLines.length} (${Math.round((1 - consolidatedLines.length/lines.length) * 100)}% reduction)`);
+  
+  return consolidatedLines.join('\n');
+}
+
 // v8.2: Global set of Python keywords for sanitization
 const PYTHON_KEYWORDS = new Set(['def', 'class', 'return', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'finally', 'with', 'as', 'import', 'from', 'global', 'nonlocal', 'lambda', 'yield', 'raise', 'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'async', 'await', 'assert', 'del']);
 
@@ -2577,6 +2689,13 @@ ${extractedMethods.join('\n\n')}
       // v9.1: Ensure no leading whitespace (causes "unexpected indent line 1")
       skeleton = finalFile.trimStart();
       console.log(`[v7.37] Generated ${extractedMethods.length} business methods`);
+      
+      // v10.4: CONSOLIDATION - Remove duplicate classes/functions from chunked output
+      // This fixes the 1800 COBOL -> 8000 Python problem (should be ~2000 lines)
+      const preConsolidateLines = skeleton.split('\n').length;
+      skeleton = consolidatePythonCode(skeleton);
+      const postConsolidateLines = skeleton.split('\n').length;
+      console.log(`[v10.4] Consolidation: ${preConsolidateLines} -> ${postConsolidateLines} lines (ratio: ${(postConsolidateLines / totalLines).toFixed(2)})`);
       
       // v8.4: ROBUST ITERATIVE VALIDATION LOOP with NUCLEAR FIX
       const MAX_VALIDATION_ATTEMPTS = 8;  // Increased from 5
