@@ -743,7 +743,7 @@ function runASTAnalysis(code: string): ASTAnalysisResult {
     
     const result = execSync(
       `python3 ${validatorPath} ${tempPath}`,
-      { encoding: 'utf8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'] }
+      { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] }  // v10.5: 5s timeout
     );
     return JSON.parse(result);
   } catch (e: any) {
@@ -1506,7 +1506,8 @@ COBOL PARAGRAPHS:
                   const performContext = extractPerformTargets(cobol, allParagraphs, codeLines, 2);
                   const fullContext = performContext ? `${cobol}\n\n${performContext}` : cobol;
                   
-                  const retryResponse = await callGroq(RETRY_PROMPT + fullContext);
+                  // v10.5: 10s timeout for retry calls
+                  const retryResponse = await callGroqWithTimeout(RETRY_PROMPT + fullContext, 10000);
                   const retryCode = retryResponse
                     .replace(/```python\s*/gi, '').replace(/```/g, '')
                     .split('\n')
@@ -2252,7 +2253,8 @@ ${initVars.join('\n')}
         
         try {
           const fixPrompt = `Fix this Python method syntax error: ${astAnalysis.error}\n\nBROKEN:\n${methodMatch[1]}\n\nOutput ONLY the fixed method. Keep simple. NO class, NO __init__, NO TODO.`;
-          const fixResultText = await callGroq(fixPrompt);
+          // v10.5: 10s timeout to prevent blocking
+          const fixResultText = await callGroqWithTimeout(fixPrompt, 10000);
           let fixed = fixResultText.replace(/```python\s*/gi, '').replace(/```/g, '').trim();
           
           // v7.33: VALIDATE AI response before injection
@@ -2299,7 +2301,8 @@ ${initVars.join('\n')}
           
           try {
             const refactorPrompt = `Generate REAL Python logic for this method. Original COBOL:\n${cobolContext.substring(0, 500)}\n\nOutput ONLY the method starting with "    def ${method.name}(self):". Use self.xxx for all variables. NO class, NO __init__, NO TODO, NO raise NotImplementedError.`;
-            const resultText = await callGroq(refactorPrompt);
+            // v10.5: 10s timeout for refactor calls
+            const resultText = await callGroqWithTimeout(refactorPrompt, 10000);
             let newMethod = resultText.replace(/```python\s*/gi, '').replace(/```/g, '').trim();
             
             // v7.33: VALIDATE AI response before injection
@@ -2706,7 +2709,7 @@ ${extractedMethods.join('\n\n')}
       console.log(`[v10.4] Consolidation: ${preConsolidateLines} -> ${postConsolidateLines} lines (ratio: ${(postConsolidateLines / totalLines).toFixed(2)})`);
       
       // v8.4: ROBUST ITERATIVE VALIDATION LOOP with NUCLEAR FIX
-      const MAX_VALIDATION_ATTEMPTS = 8;  // Increased from 5
+      const MAX_VALIDATION_ATTEMPTS = 3;  // v10.5: Reduced from 8 to prevent 98% blocking
       let validationAttempt = 0;
       let astCheck: ASTAnalysisResult = { valid: false, error: '', line: 0, issues: [], methods: [], stats: { total_methods: 0, problematic_methods: 0 } };
       const fixedLines = new Set<number>();  // Track already fixed lines to avoid infinite loops
@@ -2841,8 +2844,8 @@ ${extractedMethods.join('\n\n')}
         console.log(`[v8.4] FINAL NUCLEAR FIX: Code still invalid at line ${astCheck.line}`);
         const lines = skeleton.split('\n');
         
-        // Try to fix up to 10 more lines aggressively
-        for (let nuclearAttempt = 0; nuclearAttempt < 10; nuclearAttempt++) {
+        // v10.5: Reduced from 10 to 3 to prevent blocking
+        for (let nuclearAttempt = 0; nuclearAttempt < 3; nuclearAttempt++) {
           astCheck = runASTAnalysis(skeleton);
           if (astCheck.valid) break;
           
