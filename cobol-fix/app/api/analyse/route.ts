@@ -2795,6 +2795,12 @@ ${extractedMethods.join('\n\n')}
       // Ensure file ends with single newline
       skeleton = skeleton.trimEnd() + '\n';
       
+      // v11.10: Apply post-processing to fix syntax issues
+      // This removes artifacts like "Generated from", "Edit", "Copy", "Share"
+      // and fixes orphan try/except blocks, empty block bodies, etc.
+      skeleton = postProcessPythonCode(skeleton, programId);
+      console.log('[v11.10] Post-processing applied to clean generated Python code');
+      
       // v10.2: CONTEXT ENRICHMENT - Replace magic numbers with constants, codes with enums
       if (contextConfig && (Object.keys(contextConfig.thresholds).length > 0 || Object.keys(contextConfig.enums).length > 0)) {
         console.log('[v10.2] Enriching code with context...');
