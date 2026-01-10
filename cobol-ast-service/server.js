@@ -7,6 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { cobolToPython, parseCobol } from './cobol-parser.js';
+import { postProcessPythonCode } from './postprocess.js';
 
 const app = express();
 app.use(cors());
@@ -42,9 +43,13 @@ app.post('/analyse', async (req, res) => {
 
     // Step 1: Deterministic AST parsing
     const startAst = Date.now();
-    const { pythonCode, ast, stats } = cobolToPython(cobolCode);
+    const { pythonCode: rawPythonCode, ast, stats } = cobolToPython(cobolCode);
     const astTime = Date.now() - startAst;
     console.log(`AST parsing: ${astTime}ms, ${stats.pythonLines} Python lines generated`);
+
+    // Step 1.5: Post-process Python code to fix syntax issues
+    const pythonCode = postProcessPythonCode(rawPythonCode);
+    console.log(`Post-processing applied to clean generated Python code`);
 
     // Step 2: Gemini enrichment (if available)
     let enrichment = getDefaultEnrichment(ast, stats);
