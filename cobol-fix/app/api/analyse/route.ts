@@ -1301,15 +1301,38 @@ elif self.ws_type == "D":
 else:
     self.p_error_process()
 
+EXAMPLE 5 (PERFORM VARYING - counter loop):
+COBOL:
+PERFORM VARYING WS-IDX FROM 1 BY 1 UNTIL WS-IDX > 10
+    DISPLAY WS-IDX
+    ADD 1 TO WS-TOTAL
+END-PERFORM
+Output:
+[PARA:5000-LOOP]
+for self.ws_idx in range(1, 11):
+    print(self.ws_idx)
+    self.ws_total += 1
+
+EXAMPLE 6 (PERFORM VARYING with step):
+COBOL:
+PERFORM VARYING WS-COUNT FROM 0 BY 5 UNTIL WS-COUNT >= 100
+    COMPUTE WS-RESULT = WS-COUNT * 2
+END-PERFORM
+Output:
+[PARA:6000-STEP-LOOP]
+for self.ws_count in range(0, 100, 5):
+    self.ws_result = self.ws_count * 2
+
 TRANSLATION RULES:
 1. MOVE A TO B → self.b = self.a
 2. ADD A TO B → self.b += self.a  
 3. PERFORM XXXX → self.p_xxxx()
 4. PERFORM UNTIL → while not condition:
-5. IF/ELSE/END-IF → if/else: (PRESERVE ALL NESTING)
-6. EVALUATE/WHEN → if/elif/else
-7. All vars: self.lowercase_name
-8. GENERATE UP TO 30 LINES PER METHOD
+5. PERFORM VARYING X FROM A BY B UNTIL X > C → for self.x in range(A, C+1, B):
+6. IF/ELSE/END-IF → if/else: (PRESERVE ALL NESTING)
+7. EVALUATE/WHEN → if/elif/else
+8. All vars: self.lowercase_name
+9. GENERATE UP TO 30 LINES PER METHOD
 
 FORBIDDEN (WILL BE REJECTED):
 - NO "def " (we add it ourselves)
