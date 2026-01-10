@@ -3145,6 +3145,9 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
         ? [{ title: 'Hardcoded credentials', severity: 'CRITICAL', cvss_score: 9.1, location: 'Source file', description: 'Sensitive data detected', vulnerable_code: 'PASSWORD variable', fix: 'Use environment variables' }]
         : [];
 
+      // v11.14: FINAL post-processing - ensure all syntax issues are fixed before response
+      skeleton = postProcessPythonCode(skeleton, programId);
+      
       return NextResponse.json({
         python_code: skeleton,
         unit_tests: unitTests,
