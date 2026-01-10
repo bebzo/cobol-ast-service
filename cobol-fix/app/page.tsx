@@ -34,16 +34,10 @@ import {
   Layers,
   Package,
   Link2,
-  FolderArchive,
-  GitBranch,
-  FileStack,
-  Sparkles,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode } from "@/lib/postprocess";
-import { generateTestOracle, TestOracleResult } from "@/lib/test_oracle";
-import { compareVersions, VersionComparison, RiskArea } from "@/lib/versioning";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
@@ -102,43 +96,6 @@ def check_syntax(code):
   } catch (e) {
     console.error('Pyodide validation error:', e);
     return { valid: true }; // Assume valid if Pyodide fails
-  }
-}
-
-// v9.4: Validate and auto-repair Python code via server-side AST
-async function validateAndRepairPython(code: string): Promise<{valid: boolean; code: string; repaired: boolean; repairs: string[]; error?: string}> {
-  try {
-    const response = await fetch('/api/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code })
-    });
-    
-    if (!response.ok) {
-      return { valid: false, code, repaired: false, repairs: [], error: 'Validation API error' };
-    }
-    
-    const result = await response.json();
-    
-    if (result.valid) {
-      return {
-        valid: true,
-        code: result.repaired_code || code,
-        repaired: result.repaired || false,
-        repairs: result.repairs || []
-      };
-    } else {
-      return {
-        valid: false,
-        code: result.repaired_code || code,
-        repaired: result.repaired || false,
-        repairs: result.repairs_attempted || [],
-        error: result.error
-      };
-    }
-  } catch (e) {
-    console.error('AST validation error:', e);
-    return { valid: false, code, repaired: false, repairs: [], error: String(e) };
   }
 }
 
@@ -660,21 +617,6 @@ export default function Home() {
   });
   const [metricsAnimated, setMetricsAnimated] = useState(false);
 
-  // v9.2: Batch Upload State
-  const [showBatchUpload, setShowBatchUpload] = useState(false);
-  const [batchProcessing, setBatchProcessing] = useState(false);
-  const [batchResults, setBatchResults] = useState<any>(null);
-  const [batchProgress, setBatchProgress] = useState(0);
-
-  // v9.2: Versioning State
-  const [showVersioning, setShowVersioning] = useState(false);
-  const [oldVersionCode, setOldVersionCode] = useState("");
-  const [versionComparison, setVersionComparison] = useState<VersionComparison | null>(null);
-
-  // v9.2: Test Oracle State
-  const [testOracleResult, setTestOracleResult] = useState<TestOracleResult | null>(null);
-  const [showTestOracle, setShowTestOracle] = useState(false);
-
   // No auto-load - user chooses to paste, upload, or load demo
 
   useEffect(() => {
@@ -1047,28 +989,16 @@ export default function Home() {
       
       // Quick fixes only (fast) - full correction available via button
       let finalPythonCode = parsed.python_code || '# No code generated';
+      let combinedCodeValid = false;
+      
+      // For multi-analysis, validate the combined code
+      // v7.38: COMPLETELY DISABLE external validation - it corrupts the code
+      combinedCodeValid = true;
+      let finalCodeValid = true;
+      console.log('[v7.38] External validation DISABLED - using pre-validated code');
+      
       // ALWAYS apply post-processing as final step to clean any remaining artifacts
       finalPythonCode = postProcessPythonCode(finalPythonCode, filename || 'PROGRAM');
-      
-      // v9.4: AST validation and auto-repair
-      let finalCodeValid = true;
-      try {
-        console.log('[v9.4] Running AST validation and auto-repair...');
-        const validationResult = await validateAndRepairPython(finalPythonCode);
-        finalCodeValid = validationResult.valid;
-        
-        if (validationResult.repaired && validationResult.code !== finalPythonCode) {
-          console.log('[v9.4] Code was auto-repaired:', validationResult.repairs);
-          finalPythonCode = validationResult.code;
-        }
-        
-        if (!validationResult.valid) {
-          console.warn('[v9.4] Code still has syntax errors after repair:', validationResult.error);
-        }
-      } catch (e) {
-        console.error('[v9.4] AST validation failed:', e);
-        // Continue with unvalidated code
-      }
       
       setPythonCode(finalPythonCode);
       // Create new object to trigger React state update - include code_valid!
@@ -1291,86 +1221,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
     a.click();
   };
 
-  // v9.2: Batch Upload Handler
-  const handleBatchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !file.name.endsWith('.zip')) {
-      setError('Please upload a ZIP file containing COBOL files');
-      return;
-    }
-
-    setBatchProcessing(true);
-    setBatchProgress(10);
-    setError('');
-
-    try {
-      const formData = new FormData();
-      formData.append('zipFile', file);
-
-      setBatchProgress(30);
-      const response = await fetch('/api/batch', {
-        method: 'POST',
-        body: formData
-      });
-
-      setBatchProgress(80);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Batch processing failed');
-      }
-
-      setBatchResults(data);
-      setBatchProgress(100);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Batch processing failed');
-    } finally {
-      setBatchProcessing(false);
-    }
-  };
-
-  // v9.2: Version Comparison Handler
-  const handleVersionCompare = () => {
-    if (!oldVersionCode.trim() || !cobolCode.trim()) {
-      setError('Please provide both old and new COBOL versions');
-      return;
-    }
-
-    const comparison = compareVersions(oldVersionCode, cobolCode, {
-      old: 'Previous Version',
-      new: 'Current Version'
-    });
-    setVersionComparison(comparison);
-  };
-
-  // v9.2: Generate Test Oracle
-  const handleGenerateTestOracle = () => {
-    if (!cobolCode.trim() || !pythonCode.trim()) {
-      setError('Please analyze COBOL code first');
-      return;
-    }
-
-    const oracle = generateTestOracle(cobolCode, pythonCode, filename.replace('.cbl', '').replace(/[^a-zA-Z0-9]/g, '') || 'Program');
-    setTestOracleResult(oracle);
-    setShowTestOracle(true);
-  };
-
-  // v9.2: Download Batch Results as ZIP
-  const downloadBatchResults = async () => {
-    if (!batchResults?.fullResults) return;
-
-    const content = batchResults.fullResults.map((r: any) => 
-      `# ${r.filename}\n\n## Summary\n${r.summary}\n\n## Python Code\n\`\`\`python\n${r.python_code}\n\`\`\`\n\n## Tests\n\`\`\`python\n${r.unit_tests || '# No tests'}\n\`\`\`\n\n---\n\n`
-    ).join('');
-
-    const blob = new Blob([content], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'codeswitch_batch_results.md';
-    a.click();
-  };
-
   const getRiskColor = (level: string) => {
     switch (level?.toUpperCase()) {
       case 'LOW': return 'text-green-400 bg-green-500/20';
@@ -1419,26 +1269,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
             </button>
 
-            {/* v9.2: Batch Upload Button */}
-            <button
-              onClick={() => setShowBatchUpload(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-lg transition"
-              title="Upload ZIP with multiple COBOL files"
-            >
-              <FolderArchive className="w-4 h-4" />
-              <span className="hidden sm:inline">Batch</span>
-            </button>
-
-            {/* v9.2: Versioning Button */}
-            <button
-              onClick={() => setShowVersioning(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 rounded-lg transition"
-              title="Compare COBOL versions"
-            >
-              <GitBranch className="w-4 h-4" />
-              <span className="hidden sm:inline">Versions</span>
-            </button>
-
             <a href="/docs" className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition hidden md:block">Docs</a>
             <a href="/login" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition">Login</a>
 
@@ -1472,10 +1302,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               <button
                 onClick={async () => {
                   try {
-                    const res = await fetch('/demo/ENTERPRISE-BANKING.cbl');
+                    const res = await fetch('/MEGA-ENTERPRISE.CBL');
                     const text = await res.text();
                     setCobolCode(text);
-                    setFilename('ENTERPRISE-BANKING.cbl');
+                    setFilename('MEGA-ENTERPRISE.CBL');
                     setAnalysis(null);
                   } catch (e) {
                     console.error(e);
@@ -1484,7 +1314,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 rounded-lg transition text-sm font-medium"
               >
                 <FileCode className="w-4 h-4" />
-                <span>Load Demo (1.8K LOC)</span>
+                <span>Load Demo (10K LOC)</span>
               </button>
               {filename && (
                 <div className="flex items-center gap-2 text-slate-400">
@@ -2519,14 +2349,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     <Loader2 className="w-3 h-3 animate-spin" /> Exécution...
                   </span>
                 )}
-                {/* v9.2: Golden Master Button */}
-                <button
-                  onClick={handleGenerateTestOracle}
-                  className="ml-auto px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg text-xs flex items-center gap-1.5 transition"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  Generate Golden Master
-                </button>
               </h3>
               {(() => {
                 const t = analysis.tests || analysis.unit_tests || '';
@@ -2588,7 +2410,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <p className="text-xs text-slate-400 mt-2">Possible solutions:</p>
                   <ul className="text-xs text-slate-400 mt-1 list-disc list-inside">
                     <li>Re-run the analysis (click "Refactor with Gemini")</li>
-                    <li>Reduce COBOL file size (&lt; 2000 lines recommended)</li>
+                    <li>Reduce COBOL file size (&lt; 5000 lines recommended)</li>
                   </ul>
                 </div>
               )}
@@ -2694,339 +2516,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
           )}
         </div>
       </main>
-
-      {/* v9.2: Batch Upload Modal */}
-      {showBatchUpload && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setShowBatchUpload(false)}></div>
-          <div className="relative w-full max-w-2xl bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
-            <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <FolderArchive className="w-6 h-6 text-white" />
-                <div>
-                  <h2 className="text-lg font-semibold text-white">Batch Processing v9.2</h2>
-                  <p className="text-xs text-white/70">Upload ZIP with multiple COBOL files</p>
-                </div>
-              </div>
-              <button onClick={() => setShowBatchUpload(false)} className="text-white/80 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              {!batchResults ? (
-                <>
-                  <div className="border-2 border-dashed border-slate-600 rounded-xl p-8 text-center hover:border-amber-500/50 transition">
-                    <input
-                      type="file"
-                      accept=".zip"
-                      onChange={handleBatchUpload}
-                      className="hidden"
-                      id="batch-upload"
-                      disabled={batchProcessing}
-                    />
-                    <label htmlFor="batch-upload" className="cursor-pointer">
-                      <FolderArchive className="w-12 h-12 mx-auto mb-3 text-amber-400" />
-                      <p className="text-white font-medium">Drop ZIP file here or click to upload</p>
-                      <p className="text-sm text-slate-400 mt-1">Supports .cbl, .cob, .cobol files</p>
-                    </label>
-                  </div>
-                  
-                  {batchProcessing && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-amber-400">Processing...</span>
-                        <span className="text-white">{batchProgress}%</span>
-                      </div>
-                      <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500"
-                          style={{ width: `${batchProgress}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-4 gap-3">
-                    <div className="bg-slate-700/50 rounded-lg p-3 text-center">
-                      <p className="text-2xl font-bold text-amber-400">{batchResults.summary.totalFiles}</p>
-                      <p className="text-xs text-slate-400">Total Files</p>
-                    </div>
-                    <div className="bg-slate-700/50 rounded-lg p-3 text-center">
-                      <p className="text-2xl font-bold text-green-400">{batchResults.summary.successfulConversions}</p>
-                      <p className="text-xs text-slate-400">Success</p>
-                    </div>
-                    <div className="bg-slate-700/50 rounded-lg p-3 text-center">
-                      <p className="text-2xl font-bold text-red-400">{batchResults.summary.failedConversions}</p>
-                      <p className="text-xs text-slate-400">Failed</p>
-                    </div>
-                    <div className="bg-slate-700/50 rounded-lg p-3 text-center">
-                      <p className="text-2xl font-bold text-blue-400">{batchResults.summary.totalPythonLines}</p>
-                      <p className="text-xs text-slate-400">Python Lines</p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-slate-900/50 rounded-lg p-4 max-h-64 overflow-y-auto space-y-2">
-                    {batchResults.results.map((r: any, i: number) => (
-                      <div key={i} className={`flex items-center justify-between p-2 rounded ${r.success ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                        <div className="flex items-center gap-2">
-                          {r.success ? <CheckCircle className="w-4 h-4 text-green-400" /> : <X className="w-4 h-4 text-red-400" />}
-                          <span className="text-sm font-mono text-white">{r.filename}</span>
-                        </div>
-                        <span className="text-xs text-slate-400">{r.python_lines} lines</span>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <button
-                      onClick={downloadBatchResults}
-                      className="flex-1 py-2 bg-amber-600 hover:bg-amber-700 rounded-lg flex items-center justify-center gap-2 transition"
-                    >
-                      <Download className="w-4 h-4" />
-                      Download All Results
-                    </button>
-                    <button
-                      onClick={() => { setBatchResults(null); setBatchProgress(0); }}
-                      className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
-                    >
-                      New Batch
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* v9.2: Versioning Modal */}
-      {showVersioning && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setShowVersioning(false)}></div>
-          <div className="relative w-full max-w-4xl bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden max-h-[90vh]">
-            <div className="bg-gradient-to-r from-cyan-600 to-teal-600 px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <GitBranch className="w-6 h-6 text-white" />
-                <div>
-                  <h2 className="text-lg font-semibold text-white">COBOL Version Comparison v9.2</h2>
-                  <p className="text-xs text-white/70">Track changes and migration impact</p>
-                </div>
-              </div>
-              <button onClick={() => setShowVersioning(false)} className="text-white/80 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-80px)]">
-              {!versionComparison ? (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm text-slate-400 mb-2">Previous Version</label>
-                      <textarea
-                        value={oldVersionCode}
-                        onChange={(e) => setOldVersionCode(e.target.value)}
-                        placeholder="Paste old COBOL version here..."
-                        className="w-full h-48 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-xs text-slate-300 resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm text-slate-400 mb-2">Current Version (from editor)</label>
-                      <div className="w-full h-48 bg-slate-900 border border-slate-700 rounded-lg p-3 font-mono text-xs text-slate-300 overflow-auto">
-                        {cobolCode ? cobolCode.substring(0, 2000) + (cobolCode.length > 2000 ? '...' : '') : 'No COBOL code in editor'}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <button
-                    onClick={handleVersionCompare}
-                    disabled={!oldVersionCode.trim() || !cobolCode.trim()}
-                    className="w-full py-3 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 disabled:opacity-50 rounded-lg flex items-center justify-center gap-2 transition"
-                  >
-                    <GitCompare className="w-5 h-5" />
-                    Compare Versions
-                  </button>
-                </>
-              ) : (
-                <div className="space-y-4">
-                  {/* Impact Summary */}
-                  <div className="grid grid-cols-5 gap-3">
-                    <div className={`rounded-lg p-3 text-center ${versionComparison.summary.impactLevel === 'LOW' ? 'bg-green-500/20' : versionComparison.summary.impactLevel === 'MEDIUM' ? 'bg-yellow-500/20' : versionComparison.summary.impactLevel === 'HIGH' ? 'bg-orange-500/20' : 'bg-red-500/20'}`}>
-                      <p className="text-lg font-bold text-white">{versionComparison.summary.impactLevel}</p>
-                      <p className="text-xs text-slate-400">Impact</p>
-                    </div>
-                    <div className="bg-green-500/20 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-green-400">+{versionComparison.summary.linesAdded}</p>
-                      <p className="text-xs text-slate-400">Added</p>
-                    </div>
-                    <div className="bg-red-500/20 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-red-400">-{versionComparison.summary.linesRemoved}</p>
-                      <p className="text-xs text-slate-400">Removed</p>
-                    </div>
-                    <div className="bg-yellow-500/20 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-yellow-400">{versionComparison.summary.linesModified}</p>
-                      <p className="text-xs text-slate-400">Modified</p>
-                    </div>
-                    <div className="bg-slate-700/50 rounded-lg p-3 text-center">
-                      <p className="text-lg font-bold text-white">{versionComparison.migrationImpact.effort}</p>
-                      <p className="text-xs text-slate-400">Effort</p>
-                    </div>
-                  </div>
-                  
-                  {/* Migration Impact */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-900/50 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-cyan-400 mb-2">Python Files Affected</h4>
-                      <div className="flex flex-wrap gap-1">
-                        {versionComparison.migrationImpact.pythonFilesAffected.map((f, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 text-xs rounded">{f}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="bg-slate-900/50 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-amber-400 mb-2">Risk Areas ({versionComparison.migrationImpact.riskAreas.length})</h4>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {versionComparison.migrationImpact.riskAreas.map((r: RiskArea, i: number) => (
-                          <div key={i} className={`p-2 rounded border-l-2 ${r.severity === 'CRITICAL' ? 'bg-red-500/10 border-red-500' : r.severity === 'HIGH' ? 'bg-orange-500/10 border-orange-500' : 'bg-yellow-500/10 border-yellow-500'}`}>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${r.severity === 'CRITICAL' ? 'bg-red-500 text-white' : r.severity === 'HIGH' ? 'bg-orange-500 text-white' : 'bg-yellow-500 text-black'}`}>{r.severity}</span>
-                              <span className="text-xs text-slate-300">{r.category}</span>
-                            </div>
-                            <p className="text-[10px] text-slate-400 mt-1">{r.description}</p>
-                          </div>
-                        ))}
-                        {versionComparison.migrationImpact.riskAreas.length === 0 && (
-                          <p className="text-xs text-green-400">No significant risks detected</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dependencies */}
-                  {versionComparison.dependencies && (
-                    <div className="bg-slate-900/50 rounded-lg p-4">
-                      <h4 className="text-sm font-semibold text-purple-400 mb-2">Dependencies Detected</h4>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div>
-                          <p className="text-slate-500">Copybooks</p>
-                          {versionComparison.dependencies.copybooks.length > 0 
-                            ? versionComparison.dependencies.copybooks.map((c, i) => <span key={i} className="block text-purple-300">{c}</span>)
-                            : <span className="text-slate-600">None</span>}
-                        </div>
-                        <div>
-                          <p className="text-slate-500">Called Programs</p>
-                          {versionComparison.dependencies.calledPrograms.length > 0 
-                            ? versionComparison.dependencies.calledPrograms.map((c, i) => <span key={i} className="block text-blue-300">{c}</span>)
-                            : <span className="text-slate-600">None</span>}
-                        </div>
-                        <div>
-                          <p className="text-slate-500">SQL Tables</p>
-                          {versionComparison.dependencies.sqlTables.length > 0 
-                            ? versionComparison.dependencies.sqlTables.map((c, i) => <span key={i} className="block text-green-300">{c}</span>)
-                            : <span className="text-slate-600">None</span>}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Diff View */}
-                  <div className="bg-slate-900 rounded-lg p-4 max-h-64 overflow-auto font-mono text-xs">
-                    {versionComparison.changes.slice(0, 50).map((change, i) => (
-                      <div key={i} className={`py-0.5 ${change.type === 'added' ? 'text-green-400 bg-green-500/10' : change.type === 'removed' ? 'text-red-400 bg-red-500/10' : 'text-yellow-400 bg-yellow-500/10'}`}>
-                        <span className="text-slate-500 mr-2">{change.lineNumber}</span>
-                        {change.type === 'added' && <span>+ {change.newLine}</span>}
-                        {change.type === 'removed' && <span>- {change.oldLine}</span>}
-                        {change.type === 'modified' && <span>~ {change.newLine}</span>}
-                      </div>
-                    ))}
-                    {versionComparison.changes.length > 50 && (
-                      <p className="text-slate-500 text-center py-2">... and {versionComparison.changes.length - 50} more changes</p>
-                    )}
-                  </div>
-                  
-                  <button
-                    onClick={() => setVersionComparison(null)}
-                    className="w-full py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
-                  >
-                    New Comparison
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* v9.2: Test Oracle Modal */}
-      {showTestOracle && testOracleResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setShowTestOracle(false)}></div>
-          <div className="relative w-full max-w-3xl bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden max-h-[90vh]">
-            <div className="bg-gradient-to-r from-emerald-600 to-green-600 px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Sparkles className="w-6 h-6 text-white" />
-                <div>
-                  <h2 className="text-lg font-semibold text-white">Test Oracle - Golden Master v9.2</h2>
-                  <p className="text-xs text-white/70">{testOracleResult.tests.length} tests generated</p>
-                </div>
-              </div>
-              <button onClick={() => setShowTestOracle(false)} className="text-white/80 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-80px)]">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-emerald-500/20 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-emerald-400">{testOracleResult.tests.length}</p>
-                  <p className="text-xs text-slate-400">Tests Generated</p>
-                </div>
-                <div className="bg-blue-500/20 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-blue-400">{testOracleResult.coverage.coveragePercent}%</p>
-                  <p className="text-xs text-slate-400">Coverage</p>
-                </div>
-                <div className="bg-purple-500/20 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400">{testOracleResult.coverage.paragraphsCovered}/{testOracleResult.coverage.totalParagraphs}</p>
-                  <p className="text-xs text-slate-400">Paragraphs</p>
-                </div>
-              </div>
-              
-              <div className="bg-slate-900 rounded-lg overflow-hidden">
-                <div className="bg-slate-700 px-4 py-2 flex justify-between items-center">
-                  <span className="text-sm font-medium">test_golden_master.py</span>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(testOracleResult.pytestCode)}
-                    className="text-xs text-slate-400 hover:text-white"
-                  >
-                    Copy
-                  </button>
-                </div>
-                <pre className="p-4 text-xs font-mono text-green-400 max-h-64 overflow-auto">
-                  {testOracleResult.pytestCode}
-                </pre>
-              </div>
-              
-              <button
-                onClick={() => {
-                  const blob = new Blob([testOracleResult.pytestCode], { type: 'text/plain' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'test_golden_master.py';
-                  a.click();
-                }}
-                className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center justify-center gap-2 transition"
-              >
-                <Download className="w-4 h-4" />
-                Download test_golden_master.py
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* History Sidebar */}
       {showHistory && (
@@ -3156,7 +2645,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
       {/* Footer */}
       <footer className="bg-slate-800/50 border-t border-slate-700 px-6 py-4">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between text-sm text-slate-400">
-          <span>CodeSwitch Pro v11.2 - Production Grade (Real Diff + Golden Master)</span>
+          <span>CodeSwitch Pro v7.40 - Gemini Voice Assistant AI</span>
           <span>Hackathon Gemini 3</span>
         </div>
       </footer>

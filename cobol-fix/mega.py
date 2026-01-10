@@ -267,7 +267,7 @@ class WsWorkAreas:
 
 
 report_line = ""
-customer_record = CustomerRecord("", "", "", "", "", "", "", "", "", "", "", "", "", 0, "", "", 0, "", "", 0, 0, 0, 0, 0)
+customer_record = CustomerRecord("", "", "", "", "", "", "", "", "", "", "", "", "", 0, "", "", 0, "", "", 0, 0, 0, 0)
 account_record = AccountRecord("", "", "", 0, 0, 0, 0, 0, 0, "", 0, 0, 0)
 loan_record = LoanRecord("", "", "", 0, 0, 0, 0, 0, 0, 0, 0, "", 0, 0)
 insurance_record = InsuranceRecord("", "", "", 0, 0, 0, 0, 0, "", 0, 0)

@@ -30,31 +30,6 @@ import {
   ConfidenceSummary
 } from '@/lib/confidence';
 
-// v10.0: CONTEXT SYSTEM - Enrich translations with business context
-import {
-  parseContext,
-  generateContextHeader,
-  generatePythonEnums,
-  generatePythonThresholds,
-  generatePythonDataclasses,
-  generateSubprogramStubs,
-  enrichCodeWithContext,
-  createDefaultContext,
-  ContextConfig
-} from '@/lib/context_parser';
-
-import {
-  parseCopybook,
-  generateDataclass,
-  generateCopybookModule,
-  extractCopyStatements,
-  inferCopybookFromDataDivision,
-  Copybook
-} from '@/lib/copybook_parser';
-
-// v11.10: Post-processing for generated Python code
-import { postProcessPythonCode } from '@/lib/postprocess';
-
 // Validate that input is actually COBOL code
 function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
   if (!code || code.trim().length < 50) {
@@ -137,14 +112,6 @@ async function callGroq(prompt: string): Promise<string> {
   return result.response.text();
 }
 
-// v10.5: Timeout wrapper for non-critical AI calls (tests, security)
-async function callGroqWithTimeout(prompt: string, timeoutMs: number = 15000): Promise<string> {
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error(`AI call timed out after ${timeoutMs}ms`)), timeoutMs);
-  });
-  return Promise.race([callGroq(prompt), timeoutPromise]);
-}
-
 // v7.16: AST Validation via Python subprocess
 import { execSync } from 'child_process';
 
@@ -224,15 +191,13 @@ function extractPerformTargets(
 }
 
 // v8.1: RETRY PROMPT for failed translations
-// v10.2: STRICT OUTPUT - no markdown, pure Python statements only
-const RETRY_PROMPT = `Generate Python code for this COBOL paragraph.
+const RETRY_PROMPT = `You MUST generate Python code for this COBOL paragraph. No excuses.
 
-OUTPUT RULES (STRICT):
-1. Output ONLY Python statements (self.xxx = ...) - nothing else
-2. NO "def", NO "class", NO docstrings, NO comments
-3. NO markdown, NO headers, NO explanations
-4. Start immediately with Python code, end with Python code
-5. Translate EVERY COBOL statement to Python
+CRITICAL RULES:
+1. Output ONLY Python statements (self.xxx = ...)
+2. NO "def", NO "class", NO docstrings
+3. Translate EVERY COBOL statement to Python
+4. If unsure, make reasonable assumptions
 
 COBOL TO TRANSLATE:
 `;
@@ -440,118 +405,6 @@ function mergePatternAndAI(
   };
 }
 
-// v10.4: CONSOLIDATION - Remove duplicate classes/functions from chunked output
-function consolidatePythonCode(code: string): string {
-  const lines = code.split('\n');
-  const seenClasses = new Set<string>();
-  const seenFunctions = new Set<string>();
-  const seenDataclasses = new Set<string>();
-  const consolidatedLines: string[] = [];
-  
-  let skipUntilNextDef = false;
-  let currentIndent = 0;
-  let skipClass = '';
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    
-    // Detect @dataclass
-    if (trimmed === '@dataclass') {
-      const nextLine = lines[i + 1]?.trim() || '';
-      const classMatch = nextLine.match(/^class\s+(\w+)/);
-      if (classMatch) {
-        const className = classMatch[1];
-        // Remove chunk suffix (e.g., CustomerMasterC14 -> CustomerMaster)
-        const baseClassName = className.replace(/_?C\d+$/, '');
-        if (seenDataclasses.has(baseClassName)) {
-          // Skip this entire dataclass
-          skipUntilNextDef = true;
-          currentIndent = line.search(/\S/);
-          skipClass = baseClassName;
-          continue;
-        }
-        seenDataclasses.add(baseClassName);
-      }
-    }
-    
-    // Detect class definition
-    const classMatch = trimmed.match(/^class\s+(\w+)/);
-    if (classMatch && !trimmed.includes('@')) {
-      const className = classMatch[1];
-      const baseClassName = className.replace(/_?C\d+$/, '');
-      if (seenClasses.has(baseClassName)) {
-        skipUntilNextDef = true;
-        currentIndent = line.search(/\S/);
-        skipClass = baseClassName;
-        continue;
-      }
-      seenClasses.add(baseClassName);
-      // Also rename the class to remove suffix
-      if (className !== baseClassName) {
-        consolidatedLines.push(line.replace(className, baseClassName));
-        continue;
-      }
-    }
-    
-    // Detect function definition
-    const funcMatch = trimmed.match(/^def\s+(\w+)\s*\(/);
-    if (funcMatch) {
-      const funcName = funcMatch[1];
-      // Remove chunk suffix (e.g., process_customer_C14 -> process_customer)
-      const baseFuncName = funcName.replace(/_C\d+$/, '');
-      
-      if (skipUntilNextDef) {
-        // Check if we're still inside the skipped class
-        const indent = line.search(/\S/);
-        if (indent <= currentIndent && indent >= 0) {
-          skipUntilNextDef = false;
-        }
-      }
-      
-      if (!skipUntilNextDef) {
-        if (seenFunctions.has(baseFuncName)) {
-          // Skip duplicate function
-          skipUntilNextDef = true;
-          currentIndent = line.search(/\S/);
-          continue;
-        }
-        seenFunctions.add(baseFuncName);
-        // Rename function to remove suffix
-        if (funcName !== baseFuncName) {
-          consolidatedLines.push(line.replace(funcName, baseFuncName));
-          continue;
-        }
-      }
-    }
-    
-    // Skip lines if we're in a duplicate block
-    if (skipUntilNextDef) {
-      const indent = line.search(/\S/);
-      // Check if we've exited the block (lower or equal indentation with content)
-      if (indent >= 0 && indent <= currentIndent && trimmed && !trimmed.startsWith('#')) {
-        // Check if this is a new class/def at same level
-        if (trimmed.startsWith('class ') || trimmed.startsWith('def ') || trimmed.startsWith('@')) {
-          skipUntilNextDef = false;
-        }
-      }
-      if (skipUntilNextDef) continue;
-    }
-    
-    // Remove chunk suffix from function calls (e.g., self.process_C14() -> self.process())
-    let cleanedLine = line.replace(/(\w+)_C\d+\(/g, '$1(');
-    // Remove chunk suffix from class references
-    cleanedLine = cleanedLine.replace(/(\w+)C\d+(?=[^a-zA-Z0-9]|$)/g, '$1');
-    
-    consolidatedLines.push(cleanedLine);
-  }
-  
-  console.log(`[v10.4-CONSOLIDATE] Removed duplicates: ${seenClasses.size} unique classes, ${seenFunctions.size} unique functions`);
-  console.log(`[v10.4-CONSOLIDATE] Lines: ${lines.length} -> ${consolidatedLines.length} (${Math.round((1 - consolidatedLines.length/lines.length) * 100)}% reduction)`);
-  
-  return consolidatedLines.join('\n');
-}
-
 // v8.2: Global set of Python keywords for sanitization
 const PYTHON_KEYWORDS = new Set(['def', 'class', 'return', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'finally', 'with', 'as', 'import', 'from', 'global', 'nonlocal', 'lambda', 'yield', 'raise', 'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'async', 'await', 'assert', 'del']);
 
@@ -568,60 +421,8 @@ function sanitizeVarName(varName: string): string {
 // v8.1: Also convert COBOL intrinsic functions to Python
 // v8.2: Also fix Python keyword variable names (continue, pass, etc.)
 // v8.3: COMPREHENSIVE AUTO-FIX for common syntax errors
-// v10.2: STRIP LLM ARTIFACTS - remove markdown headers, text explanations, trailing garbage
 function sanitizePythonCode(code: string): string {
   let sanitized = code;
-  
-  // === v10.2: STRIP LLM ARTIFACTS FIRST ===
-  
-  // 1. Remove lines that are pure text artifacts (not valid Python)
-  const artifactPatterns = [
-    /^COBOL\s+(Copybook|Data|Program|Module|Structure)/i,
-    /^(Here|Below|The|This)\s+(is|are)\s+(the|a|an)/i,
-    /^(Python|Converted|Generated|Translated)\s+(code|output|result)/i,
-    /^#{2,}\s*\w/,           // Markdown headers (##, ###, etc.)
-    /^={3,}\s*\w/,           // === SECTION === style headers
-    /^-{3,}\s*$/,            // --- separators
-    /^```/,                  // Code fence markers
-    /^\[PARA:/,              // Our paragraph delimiters (should be removed from final output)
-    /^Note:/i,               // "Note: ..." explanations
-    /^Output:/i,             // "Output:" labels
-  ];
-  
-  // 2. Remove trailing garbage (repeated parentheses, brackets)
-  sanitized = sanitized.replace(/\){4,}/g, ')');  // ))))) -> )
-  sanitized = sanitized.replace(/\]{4,}/g, ']');  // ]]]]] -> ]
-  sanitized = sanitized.replace(/\}{4,}/g, '}');  // }}}}} -> }
-  
-  // 3. Filter out artifact lines
-  const lines = sanitized.split('\n');
-  sanitized = lines.filter(line => {
-    const trimmed = line.trim();
-    // Keep empty lines and valid Python
-    if (!trimmed) return true;
-    // Remove lines matching artifact patterns
-    for (const pattern of artifactPatterns) {
-      if (pattern.test(trimmed)) return false;
-    }
-    return true;
-  }).join('\n');
-  
-  // === v10.3: FIX COBOL NAMING CONVENTIONS ===
-  
-  // Convert COBOL-style names with hyphens to Python underscores (in variable/attribute names only)
-  // self._file_CUSTOMER-FILE -> self._file_customer_file
-  // self.ws-amount -> self.ws_amount
-  sanitized = sanitized.replace(/self\.([a-z_]*[A-Z0-9-]+[a-z_A-Z0-9-]*)/g, (match, name) => {
-    // Convert hyphens to underscores and lowercase
-    const fixed = name.replace(/-/g, '_').toLowerCase();
-    return `self.${fixed}`;
-  });
-  
-  // Also fix in string literals that reference file paths with self.
-  sanitized = sanitized.replace(/"self\.([a-z_-]+)"/gi, (match, name) => {
-    const fixed = name.replace(/-/g, '_').toLowerCase();
-    return `"${fixed}"`;
-  });
   
   // === v8.3: FIX CRITICAL SYNTAX ERRORS ===
   
@@ -643,26 +444,13 @@ function sanitizePythonCode(code: string): string {
   sanitized = sanitized.replace(/^(\s+)(self\.[a-z_][a-z0-9_]*)(\s*)$/gim, '$1_ = $2  # expression$3');
   
   // 4. Fix uppercase variable names (COBOL style): WS_STMT_IDX -> self.ws_stmt_idx
-  // ONLY on lines that look like Python code (start with self. or =), not in comments/strings
-  const codeLines = sanitized.split('\n');
-  sanitized = codeLines.map(line => {
-    const trimmed = line.trim();
-    // Skip comments, docstrings, and string literals
-    if (trimmed.startsWith('#') || trimmed.startsWith('"""') || trimmed.startsWith("'''")) {
-      return line;
+  sanitized = sanitized.replace(/\b([A-Z][A-Z0-9_]{2,})\b(?!\s*=)/g, (match) => {
+    // Convert to self.lowercase if it looks like a COBOL variable
+    if (/^[A-Z][A-Z0-9_]+$/.test(match) && !['TRUE', 'FALSE', 'NONE', 'AND', 'OR', 'NOT', 'IN', 'IS'].includes(match)) {
+      return `self.${match.toLowerCase()}`;
     }
-    // Only convert uppercase variables in actual code (lines with = or self.)
-    if (trimmed.includes('=') || trimmed.includes('self.')) {
-      return line.replace(/\b([A-Z][A-Z0-9_]{2,})\b(?!\s*=)/g, (match) => {
-        // Skip common Python/type names
-        if (['TRUE', 'FALSE', 'NONE', 'AND', 'OR', 'NOT', 'IN', 'IS', 'ANY', 'LIST', 'DICT', 'OPTIONAL', 'DECIMAL', 'STRING', 'INT', 'FLOAT', 'BOOL', 'TYPE', 'CLASS', 'DEF', 'RETURN', 'IMPORT', 'FROM', 'EXCEPTION', 'ERROR', 'THRESHOLDS'].includes(match)) {
-          return match;
-        }
-        return `self.${match.toLowerCase()}`;
-      });
-    }
-    return line;
-  }).join('\n');
+    return match;
+  });
   
   // 5. Fix array access with uppercase index: stmt_status[WS_STMT_IDX] -> stmt_status[self.ws_stmt_idx]
   sanitized = sanitized.replace(/\[([A-Z][A-Z0-9_]+)\]/g, (match, varName) => {
@@ -746,7 +534,7 @@ function runASTAnalysis(code: string): ASTAnalysisResult {
     
     const result = execSync(
       `python3 ${validatorPath} ${tempPath}`,
-      { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'pipe'] }  // v10.5: 5s timeout
+      { encoding: 'utf8', timeout: 10000, stdio: ['pipe', 'pipe', 'pipe'] }
     );
     return JSON.parse(result);
   } catch (e: any) {
@@ -773,18 +561,9 @@ function findMethodAtLine(code: string, targetLine: number): string | null {
 }
 
 // Prompt for translating COBOL to Python - COMMERCIAL GRADE (PRODUCTION-READY)
-// v10.2: STRICT OUTPUT FORMAT - No markdown, no headers, pure Python only
-const CHUNK_PROMPT = `You are a COBOL-to-Python translator. Output ONLY executable Python code.
+const CHUNK_PROMPT = `Convert COBOL to PRODUCTION Python. Output ONLY valid Python code.
 
-=== CRITICAL OUTPUT RULES (VIOLATION = FAILURE) ===
-1. Your ENTIRE response must be valid Python code - nothing else
-2. NO markdown formatting (no backticks, no headers like "###" or "===" or "---")
-3. NO explanations, NO comments outside code, NO section titles
-4. NO text like "Here is the code" or "COBOL Copybook Data Structures"
-5. Start DIRECTLY with Python imports or class definitions
-6. End with valid Python code - no trailing text or explanations
-
-RULE 1: EVERY CLASS NEEDS __init__
+########## RULE 1: EVERY CLASS NEEDS __init__ ##########
 BEFORE writing any class, write __init__ FIRST:
 class AnyClassName:
     def __init__(self):
@@ -792,17 +571,17 @@ class AnyClassName:
         self.data: Dict[str, Any] = {}
         self.count: int = 0
 
-RULE 2: NO PASS IN BUSINESS METHODS
+########## RULE 2: NO PASS IN BUSINESS METHODS ##########
 WRONG: def process(self): pass
 RIGHT: def process(self): self.logger.info("Processing"); self.count += 1; return self.data
 
-RULE 3: TRANSLATE COBOL LOGIC
-- MOVE A TO B -> self.b = self.a
-- ADD A TO B -> self.b += self.a  
-- IF condition -> if condition:
-- PERFORM X -> self.x()
+########## RULE 3: TRANSLATE COBOL LOGIC ##########
+- MOVE A TO B → self.b = self.a
+- ADD A TO B → self.b += self.a  
+- IF condition → if condition:
+- PERFORM X → self.x()
 
-CLASS TEMPLATE (copy this structure):
+########## CLASS TEMPLATE (COPY THIS) ##########
 class ProcessorName:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -819,7 +598,7 @@ class ProcessorName:
         self.logger.debug(f"Handling: {record}")
         # Real logic here
 
-COBOL TRANSLATION RULES:
+########## COBOL TRANSLATION RULES ##########
    - COBOL MOVE A TO B → self.b = self.a
    - COBOL ADD A TO B → self.b += self.a
    - COBOL COMPUTE → Python arithmetic with Decimal
@@ -840,7 +619,8 @@ COBOL TRANSLATION RULES:
        self.status: str = "ACTIVE"
        self.records: List[Record] = []
 
-# REQUIRED PATTERNS (copy this structure, no backticks in output):
+=== REQUIRED PATTERNS ===
+\`\`\`python
 class BankingError(Exception):
     """Base exception for banking operations."""
     pass
@@ -881,8 +661,10 @@ class AccountManager:
         interest = balance * rate / Decimal("100")
         self.accounts[account_id] = balance + interest
         return interest
+\`\`\`
 
-# FILE I/O PATTERN:
+=== FILE I/O PATTERN (REAL IMPLEMENTATION) ===
+\`\`\`python
 def read_records(self, filepath: str) -> List[Record]:
     """Read records from file - REAL implementation."""
     records = []
@@ -898,16 +680,16 @@ def read_records(self, filepath: str) -> List[Record]:
         self.logger.error(f"Error reading {filepath}: {e}")
         raise
     return records
+\`\`\`
 
-# SYNTAX RULES:
+=== SYNTAX RULES ===
 1. EVERY string closed on SAME line - use \\n for newlines
 2. EVERY parenthesis closed on SAME line
 3. Docstrings: """Single line.""" only
 4. @dataclass on line before class
 5. Use Decimal for ALL financial values
 
-Convert this COBOL (implement REAL logic, no pass/TODO).
-REMEMBER: Output ONLY Python code. No markdown. No headers. No explanations.
+Convert this COBOL (implement REAL logic, no pass/TODO):
 `;
 
 // Prompt for generating analysis metadata
@@ -945,7 +727,7 @@ function generateIssues(ast: any, cobolCode: string): any[] {
   const lower = cobolCode.toLowerCase();
   const lines = cobolCode.split('\n');
   
-  if (ast.metrics.totalLines > 2000) issues.push({
+  if (ast.metrics.totalLines > 5000) issues.push({
     title: `Large codebase: ${ast.metrics.totalLines} lines`,
     severity: 'HIGH',
     description: 'Incremental testing strategy required',
@@ -1116,53 +898,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   
   try {
-    const { cobolCode, filename, patternOnly = false, contextYaml = '', copybooks = [] } = await request.json();
+    const { cobolCode, filename, patternOnly = false } = await request.json();
     
     // v10.1: Pattern-only mode flag (reduces AI calls to zero)
     let usePatternOnly = patternOnly === true || patternOnly === 'true';
-    
-    // v10.2: Parse context configuration if provided
-    let contextConfig: ContextConfig = createDefaultContext();
-    let copybookStructures: Copybook[] = [];
-    
-    if (contextYaml && contextYaml.trim().length > 0) {
-      try {
-        contextConfig = parseContext(contextYaml);
-        console.log(`[v10.2] Loaded context: ${Object.keys(contextConfig.enums).length} enums, ${Object.keys(contextConfig.thresholds).length} thresholds`);
-      } catch (e) {
-        console.log(`[v10.2] Context parse error, using defaults: ${e}`);
-      }
-    }
-    
-    // v10.2: Parse copybooks if provided
-    if (copybooks && Array.isArray(copybooks)) {
-      for (const cb of copybooks) {
-        if (cb.content && cb.filename) {
-          try {
-            const parsed = parseCopybook(cb.content, cb.filename);
-            copybookStructures.push(parsed);
-            console.log(`[v10.2] Parsed copybook ${cb.filename}: ${parsed.fields.length} fields, ${parsed.totalLength} bytes`);
-          } catch (e) {
-            console.log(`[v10.2] Copybook parse error for ${cb.filename}: ${e}`);
-          }
-        }
-      }
-    }
-    
+
     if (!cobolCode) {
       return NextResponse.json(
         { error: 'cobolCode is required' },
         { status: 400, headers: corsHeaders }
       );
-    }
-
-    // v10.2: Also infer copybook from DATA DIVISION if no copybooks provided
-    if (copybookStructures.length === 0) {
-      const inferred = inferCopybookFromDataDivision(cobolCode);
-      if (inferred.fields.length > 0) {
-        copybookStructures.push(inferred);
-        console.log(`[v10.2] Inferred copybook from DATA DIVISION: ${inferred.fields.length} fields`);
-      }
     }
 
     // Validate that input is actually COBOL
@@ -1206,58 +951,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
       
       console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
-
-      // v10.6: FILTER non-executable COBOL sections (metadata, declarations)
-      const NON_EXECUTABLE_SECTIONS = [
-        'FILE-CONTROL', 'DATE-COMPILED', 'DATE-WRITTEN', 'AUTHOR', 'INSTALLATION',
-        'SECURITY', 'REMARKS', 'OBJECT-COMPUTER', 'SOURCE-COMPUTER', 'SPECIAL-NAMES',
-        'INPUT-OUTPUT', 'I-O-CONTROL', 'FILE-SECTION', 'WORKING-STORAGE', 'LINKAGE',
-        'CONFIGURATION', 'ENVIRONMENT', 'DATA', 'IDENTIFICATION', 'PROGRAM-ID'
-      ];
-      
-      const executableParagraphs = allParagraphs.filter(p => {
-        const upperName = p.name.toUpperCase();
-        if (NON_EXECUTABLE_SECTIONS.some(s => upperName.includes(s))) {
-          console.log(`[v10.6] Skipping metadata section: ${p.name}`);
-          return false;
-        }
-        if (upperName.endsWith('SECTION') || upperName.endsWith('DIVISION')) {
-          console.log(`[v10.6] Skipping division/section: ${p.name}`);
-          return false;
-        }
-        return true;
-      });
-      
-      console.log(`[v10.6] Executable paragraphs: ${executableParagraphs.length}/${allParagraphs.length}`);
       
       // v7.0: Translate ALL paragraphs using batch+parallel approach
       // Using Groq API (Llama 3.3 70B)
       
       // v7.27: AI generates ONLY method body (statements), not signature
       // v8.0: ENHANCED BATCH PROMPT with structure awareness
-// v10.2: STRICT OUTPUT - use [PARA:name] delimiters instead of markdown headers
 const BATCH_PROMPT = `Convert COBOL paragraphs to Python STATEMENTS ONLY.
 
-OUTPUT RULES (STRICT - VIOLATION = REJECTION):
-1. Return ONLY Python statements - no markdown, no headers, no explanations
-2. NO "def", NO "class", NO docstrings, NO comments outside code
-3. Use [PARA:name] as delimiter (NOT ###, NOT ===, NOT ---)
-4. Start each paragraph with [PARA:paragraph_name] on its own line
-5. Then Python statements only
+CRITICAL: Return ONLY the method body lines. NO "def", NO "class", NO docstrings.
 
 For EACH paragraph output:
-[PARA:PARAGRAPH_NAME]
+### PARAGRAPH_NAME
 self.statement1
 self.statement2
 
-EXAMPLE 1 (Simple):
+=== EXAMPLE 1 (Simple) ===
 COBOL: MOVE AMOUNT TO WS-BALANCE. ADD 1 TO WS-COUNT.
 Output:
-[PARA:1000-PROCESS]
+### 1000-PROCESS
 self.ws_balance = self.amount
 self.ws_count += 1
 
-EXAMPLE 2 (Nested IF):
+=== EXAMPLE 2 (Nested IF - TRANSLATE FULLY) ===
 COBOL:
 IF WS-AMOUNT > 1000
    IF WS-STATUS = "A"
@@ -1269,7 +985,7 @@ ELSE
    MOVE "REJECTED" TO WS-RESULT
 END-IF
 Output:
-[PARA:2000-VALIDATE]
+### 2000-VALIDATE
 if self.ws_amount > 1000:
     if self.ws_status == "A":
         self.ws_result = "APPROVED"
@@ -1278,14 +994,15 @@ if self.ws_amount > 1000:
 else:
     self.ws_result = "REJECTED"
 
-EXAMPLE 3 (PERFORM loop):
-COBOL: PERFORM 3000-PROCESS UNTIL WS-EOF = "Y"
+=== EXAMPLE 3 (PERFORM with loop) ===
+COBOL:
+PERFORM 3000-PROCESS UNTIL WS-EOF = "Y"
 Output:
-[PARA:2500-MAIN-LOOP]
+### 2500-MAIN-LOOP
 while self.ws_eof != "Y":
     self.p_3000_process()
 
-EXAMPLE 4 (EVALUATE):
+=== EXAMPLE 4 (EVALUATE/WHEN) ===
 COBOL:
 EVALUATE WS-TYPE
    WHEN "C" PERFORM CREDIT-PROCESS
@@ -1293,7 +1010,7 @@ EVALUATE WS-TYPE
    WHEN OTHER PERFORM ERROR-PROCESS
 END-EVALUATE
 Output:
-[PARA:4000-ROUTE]
+### 4000-ROUTE
 if self.ws_type == "C":
     self.p_credit_process()
 elif self.ws_type == "D":
@@ -1301,7 +1018,7 @@ elif self.ws_type == "D":
 else:
     self.p_error_process()
 
-EXAMPLE 5 (PERFORM VARYING - counter loop):
+=== EXAMPLE 5 (PERFORM VARYING - counter loop) ===
 COBOL:
 PERFORM VARYING WS-IDX FROM 1 BY 1 UNTIL WS-IDX > 10
     DISPLAY WS-IDX
@@ -1313,17 +1030,7 @@ for self.ws_idx in range(1, 11):
     print(self.ws_idx)
     self.ws_total += 1
 
-EXAMPLE 6 (PERFORM VARYING with step):
-COBOL:
-PERFORM VARYING WS-COUNT FROM 0 BY 5 UNTIL WS-COUNT >= 100
-    COMPUTE WS-RESULT = WS-COUNT * 2
-END-PERFORM
-Output:
-[PARA:6000-STEP-LOOP]
-for self.ws_count in range(0, 100, 5):
-    self.ws_result = self.ws_count * 2
-
-TRANSLATION RULES:
+=== TRANSLATION RULES ===
 1. MOVE A TO B → self.b = self.a
 2. ADD A TO B → self.b += self.a  
 3. PERFORM XXXX → self.p_xxxx()
@@ -1334,13 +1041,12 @@ TRANSLATION RULES:
 8. All vars: self.lowercase_name
 9. GENERATE UP TO 30 LINES PER METHOD
 
-FORBIDDEN (WILL BE REJECTED):
+=== FORBIDDEN (WILL BE REJECTED) ===
 - NO "def " (we add it ourselves)
 - NO "class " 
 - NO """ docstrings
-- NO TODO, NO pass
-- NO markdown (###, ===, ---, backticks)
-- NO text explanations
+- NO TODO
+- NO pass
 
 COBOL PARAGRAPHS:
 `;
@@ -1349,11 +1055,11 @@ COBOL PARAGRAPHS:
       // v7.4: Quality first - small batches (20) but high parallelism (20)
       const BATCH_SIZE = 20;  // Keep small for quality
       const PARALLEL_BATCHES = 20;  // Max parallel for speed
-      const batches: typeof executableParagraphs[] = [];
-      for (let i = 0; i < executableParagraphs.length; i += BATCH_SIZE) {
-        batches.push(executableParagraphs.slice(i, i + BATCH_SIZE));
+      const batches: typeof allParagraphs[] = [];
+      for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
+        batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v10.6] ${executableParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v7.21] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -1492,10 +1198,9 @@ COBOL PARAGRAPHS:
               throw aiError;  // Re-throw non-rate-limit errors
             }
             
-            // Parse response: split by [PARA:name] delimiter (v10.2 format)
+            // Parse response: split by ### PARAGRAPH_NAME
             const results: { name: string; logic: string }[] = [];
-            // Support both old ### format and new [PARA:] format for compatibility
-            const sections = response.split(/\[PARA:|###\s*/).filter(s => s.trim());
+            const sections = response.split(/###\s*/).filter(s => s.trim());
             
             for (const section of sections) {
               const lines = section.split('\n');
@@ -1546,9 +1251,37 @@ COBOL PARAGRAPHS:
               !results.find(r => r.name.toUpperCase() === p.name.toUpperCase() && r.logic.length > 10)
             );
             
-            // v10.5: REMOVED retry loop - use fallback instead to prevent blocking
-            if (failedParagraphs.length > 0) {
-              console.log(`[v10.5] ${failedParagraphs.length} paragraphs use fallback (no retry)`);
+            if (failedParagraphs.length > 0 && failedParagraphs.length <= 5) {
+              console.log(`[v8.1-RETRY] Retrying ${failedParagraphs.length} failed paragraphs`);
+              
+              for (const p of failedParagraphs) {
+                try {
+                  const cobol = codeLines.slice(p.lineStart - 1, Math.min(p.lineEnd, p.lineStart + 50)).join('\n');
+                  const performContext = extractPerformTargets(cobol, allParagraphs, codeLines, 2);
+                  const fullContext = performContext ? `${cobol}\n\n${performContext}` : cobol;
+                  
+                  const retryResponse = await callGroq(RETRY_PROMPT + fullContext);
+                  const retryCode = retryResponse
+                    .replace(/```python\s*/gi, '').replace(/```/g, '')
+                    .split('\n')
+                    .map(l => l.trim())
+                    .filter(l => /^(self\.|if |elif |else:|for |while |return )/.test(l))
+                    .slice(0, 20)
+                    .join('\n');
+                  
+                  if (retryCode.length > 10) {
+                    console.log(`[v8.1-RETRY] Success for ${p.name}: ${retryCode.split('\n').length} lines`);
+                    const existing = results.find(r => r.name.toUpperCase() === p.name.toUpperCase());
+                    if (existing) {
+                      existing.logic = retryCode;
+                    } else {
+                      results.push({ name: p.name, logic: retryCode });
+                    }
+                  }
+                } catch (e) {
+                  console.log(`[v8.1-RETRY] Failed for ${p.name}`);
+                }
+              }
             }
             
             // Fill in any still-missing paragraphs
@@ -2103,26 +1836,17 @@ ${initVars.join('\n')}
       // Direct assembly - no extraction from corrupted skeleton
       let skeleton = header + '\n\n' + cleanMethods.join('\n\n');
       
-      // v7.31: BULLDOZER APPROACH - Extract business methods, discard framework cruft
-      console.log('[v7.31] Bulldozer extraction - keeping business methods');
+      // v7.31: BULLDOZER APPROACH - Extract ONLY def p_xxx methods, discard everything else
+      console.log('[v7.31] Bulldozer extraction - keeping only def p_xxx methods');
       
-      // Split by "def " and extract business methods (any name that's not __init__, __str__, etc.)
+      // Split by "def " and extract only business methods (p_xxx)
       const allBlocks = skeleton.split(/(?=\n    def )/);
       const businessMethods: string[] = [];
       
-      // Methods to exclude (framework/utility methods)
-      const excludedMethods = new Set(['__init__', '__str__', '__repr__', 'read_file', 'write_file', 'get_next_account', 'reset_account_iterator', 'handle_error']);
-      
       for (const block of allBlocks) {
-        // Match any method that's a business method (starts with letter, not in excluded list)
-        const match = block.match(/^\s*def ([a-z][a-z0-9_]*)\(self\):/m);
+        // Only keep blocks that start with "def p_" (business methods)
+        const match = block.match(/^\s*def (p_[a-z0-9_]+)\(self\):/m);
         if (match) {
-          const methodName = match[1];
-          
-          // Skip excluded/framework methods
-          if (excludedMethods.has(methodName)) continue;
-          if (methodName.startsWith('_')) continue;  // Skip private methods
-          
           // Extract just this method - find next def or end
           const methodLines = block.split('\n');
           const cleanMethod: string[] = [];
@@ -2137,8 +1861,8 @@ ${initVars.join('\n')}
             if (/""".*TODO/.test(trimmed)) continue;  // Skip TODO docstrings
             if (/FileAdapter/.test(trimmed)) continue;  // Skip FileAdapter references
             
-            // Start capturing at any def xxx(self): that's a business method
-            if (/^def [a-z][a-z0-9_]*\(self\):$/.test(trimmed)) {
+            // Start capturing at def p_xxx
+            if (/^def p_[a-z0-9_]+\(self\):$/.test(trimmed)) {
               inMethod = true;
             }
             
@@ -2253,9 +1977,98 @@ ${initVars.join('\n')}
       }
       console.log('[v7.32] Removed rogue __init__ from utility classes');
       
-      // v10.5: SIMPLIFIED - Single AST check, no AI fix loops (prevents blocking)
+      // v7.17: COMPREHENSIVE AST ANALYSIS + GEMINI FIX
       let astAnalysis = runASTAnalysis(skeleton);
-      console.log(`[v10.5] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats?.total_methods || 0}`);
+      console.log(`[v7.21] AST: valid=${astAnalysis.valid}, methods=${astAnalysis.stats.total_methods}, problematic=${astAnalysis.stats.problematic_methods}`);
+      
+      // Fix syntax errors first (up to 3 attempts)
+      for (let retry = 0; retry < 3 && !astAnalysis.valid; retry++) {
+        const errorLine = astAnalysis.line;
+        if (!errorLine) break;
+        
+        const badMethod = findMethodAtLine(skeleton, errorLine);
+        if (!badMethod) break;
+        
+        console.log(`[v7.21] Fix attempt ${retry + 1}: ${badMethod} (line ${errorLine})`);
+        
+        const methodRegex = new RegExp(`(    def ${badMethod}\\(self\\):.*?)(?=\n    def |$)`, 's');
+        const methodMatch = skeleton.match(methodRegex);
+        if (!methodMatch) break;
+        
+        try {
+          const fixPrompt = `Fix this Python method syntax error: ${astAnalysis.error}\n\nBROKEN:\n${methodMatch[1]}\n\nOutput ONLY the fixed method. Keep simple. NO class, NO __init__, NO TODO.`;
+          const fixResultText = await callGroq(fixPrompt);
+          let fixed = fixResultText.replace(/```python\s*/gi, '').replace(/```/g, '').trim();
+          
+          // v7.33: VALIDATE AI response before injection
+          const isContaminated = /class\s|def __init__|TODO|FileAdapter|raise NotImplementedError/.test(fixed);
+          if (isContaminated) {
+            console.log('[v7.33] Rejected contaminated fix response');
+            break;  // Skip - don't inject contaminated code
+          }
+          
+          if (!fixed.startsWith('    def ')) fixed = '    ' + fixed;
+          
+          // v7.33: Validate structure - must be single method
+          const methodCount = (fixed.match(/^\s*def /gm) || []).length;
+          if (methodCount !== 1) {
+            console.log('[v7.33] Rejected multi-method fix response');
+            break;
+          }
+          
+          skeleton = skeleton.replace(methodRegex, fixed + '\n\n');
+        } catch { break; }
+        
+        astAnalysis = runASTAnalysis(skeleton);
+      }
+      
+      // Now fix problematic methods (empty, high complexity)
+      if (astAnalysis.valid && astAnalysis.stats.problematic_methods > 0) {
+        const badMethods = astAnalysis.methods.filter(m => m.has_issues).slice(0, 5);  // Fix max 5
+        console.log(`[v7.21] Fixing ${badMethods.length} problematic methods`);
+        
+        for (const method of badMethods) {
+          if (!method.issue_types.includes('empty_method')) continue;  // Only fix empty methods
+          
+          const methodRegex = new RegExp(`(    def ${method.name}\\(self\\):.*?)(?=\n    def |$)`, 's');
+          const methodMatch = skeleton.match(methodRegex);
+          if (!methodMatch) continue;
+          
+          // Find original COBOL paragraph
+          const origParagraph = allParagraphs.find(p => 
+            p.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&') === method.name
+          );
+          const cobolContext = origParagraph 
+            ? codeLines.slice(origParagraph.lineStart - 1, origParagraph.lineEnd).join('\n')
+            : '';
+          
+          try {
+            const refactorPrompt = `Generate REAL Python logic for this method. Original COBOL:\n${cobolContext.substring(0, 500)}\n\nOutput ONLY the method starting with "    def ${method.name}(self):". Use self.xxx for all variables. NO class, NO __init__, NO TODO, NO raise NotImplementedError.`;
+            const resultText = await callGroq(refactorPrompt);
+            let newMethod = resultText.replace(/```python\s*/gi, '').replace(/```/g, '').trim();
+            
+            // v7.33: VALIDATE AI response before injection
+            const isContaminated = /class\s|def __init__|TODO|FileAdapter|raise NotImplementedError/.test(newMethod);
+            if (isContaminated) {
+              console.log(`[v7.33] Rejected contaminated refactor for ${method.name}`);
+              // Use clearly marked fallback
+              newMethod = `    def ${method.name}(self):\n        """${method.name.replace(/_/g, ' ')}"""\n        # ⚠️ REFACTOR-FALLBACK: AI response was contaminated\n        raise NotImplementedError("${method.name}: Refactor failed - manual implementation needed")\n`;
+            }
+            
+            if (!newMethod.startsWith('    def ')) newMethod = '    ' + newMethod;
+            
+            // v7.33: Validate structure - must be single method
+            const methodCount = (newMethod.match(/^\s*def /gm) || []).length;
+            if (methodCount !== 1) {
+              console.log(`[v7.33] Rejected multi-method refactor for ${method.name}`);
+              continue;
+            }
+            
+            skeleton = skeleton.replace(methodRegex, newMethod + '\n\n');
+            console.log(`[v7.33] Refactored: ${method.name}`);
+          } catch { /* skip */ }
+        }
+      }
       
       // v7.33: FINAL COMMERCIAL CLEANUP - Guarantee 0 artifacts
       console.log('[v7.33] Final commercial cleanup...');
@@ -2267,38 +2080,24 @@ ${initVars.join('\n')}
       skeleton = skeleton.replace(/TODO\.?/gi, '');
       skeleton = skeleton.replace(/# TODO[^\n]*/gi, '');
       
-      // v9.2: COMMERCIAL RECONSTRUCTION - Type hints, try/except, no empty methods
-      console.log('[v9.2] Commercial reconstruction with quality enhancements...');
+      // v7.34: TOTAL RECONSTRUCTION - Extract methods line by line, rebuild from scratch
+      console.log('[v7.34] Total reconstruction starting...');
       
       const lines = skeleton.split('\n');
       const extractedMethods: string[] = [];
       let currentMethod: string[] = [];
-      let currentMethodName = '';
       let inBusinessMethod = false;
-      
-      // Excluded utility methods
-      const v92ExcludedMethods = new Set(['__init__', '__str__', '__repr__', 'read_file', 'write_file', 'get_next_account', 'reset_account_iterator', 'handle_error']);
       
       for (const line of lines) {
         const trimmed = line.trim();
         
-        // Detect start of business method (any method that's not utility)
-        const methodMatch = trimmed.match(/^def ([a-z][a-z0-9_]*)\(self\):$/);
-        if (methodMatch) {
-          const methodName = methodMatch[1];
-          
-          // Skip excluded/utility methods
-          if (v92ExcludedMethods.has(methodName) || methodName.startsWith('_')) {
-            continue;
-          }
-          
+        // Detect start of business method (def p_xxx)
+        if (/^def p_[a-z0-9_]+\(self\):$/.test(trimmed)) {
           // Save previous method if any
           if (currentMethod.length > 0) {
-            extractedMethods.push(enhanceMethod(currentMethod, currentMethodName));
+            extractedMethods.push(currentMethod.join('\n'));
           }
-          currentMethodName = methodName;
-          // v9.2: Add return type hint -> None:
-          currentMethod = [`    def ${currentMethodName}(self) -> None:`];
+          currentMethod = ['    ' + trimmed];  // Start new method with proper indent
           inBusinessMethod = true;
           continue;
         }
@@ -2309,10 +2108,9 @@ ${initVars.join('\n')}
           if (/^def /.test(trimmed) || /^class /.test(trimmed)) {
             // Save and stop
             if (currentMethod.length > 0) {
-              extractedMethods.push(enhanceMethod(currentMethod, currentMethodName));
+              extractedMethods.push(currentMethod.join('\n'));
             }
             currentMethod = [];
-            currentMethodName = '';
             inBusinessMethod = false;
             continue;
           }
@@ -2334,140 +2132,10 @@ ${initVars.join('\n')}
       
       // Don't forget last method
       if (currentMethod.length > 0) {
-        extractedMethods.push(enhanceMethod(currentMethod, currentMethodName));
+        extractedMethods.push(currentMethod.join('\n'));
       }
       
-      console.log(`[v9.2] Extracted and enhanced ${extractedMethods.length} business methods`);
-      
-      // v9.2: Method enhancement function - adds try/except, type hints, fallback logic
-      function enhanceMethod(methodLines: string[], methodName: string): string {
-        const signature = methodLines[0];
-        const bodyLines = methodLines.slice(1).filter(l => l.trim().length > 0);
-        
-        // Generate docstring from method name
-        const docName = methodName.replace(/^p_/, '').replace(/_/g, ' ').replace(/\d+/g, '').trim();
-        const docstring = `        """${docName.charAt(0).toUpperCase() + docName.slice(1) || 'Process operation'}."""`;
-        
-        // Check if method has real logic or just pass/empty
-        const hasRealLogic = bodyLines.some(l => 
-          !l.includes('pass') && 
-          !l.includes('"""') && 
-          l.trim().length > 0
-        );
-        
-        if (!hasRealLogic || bodyLines.length === 0) {
-          // v9.2: Generate meaningful fallback based on method name pattern
-          const fallbackLogic = generateFallbackLogic(methodName);
-          return `${signature}
-${docstring}
-        try:
-${fallbackLogic}
-        except Exception as e:
-            self.logger.error(f"Error in ${methodName}: {e}")
-            self.error_count += 1
-            raise ProcessingError(f"${methodName} failed: {e}") from e`;
-        }
-        
-        // v9.2: Wrap existing logic in try/except
-        const indentedBody = bodyLines.map(l => '    ' + l).join('\n');
-        return `${signature}
-${docstring}
-        try:
-${indentedBody}
-        except Exception as e:
-            self.logger.error(f"Error in ${methodName}: {e}")
-            self.error_count += 1
-            raise`;
-      }
-      
-      // v9.2: Generate contextual fallback logic based on method name
-      function generateFallbackLogic(methodName: string): string {
-        const name = methodName.toLowerCase();
-        
-        // Pattern matching for common COBOL paragraph types
-        if (name.includes('init') || name.includes('open')) {
-          return `            self.logger.info("Initializing ${methodName}")
-            self.status = "INITIALIZED"
-            self.error_count = 0`;
-        }
-        if (name.includes('valid') || name.includes('check')) {
-          return `            self.logger.info("Validating in ${methodName}")
-            if not self.data:
-                raise ValidationError("No data to validate")
-            self.status = "VALIDATED"`;
-        }
-        if (name.includes('process') || name.includes('calc')) {
-          return `            self.logger.info("Processing in ${methodName}")
-            result = self.data.get("input", Decimal("0"))
-            self.data["result"] = result
-            return result`;
-        }
-        if (name.includes('read') || name.includes('load')) {
-          return `            self.logger.info("Loading data in ${methodName}")
-            record = self.file_adapter.read("data.json")
-            self.data.update(record)`;
-        }
-        if (name.includes('write') || name.includes('save')) {
-          return `            self.logger.info("Saving data in ${methodName}")
-            self.file_adapter.write("output.json", self.data)`;
-        }
-        if (name.includes('report') || name.includes('print') || name.includes('display')) {
-          return `            self.logger.info("Generating output in ${methodName}")
-            print(f"Status: {self.status}, Errors: {self.error_count}")
-            print(f"Data: {self.data}")`;
-        }
-        if (name.includes('error') || name.includes('log')) {
-          return `            self.logger.warning(f"Error handler ${methodName}: {self.error_count} errors")
-            self.status = "ERROR"`;
-        }
-        if (name.includes('clean') || name.includes('close') || name.includes('exit')) {
-          return `            self.logger.info("Cleanup in ${methodName}")
-            self.status = "COMPLETED"
-            self.data.clear()`;
-        }
-        if (name.includes('deposit') || name.includes('credit')) {
-          return `            self.logger.info("Credit operation in ${methodName}")
-            amount = self.data.get("amount", Decimal("0"))
-            self.data["balance"] = self.data.get("balance", Decimal("0")) + amount`;
-        }
-        if (name.includes('withdraw') || name.includes('debit')) {
-          return `            self.logger.info("Debit operation in ${methodName}")
-            amount = self.data.get("amount", Decimal("0"))
-            balance = self.data.get("balance", Decimal("0"))
-            if amount > balance:
-                raise ValidationError("Insufficient funds")
-            self.data["balance"] = balance - amount`;
-        }
-        if (name.includes('transfer')) {
-          return `            self.logger.info("Transfer operation in ${methodName}")
-            amount = self.data.get("amount", Decimal("0"))
-            self.data["from_balance"] = self.data.get("from_balance", Decimal("0")) - amount
-            self.data["to_balance"] = self.data.get("to_balance", Decimal("0")) + amount`;
-        }
-        if (name.includes('interest')) {
-          return `            self.logger.info("Interest calculation in ${methodName}")
-            balance = self.data.get("balance", Decimal("0"))
-            rate = self.data.get("rate", Decimal("0.05"))
-            self.data["interest"] = balance * rate`;
-        }
-        if (name.includes('fee')) {
-          return `            self.logger.info("Fee processing in ${methodName}")
-            fee = self.data.get("fee_amount", Decimal("25"))
-            self.data["balance"] = self.data.get("balance", Decimal("0")) - fee
-            self.data["fees_charged"] = self.data.get("fees_charged", Decimal("0")) + fee`;
-        }
-        if (name.includes('loan') || name.includes('payment')) {
-          return `            self.logger.info("Loan processing in ${methodName}")
-            payment = self.data.get("payment", Decimal("0"))
-            principal = self.data.get("principal", Decimal("0"))
-            self.data["remaining"] = principal - payment`;
-        }
-        
-        // Default fallback with logging
-        return `            self.logger.info(f"Executing ${methodName}")
-            self.status = "PROCESSING"
-            # Business logic placeholder - implement based on COBOL source`;
-      }
+      console.log(`[v7.34] Extracted ${extractedMethods.length} business methods`);
       
       // v8.1: Translate unknown COBOL functions via Gemini, fallback to stubs
       let cobolFunctionStubs = '';
@@ -2509,30 +2177,16 @@ Answer:`;
         cobolFunctionStubs = `    # === COBOL FUNCTION IMPLEMENTATIONS ===\n${stubs.join('\n\n')}\n`;
       }
       
-      // v10.2: Generate context-based code components
-      const contextHeader = generateContextHeader(contextConfig);
-      const copybookClasses = copybookStructures.length > 0 
-        ? generateCopybookModule(copybookStructures) 
-        : '';
-      const subprogramMethods = generateSubprogramStubs(contextConfig);
-      
-      console.log(`[v10.2] Generated context: ${Object.keys(contextConfig.enums).length} enums, ${copybookStructures.length} copybooks`);
-      
       // v7.35: HARDCODED REBUILD - Build file from scratch with NO template reuse
       // This bypasses any possible corruption in the header variable
-      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v10.2 Commercial + Context]"""
-from dataclasses import dataclass, field
+      const finalFile = `"""${programId} - Migrated from COBOL (${totalLines} lines). [v7.50 Commercial]"""
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional, List, Dict, Any
-from enum import Enum
 import logging
 import random
 from datetime import datetime, date, timedelta
 import json
-
-${contextHeader}
-
-${copybookClasses}
 
 # === BUSINESS EXCEPTIONS ===
 class BusinessError(Exception):
@@ -2626,19 +2280,11 @@ ${extractedMethods.join('\n\n')}
 `;
       
       // v7.37: Use extracted business methods (external validation bypassed in frontend)
-      // v9.1: Ensure no leading whitespace (causes "unexpected indent line 1")
-      skeleton = finalFile.trimStart();
+      skeleton = finalFile;
       console.log(`[v7.37] Generated ${extractedMethods.length} business methods`);
       
-      // v10.4: CONSOLIDATION - Remove duplicate classes/functions from chunked output
-      // This fixes the 1800 COBOL -> 8000 Python problem (should be ~2000 lines)
-      const preConsolidateLines = skeleton.split('\n').length;
-      skeleton = consolidatePythonCode(skeleton);
-      const postConsolidateLines = skeleton.split('\n').length;
-      console.log(`[v10.4] Consolidation: ${preConsolidateLines} -> ${postConsolidateLines} lines (ratio: ${(postConsolidateLines / totalLines).toFixed(2)})`);
-      
       // v8.4: ROBUST ITERATIVE VALIDATION LOOP with NUCLEAR FIX
-      const MAX_VALIDATION_ATTEMPTS = 3;  // v10.5: Reduced from 8 to prevent 98% blocking
+      const MAX_VALIDATION_ATTEMPTS = 8;  // Increased from 5
       let validationAttempt = 0;
       let astCheck: ASTAnalysisResult = { valid: false, error: '', line: 0, issues: [], methods: [], stats: { total_methods: 0, problematic_methods: 0 } };
       const fixedLines = new Set<number>();  // Track already fixed lines to avoid infinite loops
@@ -2773,8 +2419,8 @@ ${extractedMethods.join('\n\n')}
         console.log(`[v8.4] FINAL NUCLEAR FIX: Code still invalid at line ${astCheck.line}`);
         const lines = skeleton.split('\n');
         
-        // v10.5: Reduced from 10 to 3 to prevent blocking
-        for (let nuclearAttempt = 0; nuclearAttempt < 3; nuclearAttempt++) {
+        // Try to fix up to 10 more lines aggressively
+        for (let nuclearAttempt = 0; nuclearAttempt < 10; nuclearAttempt++) {
           astCheck = runASTAnalysis(skeleton);
           if (astCheck.valid) break;
           
@@ -2813,35 +2459,82 @@ ${extractedMethods.join('\n\n')}
         }
       }
       
-      // v9.1: Final cleanup - ensure no leading/trailing whitespace issues
-      skeleton = skeleton.trimStart();
-      // Ensure file ends with single newline
-      skeleton = skeleton.trimEnd() + '\n';
+      // v11.21: Clean up NUCLEAR markers from final output
+      skeleton = skeleton.replace(/^\s*pass\s*#.*NUCLEAR.*$/gm, '');
+      skeleton = skeleton.replace(/\n{3,}/g, '\n\n'); // Remove extra blank lines
       
-      // v11.10: Apply post-processing to fix syntax issues
-      // This removes artifacts like "Generated from", "Edit", "Copy", "Share"
-      // and fixes orphan try/except blocks, empty block bodies, etc.
-      skeleton = postProcessPythonCode(skeleton, programId);
-      console.log('[v11.10] Post-processing applied to clean generated Python code');
-      
-      // v10.2: CONTEXT ENRICHMENT - Replace magic numbers with constants, codes with enums
-      if (contextConfig && (Object.keys(contextConfig.thresholds).length > 0 || Object.keys(contextConfig.enums).length > 0)) {
-        console.log('[v10.2] Enriching code with context...');
-        skeleton = enrichCodeWithContext(skeleton, contextConfig);
-        console.log('[v10.2] Code enriched with thresholds and enums');
-      }
-      
-      // v10.5: Generate tests locally without AI call (prevents blocking)
+      // v7.61: Generate REAL tests based on actual code - proportional to methods
       const methodNames = translations.map(t => t.name.toLowerCase().replace(/-/g, '_').replace(/^\d/, 'p_$&'));
+      let unitTests = '';
+      
+      // Calculate number of tests: 1 per method, min 5, max 30
       const numTests = Math.min(30, Math.max(5, methodNames.length));
       const methodsToTest = methodNames.slice(0, numTests);
       
-      console.log(`[v10.5] Generating ${methodsToTest.length} test stubs locally`);
-      const testLines = methodsToTest.map(m => 
-        `    def test_${m}(self):\n        """Test ${m} method."""\n        instance = ${className}()\n        assert hasattr(instance, '${m}')`
-      ).join('\n\n');
-      const unitTests = `import pytest
+      // Get a sample of the generated code to give context to Gemini
+      const codeSample = skeleton.substring(0, 3000);
+      
+      try {
+        // v8.0: Extract COBOL data samples for realistic test data
+        const cobolDataSamples: string[] = [];
+        const picMatches = cobolCode.matchAll(/\b(\w+)\s+PIC\s+([X9]+)(?:\(\d+\))?(?:\s+VALUE\s+["']?([^"'\s.]+)["']?)?/gi);
+        for (const m of picMatches) {
+          const varName = m[1].toLowerCase().replace(/-/g, '_');
+          const picType = m[2].toUpperCase();
+          const value = m[3] || (picType.startsWith('9') ? '0' : '""');
+          cobolDataSamples.push(`${varName}: ${value}`);
+          if (cobolDataSamples.length >= 10) break;
+        }
+        
+        const testPrompt = `You are a senior Python test engineer. Generate pytest unit tests for this migrated COBOL code.
+
+CLASS: ${className}
+METHODS TO TEST (${methodsToTest.length} total): ${methodsToTest.join(', ')}
+
+COBOL DATA SAMPLES (use these for realistic test values):
+${cobolDataSamples.join('\n')}
+
+CODE SAMPLE (for context):
+\`\`\`python
+${codeSample}
+\`\`\`
+
+REQUIREMENTS:
+1. Create ${numTests} test functions with REAL assertions
+2. Use COBOL data samples above for test values
+3. Test edge cases: empty data, negative values, boundary conditions, COBOL-style status codes ("A", "I", "C")
+4. Use fixtures for setup with realistic COBOL-derived data
+5. Include docstrings explaining what each test verifies
+6. Test both success and error paths
+7. Include at least 3 integration tests that call multiple methods
+
+Output ONLY valid Python starting with imports. NO explanations.`;
+
+        const testResultText = await callGroq(testPrompt);
+        let generatedTests = testResultText
+          .replace(/```python\s*/gi, '')
+          .replace(/```\s*/g, '')
+          .trim();
+        
+        if (generatedTests.includes('assert') && generatedTests.includes('def test_')) {
+          // v7.60: Also sanitize tests for leading zeros
+          unitTests = sanitizePythonCode(generatedTests);
+          const actualTestCount = (generatedTests.match(/def test_/g) || []).length;
+          console.log(`[v7.61] Generated ${actualTestCount} contextual tests for ${methodsToTest.length} methods`);
+        } else {
+          throw new Error('Invalid tests');
+        }
+      } catch (e: any) {
+        // Fallback: clearly marked as AI-generation failure
+        console.log(`[v7.61] Test generation failed: ${e.message}`);
+        const testLines = methodsToTest.map(m => 
+          `    def test_${m}(self):\n        """Test ${m} method."""\n        # ⚠️ TEST-FALLBACK: AI did not generate real tests\n        pytest.skip("AI test generation failed - manual test required")`
+        ).join('\n\n');
+        unitTests = `import pytest
 from decimal import Decimal
+
+# ⚠️ WARNING: These are placeholder tests - AI generation failed
+# TODO: Implement real tests based on the generated Python code
 
 class Test${className}:
     """Test suite for ${className} - migrated from COBOL."""
@@ -2853,37 +2546,35 @@ class Test${className}:
 
 ${testLines}
 `;
+      }
       
       // v8.1: Calculate coverage metrics
       const successfulTranslations = translations.filter(t => t.logic.length > 10 && !t.logic.includes('NotImplementedError'));
       const fallbackCount = translations.filter(t => t.logic.length <= 10 || t.logic.includes('FALLBACK') || t.logic.includes('NotImplementedError')).length;
-      const translationRate = executableParagraphs.length > 0 ? Math.round((successfulTranslations.length / executableParagraphs.length) * 100) : 0;
+      const translationRate = allParagraphs.length > 0 ? Math.round((successfulTranslations.length / allParagraphs.length) * 100) : 0;
       const cobolFunctionsConverted = unknownCobolFunctions.size;
       
       // Count AI-translated vs stub functions
       const aiTranslatedFunctions = cobolFunctionStubs.split('AI translated').length - 1;
       const stubFunctions = cobolFunctionStubs.split('NotImplementedError').length - 1;
       
-      // v11.1: Calculate pattern-based confidence metrics
-      // Threshold lowered to 45% to account for complex paragraphs with partial pattern coverage
+      // v10.0: Calculate pattern-based confidence metrics
       const allConfidences = Array.from(paragraphConfidences.values());
-      const patternCoveredParagraphs = allConfidences.filter(c => c.patternCoverage >= 45).length;
+      const patternCoveredParagraphs = allConfidences.filter(c => c.patternCoverage >= 50).length;
       const avgPatternConfidence = allConfidences.length > 0 
         ? Math.round(allConfidences.reduce((s, c) => s + c.overallConfidence, 0) / allConfidences.length)
         : 0;
       const highConfidenceCount = allConfidences.filter(c => c.overallConfidence >= 85).length;
       const lowConfidenceCount = allConfidences.filter(c => c.overallConfidence < 60).length;
       
-      // Calculate production readiness score (v11.1: cap at 100)
-      const patternScore = (patternCoveredParagraphs / Math.max(1, executableParagraphs.length)) * 40;
+      // Calculate production readiness score
+      const patternScore = (patternCoveredParagraphs / Math.max(1, allParagraphs.length)) * 40;
       const confidenceScore = (avgPatternConfidence / 100) * 30;
       const translationScore = (translationRate / 100) * 30;
-      const rawProductionReadiness = patternScore + confidenceScore + translationScore;
-      // v11.1: If >= 96%, round to 100% (commercial quality threshold)
-      const productionReadiness = rawProductionReadiness >= 96 ? 100 : Math.round(rawProductionReadiness);
+      const productionReadiness = Math.round(patternScore + confidenceScore + translationScore);
       
       const coverageMetrics = {
-        total_paragraphs: executableParagraphs.length,
+        total_paragraphs: allParagraphs.length,
         successful_translations: successfulTranslations.length,
         fallback_count: fallbackCount,
         translation_rate: translationRate,
@@ -2896,13 +2587,13 @@ ${testLines}
         // v10.0: Pattern Library metrics
         pattern_library: {
           total_patterns_available: PATTERN_STATS.totalPatterns,
-          paragraphs_by_pattern: Math.min(patternCoveredParagraphs, executableParagraphs.length),
-          paragraphs_by_ai: Math.max(0, executableParagraphs.length - patternCoveredParagraphs),
+          paragraphs_by_pattern: Math.min(patternCoveredParagraphs, allParagraphs.length),
+          paragraphs_by_ai: Math.max(0, allParagraphs.length - patternCoveredParagraphs),
           average_confidence: avgPatternConfidence,
           high_confidence_paragraphs: highConfidenceCount,
           low_confidence_paragraphs: lowConfidenceCount,
           production_readiness: productionReadiness,
-          estimated_review_time_minutes: Math.round(lowConfidenceCount * 5 + Math.max(0, executableParagraphs.length - patternCoveredParagraphs) * 2)
+          estimated_review_time_minutes: Math.round(lowConfidenceCount * 5 + Math.max(0, allParagraphs.length - patternCoveredParagraphs) * 2)
         }
       };
       console.log('[v10.0] Coverage metrics:', coverageMetrics);
@@ -2926,7 +2617,7 @@ ${testLines}
     Main --> F1
     Main --> F2`;
 
-      const modules = executableParagraphs.map(p => ({
+      const modules = allParagraphs.map(p => ({
         name: p.name,
         lines: p.lineEnd - p.lineStart + 1,
         type: 'PARAGRAPH',
@@ -3154,34 +2845,27 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
       console.log(`[v9.0] Generated ${Object.keys(modularFiles).length} modular files across ${activeDomains.length} domains`);
 
       const improvements = [
-        `${translations.length}/${executableParagraphs.length} paragraphs translated with business logic`,
+        `${translations.length}/${allParagraphs.length} paragraphs translated with business logic`,
         'Type-safe class structure generated',
         'Logging infrastructure added',
-        'Complete method implementations for all paragraphs',
-        // v10.2: Context-based improvements
-        Object.keys(contextConfig.enums).length > 0 ? `${Object.keys(contextConfig.enums).length} enum types generated from context` : null,
-        Object.keys(contextConfig.thresholds).length > 0 ? `${Object.keys(contextConfig.thresholds).length} threshold constants defined` : null,
-        copybookStructures.length > 0 ? `${copybookStructures.length} copybook dataclasses generated` : null
-      ].filter(Boolean) as string[];
+        'Complete method implementations for all paragraphs'
+      ];
 
       const securityWarnings = cobolCode.toLowerCase().includes('password') 
         ? [{ title: 'Hardcoded credentials', severity: 'CRITICAL', cvss_score: 9.1, location: 'Source file', description: 'Sensitive data detected', vulnerable_code: 'PASSWORD variable', fix: 'Use environment variables' }]
         : [];
 
-      // v11.14: FINAL post-processing - ensure all syntax issues are fixed before response
-      skeleton = postProcessPythonCode(skeleton, programId);
-      
       return NextResponse.json({
         python_code: skeleton,
         unit_tests: unitTests,
-        config_json: JSON.stringify({ fast_mode: true, lines: totalLines, paragraphs: executableParagraphs.length, translated: translations.length }),
+        config_json: JSON.stringify({ fast_mode: true, lines: totalLines, paragraphs: allParagraphs.length, translated: translations.length }),
         cobol_lines: totalLines,
         python_lines: skeleton.split('\n').length,
-        confidence: Math.round(coverageMetrics?.pattern_library?.production_readiness || 65),
-        complexity: totalLines > 1000 ? 'HIGH' : (totalLines > 500 ? 'MEDIUM' : 'LOW'),
-        risk_level: (coverageMetrics?.pattern_library?.production_readiness || 0) >= 85 ? 'LOW' : ((coverageMetrics?.pattern_library?.production_readiness || 0) >= 70 ? 'MEDIUM' : 'HIGH'),
+        confidence: 65,
+        complexity: 'HIGH',
+        risk_level: 'HIGH',
         processing_time_ms: Date.now() - startTime,
-        summary: `${totalLines} lines - ${translations.length}/${executableParagraphs.length} paragraphs translated with v11.0 (${allSelfVars.size} vars).`,
+        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v7.5 (${allSelfVars.size} vars).`,
         code_valid: true,
         // Additional fields for tabs
         issues,
@@ -3199,58 +2883,15 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
           complexity: 'HIGH',
           risk_level: 'HIGH',
           estimated_effort: `${Math.round(totalLines / 100)} person-days`,
-          confidence: Math.round(coverageMetrics?.pattern_library?.production_readiness || 65)
+          confidence: 65
         },
         next_steps: ['Review generated skeleton', 'Split file into smaller modules', 'Translate remaining paragraphs', 'Run integration tests'],
         coverage_metrics: coverageMetrics,
-        // v10.2: GO/NO-GO DECISION with thresholds from expert review
-        go_no_go: (() => {
-          const patternCov = coverageMetrics?.pattern_library?.paragraphs_by_pattern || 0;
-          const aiCov = coverageMetrics?.pattern_library?.paragraphs_by_ai || 0;
-          const totalParas = patternCov + aiCov;
-          const patternPercent = totalParas > 0 ? Math.round((patternCov / totalParas) * 100) : 0;
-          const aiPercent = totalParas > 0 ? Math.round((aiCov / totalParas) * 100) : 0;
-          const stubPercent = 100 - patternPercent - aiPercent;
-          
-          // Thresholds from expert analysis
-          const THRESHOLDS = {
-            pattern_coverage_min: 70,   // ≥ 70% pattern coverage
-            ai_coverage_max: 25,        // ≤ 25% AI coverage  
-            stub_coverage_max: 5,       // ≤ 5% stubs
-            production_ready_min: 85,   // ≥ 85% production readiness
-            ast_fix_loops_max: 3        // ≤ 3 AST fix iterations
-          };
-          
-          const checks = {
-            pattern_coverage: { value: patternPercent, threshold: `≥${THRESHOLDS.pattern_coverage_min}%`, pass: patternPercent >= THRESHOLDS.pattern_coverage_min },
-            ai_coverage: { value: aiPercent, threshold: `≤${THRESHOLDS.ai_coverage_max}%`, pass: aiPercent <= THRESHOLDS.ai_coverage_max },
-            stub_coverage: { value: stubPercent, threshold: `≤${THRESHOLDS.stub_coverage_max}%`, pass: stubPercent <= THRESHOLDS.stub_coverage_max },
-            production_readiness: { value: productionReadiness, threshold: `≥${THRESHOLDS.production_ready_min}%`, pass: productionReadiness >= THRESHOLDS.production_ready_min }
-          };
-          
-          const allPassed = Object.values(checks).every(c => c.pass);
-          const failedChecks = Object.entries(checks).filter(([_, c]) => !c.pass).map(([name, _]) => name);
-          
-          return {
-            decision: allPassed ? 'GO' : 'NO-GO',
-            confidence: allPassed ? 'HIGH' : (failedChecks.length <= 1 ? 'MEDIUM' : 'LOW'),
-            checks,
-            failed_checks: failedChecks,
-            recommendation: allPassed 
-              ? '✅ Code is ready for merge with standard review'
-              : failedChecks.length === 1
-                ? `⚠️ Review required: ${failedChecks[0]} threshold not met`
-                : `❌ Deep review required: ${failedChecks.length} thresholds not met (${failedChecks.join(', ')})`,
-            next_actions: allPassed 
-              ? ['Run Golden Master tests', 'Code review', 'Merge to staging']
-              : ['Segment COBOL into smaller blocks (<500 lines)', 'Manual review of AI-translated sections', 'Architect validation of stubs']
-          };
-        })(),
         // v10.0: Confidence scoring
         confidence_report: {
           overall_score: avgPatternConfidence,
           production_readiness: productionReadiness,
-          pattern_coverage_percent: Math.round((patternCoveredParagraphs / Math.max(1, executableParagraphs.length)) * 100),
+          pattern_coverage_percent: Math.round((patternCoveredParagraphs / Math.max(1, allParagraphs.length)) * 100),
           review_priority: lowConfidenceCount > 0 ? 'HIGH' : (avgPatternConfidence < 70 ? 'MEDIUM' : 'LOW'),
           paragraphs_needing_review: allConfidences
             .filter(c => c.overallConfidence < 70)
@@ -3266,10 +2907,10 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
         category: 'Enterprise',
         ast_metrics: {
           totalLines,
-          paragraphs: executableParagraphs.length,
+          paragraphs: allParagraphs.length,
           variables: 0,
           copybooks: 0,
-          cyclomaticComplexity: executableParagraphs.length
+          cyclomaticComplexity: allParagraphs.length
         },
         // v9.0: MODULAR ARCHITECTURE (DDD-style)
         modular_architecture: {
@@ -3291,18 +2932,6 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
 ${activeDomains.map(d => `├── ${d}.py              # ${d.charAt(0).toUpperCase() + d.slice(1)} domain (${domainMethods[d].length} methods)`).join('\n')}
 └── tests/
     └── test_*.py        # Unit tests per domain`
-        },
-        // v10.2: CONTEXT SYSTEM
-        context_info: {
-          enabled: Object.keys(contextConfig.enums).length > 0 || Object.keys(contextConfig.thresholds).length > 0,
-          enums_count: Object.keys(contextConfig.enums).length,
-          thresholds_count: Object.keys(contextConfig.thresholds).length,
-          copybooks_count: copybookStructures.length,
-          copybook_fields: copybookStructures.reduce((sum, cb) => sum + cb.fields.length, 0),
-          subprograms_count: Object.keys(contextConfig.subprograms).length,
-          enums: Object.keys(contextConfig.enums),
-          thresholds: Object.keys(contextConfig.thresholds),
-          file_layouts: copybookStructures.map(cb => ({ name: cb.name, fields: cb.fields.length, bytes: cb.totalLength }))
         }
       }, { headers: corsHeaders });
     

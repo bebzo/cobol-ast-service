@@ -7,4 +7,3 @@ const nextConfig = {
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
 };
 export default nextConfig;
-// Force deploy Sat Jan 10 08:25:41 CST 2026
