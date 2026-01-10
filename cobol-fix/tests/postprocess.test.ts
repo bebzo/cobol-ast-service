@@ -188,6 +188,121 @@ class Program:
     shouldContain: ['class Program']
   },
 
+  // ========== Additional edge cases v11.9 ==========
+  {
+    name: 'Fix class self.ClassName corruption',
+    input: `class self.WorkingStorage:
+    def __init__(self):
+        pass${PAD}`,
+    shouldNotContain: ['class self.'],
+    shouldContain: ['class WorkingStorage']
+  },
+  {
+    name: 'Fix corrupted @classmethod without def',
+    input: `class Processor:
+    @classmethod
+    # This is a comment
+    def method(self):
+        pass${PAD}`,
+    shouldNotContain: [],
+    shouldContain: ['class Processor', 'def method']
+  },
+  {
+    name: 'Remove self.cobol artifacts',
+    input: `self.cobol context here
+class Program:
+    def run(self):
+        pass${PAD}`,
+    shouldNotContain: ['self.cobol'],
+    shouldContain: ['class Program']
+  },
+  {
+    name: 'Fix THRESHOLDS.CTR undefined',
+    input: `class Validator:
+    def check(self):
+        if amount > THRESHOLDS.CTR:
+            return False
+        return True${PAD}`,
+    shouldNotContain: ['THRESHOLDS.CTR'],
+    shouldContain: ['Decimal("10000")']
+  },
+  {
+    name: 'Fix self.from_val corruption',
+    input: `class Parser:
+    def parse(self):
+        value = self.from_val data
+        return value${PAD}`,
+    shouldNotContain: ['self.from_val'],
+    shouldContain: ['class Parser']
+  },
+  {
+    name: 'Remove # self.auto comments',
+    input: `class Test:
+    # === self.auto-generated ===
+    def method(self):
+        pass${PAD}`,
+    shouldNotContain: ['self.auto'],
+    shouldContain: ['class Test', 'def method']
+  },
+  {
+    name: 'Fix incomplete def declaration',
+    input: `class Test:
+    def method
+        pass${PAD}`,
+    shouldNotContain: [],
+    shouldContain: ['def method']  // Should add (): 
+  },
+  {
+    name: 'Handle triple consecutive empty lines',
+    input: `class Test:
+    pass
+
+
+
+
+class Other:
+    pass${PAD}`,
+    shouldNotContain: [],
+    shouldContain: ['class Test', 'class Other']
+  },
+
+  // ========== v11.9: Try/except and indentation fixes ==========
+  {
+    name: 'Fix orphan try: without except',
+    input: `class Processor:
+    def process(self):
+        try:
+            data = self.load()
+            self.save(data)
+    def cleanup(self):
+        pass${PAD}`,
+    shouldNotContain: [],
+    shouldContain: ['except Exception:', 'def cleanup']
+  },
+  {
+    name: 'Fix misindented pass after if',
+    input: `class Test:
+    def check(self):
+        if self.value > 0:
+        pass
+    def other(self):
+        pass${PAD}`,
+    shouldNotContain: [],
+    shouldContain: ['if self.value > 0:', 'def other']
+  },
+  {
+    name: 'Fix nested try without except',
+    input: `def process():
+    try:
+        try:
+            risky_operation()
+        result = get_result()
+def other():
+    pass${PAD}`,
+    shouldNotContain: [],
+    shouldContain: ['except Exception:', 'def other']
+  },
+
   // ========== Combined stress test ==========
   {
     name: 'Combined: Multiple artifacts in one file',
