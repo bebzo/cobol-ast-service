@@ -3139,11 +3139,11 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
         config_json: JSON.stringify({ fast_mode: true, lines: totalLines, paragraphs: executableParagraphs.length, translated: translations.length }),
         cobol_lines: totalLines,
         python_lines: skeleton.split('\n').length,
-        confidence: 65,
-        complexity: 'HIGH',
-        risk_level: 'HIGH',
+        confidence: Math.round(coverageMetrics?.pattern_library?.production_readiness || 65),
+        complexity: totalLines > 1000 ? 'HIGH' : (totalLines > 500 ? 'MEDIUM' : 'LOW'),
+        risk_level: (coverageMetrics?.pattern_library?.production_readiness || 0) >= 85 ? 'LOW' : ((coverageMetrics?.pattern_library?.production_readiness || 0) >= 70 ? 'MEDIUM' : 'HIGH'),
         processing_time_ms: Date.now() - startTime,
-        summary: `${totalLines} lines - ${translations.length}/${executableParagraphs.length} paragraphs translated with v10.6 (${allSelfVars.size} vars).`,
+        summary: `${totalLines} lines - ${translations.length}/${executableParagraphs.length} paragraphs translated with v11.0 (${allSelfVars.size} vars).`,
         code_valid: true,
         // Additional fields for tabs
         issues,
@@ -3161,7 +3161,7 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
           complexity: 'HIGH',
           risk_level: 'HIGH',
           estimated_effort: `${Math.round(totalLines / 100)} person-days`,
-          confidence: 65
+          confidence: Math.round(coverageMetrics?.pattern_library?.production_readiness || 65)
         },
         next_steps: ['Review generated skeleton', 'Split file into smaller modules', 'Translate remaining paragraphs', 'Run integration tests'],
         coverage_metrics: coverageMetrics,
