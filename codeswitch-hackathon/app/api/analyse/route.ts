@@ -52,6 +52,9 @@ import {
   Copybook
 } from '@/lib/copybook_parser';
 
+// v11.10: Post-processing for generated Python code
+import { postProcessPythonCode } from '@/lib/postprocess';
+
 // Validate that input is actually COBOL code
 function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
   if (!code || code.trim().length < 50) {
@@ -2792,6 +2795,12 @@ ${extractedMethods.join('\n\n')}
       // Ensure file ends with single newline
       skeleton = skeleton.trimEnd() + '\n';
       
+      // v11.10: Apply post-processing to fix syntax issues
+      // This removes artifacts like "Generated from", "Edit", "Copy", "Share"
+      // and fixes orphan try/except blocks, empty block bodies, etc.
+      skeleton = postProcessPythonCode(skeleton, programId);
+      console.log('[v11.10] Post-processing applied to clean generated Python code');
+      
       // v10.2: CONTEXT ENRICHMENT - Replace magic numbers with constants, codes with enums
       if (contextConfig && (Object.keys(contextConfig.thresholds).length > 0 || Object.keys(contextConfig.enums).length > 0)) {
         console.log('[v10.2] Enriching code with context...');
@@ -3136,6 +3145,9 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
         ? [{ title: 'Hardcoded credentials', severity: 'CRITICAL', cvss_score: 9.1, location: 'Source file', description: 'Sensitive data detected', vulnerable_code: 'PASSWORD variable', fix: 'Use environment variables' }]
         : [];
 
+      // v11.14: FINAL post-processing - ensure all syntax issues are fixed before response
+      skeleton = postProcessPythonCode(skeleton, programId);
+      
       return NextResponse.json({
         python_code: skeleton,
         unit_tests: unitTests,
