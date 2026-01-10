@@ -1203,6 +1203,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
       
       console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
+
+      // v10.6: FILTER non-executable COBOL sections (metadata, declarations)
+      const NON_EXECUTABLE_SECTIONS = [
+        'FILE-CONTROL', 'DATE-COMPILED', 'DATE-WRITTEN', 'AUTHOR', 'INSTALLATION',
+        'SECURITY', 'REMARKS', 'OBJECT-COMPUTER', 'SOURCE-COMPUTER', 'SPECIAL-NAMES',
+        'INPUT-OUTPUT', 'I-O-CONTROL', 'FILE-SECTION', 'WORKING-STORAGE', 'LINKAGE',
+        'CONFIGURATION', 'ENVIRONMENT', 'DATA', 'IDENTIFICATION', 'PROGRAM-ID'
+      ];
+      
+      const executableParagraphs = allParagraphs.filter(p => {
+        const upperName = p.name.toUpperCase();
+        if (NON_EXECUTABLE_SECTIONS.some(s => upperName.includes(s))) {
+          console.log(`[v10.6] Skipping metadata section: ${p.name}`);
+          return false;
+        }
+        if (upperName.endsWith('SECTION') || upperName.endsWith('DIVISION')) {
+          console.log(`[v10.6] Skipping division/section: ${p.name}`);
+          return false;
+        }
+        return true;
+      });
+      
+      console.log(`[v10.6] Executable paragraphs: ${executableParagraphs.length}/${allParagraphs.length}`);
       
       // v7.0: Translate ALL paragraphs using batch+parallel approach
       // Using Groq API (Llama 3.3 70B)
@@ -1300,11 +1323,11 @@ COBOL PARAGRAPHS:
       // v7.4: Quality first - small batches (20) but high parallelism (20)
       const BATCH_SIZE = 20;  // Keep small for quality
       const PARALLEL_BATCHES = 20;  // Max parallel for speed
-      const batches: typeof allParagraphs[] = [];
-      for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
-        batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
+      const batches: typeof executableParagraphs[] = [];
+      for (let i = 0; i < executableParagraphs.length; i += BATCH_SIZE) {
+        batches.push(executableParagraphs.slice(i, i + BATCH_SIZE));
       }
-      console.log(`[v7.21] ${allParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
+      console.log(`[v10.6] ${executableParagraphs.length} paragraphs → ${batches.length} batches of ${BATCH_SIZE}`);
       
       const translations: { name: string; logic: string }[] = [];
       
@@ -2802,7 +2825,7 @@ ${testLines}
       // v8.1: Calculate coverage metrics
       const successfulTranslations = translations.filter(t => t.logic.length > 10 && !t.logic.includes('NotImplementedError'));
       const fallbackCount = translations.filter(t => t.logic.length <= 10 || t.logic.includes('FALLBACK') || t.logic.includes('NotImplementedError')).length;
-      const translationRate = allParagraphs.length > 0 ? Math.round((successfulTranslations.length / allParagraphs.length) * 100) : 0;
+      const translationRate = executableParagraphs.length > 0 ? Math.round((successfulTranslations.length / executableParagraphs.length) * 100) : 0;
       const cobolFunctionsConverted = unknownCobolFunctions.size;
       
       // Count AI-translated vs stub functions
@@ -2819,13 +2842,13 @@ ${testLines}
       const lowConfidenceCount = allConfidences.filter(c => c.overallConfidence < 60).length;
       
       // Calculate production readiness score
-      const patternScore = (patternCoveredParagraphs / Math.max(1, allParagraphs.length)) * 40;
+      const patternScore = (patternCoveredParagraphs / Math.max(1, executableParagraphs.length)) * 40;
       const confidenceScore = (avgPatternConfidence / 100) * 30;
       const translationScore = (translationRate / 100) * 30;
       const productionReadiness = Math.round(patternScore + confidenceScore + translationScore);
       
       const coverageMetrics = {
-        total_paragraphs: allParagraphs.length,
+        total_paragraphs: executableParagraphs.length,
         successful_translations: successfulTranslations.length,
         fallback_count: fallbackCount,
         translation_rate: translationRate,
@@ -2838,13 +2861,13 @@ ${testLines}
         // v10.0: Pattern Library metrics
         pattern_library: {
           total_patterns_available: PATTERN_STATS.totalPatterns,
-          paragraphs_by_pattern: Math.min(patternCoveredParagraphs, allParagraphs.length),
-          paragraphs_by_ai: Math.max(0, allParagraphs.length - patternCoveredParagraphs),
+          paragraphs_by_pattern: Math.min(patternCoveredParagraphs, executableParagraphs.length),
+          paragraphs_by_ai: Math.max(0, executableParagraphs.length - patternCoveredParagraphs),
           average_confidence: avgPatternConfidence,
           high_confidence_paragraphs: highConfidenceCount,
           low_confidence_paragraphs: lowConfidenceCount,
           production_readiness: productionReadiness,
-          estimated_review_time_minutes: Math.round(lowConfidenceCount * 5 + Math.max(0, allParagraphs.length - patternCoveredParagraphs) * 2)
+          estimated_review_time_minutes: Math.round(lowConfidenceCount * 5 + Math.max(0, executableParagraphs.length - patternCoveredParagraphs) * 2)
         }
       };
       console.log('[v10.0] Coverage metrics:', coverageMetrics);
@@ -2868,7 +2891,7 @@ ${testLines}
     Main --> F1
     Main --> F2`;
 
-      const modules = allParagraphs.map(p => ({
+      const modules = executableParagraphs.map(p => ({
         name: p.name,
         lines: p.lineEnd - p.lineStart + 1,
         type: 'PARAGRAPH',
@@ -3096,7 +3119,7 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
       console.log(`[v9.0] Generated ${Object.keys(modularFiles).length} modular files across ${activeDomains.length} domains`);
 
       const improvements = [
-        `${translations.length}/${allParagraphs.length} paragraphs translated with business logic`,
+        `${translations.length}/${executableParagraphs.length} paragraphs translated with business logic`,
         'Type-safe class structure generated',
         'Logging infrastructure added',
         'Complete method implementations for all paragraphs',
@@ -3113,14 +3136,14 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
       return NextResponse.json({
         python_code: skeleton,
         unit_tests: unitTests,
-        config_json: JSON.stringify({ fast_mode: true, lines: totalLines, paragraphs: allParagraphs.length, translated: translations.length }),
+        config_json: JSON.stringify({ fast_mode: true, lines: totalLines, paragraphs: executableParagraphs.length, translated: translations.length }),
         cobol_lines: totalLines,
         python_lines: skeleton.split('\n').length,
         confidence: 65,
         complexity: 'HIGH',
         risk_level: 'HIGH',
         processing_time_ms: Date.now() - startTime,
-        summary: `${totalLines} lines - ${translations.length}/${allParagraphs.length} paragraphs translated with v7.5 (${allSelfVars.size} vars).`,
+        summary: `${totalLines} lines - ${translations.length}/${executableParagraphs.length} paragraphs translated with v10.6 (${allSelfVars.size} vars).`,
         code_valid: true,
         // Additional fields for tabs
         issues,
@@ -3189,7 +3212,7 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
         confidence_report: {
           overall_score: avgPatternConfidence,
           production_readiness: productionReadiness,
-          pattern_coverage_percent: Math.round((patternCoveredParagraphs / Math.max(1, allParagraphs.length)) * 100),
+          pattern_coverage_percent: Math.round((patternCoveredParagraphs / Math.max(1, executableParagraphs.length)) * 100),
           review_priority: lowConfidenceCount > 0 ? 'HIGH' : (avgPatternConfidence < 70 ? 'MEDIUM' : 'LOW'),
           paragraphs_needing_review: allConfidences
             .filter(c => c.overallConfidence < 70)
@@ -3205,10 +3228,10 @@ ${activeDomains.map(d => `            '${d}': self.${d}_service`).join(',\n')}
         category: 'Enterprise',
         ast_metrics: {
           totalLines,
-          paragraphs: allParagraphs.length,
+          paragraphs: executableParagraphs.length,
           variables: 0,
           copybooks: 0,
-          cyclomaticComplexity: allParagraphs.length
+          cyclomaticComplexity: executableParagraphs.length
         },
         // v9.0: MODULAR ARCHITECTURE (DDD-style)
         modular_architecture: {
