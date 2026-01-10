@@ -483,6 +483,23 @@ function sanitizePythonCode(code: string): string {
     return true;
   }).join('\n');
   
+  // === v10.3: FIX COBOL NAMING CONVENTIONS ===
+  
+  // Convert COBOL-style names with hyphens to Python underscores (in variable/attribute names only)
+  // self._file_CUSTOMER-FILE -> self._file_customer_file
+  // self.ws-amount -> self.ws_amount
+  sanitized = sanitized.replace(/self\.([a-z_]*[A-Z0-9-]+[a-z_A-Z0-9-]*)/g, (match, name) => {
+    // Convert hyphens to underscores and lowercase
+    const fixed = name.replace(/-/g, '_').toLowerCase();
+    return `self.${fixed}`;
+  });
+  
+  // Also fix in string literals that reference file paths with self.
+  sanitized = sanitized.replace(/"self\.([a-z_-]+)"/gi, (match, name) => {
+    const fixed = name.replace(/-/g, '_').toLowerCase();
+    return `"${fixed}"`;
+  });
+  
   // === v8.3: FIX CRITICAL SYNTAX ERRORS ===
   
   // 1. Fix nested quotes in strings: "datetime.now().strftime("%Y...")" -> datetime.now().strftime("%Y...")
