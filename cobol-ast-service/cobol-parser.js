@@ -265,11 +265,15 @@ class CobolParser {
       case 'IF': return { type: 'IF', condition: st.filter(t => t.type !== 'PERIOD' && t.value !== 'THEN'), _endIndex: endIndex };
       case 'PERFORM': {
         let target = null, times = null, until = null;
+        let varying = null, from = null, by = null;
         for (let j = 0; j < st.length; j++) { const t = st[j];
-          if (t.type === 'IDENTIFIER' && !target) target = t.value;
+          if (t.type === 'IDENTIFIER' && !target && t.value !== 'VARYING') target = t.value;
           if (t.type === 'NUMBER' && st[j+1]?.value === 'TIMES') times = parseInt(t.value);
+          if (t.value === 'VARYING' && st[j+1]?.type === 'IDENTIFIER') varying = st[j+1].value;
+          if (t.value === 'FROM' && st[j+1]) from = st[j+1].type === 'NUMBER' ? parseInt(st[j+1].value) : st[j+1].value;
+          if (t.value === 'BY' && st[j+1]) by = st[j+1].type === 'NUMBER' ? parseInt(st[j+1].value) : 1;
           if (t.value === 'UNTIL') until = st.slice(j + 1).filter(x => x.type !== 'PERIOD'); }
-        return { type: 'PERFORM', target, times, until, _endIndex: endIndex }; }
+        return { type: 'PERFORM', target, times, until, varying, from, by, _endIndex: endIndex }; }
       case 'DISPLAY': return { type: 'DISPLAY', items: st.filter(t => t.type !== 'PERIOD' && t.value !== 'UPON'), _endIndex: endIndex };
       case 'ACCEPT': return { type: 'ACCEPT', target: st.find(t => t.type === 'IDENTIFIER')?.value, _endIndex: endIndex };
       case 'CALL': {
@@ -389,7 +393,24 @@ class PythonGenerator {
       } break;
       case 'IF': this.emit(`if ${this.condPy(s.condition)}:`); this.indent++; this.emit('pass  # IF body'); this.indent--; break;
       case 'PERFORM':
-        if (s.times) { this.emit(`for _ in range(${s.times}):`); this.indent++; this.emit(`self.${this.pyName(s.target)}()`); this.indent--; }
+        if (s.varying) {
+          // PERFORM VARYING X FROM A BY B UNTIL X > C
+          const varName = this.pyName(s.varying);
+          const fromVal = typeof s.from === 'number' ? s.from : `self.${this.pyName(s.from)}`;
+          const byVal = s.by || 1;
+          // Extract limit from UNTIL condition (e.g., "X > 10" -> 11)
+          let limit = 100; // default
+          if (s.until && s.until.length > 0) {
+            const limitToken = s.until.find(t => t.type === 'NUMBER');
+            if (limitToken) limit = parseInt(limitToken.value) + 1;
+          }
+          this.emit(`for self.${varName} in range(${fromVal}, ${limit}, ${byVal}):`);
+          this.indent++;
+          if (s.target) this.emit(`self.${this.pyName(s.target)}()`);
+          else this.emit('pass  # VARYING loop body');
+          this.indent--;
+        }
+        else if (s.times) { this.emit(`for _ in range(${s.times}):`); this.indent++; this.emit(`self.${this.pyName(s.target)}()`); this.indent--; }
         else if (s.until) { this.emit(`while not (${this.condPy(s.until)}):`); this.indent++; this.emit(`self.${this.pyName(s.target)}()`); this.indent--; }
         else if (s.target) this.emit(`self.${this.pyName(s.target)}()`);
         break;
