@@ -3156,7 +3156,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
       {/* Footer */}
       <footer className="bg-slate-800/50 border-t border-slate-700 px-6 py-4">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between text-sm text-slate-400">
-          <span>CodeSwitch Pro v9.3 - Production Grade (Real Diff + Golden Master)</span>
+          <span>CodeSwitch Pro v11.2 - Production Grade (Real Diff + Golden Master)</span>
           <span>Hackathon Gemini 3</span>
         </div>
       </footer>
