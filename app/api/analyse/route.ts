@@ -3,8 +3,9 @@ import { parseCobolWithANTLR } from '@/lib/cobol-antlr-parser';
 import { transpileCobol as transpileAdvanced, transpileToCleanArchitecture } from '@/lib/cobol-transpiler';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Edge Runtime for longer timeout on Hobby plan (30s vs 10s)
-export const runtime = 'edge';
+// Node.js runtime (Edge not compatible with complex modules)
+export const runtime = 'nodejs';
+export const maxDuration = 60; // 60s timeout for Pro plan
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
