@@ -31,18 +31,19 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { cobol_code, chunk_index = 0, chunk_size = 5000, full_parse = false } = body;
+    const cobol_code = body.cobolCode || body.cobol_code; // Support both formats
+    const { chunk_index = 0, chunk_size = 5000, full_parse = false } = body;
     
     if (!cobol_code) {
       return NextResponse.json({
-        error: 'Missing cobol_code parameter',
+        error: 'Missing cobolCode parameter',
         usage: {
           method: 'POST',
           body: {
-            cobol_code: 'string (required)',
-            chunk_index: 'number (optional, default: 0)',
-            chunk_size: 'number (optional, default: 5000)',
-            full_parse: 'boolean (optional, default: false)'
+            cobolCode: 'string (required)',
+            chunkIndex: 'number (optional, default: 0)',
+            chunkSize: 'number (optional, default: 5000)',
+            fullParse: 'boolean (optional, default: false)'
           }
         }
       }, { status: 400, headers: corsHeaders });

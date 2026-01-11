@@ -25,20 +25,21 @@ export async function OPTIONS() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { cobolSource } = await request.json();
+    const body = await request.json();
+    const cobolCode = body.cobolCode || body.cobolSource; // Support both formats
 
-    if (!cobolSource) {
+    if (!cobolCode) {
       return NextResponse.json(
-        { error: 'cobolSource is required' },
+        { error: 'cobolCode is required' },
         { status: 400, headers: corsHeaders }
       );
     }
 
     // Parse COBOL source
-    const ast = parseCobolWithANTLR(cobolSource);
+    const ast = parseCobolWithANTLR(cobolCode);
     
     // Transpile to Clean Architecture
-    const result = transpileToCleanArchitecture(ast, cobolSource);
+    const result = transpileToCleanArchitecture(ast, cobolCode);
     
     // Convert Map to Object for JSON serialization
     const filesObject: Record<string, string> = {};
