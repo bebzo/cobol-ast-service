@@ -422,6 +422,7 @@ function transpileParagraph(
     }
   }
   
+  
   // Ensure method has at least one statement
   if (body.length === 0) {
     body.push({
@@ -1621,8 +1622,8 @@ export function optimizePythonCode(code: string): string {
   // Fix any double self. references
   optimized = optimized.replace(/self\.self\./g, 'self.');
   
-  // Fix elif after else (invalid Python)
-  optimized = optimized.replace(/(\n\s*else:.*\n(?:\s+.*\n)*?)(\s*)(elif\s)/g, '$1$2# TODO: $3');
+  // Fix elif after else (invalid Python) - DISABLED due to potential ReDoS
+  // optimized = optimized.replace(/(\n\s*else:.*\n(?:\s+.*\n)*?)(\s*)(elif\s)/g, '$1$2# TODO: $3');
   
   // Fix trailing periods in variable names
   optimized = optimized.replace(/self\.([a-z_][a-z0-9_]*)\.([\s\)])/g, 'self.$1$2');
