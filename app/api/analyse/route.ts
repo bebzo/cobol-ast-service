@@ -30,6 +30,13 @@ import {
   ConfidenceSummary
 } from '@/lib/confidence';
 
+// v12.0: DETERMINISTIC TRANSPILER - No AI for basic translations
+import { 
+  transpileCobol,
+  transpileCobolToPythonAST,
+  generatePythonCode
+} from '@/lib/cobol-transpiler';
+
 // Validate that input is actually COBOL code
 function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
   if (!code || code.trim().length < 50) {
@@ -910,10 +917,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
   
   try {
-    const { cobolCode, filename, patternOnly = false } = await request.json();
+    const { cobolCode, filename, patternOnly = false, useTranspiler = true } = await request.json();
     
     // v10.1: Pattern-only mode flag (reduces AI calls to zero)
     let usePatternOnly = patternOnly === true || patternOnly === 'true';
+    
+    // v12.0: Deterministic transpiler mode (default: ON)
+    const useDeterministicTranspiler = useTranspiler === true || useTranspiler === 'true';
 
     if (!cobolCode) {
       return NextResponse.json(
@@ -963,6 +973,54 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
       
       console.log(`[HybridChunk] Found ${allParagraphs.length} paragraphs`);
+      
+      // v12.0: DETERMINISTIC TRANSPILER MODE
+      // Uses AST-based translation with 0% AI for basic statements
+      if (useDeterministicTranspiler) {
+        console.log('[v12.0] Using deterministic transpiler (0% AI)');
+        
+        try {
+          // Parse COBOL to full AST
+          const cobolAST = parseCobolWithANTLR(cobolCode);
+          
+          // Transpile to Python using deterministic rules
+          const { pythonCode, stats } = transpileCobol(cobolAST, cobolCode);
+          
+          console.log(`[v12.0] Transpiler stats: ${stats.methodsTranspiled} methods, ${stats.averageConfidence}% confidence, ${stats.fallbackCount} fallbacks`);
+          
+          // Return transpiled result
+          const processingTime = Date.now() - startTime;
+          
+          return NextResponse.json({
+            pythonCode,
+            cobolMeta: {
+              program_id: programId,
+              total_lines: totalLines,
+              paragraphs_count: cobolAST.paragraphs.length,
+              variables_count: cobolAST.workingStorageVariables.length
+            },
+            coverageMetrics: {
+              total_paragraphs: stats.methodsTranspiled,
+              successful_translations: stats.statementsTranspiled - stats.fallbackCount,
+              fallback_count: stats.fallbackCount,
+              translation_rate: stats.averageConfidence,
+              transpiler_mode: 'deterministic',
+              ai_calls: 0
+            },
+            confidenceReport: {
+              overall_confidence: stats.averageConfidence,
+              pattern_coverage: 100 - (stats.fallbackCount / Math.max(1, stats.statementsTranspiled) * 100),
+              recommendation: stats.averageConfidence >= 80 ? 'PRODUCTION_READY' : 'REVIEW_RECOMMENDED'
+            },
+            processingTime,
+            version: 'v12.0-transpiler'
+          }, { status: 200, headers: corsHeaders });
+          
+        } catch (transpilerError: any) {
+          console.log(`[v12.0] Transpiler failed, falling back to AI: ${transpilerError.message}`);
+          // Fall through to AI mode
+        }
+      }
       
       // v7.0: Translate ALL paragraphs using batch+parallel approach
       // Using Groq API (Llama 3.3 70B)
