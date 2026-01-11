@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseCobolWithANTLR } from '@/lib/cobol-antlr-parser';
 import { transpileCobol as transpileAdvanced, transpileToCleanArchitecture } from '@/lib/cobol-transpiler';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 /**
  * CodeSwitch API v15.0 - TypeScript AST Transpiler + Clean Architecture
@@ -78,6 +81,107 @@ function transpileCobolUnified(cobolSource: string): { success: boolean; python_
   }
 }
 
+// Expand COPYBOOK references
+function expandCopybooks(cobolCode: string, copybooks: Record<string, string>): string {
+  if (!copybooks || Object.keys(copybooks).length === 0) {
+    return cobolCode;
+  }
+  
+  let expanded = cobolCode;
+  
+  // Match COPY statements: COPY copybook-name. or COPY "copybook-name".
+  const copyPattern = /^\s{6}\s*COPY\s+["']?([A-Z0-9][-A-Z0-9]*)["']?\.?\s*$/gmi;
+  
+  expanded = expanded.replace(copyPattern, (match, copybookName) => {
+    const normalizedName = copybookName.toUpperCase().replace(/["']/g, '');
+    
+    // Look for copybook in provided copybooks
+    const copybookContent = copybooks[normalizedName] || 
+                           copybooks[normalizedName.toLowerCase()] ||
+                           copybooks[copybookName];
+    
+    if (copybookContent) {
+      return `      * === EXPANDED FROM COPYBOOK: ${normalizedName} ===\n${copybookContent}\n      * === END COPYBOOK: ${normalizedName} ===`;
+    }
+    
+    // If copybook not found, leave a comment
+    return `      * COPY ${normalizedName} - (copybook not provided)`;
+  });
+  
+  return expanded;
+}
+
+// Resolve TODOs with Gemini
+async function resolveTodosWithGemini(pythonCode: string, cobolCode: string): Promise<string> {
+  if (!GEMINI_API_KEY) {
+    console.log('[Gemini] No API key, skipping TODO resolution');
+    return pythonCode;
+  }
+  
+  // Check if there are TODOs to resolve
+  const todoCount = (pythonCode.match(/# TODO/g) || []).length;
+  if (todoCount === 0) {
+    return pythonCode;
+  }
+  
+  console.log(`[Gemini] Resolving ${todoCount} TODOs...`);
+  
+  try {
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.0-flash',
+      generationConfig: { maxOutputTokens: 65536 }
+    });
+    
+    const prompt = `You are a COBOL-to-Python migration expert. The following Python code was auto-transpiled from COBOL but has some TODO comments that need to be resolved.
+
+ORIGINAL COBOL CODE:
+\`\`\`cobol
+${cobolCode.substring(0, 8000)}
+\`\`\`
+
+TRANSPILED PYTHON CODE WITH TODOs:
+\`\`\`python
+${pythonCode}
+\`\`\`
+
+INSTRUCTIONS:
+1. Find all lines with "# TODO" comments
+2. Replace the TODO with actual working Python code based on the COBOL logic
+3. Keep ALL existing code that works correctly
+4. Only modify lines with TODOs
+5. Preserve the exact class structure and method names
+6. Use Decimal for all numeric operations
+7. Return ONLY the complete Python code, no explanations
+
+Return the complete fixed Python code:`;
+    
+    const result = await model.generateContent(prompt);
+    let response = result.response.text();
+    
+    // Extract code from response
+    const codeMatch = response.match(/```python\n([\s\S]*?)```/);
+    if (codeMatch) {
+      response = codeMatch[1];
+    } else {
+      response = response.replace(/^```python\n?/gm, '').replace(/```$/gm, '');
+    }
+    
+    // Validate we got reasonable code back
+    if (response.includes('class ') && response.includes('def ')) {
+      console.log('[Gemini] TODOs resolved successfully');
+      return response.trim();
+    }
+    
+    console.log('[Gemini] Response invalid, keeping original');
+    return pythonCode;
+    
+  } catch (error: any) {
+    console.error('[Gemini] TODO resolution failed:', error.message);
+    return pythonCode;
+  }
+}
+
 // Generate security warnings
 function generateSecurityWarnings(cobolCode: string): any[] {
   const warnings: any[] = [];
@@ -106,7 +210,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
 
   try {
-    const { cobolCode, filename, outputMode } = await request.json();
+    const { cobolCode, filename, outputMode, copybooks, enhancedMode } = await request.json();
 
     if (!cobolCode) {
       return NextResponse.json(
@@ -115,8 +219,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Validate COBOL
-    const validation = isValidCobolCode(cobolCode);
+    // Step 1: Expand COPYBOOK references if provided
+    const expandedCobolCode = expandCopybooks(cobolCode, copybooks || {});
+    
+    // Validate COBOL (use expanded code)
+    const validation = isValidCobolCode(expandedCobolCode);
     if (!validation.valid) {
       return NextResponse.json(
         { error: `Invalid COBOL code: ${validation.reason}` },
@@ -131,7 +238,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log(`[v15.0] Processing ${totalLines} lines with Clean Architecture transpiler`);
       
       try {
-        const ast = parseCobolWithANTLR(cobolCode);
+        const ast = parseCobolWithANTLR(expandedCobolCode);
         const result = transpileToCleanArchitecture(ast, cobolCode);
         
         // Convert Map to Object for JSON
@@ -167,14 +274,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Default: single-file mode with full AST parser
     console.log(`[v15.0] Processing ${totalLines} lines with TypeScript AST transpiler`);
 
-    // Call unified AST transpiler (same engine as Clean Architecture)
-    const pythonResult = transpileCobolUnified(cobolCode);
+    // Call unified AST transpiler (same engine as Clean Architecture) - use expanded code
+    let pythonResult = transpileCobolUnified(expandedCobolCode);
 
     if (!pythonResult.success) {
       return NextResponse.json(
         { error: pythonResult.error || 'Transpilation failed' },
         { status: 500, headers: corsHeaders }
       );
+    }
+
+    // Step 2: Resolve TODOs with Gemini if enhancedMode is enabled
+    if (enhancedMode) {
+      console.log('[v15.0] Enhanced mode enabled - resolving TODOs with Gemini...');
+      const resolvedCode = await resolveTodosWithGemini(pythonResult.python_code, expandedCobolCode);
+      pythonResult = {
+        ...pythonResult,
+        python_code: resolvedCode
+      };
     }
 
     // Extract program ID from COBOL
