@@ -1024,6 +1024,9 @@ function transpileCompute(upper: string, original: string): PythonStatement | nu
     expr = expr.replace(/self\.self\./g, 'self.');
     expr = expr.replace(/\s+/g, ' ').trim();
     
+    // Convert decimal literals to Decimal() for precision
+    expr = expr.replace(/(\d+\.\d+)/g, 'Decimal("$1")');
+    
     const hasRounded = upper.includes('ROUNDED');
     const code = hasRounded 
       ? `self.${target} = round(${expr}, 2)`
@@ -1470,6 +1473,21 @@ function transpileWhen(upper: string, original: string): PythonStatement | null 
       code: `elif self._eval_subject == "${match[1].toLowerCase()}":`,
       originalCobol: original,
       confidence: 70,
+      indent: 0
+    };
+  }
+  
+  // WHEN var >= value (comparison in EVALUATE TRUE)
+  match = upper.match(/WHEN\s+([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*(>=|<=|>|<|=)\s*(\d+(?:\.\d+)?)/i);
+  if (match) {
+    const varName = toSnakeCase(match[1]);
+    const op = match[2] === '=' ? '==' : match[2];
+    const value = match[3];
+    return {
+      type: 'elif',
+      code: `elif self.${varName} ${op} Decimal("${value}"):`,
+      originalCobol: original,
+      confidence: 90,
       indent: 0
     };
   }
