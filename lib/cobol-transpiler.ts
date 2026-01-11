@@ -764,11 +764,11 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
 }
 
 function transpilePerform(upper: string, original: string): PythonStatement | null {
-  // PERFORM ... TIMES
+  // PERFORM ... TIMES (single-line loop, no indent change)
   let match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+(\d+)\s+TIMES/i);
   if (match) {
     return {
-      type: 'for',
+      type: 'call',  // Use 'call' to avoid indent change for single-line loops
       code: `for _ in range(${match[2]}): self.p_${toSnakeCase(match[1])}()`,
       originalCobol: original,
       confidence: 95,
@@ -776,14 +776,14 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
     };
   }
   
-  // PERFORM ... UNTIL condition
+  // PERFORM ... UNTIL condition (single-line loop, no indent change)
   match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*=\s*["']?([^"'\s]+)["']?/i);
   if (match) {
     const target = toSnakeCase(match[1]);
     const condVar = toSnakeCase(match[2]);
     const condVal = match[3].toLowerCase();
     return {
-      type: 'while',
+      type: 'call',  // Use 'call' to avoid indent change for single-line loops
       code: `while self.${condVar} != "${condVal}": self.p_${target}()`,
       originalCobol: original,
       confidence: 85,
@@ -800,7 +800,7 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
     const step = match[4];
     const endVal = match[6];
     return {
-      type: 'for',
+      type: 'call',  // Use 'call' to avoid indent change for single-line loops
       code: `for self.${loopVar} in range(${start}, ${endVal} + 1, ${step}): self.p_${target}()`,
       originalCobol: original,
       confidence: 90,
