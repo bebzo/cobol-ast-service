@@ -1164,8 +1164,15 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
   
   // ===== INLINE PERFORM UNTIL (no paragraph name) =====
   // Helper to convert value (number or variable) to Python
-  const toPyValue = (val: string): string => {
+  const toPyValue = (val: string, originalLine?: string): string => {
+    // Check if it's a number
     if (/^\d+(\.\d+)?$/.test(val)) return `Decimal("${val}")`;
+    // Check if original line has this value in quotes (string literal) - preserve case
+    if (originalLine) {
+      const quotedMatch = originalLine.match(new RegExp(`["'](${val})["']`, 'i'));
+      if (quotedMatch) return `"${quotedMatch[1]}"`;  // Use original case from source
+    }
+    // Otherwise treat as variable
     return `self.${toSnakeCase(val)}`;
   };
   
@@ -1211,11 +1218,11 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
     };
   }
   
-  // PERFORM UNTIL var = value (inline)
+  // PERFORM UNTIL var = value (inline) - supports string literals
   match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*=\s*["']?([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)["']?/i);
   if (match) {
     const condVar = toSnakeCase(match[1]);
-    const pyVal = toPyValue(match[2]);
+    const pyVal = toPyValue(match[2], original);
     return {
       type: 'while',
       code: `while self.${condVar} != ${pyVal}:`,
@@ -1271,12 +1278,12 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
     };
   }
   
-  // PERFORM ... UNTIL var = value (equality) - supports variables
+  // PERFORM ... UNTIL var = value (equality) - supports variables and strings
   match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*=\s*["']?([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)["']?/i);
   if (match) {
     const target = toSnakeCase(match[1]);
     const condVar = toSnakeCase(match[2]);
-    const pyVal = toPyValue(match[3]);
+    const pyVal = toPyValue(match[3], original);
     return {
       type: 'call',
       code: `while self.${condVar} != ${pyVal}: self.p_${target}()`,
