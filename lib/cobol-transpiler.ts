@@ -1163,28 +1163,34 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
   }
   
   // ===== INLINE PERFORM UNTIL (no paragraph name) =====
+  // Helper to convert value (number or variable) to Python
+  const toPyValue = (val: string): string => {
+    if (/^\d+(\.\d+)?$/.test(val)) return `Decimal("${val}")`;
+    return `self.${toSnakeCase(val)}`;
+  };
+  
   // PERFORM UNTIL var >= value (inline block with END-PERFORM)
-  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>=\s*(\d+(?:\.\d+)?)/i);
+  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>=\s*([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)/i);
   if (match) {
     const condVar = toSnakeCase(match[1]);
-    const condVal = match[2];
+    const pyVal = toPyValue(match[2]);
     return {
       type: 'while',
-      code: `while self.${condVar} < Decimal("${condVal}"):`,
+      code: `while self.${condVar} < ${pyVal}:`,
       originalCobol: original,
       confidence: 95,
       indent: 0
     };
   }
   
-  // PERFORM UNTIL var > value (inline)
-  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>\s*(\d+(?:\.\d+)?)/i);
+  // PERFORM UNTIL var > value (inline) - supports variables
+  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>\s*([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)/i);
   if (match) {
     const condVar = toSnakeCase(match[1]);
-    const condVal = match[2];
+    const pyVal = toPyValue(match[2]);
     return {
       type: 'while',
-      code: `while self.${condVar} <= Decimal("${condVal}"):`,
+      code: `while self.${condVar} <= ${pyVal}:`,
       originalCobol: original,
       confidence: 95,
       indent: 0
@@ -1192,13 +1198,13 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
   }
   
   // PERFORM UNTIL var < value (inline)
-  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*<\s*(\d+(?:\.\d+)?)/i);
+  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*<\s*([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)/i);
   if (match) {
     const condVar = toSnakeCase(match[1]);
-    const condVal = match[2];
+    const pyVal = toPyValue(match[2]);
     return {
       type: 'while',
-      code: `while self.${condVar} >= Decimal("${condVal}"):`,
+      code: `while self.${condVar} >= ${pyVal}:`,
       originalCobol: original,
       confidence: 95,
       indent: 0
@@ -1206,12 +1212,10 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
   }
   
   // PERFORM UNTIL var = value (inline)
-  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*=\s*["']?([^"'\s]+)["']?/i);
+  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*=\s*["']?([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)["']?/i);
   if (match) {
     const condVar = toSnakeCase(match[1]);
-    const condVal = match[2];
-    const isNumber = /^\d+(\.\d+)?$/.test(condVal);
-    const pyVal = isNumber ? `Decimal("${condVal}")` : `"${condVal.toLowerCase()}"`;
+    const pyVal = toPyValue(match[2]);
     return {
       type: 'while',
       code: `while self.${condVar} != ${pyVal}:`,
@@ -1222,60 +1226,57 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
   }
   
   // ===== PERFORM paragraph UNTIL (with paragraph name) =====
-  // PERFORM ... UNTIL var > value (greater than)
-  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>\s*(\d+(?:\.\d+)?)/i);
+  // PERFORM ... UNTIL var > value (greater than) - supports variables
+  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>\s*([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)/i);
   if (match) {
     const target = toSnakeCase(match[1]);
     const condVar = toSnakeCase(match[2]);
-    const condVal = match[3];
+    const pyVal = toPyValue(match[3]);
     return {
       type: 'call',
-      code: `while self.${condVar} <= Decimal("${condVal}"): self.p_${target}()`,
+      code: `while self.${condVar} <= ${pyVal}: self.p_${target}()`,
       originalCobol: original,
       confidence: 95,
       indent: 0
     };
   }
   
-  // PERFORM ... UNTIL var >= value (greater or equal)
-  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>=\s*(\d+(?:\.\d+)?)/i);
+  // PERFORM ... UNTIL var >= value (greater or equal) - supports variables
+  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>=\s*([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)/i);
   if (match) {
     const target = toSnakeCase(match[1]);
     const condVar = toSnakeCase(match[2]);
-    const condVal = match[3];
+    const pyVal = toPyValue(match[3]);
     return {
       type: 'call',
-      code: `while self.${condVar} < Decimal("${condVal}"): self.p_${target}()`,
+      code: `while self.${condVar} < ${pyVal}: self.p_${target}()`,
       originalCobol: original,
       confidence: 95,
       indent: 0
     };
   }
   
-  // PERFORM ... UNTIL var < value (less than)
-  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*<\s*(\d+(?:\.\d+)?)/i);
+  // PERFORM ... UNTIL var < value (less than) - supports variables
+  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*<\s*([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)/i);
   if (match) {
     const target = toSnakeCase(match[1]);
     const condVar = toSnakeCase(match[2]);
-    const condVal = match[3];
+    const pyVal = toPyValue(match[3]);
     return {
       type: 'call',
-      code: `while self.${condVar} >= Decimal("${condVal}"): self.p_${target}()`,
+      code: `while self.${condVar} >= ${pyVal}: self.p_${target}()`,
       originalCobol: original,
       confidence: 95,
       indent: 0
     };
   }
   
-  // PERFORM ... UNTIL var = value (equality)
-  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*=\s*["']?([^"'\s]+)["']?/i);
+  // PERFORM ... UNTIL var = value (equality) - supports variables
+  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*=\s*["']?([A-Z0-9][-A-Z0-9]*|\d+(?:\.\d+)?)["']?/i);
   if (match) {
     const target = toSnakeCase(match[1]);
     const condVar = toSnakeCase(match[2]);
-    const condVal = match[3];
-    // Check if it's a number or string
-    const isNumber = /^\d+(\.\d+)?$/.test(condVal);
-    const pyVal = isNumber ? `Decimal("${condVal}")` : `"${condVal.toLowerCase()}"`;
+    const pyVal = toPyValue(match[3]);
     return {
       type: 'call',
       code: `while self.${condVar} != ${pyVal}: self.p_${target}()`,
