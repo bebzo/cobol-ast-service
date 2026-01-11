@@ -117,7 +117,9 @@ def parse_variables(source: str) -> List[CobolVariable]:
             elif 'SPACE' in line.upper() and re.search(r'VALUE\s+(?:IS\s+)?SPACES?', line.upper()):
                 value = 'SPACES'
             else:
-                value = value_match.group(1) or value_match.group(2) or value_match.group(3)
+                raw_value = value_match.group(1) or value_match.group(2) or value_match.group(3)
+                # Clean trailing periods from numeric values
+                value = raw_value.rstrip('.') if raw_value else None
         
         variables.append(CobolVariable(
             level=level,
@@ -325,9 +327,10 @@ def cobol_value_to_python_v2(value: Optional[str], pic: Optional[str]) -> ast.ex
         # Check if numeric - handle implied decimals
         try:
             # Handle COBOL implied decimal (.150 means 0.150)
-            val_str = str(value)
+            val_str = str(value).strip().rstrip('.')  # Remove trailing periods
             if val_str.startswith('.'):
                 val_str = '0' + val_str
+            # Validate it's a valid number
             float(val_str)
             return ast.Call(
                 func=ast.Name(id='Decimal', ctx=ast.Load()),
@@ -335,7 +338,7 @@ def cobol_value_to_python_v2(value: Optional[str], pic: Optional[str]) -> ast.ex
                 keywords=[]
             )
         except (ValueError, TypeError):
-            return ast.Constant(value=str(value))
+            return ast.Constant(value=str(value).strip().rstrip('.'))
 
 
 def generate_python_ast(cobol_ast: CobolAST) -> ast.Module:
