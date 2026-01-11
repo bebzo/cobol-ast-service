@@ -1313,14 +1313,20 @@ COBOL PARAGRAPHS:
         }));
         
         // v8.1: Flatten results with deduplication
+        // v11.24: Apply sanitizePythonCode on each translation to fix errors early
         for (const batchResults of waveResults) {
           for (const result of batchResults) {
-            const existingIdx = translations.findIndex(t => t.name.toUpperCase() === result.name.toUpperCase());
+            // Sanitize the logic early to fix AI hallucinations like self.'string' and self.arr(idx)
+            const sanitizedResult = { 
+              name: result.name, 
+              logic: sanitizePythonCode(result.logic) 
+            };
+            const existingIdx = translations.findIndex(t => t.name.toUpperCase() === sanitizedResult.name.toUpperCase());
             if (existingIdx === -1) {
-              translations.push(result);
-            } else if (result.logic.length > translations[existingIdx].logic.length) {
+              translations.push(sanitizedResult);
+            } else if (sanitizedResult.logic.length > translations[existingIdx].logic.length) {
               // Keep the one with more logic
-              translations[existingIdx] = result;
+              translations[existingIdx] = sanitizedResult;
             }
           }
         }
