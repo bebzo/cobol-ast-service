@@ -196,39 +196,118 @@ def to_pascal_case(name: str) -> str:
     return ''.join(word.capitalize() for word in name.replace('-', '_').split('_'))
 
 
-def pic_to_python_type(pic: Optional[str]) -> Tuple[str, ast.expr]:
+def pic_to_python_type(pic: Optional[str], value: Optional[str] = None) -> Tuple[str, ast.expr]:
     """Convert PIC clause to Python type and default value"""
     if not pic:
         return 'Any', ast.Constant(value=None)
     
     upper = pic.upper()
     
-    if re.match(r'^S?9', upper):
-        # Numeric: Decimal
+    # Check for decimal pattern (V = implied decimal point)
+    if 'V' in upper or re.match(r'^S?9', upper):
+        # Parse PIC to get default value
+        default_val = parse_pic_default(upper, value)
         return 'Decimal', ast.Call(
             func=ast.Name(id='Decimal', ctx=ast.Load()),
-            args=[ast.Constant(value='0')],
+            args=[ast.Constant(value=default_val)],
             keywords=[]
         )
     elif re.match(r'^X', upper) or re.match(r'^A', upper):
-        # Alphanumeric: str
+        # Alphanumeric: str - get length for default
+        length = parse_pic_length(upper)
         return 'str', ast.Constant(value='')
     else:
         return 'str', ast.Constant(value='')
 
 
+def parse_pic_default(pic: str, value: Optional[str]) -> str:
+    """Parse PIC clause to extract proper default value with decimals"""
+    upper = pic.upper()
+    
+    # If explicit value provided, use it
+    if value:
+        if value.upper() in ('ZEROS', 'ZEROES', 'ZERO'):
+            pass  # Will return 0 with proper decimal places
+        elif value.upper() not in ('SPACES', 'SPACE'):
+            try:
+                # Preserve the original value format
+                return str(value)
+            except:
+                pass
+    
+    # Parse PIC to determine decimal places
+    # V999 means 3 decimal places, 9(5)V99 means 2 decimal places
+    if 'V' in upper:
+        parts = upper.split('V')
+        # Count digits after V
+        after_v = parts[1] if len(parts) > 1 else ''
+        decimal_places = count_pic_digits(after_v)
+        
+        # If value provided with decimal
+        if value and value not in ('ZEROS', 'ZEROES', 'ZERO', 'SPACES', 'SPACE', None):
+            try:
+                # Handle values like .150 or 0.150
+                if value.startswith('.'):
+                    return f'0{value}'
+                return str(float(value))
+            except:
+                pass
+        
+        # Return 0 with proper decimal places
+        if decimal_places > 0:
+            return f"0.{'0' * decimal_places}"
+    
+    return '0'
+
+
+def count_pic_digits(pic_part: str) -> int:
+    """Count number of digits in PIC part (handles 9(5) notation)"""
+    count = 0
+    i = 0
+    while i < len(pic_part):
+        c = pic_part[i]
+        if c in '9AXZ0':
+            # Check for (n) notation
+            if i + 1 < len(pic_part) and pic_part[i + 1] == '(':
+                end = pic_part.find(')', i + 2)
+                if end != -1:
+                    try:
+                        count += int(pic_part[i + 2:end])
+                    except:
+                        count += 1
+                    i = end + 1
+                    continue
+            count += 1
+        i += 1
+    return count
+
+
+def parse_pic_length(pic: str) -> int:
+    """Parse PIC X(n) to get string length"""
+    match = re.search(r'X\((\d+)\)', pic.upper())
+    if match:
+        return int(match.group(1))
+    return pic.upper().count('X')
+
+
 def cobol_value_to_python(value: Optional[str], pic: Optional[str]) -> ast.expr:
-    """Convert COBOL VALUE to Python AST expression"""
+    """Convert COBOL VALUE to Python AST expression (legacy)"""
+    return cobol_value_to_python_v2(value, pic)
+
+
+def cobol_value_to_python_v2(value: Optional[str], pic: Optional[str]) -> ast.expr:
+    """Convert COBOL VALUE to Python AST expression with proper decimal handling"""
     if value is None:
-        _, default = pic_to_python_type(pic)
+        _, default = pic_to_python_type(pic, None)
         return default
     
     upper = value.upper() if isinstance(value, str) else str(value)
     
     if upper in ('ZEROS', 'ZEROES', 'ZERO'):
+        default_val = parse_pic_default(pic or '9', 'ZEROS')
         return ast.Call(
             func=ast.Name(id='Decimal', ctx=ast.Load()),
-            args=[ast.Constant(value='0')],
+            args=[ast.Constant(value=default_val)],
             keywords=[]
         )
     elif upper in ('SPACES', 'SPACE'):
@@ -238,12 +317,16 @@ def cobol_value_to_python(value: Optional[str], pic: Optional[str]) -> ast.expr:
     elif upper in ('HIGH-VALUES', 'HIGH-VALUE'):
         return ast.Constant(value='\xff')
     else:
-        # Check if numeric
+        # Check if numeric - handle implied decimals
         try:
-            float(value)
+            # Handle COBOL implied decimal (.150 means 0.150)
+            val_str = str(value)
+            if val_str.startswith('.'):
+                val_str = '0' + val_str
+            float(val_str)
             return ast.Call(
                 func=ast.Name(id='Decimal', ctx=ast.Load()),
-                args=[ast.Constant(value=str(value))],
+                args=[ast.Constant(value=val_str)],
                 keywords=[]
             )
         except (ValueError, TypeError):
@@ -334,11 +417,36 @@ def generate_python_ast(cobol_ast: CobolAST) -> ast.Module:
         simple=0
     ))
     
-    # Variables from WORKING-STORAGE
+    # Variables from WORKING-STORAGE - group by level
+    current_group = None
     for var in cobol_ast.variables:
         py_name = to_snake_case(var.name)
-        py_type, _ = pic_to_python_type(var.picture)
-        py_value = cobol_value_to_python(var.value, var.picture)
+        
+        # Level 01 with no PIC = group header
+        if var.level == 1 and not var.picture:
+            current_group = py_name
+            # Create empty dict for group
+            init_body.append(ast.AnnAssign(
+                target=ast.Attribute(
+                    value=ast.Name(id='self', ctx=ast.Load()),
+                    attr=py_name,
+                    ctx=ast.Store()
+                ),
+                annotation=ast.Subscript(
+                    value=ast.Name(id='Dict', ctx=ast.Load()),
+                    slice=ast.Tuple(elts=[
+                        ast.Name(id='str', ctx=ast.Load()),
+                        ast.Name(id='Any', ctx=ast.Load())
+                    ], ctx=ast.Load()),
+                    ctx=ast.Load()
+                ),
+                value=ast.Dict(keys=[], values=[]),
+                simple=0
+            ))
+            continue
+        
+        py_type, _ = pic_to_python_type(var.picture, var.value)
+        py_value = cobol_value_to_python_v2(var.value, var.picture)
         
         init_body.append(ast.AnnAssign(
             target=ast.Attribute(
@@ -886,6 +994,45 @@ def transpile_perform(stmt: str) -> Optional[ast.stmt]:
             orelse=[]
         )
     
+    # PERFORM VARYING (loop)
+    match = re.match(
+        r'PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+VARYING\s+([A-Z0-9][-A-Z0-9]*)\s+FROM\s+(\d+)\s+BY\s+(\d+)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>\s*(\d+)',
+        upper, re.IGNORECASE
+    )
+    if match:
+        para_name = to_snake_case(match.group(1))
+        counter = to_snake_case(match.group(2))
+        start_val = int(match.group(3))
+        step_val = int(match.group(4))
+        end_val = int(match.group(6)) + 1  # UNTIL > means we include end_val
+        
+        return ast.For(
+            target=ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr=counter,
+                ctx=ast.Store()
+            ),
+            iter=ast.Call(
+                func=ast.Name(id='range', ctx=ast.Load()),
+                args=[
+                    ast.Constant(value=start_val),
+                    ast.Constant(value=end_val),
+                    ast.Constant(value=step_val)
+                ],
+                keywords=[]
+            ),
+            body=[ast.Expr(value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Name(id='self', ctx=ast.Load()),
+                    attr=f'p_{para_name}',
+                    ctx=ast.Load()
+                ),
+                args=[],
+                keywords=[]
+            ))],
+            orelse=[]
+        )
+    
     # Simple PERFORM
     match = re.match(r'PERFORM\s+([A-Z0-9][-A-Z0-9]+)', upper, re.IGNORECASE)
     if match and 'UNTIL' not in upper and 'TIMES' not in upper and 'VARYING' not in upper:
@@ -1035,9 +1182,13 @@ def generate_python_code(cobol_source: str) -> Dict[str, Any]:
         # Validate syntax
         compile(python_code, '<generated>', 'exec')
         
+        # Generate unit tests
+        test_code = generate_unit_tests(cobol_ast, class_name)
+        
         return {
             'success': True,
             'python_code': python_code,
+            'unit_tests': test_code,
             'stats': {
                 'variables': len(cobol_ast.variables),
                 'paragraphs': len(cobol_ast.paragraphs),
@@ -1051,6 +1202,55 @@ def generate_python_code(cobol_source: str) -> Dict[str, Any]:
             'error': str(e),
             'python_code': ''
         }
+
+
+def generate_unit_tests(cobol_ast: CobolAST, class_name: str) -> str:
+    """Generate basic unit tests for the transpiled code"""
+    tests = []
+    tests.append('"""Auto-generated unit tests for ' + class_name + '"""')
+    tests.append('import pytest')
+    tests.append('from decimal import Decimal')
+    tests.append(f'from main import {class_name}')
+    tests.append('')
+    tests.append('')
+    tests.append(f'class Test{class_name}:')
+    tests.append(f'    """Test cases for {class_name}"""')
+    tests.append('')
+    tests.append('    def test_initialization(self):')
+    tests.append(f'        """Test that {class_name} can be instantiated"""')
+    tests.append(f'        processor = {class_name}()')
+    tests.append('        assert processor is not None')
+    tests.append('')
+    
+    # Test variables initialization
+    for var in cobol_ast.variables[:5]:  # Limit to first 5
+        py_name = to_snake_case(var.name)
+        tests.append(f'    def test_{py_name}_exists(self):')
+        tests.append(f'        """Test {var.name} is properly initialized"""')
+        tests.append(f'        processor = {class_name}()')
+        tests.append(f'        assert hasattr(processor, "{py_name}")')
+        tests.append('')
+    
+    # Test paragraphs/methods
+    for para in cobol_ast.paragraphs[:3]:  # Limit to first 3
+        method_name = f'p_{to_snake_case(para.name)}'
+        tests.append(f'    def test_{method_name}_callable(self):')
+        tests.append(f'        """Test {para.name} method is callable"""')
+        tests.append(f'        processor = {class_name}()')
+        tests.append(f'        assert callable(getattr(processor, "{method_name}", None))')
+        tests.append('')
+    
+    # Test run method
+    tests.append('    def test_run_executes(self):')
+    tests.append('        """Test run() executes without errors"""')
+    tests.append(f'        processor = {class_name}()')
+    tests.append('        try:')
+    tests.append('            processor.run()')
+    tests.append('            assert True')
+    tests.append('        except Exception as e:')
+    tests.append('            pytest.fail(f"run() raised {e}")')
+    
+    return '\n'.join(tests)
 
 
 # ============================================================
