@@ -999,24 +999,30 @@ function transpileSubtract(upper: string, original: string): PythonStatement | n
 }
 
 function transpileMultiply(upper: string, original: string): PythonStatement | null {
+  // Helper to convert value (number or variable)
+  const toValue = (val: string): string => {
+    if (/^\d+(\.\d+)?$/.test(val)) return `Decimal("${val}")`;
+    return `self.${toSnakeCase(val)}`;
+  };
+  
   // MULTIPLY var BY var GIVING result
-  let match = upper.match(/MULTIPLY\s+([A-Z0-9][-A-Z0-9]*)\s+BY\s+([A-Z0-9][-A-Z0-9]*)\s+GIVING\s+([A-Z0-9][-A-Z0-9]*)/i);
+  let match = upper.match(/MULTIPLY\s+(\d+(?:\.\d+)?|[A-Z0-9][-A-Z0-9]*)\s+BY\s+([A-Z0-9][-A-Z0-9]*)\s+GIVING\s+([A-Z0-9][-A-Z0-9]*)/i);
   if (match) {
     return {
       type: 'assignment',
-      code: `self.${toSnakeCase(match[3])} = self.${toSnakeCase(match[1])} * self.${toSnakeCase(match[2])}`,
+      code: `self.${toSnakeCase(match[3])} = ${toValue(match[1])} * self.${toSnakeCase(match[2])}`,
       originalCobol: original,
       confidence: 100,
       indent: 0
     };
   }
   
-  // MULTIPLY var BY var (in place)
-  match = upper.match(/MULTIPLY\s+([A-Z0-9][-A-Z0-9]*)\s+BY\s+([A-Z0-9][-A-Z0-9]*)/i);
+  // MULTIPLY num/var BY var (in place)
+  match = upper.match(/MULTIPLY\s+(\d+(?:\.\d+)?|[A-Z0-9][-A-Z0-9]*)\s+BY\s+([A-Z0-9][-A-Z0-9]*)/i);
   if (match) {
     return {
       type: 'assignment',
-      code: `self.${toSnakeCase(match[2])} *= self.${toSnakeCase(match[1])}`,
+      code: `self.${toSnakeCase(match[2])} *= ${toValue(match[1])}`,
       originalCobol: original,
       confidence: 100,
       indent: 0
@@ -1311,7 +1317,7 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
   // Replace variable names
   condition = condition.replace(/\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b/gi, (m) => {
     if (/^\d+$/.test(m)) return m;
-    if (['AND', 'OR', 'NOT', 'TRUE', 'FALSE', 'STR'].includes(m.toUpperCase())) return m.toLowerCase();
+    if (['AND', 'OR', 'NOT', 'TRUE', 'FALSE', 'STR', 'INT', 'FLOAT', 'LEN', 'ABS', 'MAX', 'MIN', 'SUM', 'RANGE', 'PRINT', 'NONE'].includes(m.toUpperCase())) return m.toLowerCase();
     return `self.${toSnakeCase(m)}`;
   });
   
