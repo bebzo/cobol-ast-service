@@ -339,6 +339,7 @@ function transpileParagraph(
   const indentStack: number[] = [0];  // Stack to track nesting levels
   let currentIndent = 0;
   let inEvaluate = false;  // Track if we're inside an EVALUATE block
+  let inSearch = false;  // Track if we're inside a SEARCH block
   let firstWhenSeen = false;  // Track if we've seen the first WHEN
   
   for (let i = 0; i < cobolLines.length; i++) {
@@ -361,12 +362,22 @@ function transpileParagraph(
       firstWhenSeen = false;
     }
     
+    // Track SEARCH blocks
+    if (trimmed.startsWith('SEARCH ')) {
+      inSearch = true;
+      firstWhenSeen = false;
+    }
+    if (trimmed.startsWith('END-SEARCH')) {
+      inSearch = false;
+      firstWhenSeen = false;
+    }
+    
     // Handle END-* statements FIRST (reduce indent before processing)
     if (trimmed.startsWith('END-IF') || trimmed === 'END-IF.' || trimmed === 'END-IF') {
       currentIndent = Math.max(0, indentStack.pop() || 0);
       continue;  // Don't generate code for END-IF itself
     }
-    if (trimmed.startsWith('END-PERFORM') || trimmed.startsWith('END-EVALUATE')) {
+    if (trimmed.startsWith('END-PERFORM') || trimmed.startsWith('END-EVALUATE') || trimmed.startsWith('END-SEARCH')) {
       currentIndent = Math.max(0, indentStack.pop() || 0);
       continue;
     }
@@ -390,8 +401,8 @@ function transpileParagraph(
     
     // Handle indentation changes
     for (const stmt of statements) {
-      // Handle EVALUATE/WHEN: convert first WHEN to 'if', others to 'elif'
-      if (inEvaluate && stmt.type === 'elif') {
+      // Handle EVALUATE/SEARCH WHEN: convert first WHEN to 'if', others to 'elif'
+      if ((inEvaluate || inSearch) && stmt.type === 'elif') {
         if (!firstWhenSeen) {
           // Convert first WHEN's elif to if
           firstWhenSeen = true;
@@ -405,7 +416,7 @@ function transpileParagraph(
           body.push({ ...stmt, indent: prevIndent });
           currentIndent = prevIndent + 1;
         }
-      } else if (inEvaluate && stmt.type === 'else') {
+      } else if ((inEvaluate || inSearch) && stmt.type === 'else') {
         // WHEN OTHER
         const prevIndent = indentStack.length > 0 ? indentStack[indentStack.length - 1] : 0;
         body.push({ ...stmt, indent: prevIndent });
@@ -1229,7 +1240,12 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
   // Convert COBOL substring references VAR(start:length) to Python slices FIRST
   condition = convertCobolSubstring(condition);
   
-  // Handle FUNCTION calls in conditions
+  // Handle FUNCTION calls without arguments (like FUNCTION CURRENT-DATE)
+  condition = condition.replace(/FUNCTION\s+CURRENT-DATE/gi, 'datetime.date.today().strftime("%Y%m%d")');
+  condition = condition.replace(/FUNCTION\s+WHEN-COMPILED/gi, '"20250101000000"');
+  condition = condition.replace(/FUNCTION\s+RANDOM/gi, 'random.random()');
+  
+  // Handle FUNCTION calls in conditions (with arguments)
   condition = condition.replace(/FUNCTION\s+([A-Z][-A-Z0-9]*)\s*\(([^)]+)\)/gi, (_, funcName, args) => {
     const fn = funcName.toUpperCase().replace(/-/g, '_');
     const pyArgs = args.split(',').map((a: string) => a.trim()).join(', ');
@@ -1255,9 +1271,14 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
   condition = condition.replace(/\s+NOT\s+EQUAL\s+TO\s+/gi, ' != ');
   
   // Handle IS NOT NUMERIC, IS NOT ALPHABETIC, etc. (must come before IS NUMERIC)
+  // Also handle variant without IS: "VAR NOT NUMERIC"
   condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NOT\s+NUMERIC/gi, 
     (_, v) => `not str(self.${toSnakeCase(v)}).replace('.','').replace('-','').isdigit()`);
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+NOT\s+NUMERIC/gi, 
+    (_, v) => `not str(self.${toSnakeCase(v)}).replace('.','').replace('-','').isdigit()`);
   condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NOT\s+ALPHABETIC/gi, 
+    (_, v) => `not str(self.${toSnakeCase(v)}).replace(' ','').isalpha()`);
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+NOT\s+ALPHABETIC/gi, 
     (_, v) => `not str(self.${toSnakeCase(v)}).replace(' ','').isalpha()`);
   condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NOT\s+POSITIVE/gi, 
     (_, v) => `self.${toSnakeCase(v)} <= 0`);
@@ -1266,10 +1287,14 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
   condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NOT\s+ZERO/gi, 
     (_, v) => `self.${toSnakeCase(v)} != 0`);
   
-  // Handle IS NUMERIC, IS ALPHABETIC, etc.
+  // Handle IS NUMERIC, IS ALPHABETIC, etc. (also without IS)
   condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NUMERIC/gi, 
     (_, v) => `str(self.${toSnakeCase(v)}).replace('.','').replace('-','').isdigit()`);
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+NUMERIC/gi, 
+    (_, v) => `str(self.${toSnakeCase(v)}).replace('.','').replace('-','').isdigit()`);
   condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+ALPHABETIC/gi, 
+    (_, v) => `str(self.${toSnakeCase(v)}).replace(' ','').isalpha()`);
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+ALPHABETIC/gi, 
     (_, v) => `str(self.${toSnakeCase(v)}).replace(' ','').isalpha()`);
   condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+POSITIVE/gi, 
     (_, v) => `self.${toSnakeCase(v)} > 0`);
@@ -1888,9 +1913,11 @@ function transpileString(upper: string, original: string): PythonStatement | nul
       if (['DELIMITED', 'BY', 'SPACE', 'SIZE', 'INTO', '@@SUBSTR@@'].includes(item.toUpperCase())) continue;
       
       if (item.startsWith('"') || item.startsWith("'")) {
-        // String literal - convert to double quotes
+        // String literal - use single quotes to avoid escaping issues with double quotes in content
         const content = item.slice(1, -1);
-        items.push(`"${content}"`);
+        // Escape single quotes in content and use single quote delimiters
+        const escaped = content.replace(/'/g, "\\'");
+        items.push(`'${escaped}'`);
       } else {
         // Variable
         if (delim === 'SPACE') {
@@ -2070,7 +2097,9 @@ export function generatePythonCode(ast: PythonAST): string {
       lines.push('        pass');
     } else {
       for (const stmt of method.body) {
-        const indent = '        ' + '    '.repeat(stmt.indent);
+        // Limit indent to 20 levels max (Python limit is ~100, but this keeps code readable)
+        const safeIndent = Math.min(stmt.indent, 20);
+        const indent = '        ' + '    '.repeat(safeIndent);
         lines.push(`${indent}${stmt.code}`);
       }
     }
@@ -2123,11 +2152,60 @@ export function optimizePythonCode(code: string): string {
   // Fix any double self. references
   optimized = optimized.replace(/self\.self\./g, 'self.');
   
-  // Fix elif after else (invalid Python) - DISABLED due to potential ReDoS
-  // optimized = optimized.replace(/(\n\s*else:.*\n(?:\s+.*\n)*?)(\s*)(elif\s)/g, '$1$2# TODO: $3');
-  
   // Fix trailing periods in variable names
   optimized = optimized.replace(/self\.([a-z_][a-z0-9_]*)\.([\s\)])/g, 'self.$1$2');
+  
+  // Fix orphaned elif/else (that don't follow if/elif block properly) 
+  // This happens when COBOL EVALUATE/SEARCH WHEN clauses have statements between them
+  const fixOrphanedBranches = (lines: string[]): string[] => {
+    const result: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+      const currIndent = line.match(/^(\s*)/)?.[0] || '';
+      
+      if (trimmed.startsWith('elif ') || trimmed === 'else:' || trimmed.startsWith('else:  #')) {
+        // Check if previous non-empty line ends a block properly
+        let prevIdx = i - 1;
+        while (prevIdx >= 0 && lines[prevIdx].trim() === '') prevIdx--;
+        
+        if (prevIdx >= 0) {
+          const prevTrimmed = lines[prevIdx].trim();
+          const prevLineIndent = lines[prevIdx].match(/^(\s*)/)?.[0] || '';
+          
+          // If prev line is NOT an if/elif/else ending or is at same/lower indent, this is orphaned
+          const prevEndsBlock = prevTrimmed.endsWith(':') && 
+            (prevTrimmed.startsWith('if ') || prevTrimmed.startsWith('elif ') || 
+             prevTrimmed === 'else:' || prevTrimmed.startsWith('else:  #'));
+          const prevIsIndented = prevLineIndent.length > currIndent.length;
+          
+          if (!prevEndsBlock && !prevIsIndented) {
+            if (trimmed.startsWith('elif ')) {
+              // Convert orphaned elif to comment (remove the branch)
+              result.push(currIndent + '# [ORPHANED ELIF] ' + trimmed);
+            } else {
+              // Convert orphaned else to comment
+              result.push(currIndent + '# [ORPHANED ELSE] ' + trimmed);
+            }
+            continue;
+          }
+        }
+      }
+      result.push(line);
+    }
+    return result;
+  };
+  
+  optimized = fixOrphanedBranches(optimized.split('\n')).join('\n');
+  
+  // Fix lines ending with operators (incomplete expressions)
+  optimized = optimized.replace(/(\+|\-|\*|\/)\s*\n\s*\n(\s*def\s)/g, '+ Decimal("0")  # INCOMPLETE\n\n$2');
+  
+  // Fix 'break' outside loop - convert to return (EXIT PERFORM often used to exit paragraph)
+  optimized = optimized.replace(/break\s+#\s*EXIT PERFORM/g, 'return  # EXIT PERFORM');
+  
+  // Fix self.int(...) -> int(...) - INT is a Python builtin, not a method
+  optimized = optimized.replace(/self\.int\s*\(/g, 'int(');
   
   // Fix empty blocks (if/elif/else followed by else/elif/def/class without body)
   const lines = optimized.split('\n');
@@ -2179,6 +2257,7 @@ function toSnakeCase(str: string): string {
 }
 
 function toPascalCase(str: string): string {
+  if (!str) return 'UnknownProgram';
   return str.split(/[-_\s]/).map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()).join('');
 }
 
