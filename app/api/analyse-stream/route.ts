@@ -1,6 +1,9 @@
 import { NextRequest } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Edge Runtime for longer timeout on Hobby plan (30s vs 10s)
+export const runtime = 'edge';
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
@@ -68,7 +71,8 @@ export async function POST(request: NextRequest) {
       send('progress', { step: 'parsing', percent: 15, message: `Found ${allParagraphs.length} paragraphs to translate` });
       
       // Step 3: AI Translation (batch)
-      const BATCH_SIZE = 20;
+      // Smaller batches for faster response on Hobby plan
+      const BATCH_SIZE = 10;
       const batches = [];
       for (let i = 0; i < allParagraphs.length; i += BATCH_SIZE) {
         batches.push(allParagraphs.slice(i, i + BATCH_SIZE));
