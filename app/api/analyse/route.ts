@@ -511,6 +511,14 @@ function sanitizePythonCode(code: string): string {
   sanitized = sanitized.replace(/self\.'([^']+)'/g, "'$1'");
   sanitized = sanitized.replace(/self\."([^"]+)"/g, '"$1"');
   
+  // Fix function call assignment: self.func(idx) = value -> self.func[idx] = value
+  sanitized = sanitized.replace(/(\w+)\((\w+)\)\s*=\s*(?!.*\()/gm, '$1[$2] = ');
+  sanitized = sanitized.replace(/(self\.\w+)\((\w+)\)\s*=\s*/g, '$1[$2] = ');
+  
+  // Fix self. in comments and docstrings (e.g., "self.mega" -> "mega")
+  sanitized = sanitized.replace(/"""([^"]*?)self\.(\w+)/g, '"""$1$2');
+  sanitized = sanitized.replace(/#([^#\n]*?)self\.(\w+)/g, '#$1$2');
+  
   return sanitized;
 }
 
