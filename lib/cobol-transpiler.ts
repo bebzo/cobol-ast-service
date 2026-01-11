@@ -248,7 +248,7 @@ function pictureToType(pic?: string, usage?: string): PythonVariable['type'] {
 
 function getDefaultValue(pic?: string, value?: string, usage?: string): string {
   if (value !== undefined) {
-    const clean = value.replace(/['"]/g, '').trim();
+    let clean = value.replace(/['"]/g, '').trim();
     const upperClean = clean.toUpperCase();
     
     // Handle COBOL special values FIRST
@@ -260,6 +260,15 @@ function getDefaultValue(pic?: string, value?: string, usage?: string): string {
     
     // Then handle by type
     if (pictureToType(pic) === 'Decimal') {
+      // Clean up decimal format: remove trailing dots, ensure proper format
+      clean = clean.replace(/\.$/, '');  // Remove trailing dot
+      if (!clean.includes('.')) {
+        // Add decimal places based on PIC if specified
+        const decPlaces = pic?.match(/V(9+)/)?.[1]?.length || 0;
+        if (decPlaces > 0) {
+          clean = clean + '.' + '0'.repeat(decPlaces);
+        }
+      }
       return `Decimal("${clean}")`;
     }
     return `"${clean}"`;
@@ -1137,11 +1146,11 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
 }
 
 function transpilePerform(upper: string, original: string): PythonStatement | null {
-  // PERFORM ... TIMES (single-line loop, no indent change)
+  // PERFORM ... TIMES
   let match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+(\d+)\s+TIMES/i);
   if (match) {
     return {
-      type: 'call',  // Use 'call' to avoid indent change for single-line loops
+      type: 'call',
       code: `for _ in range(${match[2]}): self.p_${toSnakeCase(match[1])}()`,
       originalCobol: original,
       confidence: 95,
@@ -1149,17 +1158,65 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
     };
   }
   
-  // PERFORM ... UNTIL condition (single-line loop, no indent change)
+  // PERFORM ... UNTIL var > value (greater than)
+  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>\s*(\d+(?:\.\d+)?)/i);
+  if (match) {
+    const target = toSnakeCase(match[1]);
+    const condVar = toSnakeCase(match[2]);
+    const condVal = match[3];
+    return {
+      type: 'call',
+      code: `while self.${condVar} <= Decimal("${condVal}"): self.p_${target}()`,
+      originalCobol: original,
+      confidence: 95,
+      indent: 0
+    };
+  }
+  
+  // PERFORM ... UNTIL var >= value (greater or equal)
+  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>=\s*(\d+(?:\.\d+)?)/i);
+  if (match) {
+    const target = toSnakeCase(match[1]);
+    const condVar = toSnakeCase(match[2]);
+    const condVal = match[3];
+    return {
+      type: 'call',
+      code: `while self.${condVar} < Decimal("${condVal}"): self.p_${target}()`,
+      originalCobol: original,
+      confidence: 95,
+      indent: 0
+    };
+  }
+  
+  // PERFORM ... UNTIL var < value (less than)
+  match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*<\s*(\d+(?:\.\d+)?)/i);
+  if (match) {
+    const target = toSnakeCase(match[1]);
+    const condVar = toSnakeCase(match[2]);
+    const condVal = match[3];
+    return {
+      type: 'call',
+      code: `while self.${condVar} >= Decimal("${condVal}"): self.p_${target}()`,
+      originalCobol: original,
+      confidence: 95,
+      indent: 0
+    };
+  }
+  
+  // PERFORM ... UNTIL var = value (equality)
   match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*=\s*["']?([^"'\s]+)["']?/i);
   if (match) {
     const target = toSnakeCase(match[1]);
     const condVar = toSnakeCase(match[2]);
-    const condVal = match[3].toLowerCase();
+    const condVal = match[3];
+    // Check if it's a number or string
+    const isNumber = /^\d+(\.\d+)?$/.test(condVal);
+    const pyVal = isNumber ? `Decimal("${condVal}")` : `"${condVal.toLowerCase()}"`;
     return {
-      type: 'call',  // Use 'call' to avoid indent change for single-line loops
-      code: `while self.${condVar} != "${condVal}": self.p_${target}()`,
+      type: 'call',
+      code: `while self.${condVar} != ${pyVal}: self.p_${target}()`,
       originalCobol: original,
-      confidence: 85,
+      confidence: 90,
       indent: 0
     };
   }
@@ -1173,7 +1230,7 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
     const step = match[4];
     const endVal = match[6];
     return {
-      type: 'call',  // Use 'call' to avoid indent change for single-line loops
+      type: 'call',
       code: `for self.${loopVar} in range(${start}, ${endVal} + 1, ${step}): self.p_${target}()`,
       originalCobol: original,
       confidence: 90,
@@ -1206,9 +1263,9 @@ function transpileDisplay(upper: string, original: string): PythonStatement | nu
     if (quotedMatch) {
       return {
         type: 'call',
-        code: `self.logger.info("${quotedMatch[1]}")`,
+        code: `print("${quotedMatch[1]}")`,
         originalCobol: original,
-        confidence: 95,
+        confidence: 100,
         indent: 0
       };
     }
@@ -1217,9 +1274,9 @@ function transpileDisplay(upper: string, original: string): PythonStatement | nu
     const varName = toSnakeCase(content);
     return {
       type: 'call',
-      code: `self.logger.info(f"{self.${varName}}")`,
+      code: `print(self.${varName})`,
       originalCobol: original,
-      confidence: 95,
+      confidence: 100,
       indent: 0
     };
   }
