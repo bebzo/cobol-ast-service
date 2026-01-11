@@ -61,6 +61,65 @@ interface PythonDataclass {
 }
 
 // ============================================================
+// CLEAN ARCHITECTURE TYPES
+// ============================================================
+
+interface DomainModule {
+  name: string;
+  displayName: string;
+  methods: PythonMethod[];
+  entities: PythonVariable[];
+}
+
+interface CleanArchitectureOutput {
+  domains: Map<string, DomainModule>;
+  sharedEntities: PythonVariable[];
+  repositories: RepositoryDef[];
+  services: ServiceDef[];
+}
+
+interface RepositoryDef {
+  name: string;
+  domain: string;
+  methods: string[];
+}
+
+interface ServiceDef {
+  name: string;
+  domain: string;
+  dependencies: string[];
+  methods: PythonMethod[];
+}
+
+// Domain detection rules based on COBOL paragraph prefixes
+const DOMAIN_RULES: { pattern: RegExp; domain: string; displayName: string }[] = [
+  { pattern: /^[0-9]*-?(FRAUD|AML|COMPLIANCE)/i, domain: 'fraud_detection', displayName: 'FraudDetection' },
+  { pattern: /^[0-9]*-?(LOAN|MORTGAGE|AMORT)/i, domain: 'loans', displayName: 'Loans' },
+  { pattern: /^[0-9]*-?(INVEST|PORTFOLIO|TRADE|DIVIDEND)/i, domain: 'investments', displayName: 'Investments' },
+  { pattern: /^[0-9]*-?(INSURANCE|POLICY|CLAIM|PREMIUM)/i, domain: 'insurance', displayName: 'Insurance' },
+  { pattern: /^[0-9]*-?(DEPOSIT|WITHDRAW|TRANSFER|BALANCE|INTEREST)/i, domain: 'banking', displayName: 'Banking' },
+  { pattern: /^[0-9]*-?(REPORT|SUMMARY|STATEMENT)/i, domain: 'reporting', displayName: 'Reporting' },
+  { pattern: /^[0-9]*-?(CUSTOMER|CRM|SEGMENT)/i, domain: 'customer', displayName: 'Customer' },
+  { pattern: /^[0-9]*-?(AUDIT|LOG|SECURITY)/i, domain: 'audit', displayName: 'Audit' },
+  { pattern: /^[0-9]*-?(TREASURY|LIQUIDITY|CAPITAL)/i, domain: 'treasury', displayName: 'Treasury' },
+  { pattern: /^[0-9]*-?(BATCH|EOD|EOM|EOY)/i, domain: 'batch_processing', displayName: 'BatchProcessing' },
+  { pattern: /^[0-9]*-?(INIT|OPEN|CLOSE|TERM)/i, domain: 'lifecycle', displayName: 'Lifecycle' },
+  { pattern: /^[0-9]*-?(UTIL|FORMAT|VALIDATE|CONVERT)/i, domain: 'utilities', displayName: 'Utilities' },
+];
+
+// Business-friendly method name mappings
+const METHOD_NAME_MAPPINGS: { pattern: RegExp; replacement: string }[] = [
+  { pattern: /^p_\d+_/, replacement: '' },  // Remove p_XXXX_ prefix
+  { pattern: /calculate_interest/i, replacement: 'calculate_interest' },
+  { pattern: /process_deposit/i, replacement: 'process_deposit' },
+  { pattern: /process_withdrawal/i, replacement: 'process_withdrawal' },
+  { pattern: /validate_account/i, replacement: 'validate_account' },
+  { pattern: /check_fraud/i, replacement: 'check_fraud_indicators' },
+  { pattern: /apply_fee/i, replacement: 'apply_fee' },
+  { pattern: /generate_report/i, replacement: 'generate_report' },
+];
+
+// ============================================================
 // PASS 1: COBOL AST → Python AST (Déterministe)
 // ============================================================
 
@@ -920,7 +979,7 @@ function transpileCompute(upper: string, original: string): PythonStatement | nu
         case 'ABS': pythonExpr = `abs(${pyArgs})`; break;
         case 'ORD': pythonExpr = `ord(str(${pyArgs})[0])`; break;
         case 'MOD': {
-          const argList = pyArgs.split(',').map(s => s.trim());
+          const argList = pyArgs.split(',').map((s: string) => s.trim());
           pythonExpr = `(${argList[0]} % ${argList[1] || '1'})`;
           break;
         }
@@ -1502,6 +1561,439 @@ function toSnakeCase(str: string): string {
 
 function toPascalCase(str: string): string {
   return str.split(/[-_\s]/).map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()).join('');
+}
+
+// ============================================================
+// CLEAN ARCHITECTURE: Domain Detection
+// ============================================================
+
+function detectDomain(paragraphName: string): { domain: string; displayName: string } {
+  for (const rule of DOMAIN_RULES) {
+    if (rule.pattern.test(paragraphName)) {
+      return { domain: rule.domain, displayName: rule.displayName };
+    }
+  }
+  return { domain: 'core', displayName: 'Core' };
+}
+
+function toBusinessMethodName(originalName: string): string {
+  let name = originalName;
+  
+  // Remove p_XXXX_ prefix
+  name = name.replace(/^p_\d+_/, '');
+  
+  // Apply specific mappings
+  for (const mapping of METHOD_NAME_MAPPINGS) {
+    if (mapping.pattern.test(name)) {
+      name = name.replace(mapping.pattern, mapping.replacement);
+    }
+  }
+  
+  return name;
+}
+
+// ============================================================
+// CLEAN ARCHITECTURE: Multi-File Generator
+// ============================================================
+
+export function transpileToCleanArchitecture(cobolAST: CobolFullAST, sourceCode: string): {
+  files: Map<string, string>;
+  stats: {
+    domainsDetected: number;
+    methodsTranspiled: number;
+    servicesGenerated: number;
+    repositoriesGenerated: number;
+  };
+} {
+  const sourceLines = sourceCode.split('\n');
+  const pythonAST = transpileCobolToPythonAST(cobolAST, sourceLines);
+  
+  // Group methods by domain
+  const domainMethods = new Map<string, { displayName: string; methods: PythonMethod[] }>();
+  
+  for (const method of pythonAST.methods) {
+    const { domain, displayName } = detectDomain(method.originalName);
+    
+    if (!domainMethods.has(domain)) {
+      domainMethods.set(domain, { displayName, methods: [] });
+    }
+    
+    // Rename method to business-friendly name
+    const renamedMethod = {
+      ...method,
+      name: toBusinessMethodName(method.name),
+      docstring: method.docstring.replace(/Business logic from: /, 'Implements: ')
+    };
+    
+    domainMethods.get(domain)!.methods.push(renamedMethod);
+  }
+  
+  // Generate files
+  const files = new Map<string, string>();
+  const repositoriesGenerated: string[] = [];
+  
+  // 1. Generate domain/__init__.py
+  files.set('domain/__init__.py', generateDomainInit(domainMethods));
+  
+  // 2. Generate domain services (one per domain)
+  for (const [domain, { displayName, methods }] of domainMethods) {
+    const serviceCode = generateDomainService(displayName, domain, methods, pythonAST);
+    files.set(`domain/${domain}_service.py`, serviceCode);
+    
+    // 3. Generate repository interface for this domain
+    const repoCode = generateRepository(displayName, domain);
+    files.set(`infra/repositories/${domain}_repository.py`, repoCode);
+    repositoriesGenerated.push(domain);
+  }
+  
+  // 4. Generate infra/__init__.py
+  files.set('infra/__init__.py', generateInfraInit(repositoriesGenerated));
+  files.set('infra/repositories/__init__.py', generateRepoInit(repositoriesGenerated));
+  
+  // 5. Generate shared entities from class variables
+  files.set('domain/entities.py', generateEntities(pythonAST));
+  
+  // 6. Generate main orchestrator
+  files.set('app/main.py', generateMainOrchestrator(pythonAST.className, domainMethods));
+  files.set('app/__init__.py', '# Application layer\n');
+  
+  // 7. Generate basic tests
+  files.set('tests/__init__.py', '# Tests\n');
+  files.set('tests/test_services.py', generateBasicTests(domainMethods));
+  
+  return {
+    files,
+    stats: {
+      domainsDetected: domainMethods.size,
+      methodsTranspiled: pythonAST.methods.length,
+      servicesGenerated: domainMethods.size,
+      repositoriesGenerated: repositoriesGenerated.length
+    }
+  };
+}
+
+function generateDomainInit(domains: Map<string, { displayName: string; methods: PythonMethod[] }>): string {
+  const lines = [
+    '"""Domain layer - Business logic services."""',
+    '',
+    'from .entities import *',
+    ''
+  ];
+  
+  for (const [domain, { displayName }] of domains) {
+    lines.push(`from .${domain}_service import ${displayName}Service`);
+  }
+  
+  lines.push('');
+  lines.push('__all__ = [');
+  for (const [domain, { displayName }] of domains) {
+    lines.push(`    "${displayName}Service",`);
+  }
+  lines.push(']');
+  
+  return lines.join('\n');
+}
+
+function generateDomainService(displayName: string, domain: string, methods: PythonMethod[], ast: PythonAST): string {
+  const lines = [
+    `"""${displayName} Service - Domain logic for ${domain}."""`,
+    '',
+    'from decimal import Decimal, ROUND_HALF_UP',
+    'from typing import Optional, Dict, Any, Protocol',
+    'from dataclasses import dataclass',
+    'from datetime import datetime, date',
+    'import logging',
+    '',
+    'from .entities import *',
+    `from ..infra.repositories.${domain}_repository import ${displayName}Repository`,
+    '',
+    '',
+    `class ${displayName}Service:`,
+    `    """Service handling ${domain.replace(/_/g, ' ')} operations."""`,
+    '',
+    '    def __init__(self, repository: ' + displayName + 'Repository):',
+    '        """Initialize with repository dependency."""',
+    '        self.repository = repository',
+    '        self.logger = logging.getLogger(__name__)',
+    ''
+  ];
+  
+  // Add methods
+  for (const method of methods) {
+    lines.push(`    def ${method.name}(self) -> ${method.returnType}:`);
+    lines.push(`        """${method.docstring}"""`);
+    
+    if (method.body.length === 0) {
+      lines.push('        pass');
+    } else {
+      for (const stmt of method.body) {
+        const indent = '        ' + '    '.repeat(stmt.indent);
+        // Replace self. references with repository calls where appropriate
+        let code = stmt.code;
+        code = code.replace(/self\.logger\.debug\('TODO: (.*?)'\)/g, '# TODO: $1');
+        lines.push(`${indent}${code}`);
+      }
+    }
+    lines.push('');
+  }
+  
+  return lines.join('\n');
+}
+
+function generateRepository(displayName: string, domain: string): string {
+  return `"""${displayName} Repository - Data access interface for ${domain}."""
+
+from typing import Protocol, Optional, List, Dict, Any
+from decimal import Decimal
+from datetime import date
+
+
+class ${displayName}Repository(Protocol):
+    """Repository interface for ${domain.replace(/_/g, ' ')} data access.
+    
+    This is a Port (interface) - implement with concrete adapters.
+    """
+    
+    def find_by_id(self, id: str) -> Optional[Dict[str, Any]]:
+        """Find entity by ID."""
+        ...
+    
+    def find_all(self, filters: Optional[Dict] = None) -> List[Dict[str, Any]]:
+        """Find all entities matching filters."""
+        ...
+    
+    def save(self, entity: Dict[str, Any]) -> str:
+        """Save entity and return ID."""
+        ...
+    
+    def update(self, id: str, data: Dict[str, Any]) -> bool:
+        """Update entity by ID."""
+        ...
+    
+    def delete(self, id: str) -> bool:
+        """Delete entity by ID."""
+        ...
+
+
+class InMemory${displayName}Repository:
+    """In-memory implementation for testing."""
+    
+    def __init__(self):
+        self._storage: Dict[str, Dict[str, Any]] = {}
+        self._next_id = 1
+    
+    def find_by_id(self, id: str) -> Optional[Dict[str, Any]]:
+        return self._storage.get(id)
+    
+    def find_all(self, filters: Optional[Dict] = None) -> List[Dict[str, Any]]:
+        results = list(self._storage.values())
+        if filters:
+            for key, value in filters.items():
+                results = [r for r in results if r.get(key) == value]
+        return results
+    
+    def save(self, entity: Dict[str, Any]) -> str:
+        id = str(self._next_id)
+        self._next_id += 1
+        entity['id'] = id
+        self._storage[id] = entity
+        return id
+    
+    def update(self, id: str, data: Dict[str, Any]) -> bool:
+        if id in self._storage:
+            self._storage[id].update(data)
+            return True
+        return False
+    
+    def delete(self, id: str) -> bool:
+        if id in self._storage:
+            del self._storage[id]
+            return True
+        return False
+`;
+}
+
+function generateInfraInit(domains: string[]): string {
+  return `"""Infrastructure layer - Adapters and implementations."""
+
+from .repositories import *
+
+__all__ = ['repositories']
+`;
+}
+
+function generateRepoInit(domains: string[]): string {
+  const lines = ['"""Repository implementations."""', ''];
+  
+  for (const domain of domains) {
+    const displayName = toPascalCase(domain);
+    lines.push(`from .${domain}_repository import ${displayName}Repository, InMemory${displayName}Repository`);
+  }
+  
+  return lines.join('\n');
+}
+
+function generateEntities(ast: PythonAST): string {
+  const lines = [
+    '"""Domain entities - Core business objects."""',
+    '',
+    'from dataclasses import dataclass, field',
+    'from decimal import Decimal',
+    'from typing import Optional, List, Dict, Any',
+    'from datetime import datetime, date',
+    'from enum import Enum, auto',
+    '',
+    ''
+  ];
+  
+  // Generate ProcessingStatus enum if conditions exist
+  if (ast.conditionProperties.length > 0) {
+    lines.push('class ProcessingStatus(Enum):');
+    lines.push('    """Processing status flags."""');
+    const seenValues = new Set<string>();
+    for (const cond of ast.conditionProperties.slice(0, 10)) {
+      const enumName = cond.name.toUpperCase();
+      if (!seenValues.has(enumName)) {
+        lines.push(`    ${enumName} = auto()`);
+        seenValues.add(enumName);
+      }
+    }
+    lines.push('');
+    lines.push('');
+  }
+  
+  // Generate Config dataclass
+  lines.push('@dataclass');
+  lines.push('class SystemConfig:');
+  lines.push('    """System configuration settings."""');
+  
+  const configVars = ast.classVars.filter(v => 
+    v.name.includes('rate') || v.name.includes('fee') || v.name.includes('pct')
+  ).slice(0, 20);
+  
+  if (configVars.length === 0) {
+    lines.push('    pass');
+  } else {
+    for (const v of configVars) {
+      lines.push(`    ${v.name}: ${v.type} = ${v.default}`);
+    }
+  }
+  lines.push('');
+  
+  return lines.join('\n');
+}
+
+function generateMainOrchestrator(className: string, domains: Map<string, { displayName: string; methods: PythonMethod[] }>): string {
+  const lines = [
+    `"""${className} - Main Application Orchestrator."""`,
+    '',
+    'import logging',
+    'from typing import Dict, Any',
+    '',
+    '# Import domain services',
+  ];
+  
+  for (const [domain, { displayName }] of domains) {
+    lines.push(`from domain.${domain}_service import ${displayName}Service`);
+  }
+  
+  lines.push('');
+  lines.push('# Import repositories');
+  
+  for (const [domain, { displayName }] of domains) {
+    lines.push(`from infra.repositories.${domain}_repository import InMemory${displayName}Repository`);
+  }
+  
+  lines.push('');
+  lines.push('');
+  lines.push(`class ${className}:`);
+  lines.push('    """Main application orchestrator."""');
+  lines.push('');
+  lines.push('    def __init__(self):');
+  lines.push('        """Initialize with all services."""');
+  lines.push('        self.logger = logging.getLogger(__name__)');
+  lines.push('');
+  lines.push('        # Initialize repositories');
+  
+  for (const [domain, { displayName }] of domains) {
+    lines.push(`        self._${domain}_repo = InMemory${displayName}Repository()`);
+  }
+  
+  lines.push('');
+  lines.push('        # Initialize services with dependency injection');
+  
+  for (const [domain, { displayName }] of domains) {
+    lines.push(`        self.${domain} = ${displayName}Service(self._${domain}_repo)`);
+  }
+  
+  lines.push('');
+  lines.push('    def run(self):');
+  lines.push('        """Main entry point."""');
+  lines.push('        self.logger.info("Starting application...")');
+  lines.push('        # Orchestrate domain services as needed');
+  lines.push('        pass');
+  lines.push('');
+  lines.push('');
+  lines.push('if __name__ == "__main__":');
+  lines.push('    logging.basicConfig(level=logging.INFO)');
+  lines.push(`    app = ${className}()`);
+  lines.push('    app.run()');
+  
+  return lines.join('\n');
+}
+
+function generateBasicTests(domains: Map<string, { displayName: string; methods: PythonMethod[] }>): string {
+  const lines = [
+    '"""Basic service tests."""',
+    '',
+    'import pytest',
+    'from decimal import Decimal',
+    '',
+  ];
+  
+  for (const [domain, { displayName }] of domains) {
+    lines.push(`from domain.${domain}_service import ${displayName}Service`);
+    lines.push(`from infra.repositories.${domain}_repository import InMemory${displayName}Repository`);
+  }
+  
+  lines.push('');
+  lines.push('');
+  lines.push('# Fixtures');
+  
+  for (const [domain, { displayName }] of domains) {
+    lines.push('');
+    lines.push('@pytest.fixture');
+    lines.push(`def ${domain}_service():`);
+    lines.push(`    """Create ${displayName}Service with in-memory repository."""`);
+    lines.push(`    repo = InMemory${displayName}Repository()`);
+    lines.push(`    return ${displayName}Service(repo)`);
+  }
+  
+  lines.push('');
+  lines.push('');
+  lines.push('# Basic tests');
+  
+  for (const [domain, { displayName, methods }] of domains) {
+    lines.push('');
+    lines.push(`class Test${displayName}Service:`);
+    lines.push(`    """Tests for ${displayName}Service."""`);
+    lines.push('');
+    lines.push(`    def test_service_initialization(self, ${domain}_service):`);
+    lines.push(`        """Test service can be instantiated."""`);
+    lines.push(`        assert ${domain}_service is not None`);
+    lines.push(`        assert ${domain}_service.repository is not None`);
+    
+    // Add test for first method if available
+    if (methods.length > 0) {
+      const firstMethod = methods[0];
+      lines.push('');
+      lines.push(`    def test_${firstMethod.name}(self, ${domain}_service):`);
+      lines.push(`        """Test ${firstMethod.name} method exists."""`);
+      lines.push(`        assert hasattr(${domain}_service, '${firstMethod.name}')`);
+    }
+  }
+  
+  return lines.join('\n');
 }
 
 // ============================================================
