@@ -767,44 +767,7 @@ export default function Home() {
     setVoiceResponse("");  // Reset chat for new analysis
     setVoiceTranscript("");  // Reset user message too
     
-    // v8.1: Real-time progress with estimated paragraphs
-    const estimatedParagraphs = Math.max(10, Math.floor(cobolCode.split('\n').length / 15));
-    const estimatedBatches = Math.ceil(estimatedParagraphs / 20);
-    let currentBatch = 0;
-    
-    const statusMessages = [
-      { threshold: 5, msg: "🔍 Validating COBOL syntax..." },
-      { threshold: 10, msg: `📊 Parsing structure (${estimatedParagraphs} paragraphs detected)...` },
-      { threshold: 15, msg: `🤖 Connecting to Gemini AI...` },
-      { threshold: 20, msg: `🤖 Starting AI translation (${estimatedBatches} batches)...` },
-    ];
-    
-    // Add dynamic batch messages
-    for (let i = 0; i < estimatedBatches; i++) {
-      const batchThreshold = 20 + ((i + 1) / estimatedBatches) * 50;
-      statusMessages.push({ 
-        threshold: batchThreshold, 
-        msg: `🤖 Gemini: Batch ${i + 1}/${estimatedBatches} translating...` 
-      });
-    }
-    statusMessages.push({ threshold: 75, msg: "🏗️ Building Python class structure..." });
-    statusMessages.push({ threshold: 80, msg: "📝 Detecting variables & types..." });
-    statusMessages.push({ threshold: 85, msg: "🧪 Generating unit tests..." });
-    statusMessages.push({ threshold: 90, msg: "🔒 Security analysis..." });
-    statusMessages.push({ threshold: 95, msg: "✨ Finalizing output..." });
-    
-    const progressInterval = setInterval(() => {
-      setAnalysisProgress(prev => {
-        // Dynamic speed based on estimated complexity
-        const baseSpeed = estimatedBatches > 30 ? 0.3 : estimatedBatches > 15 ? 0.5 : 1;
-        let increment = prev < 20 ? 2 : prev < 70 ? baseSpeed : prev < 95 ? 0.3 : 0.1;
-        const next = Math.min(98, prev + increment);
-        const status = statusMessages.find(s => next < s.threshold) || statusMessages[statusMessages.length - 1];
-        setAnalysisStatus(status.msg);
-        return next;
-      });
-    }, 400);
-    
+    // v8.2: Real-time SSE progress - no simulation
     setError("");
     setPythonCode("");
     setValidatedTests("");
@@ -814,36 +777,69 @@ export default function Home() {
     setAnimatedMetrics({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, improvements: 0, security: 0, testsLines: 0, confidence: 0 });
 
     try {
-      setAnalysisStatus("Calling CodeSwitch API...");
+      setAnalysisStatus("🚀 Connecting to CodeSwitch API...");
       
-      // v2.0: Call Python AST transpiler in parallel for guaranteed valid syntax
-      const transpilePromise = fetch('/api/transpile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cobolCode }),
-        signal: controller.signal
-      }).then(r => r.json()).catch(() => null);
-      
-      const response = await fetch('/api/analyse', {
+      // v8.2: Use SSE for real-time progress
+      const sseResponse = await fetch('/api/analyse-sse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cobolCode, filename }),
         signal: controller.signal
       });
       
-      // Get Python AST transpiler result (if available)
-      const transpileResult = await transpilePromise;
-      
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('Response was not JSON:', text.substring(0, 500));
-        throw new Error('Server returned invalid response. May have timed out.');
+      if (!sseResponse.ok) {
+        throw new Error('Failed to connect to analysis API');
       }
-      if (!response.ok || data.error) {
-        throw new Error(data.error || 'Analysis failed');
+      
+      const reader = sseResponse.body?.getReader();
+      if (!reader) throw new Error('No response stream');
+      
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let data: any = null;
+      
+      // Read SSE stream
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            const eventType = line.slice(7);
+            continue;
+          }
+          if (line.startsWith('data: ')) {
+            try {
+              const eventData = JSON.parse(line.slice(6));
+              
+              if (eventData.percent !== undefined) {
+                // Progress event
+                setAnalysisProgress(eventData.percent);
+                setAnalysisStatus(eventData.message || 'Processing...');
+              }
+              
+              if (eventData.python_code) {
+                // Complete event - store data
+                data = eventData;
+              }
+              
+              if (eventData.message && !eventData.percent) {
+                // Error event
+                throw new Error(eventData.message);
+              }
+            } catch (e) {
+              // Ignore parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+      
+      if (!data) {
+        throw new Error('No response received from server');
       }
       // Handle multi-analysis response (large files split into parts)
       let parsed: AnalysisResult;
@@ -998,14 +994,8 @@ export default function Home() {
         parsed.unit_tests = parsed.unit_tests.replace(/\\n/g, '\n');
       }
       
-      // v12.1: Use Python AST transpiler code if available (guaranteed 100% valid syntax)
+      // v8.2: SSE already returns transpiled code - no parallel call needed
       let finalPythonCode = parsed.python_code || '# No code generated';
-      
-      if (transpileResult?.success && transpileResult?.python_code) {
-        console.log('[v12.1] Using AST-transpiled Python code (100% valid syntax)');
-        finalPythonCode = transpileResult.python_code;
-        // AST code is guaranteed valid - no need for external validation
-      }
       
       let combinedCodeValid = false;
       
@@ -1095,11 +1085,10 @@ export default function Home() {
         setError("An unknown error occurred");
       }
     } finally {
-      clearInterval(progressInterval);
+      // v8.2: No interval to clear - using SSE
       setAnalysisProgress(100);
       setAbortController(null);
-      setAnalysisStatus("Complete");
-      // v8.1: Immediate loading stop, no delay
+      setAnalysisStatus("✅ Complete");
       setIsLoading(false);
     }
   };
