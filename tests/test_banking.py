@@ -7,10 +7,12 @@ from decimal import Decimal
 from hypothesis import given, strategies as st
 import sys
 import importlib.util
+from decimal import Decimal
 
-# Load module with hyphen in filename
+# Load module with hyphen in filename - register in sys.modules first
 spec = importlib.util.spec_from_file_location("mega_enterprise", "/workspace/public/MEGA-ENTERPRISE_hybrid.py")
 mega_module = importlib.util.module_from_spec(spec)
+sys.modules["mega_enterprise"] = mega_module
 spec.loader.exec_module(mega_module)
 
 MegaEnterpriseSystem = mega_module.MegaEnterpriseSystem
