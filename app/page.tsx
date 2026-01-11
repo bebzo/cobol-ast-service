@@ -1608,6 +1608,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </div>
                   )}
                   <Editor
+                    key={`python-editor-${pythonCode?.length || 0}`}
                     height="400px"
                     defaultLanguage="python"
                     value={pythonCode || "# Refactored Python code will appear here..."}
