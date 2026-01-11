@@ -3,6 +3,9 @@ import { parseCobolWithANTLR } from '@/lib/cobol-antlr-parser';
 import { transpileCobol as transpileAdvanced, transpileToCleanArchitecture } from '@/lib/cobol-transpiler';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Edge Runtime for longer timeout on Hobby plan (30s vs 10s)
+export const runtime = 'edge';
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 /**
@@ -133,6 +136,11 @@ async function resolveTodosWithGemini(pythonCode: string, cobolCode: string): Pr
       generationConfig: { maxOutputTokens: 65536 }
     });
     
+    // Timeout: 20s for Gemini call (leave margin for Edge 30s limit)
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Gemini timeout')), 20000)
+    );
+    
     const prompt = `You are a COBOL-to-Python migration expert. The following Python code was auto-transpiled from COBOL but has some TODO comments that need to be resolved.
 
 ORIGINAL COBOL CODE:
@@ -156,7 +164,10 @@ INSTRUCTIONS:
 
 Return the complete fixed Python code:`;
     
-    const result = await model.generateContent(prompt);
+    const result = await Promise.race([
+      model.generateContent(prompt),
+      timeoutPromise
+    ]);
     let response = result.response.text();
     
     // Extract code from response
