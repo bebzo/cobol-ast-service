@@ -992,7 +992,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           const processingTime = Date.now() - startTime;
           
           return NextResponse.json({
-            pythonCode,
+            python_code: pythonCode,
+            pythonCode,  // Keep for backward compatibility
             cobolMeta: {
               program_id: programId,
               total_lines: totalLines,
