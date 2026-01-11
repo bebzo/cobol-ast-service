@@ -304,7 +304,8 @@ function transpileParagraph(
   const cobolKeywords = ['IF', 'ELSE', 'END-IF', 'END-PERFORM', 'END-EVALUATE', 'END-READ', 
     'PERFORM', 'MOVE', 'ADD', 'SUBTRACT', 'MULTIPLY', 'DIVIDE', 'COMPUTE', 'SET', 'DISPLAY', 
     'OPEN', 'CLOSE', 'READ', 'WRITE', 'CALL', 'EVALUATE', 'WHEN', 'INITIALIZE', 'STOP', 
-    'GOBACK', 'CONTINUE', 'NOT', 'AT', 'EXIT'];
+    'GOBACK', 'CONTINUE', 'NOT', 'AT', 'EXIT', 'INSPECT', 'STRING', 'UNSTRING', 'ACCEPT',
+    'SEARCH', 'SORT', 'MERGE', 'RELEASE', 'RETURN', 'REWRITE', 'DELETE', 'START', 'USE'];
   
   const cobolLines: string[] = [];
   for (let i = 0; i < rawLines.length; i++) {
@@ -634,6 +635,20 @@ function transpileStatement(upper: string, original: string, indent: number): Py
     return results;
   }
   
+  // ===== INSPECT statements =====
+  if (upper.startsWith('INSPECT ')) {
+    const stmt = transpileInspect(upper, original);
+    if (stmt) results.push({ ...stmt, indent });
+    return results;
+  }
+  
+  // ===== STRING statements =====
+  if (upper.startsWith('STRING ')) {
+    const stmt = transpileString(upper, original);
+    if (stmt) results.push({ ...stmt, indent });
+    return results;
+  }
+  
   // ===== EXIT PERFORM =====
   if (upper.includes('EXIT PERFORM')) {
     results.push({
@@ -715,8 +730,23 @@ function transpileMove(upper: string, original: string): PythonStatement | null 
     };
   }
   
-  // MOVE number TO var
-  match = upper.match(/MOVE\s+(\d+(?:\.\d+)?)\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
+  // MOVE number TO var(index) - literal to array element (check FIRST before simple MOVE)
+  match = upper.match(/MOVE\s+(\d+(?:\.\d+)?)\s+TO\s+([A-Z0-9][-A-Z0-9]*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)/i);
+  if (match) {
+    const value = match[1];
+    const destArray = toSnakeCase(match[2]);
+    const index = /^\d+$/.test(match[3]) ? `${parseInt(match[3]) - 1}` : `int(self.${toSnakeCase(match[3])}) - 1`;
+    return {
+      type: 'assignment',
+      code: `self.${destArray}[${index}] = Decimal("${value}")`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  // MOVE number TO var (simple, no array)
+  match = upper.match(/MOVE\s+(\d+(?:\.\d+)?)\s+TO\s+([A-Z0-9][-A-Z0-9]*)(?!\s*\()/i);
   if (match) {
     return {
       type: 'assignment',
@@ -788,7 +818,51 @@ function transpileMove(upper: string, original: string): PythonStatement | null 
     };
   }
   
-  // MOVE var TO var
+  // MOVE CORRESPONDING source TO dest
+  match = upper.match(/MOVE\s+CORRESPONDING\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
+  if (match) {
+    const source = toSnakeCase(match[1]);
+    const dest = toSnakeCase(match[2]);
+    return {
+      type: 'assignment',
+      code: `self._move_corresponding(self.${source}, self.${dest})  # MOVE CORRESPONDING`,
+      originalCobol: original,
+      confidence: 85,
+      indent: 0
+    };
+  }
+  
+  // MOVE var(index) TO var - array element to variable
+  match = upper.match(/MOVE\s+([A-Z0-9][-A-Z0-9]*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
+  if (match) {
+    const srcArray = toSnakeCase(match[1]);
+    const index = /^\d+$/.test(match[2]) ? `${parseInt(match[2]) - 1}` : `int(self.${toSnakeCase(match[2])}) - 1`;
+    const dest = toSnakeCase(match[3]);
+    return {
+      type: 'assignment',
+      code: `self.${dest} = self.${srcArray}[${index}]`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  // MOVE var TO var(index) - variable to array element
+  match = upper.match(/MOVE\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)/i);
+  if (match) {
+    const src = toSnakeCase(match[1]);
+    const destArray = toSnakeCase(match[2]);
+    const index = /^\d+$/.test(match[3]) ? `${parseInt(match[3]) - 1}` : `int(self.${toSnakeCase(match[3])}) - 1`;
+    return {
+      type: 'assignment',
+      code: `self.${destArray}[${index}] = self.${src}`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  // MOVE var TO var (already handled array cases above)
   match = upper.match(/MOVE\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
   if (match) {
     return {
@@ -804,8 +878,37 @@ function transpileMove(upper: string, original: string): PythonStatement | null 
 }
 
 function transpileAdd(upper: string, original: string): PythonStatement | null {
+  // ADD num TO var(index) - array element
+  let match = upper.match(/ADD\s+(\d+(?:\.\d+)?)\s+TO\s+([A-Z0-9][-A-Z0-9]*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)/i);
+  if (match) {
+    const arr = toSnakeCase(match[2]);
+    const idx = /^\d+$/.test(match[3]) ? `${parseInt(match[3]) - 1}` : `int(self.${toSnakeCase(match[3])}) - 1`;
+    return {
+      type: 'assignment',
+      code: `self.${arr}[${idx}] += Decimal("${match[1]}")`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  // ADD var TO var(index) - variable to array element
+  match = upper.match(/ADD\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)/i);
+  if (match) {
+    const src = toSnakeCase(match[1]);
+    const arr = toSnakeCase(match[2]);
+    const idx = /^\d+$/.test(match[3]) ? `${parseInt(match[3]) - 1}` : `int(self.${toSnakeCase(match[3])}) - 1`;
+    return {
+      type: 'assignment',
+      code: `self.${arr}[${idx}] += self.${src}`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
   // ADD num TO var
-  let match = upper.match(/ADD\s+(\d+(?:\.\d+)?)\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
+  match = upper.match(/ADD\s+(\d+(?:\.\d+)?)\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
   if (match) {
     return {
       type: 'assignment',
@@ -954,8 +1057,56 @@ function transpileDivide(upper: string, original: string): PythonStatement | nul
 }
 
 function transpileCompute(upper: string, original: string): PythonStatement | null {
-  // COMPUTE var = expression
-  const match = upper.match(/COMPUTE\s+([A-Z0-9][-A-Z0-9]*)\s*(?:ROUNDED)?\s*=\s*(.+)/i);
+  // COMPUTE var(index) = expression (array target)
+  let match = upper.match(/COMPUTE\s+([A-Z0-9][-A-Z0-9]*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)\s*(?:ROUNDED)?\s*=\s*(.+)/i);
+  if (match) {
+    const arrName = toSnakeCase(match[1]);
+    const idx = match[2];
+    const pyIdx = /^\d+$/.test(idx) ? `${parseInt(idx) - 1}` : `int(self.${toSnakeCase(idx)}) - 1`;
+    const target = `${arrName}[${pyIdx}]`;
+    let expr = match[3].trim();
+    
+    // Remove trailing period
+    expr = expr.replace(/\s*\.\s*$/, '');
+    
+    // Handle array indexing in expression
+    expr = expr.replace(/\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)/gi, (_, arr, i) => {
+      const pyArr = `self.${toSnakeCase(arr)}`;
+      const pyI = /^\d+$/.test(i) ? `${parseInt(i) - 1}` : `int(self.${toSnakeCase(i)}) - 1`;
+      return `${pyArr}[${pyI}]`;
+    });
+    
+    // Replace variable names
+    expr = expr.replace(/\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b/gi, (m) => {
+      if (/^\d+$/.test(m)) return m;
+      if (['AND', 'OR', 'NOT', 'ROUNDED'].includes(m.toUpperCase())) return '';
+      return `self.${toSnakeCase(m)}`;
+    });
+    
+    // Clean up
+    expr = expr.replace(/self\.self\./g, 'self.');
+    expr = expr.replace(/\s+/g, ' ').trim();
+    
+    // Convert numeric literals (but not array indices)
+    expr = expr.replace(/(\d+\.\d+)(?!\])/g, 'Decimal("$1")');
+    expr = expr.replace(/(?<!Decimal\(")(?<![a-zA-Z_\[])(\d+)(?!["\d\w\]])/g, 'Decimal("$1")');
+    
+    const hasRounded = upper.includes('ROUNDED');
+    const code = hasRounded 
+      ? `self.${target} = round(${expr}, 2)`
+      : `self.${target} = ${expr}`;
+    
+    return {
+      type: 'assignment',
+      code,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  // COMPUTE var = expression (simple target)
+  match = upper.match(/COMPUTE\s+([A-Z0-9][-A-Z0-9]*)\s*(?:ROUNDED)?\s*=\s*(.+)/i);
   if (match) {
     const target = toSnakeCase(match[1]);
     let expr = match[2].trim();
@@ -1018,7 +1169,14 @@ function transpileCompute(upper: string, original: string): PythonStatement | nu
     expr = expr.replace(/\*\*/g, ' ** ');
     expr = expr.replace(/\s+/g, ' ');
     
-    // Step 3: Replace remaining variable names with self.xxx
+    // Step 3: Handle array indexing VAR(INDEX) -> self.var[int(self.index) - 1]
+    expr = expr.replace(/\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)/gi, (_, arr, idx) => {
+      const pyArr = `self.${toSnakeCase(arr)}`;
+      const pyIdx = /^\d+$/.test(idx) ? `${parseInt(idx) - 1}` : `int(self.${toSnakeCase(idx)}) - 1`;
+      return `${pyArr}[${pyIdx}]`;
+    });
+    
+    // Replace remaining variable names with self.xxx
     // Use word boundary to avoid matching inside placeholders
     expr = expr.replace(/\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b/gi, (m) => {
       if (/^\d+$/.test(m)) return m;
@@ -1038,9 +1196,10 @@ function transpileCompute(upper: string, original: string): PythonStatement | nu
     expr = expr.replace(/\s+/g, ' ').trim();
     
     // Convert numeric literals to Decimal() for precision
-    expr = expr.replace(/(\d+\.\d+)/g, 'Decimal("$1")');
-    // Convert standalone integers (not already in Decimal or as indices)
-    expr = expr.replace(/(?<!Decimal\(")(?<![a-zA-Z_])(\d+)(?!["\d\w])/g, 'Decimal("$1")');
+    // But NOT indices inside brackets [n]
+    expr = expr.replace(/(\d+\.\d+)(?!\])/g, 'Decimal("$1")');
+    // Convert standalone integers (not already in Decimal, not as array indices)
+    expr = expr.replace(/(?<!Decimal\(")(?<![a-zA-Z_\[])(\d+)(?!["\d\w\]])/g, 'Decimal("$1")');
     
     const hasRounded = upper.includes('ROUNDED');
     const code = hasRounded 
@@ -1141,6 +1300,13 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
     const idx = stringLiterals.length;
     stringLiterals.push(lit);
     return `@@STR_${idx}@@`;
+  });
+  
+  // Handle array indexing VAR(INDEX) -> self.var[int(self.index) - 1]
+  condition = condition.replace(/\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)/gi, (_, arr, idx) => {
+    const pyArr = `self.${toSnakeCase(arr)}`;
+    const pyIdx = /^\d+$/.test(idx) ? `${parseInt(idx) - 1}` : `int(self.${toSnakeCase(idx)}) - 1`;
+    return `${pyArr}[${pyIdx}]`;
   });
   
   // Replace variable names
@@ -1345,32 +1511,70 @@ function transpileDisplay(upper: string, original: string): PythonStatement | nu
   if (match) {
     let content = match[1].trim().replace(/\.$/, '');
     
-    // Handle multiple items (string + variable concatenation)
-    // Pattern: "literal" VAR or VAR "literal" VAR etc.
-    const parts: string[] = [];
-    const displayContent = original.replace(/^\s*DISPLAY\s+/i, '').replace(/\.\s*$/, '');
+    // Handle qualified references: VAR OF RECORD -> just use VAR
+    content = content.replace(/\s+OF\s+[A-Z0-9][-A-Z0-9]*/gi, '');
     
-    // Split by spaces but keep quoted strings together
-    const tokens = displayContent.match(/"[^"]+"|'[^']+'|[A-Z0-9][-A-Z0-9]*/gi) || [];
+    // Handle multiple items (string + variable concatenation)
+    // Pattern: "literal" VAR or VAR(INDEX) "literal" VAR etc.
+    const parts: string[] = [];
+    let displayContent = original.replace(/^\s*DISPLAY\s+/i, '').replace(/\.\s*$/, '');
+    // Remove OF qualifiers from display content
+    displayContent = displayContent.replace(/\s+OF\s+[A-Z0-9][-A-Z0-9]*/gi, '');
+    
+    // Enhanced pattern to capture: "strings", VAR(INDEX), or simple VAR
+    const tokens = displayContent.match(/"[^"]+"|'[^']+'|[A-Z0-9][-A-Z0-9]*\s*\(\s*[A-Z0-9][-A-Z0-9]*\s*\)|[A-Z0-9][-A-Z0-9]*/gi) || [];
     
     for (const token of tokens) {
       if (token.startsWith('"') || token.startsWith("'")) {
-        // String literal - remove quotes and add as string
+        // String literal - keep as is
         parts.push(token);
-      } else if (/^[A-Z0-9][-A-Z0-9]*$/i.test(token)) {
-        // Variable
-        parts.push(`self.${toSnakeCase(token)}`);
+      } else {
+        // Check for array element: VAR(INDEX)
+        const arrayMatch = token.match(/([A-Z0-9][-A-Z0-9]*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)/i);
+        if (arrayMatch) {
+          const arrName = toSnakeCase(arrayMatch[1]);
+          const idx = arrayMatch[2];
+          const pyIdx = /^\d+$/.test(idx) ? `${parseInt(idx) - 1}` : `int(self.${toSnakeCase(idx)}) - 1`;
+          parts.push(`self.${arrName}[${pyIdx}]`);
+        } else if (/^[A-Z0-9][-A-Z0-9]*$/i.test(token)) {
+          // Simple variable
+          parts.push(`self.${toSnakeCase(token)}`);
+        }
       }
     }
     
-    if (parts.length > 1) {
-      // Multiple parts - use f-string or concatenation
+    // Handle single quoted string FIRST (simple case)
+    if (parts.length === 1 && (parts[0].startsWith('"') || parts[0].startsWith("'"))) {
+      const literalContent = parts[0].slice(1, -1);
+      return {
+        type: 'call',
+        code: `print("${literalContent}")`,
+        originalCobol: original,
+        confidence: 100,
+        indent: 0
+      };
+    }
+    
+    if (parts.length >= 1) {
+      // Multiple parts or single variable - use f-string
       const fstringParts = parts.map(p => {
         if (p.startsWith('"') || p.startsWith("'")) {
           return p.slice(1, -1);  // Remove quotes
         }
         return `{${p}}`;
       }).join('');
+      
+      // If all parts are literals (no curly braces needed), use simple print
+      if (!fstringParts.includes('{')) {
+        return {
+          type: 'call',
+          code: `print("${fstringParts}")`,
+          originalCobol: original,
+          confidence: 100,
+          indent: 0
+        };
+      }
+      
       return {
         type: 'call',
         code: `print(f"${fstringParts}")`,
@@ -1380,12 +1584,27 @@ function transpileDisplay(upper: string, original: string): PythonStatement | nu
       };
     }
     
-    // Handle single quoted string - extract from original to preserve case
-    const quotedMatch = original.match(/DISPLAY\s+["']([^"']+)["']\s*$/i);
+    // Handle single quoted string - extract from original to preserve case (fallback)
+    const quotedMatch = original.match(/DISPLAY\s+["']([^"']+)["']\s*\.?\s*$/i);
     if (quotedMatch) {
       return {
         type: 'call',
         code: `print("${quotedMatch[1]}")`,
+        originalCobol: original,
+        confidence: 100,
+        indent: 0
+      };
+    }
+    
+    // Check for single array element
+    const singleArrayMatch = content.match(/([A-Z0-9][-A-Z0-9]*)\s*\(\s*([A-Z0-9][-A-Z0-9]*|\d+)\s*\)/i);
+    if (singleArrayMatch) {
+      const arrName = toSnakeCase(singleArrayMatch[1]);
+      const idx = singleArrayMatch[2];
+      const pyIdx = /^\d+$/.test(idx) ? `${parseInt(idx) - 1}` : `int(self.${toSnakeCase(idx)}) - 1`;
+      return {
+        type: 'call',
+        code: `print(self.${arrName}[${pyIdx}])`,
         originalCobol: original,
         confidence: 100,
         indent: 0
@@ -1519,6 +1738,162 @@ function transpileEvaluate(upper: string, original: string): PythonStatement | n
       indent: 0
     };
   }
+  return null;
+}
+
+function transpileInspect(upper: string, original: string): PythonStatement | null {
+  // INSPECT var TALLYING counter FOR ALL "char"
+  let match = upper.match(/INSPECT\s+([A-Z0-9][-A-Z0-9]*)\s+TALLYING\s+([A-Z0-9][-A-Z0-9]*)\s+FOR\s+ALL\s+["']([^"']+)["']/i);
+  if (match) {
+    const source = toSnakeCase(match[1]);
+    const counter = toSnakeCase(match[2]);
+    const char = match[3];
+    return {
+      type: 'assignment',
+      code: `self.${counter} = Decimal(str(self.${source}).count("${char}"))`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  // INSPECT var TALLYING counter FOR CHARACTERS
+  match = upper.match(/INSPECT\s+([A-Z0-9][-A-Z0-9]*)\s+TALLYING\s+([A-Z0-9][-A-Z0-9]*)\s+FOR\s+CHARACTERS/i);
+  if (match) {
+    const source = toSnakeCase(match[1]);
+    const counter = toSnakeCase(match[2]);
+    return {
+      type: 'assignment',
+      code: `self.${counter} = Decimal(len(str(self.${source})))`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  // INSPECT var TALLYING counter FOR LEADING "char"
+  match = upper.match(/INSPECT\s+([A-Z0-9][-A-Z0-9]*)\s+TALLYING\s+([A-Z0-9][-A-Z0-9]*)\s+FOR\s+LEADING\s+["']([^"']+)["']/i);
+  if (match) {
+    const source = toSnakeCase(match[1]);
+    const counter = toSnakeCase(match[2]);
+    const char = match[3];
+    return {
+      type: 'assignment',
+      code: `self.${counter} = Decimal(len(str(self.${source})) - len(str(self.${source}).lstrip("${char}")))`,
+      originalCobol: original,
+      confidence: 85,
+      indent: 0
+    };
+  }
+  
+  // INSPECT var REPLACING ALL "old" BY "new"
+  match = upper.match(/INSPECT\s+([A-Z0-9][-A-Z0-9]*)\s+REPLACING\s+ALL\s+["']([^"']+)["']\s+BY\s+["']([^"']*)["']/i);
+  if (match) {
+    const target = toSnakeCase(match[1]);
+    const oldStr = match[2];
+    const newStr = match[3];
+    return {
+      type: 'assignment',
+      code: `self.${target} = str(self.${target}).replace("${oldStr}", "${newStr}")`,
+      originalCobol: original,
+      confidence: 95,
+      indent: 0
+    };
+  }
+  
+  // INSPECT var REPLACING LEADING "old" BY "new"
+  match = upper.match(/INSPECT\s+([A-Z0-9][-A-Z0-9]*)\s+REPLACING\s+LEADING\s+["']([^"']+)["']\s+BY\s+["']([^"']*)["']/i);
+  if (match) {
+    const target = toSnakeCase(match[1]);
+    const oldStr = match[2];
+    const newStr = match[3];
+    return {
+      type: 'assignment',
+      code: `self.${target} = str(self.${target}).lstrip("${oldStr}").rjust(len(str(self.${target})), "${newStr || ' '}")`,
+      originalCobol: original,
+      confidence: 80,
+      indent: 0
+    };
+  }
+  
+  // INSPECT var REPLACING FIRST "old" BY "new"
+  match = upper.match(/INSPECT\s+([A-Z0-9][-A-Z0-9]*)\s+REPLACING\s+FIRST\s+["']([^"']+)["']\s+BY\s+["']([^"']*)["']/i);
+  if (match) {
+    const target = toSnakeCase(match[1]);
+    const oldStr = match[2];
+    const newStr = match[3];
+    return {
+      type: 'assignment',
+      code: `self.${target} = str(self.${target}).replace("${oldStr}", "${newStr}", 1)`,
+      originalCobol: original,
+      confidence: 95,
+      indent: 0
+    };
+  }
+  
+  // INSPECT var CONVERTING "from" TO "to"
+  match = upper.match(/INSPECT\s+([A-Z0-9][-A-Z0-9]*)\s+CONVERTING\s+["']([^"']+)["']\s+TO\s+["']([^"']+)["']/i);
+  if (match) {
+    const target = toSnakeCase(match[1]);
+    const fromChars = match[2];
+    const toChars = match[3];
+    return {
+      type: 'assignment',
+      code: `self.${target} = str(self.${target}).translate(str.maketrans("${fromChars}", "${toChars}"))`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  return null;
+}
+
+function transpileString(upper: string, original: string): PythonStatement | null {
+  // STRING var1 DELIMITED BY SPACE var2 DELIMITED BY SIZE INTO result
+  // Simplified pattern: STRING items INTO result
+  const intoMatch = upper.match(/STRING\s+(.+)\s+INTO\s+([A-Z0-9][-A-Z0-9]*)/i);
+  if (intoMatch) {
+    const itemsPart = intoMatch[1];
+    const result = toSnakeCase(intoMatch[2]);
+    
+    // Parse items between STRING and INTO
+    // Pattern: var DELIMITED BY xxx or "literal" DELIMITED BY xxx
+    const items: string[] = [];
+    const itemPattern = /([A-Z0-9][-A-Z0-9]*|"[^"]+"|'[^']+')(?:\s+DELIMITED\s+BY\s+(SPACE|SIZE|[A-Z0-9][-A-Z0-9]*|"[^"]+"|'[^']+'))?/gi;
+    let itemMatch;
+    
+    while ((itemMatch = itemPattern.exec(itemsPart)) !== null) {
+      const item = itemMatch[1];
+      const delim = (itemMatch[2] || 'SIZE').toUpperCase();
+      
+      // Skip keywords
+      if (['DELIMITED', 'BY', 'SPACE', 'SIZE', 'INTO'].includes(item.toUpperCase())) continue;
+      
+      if (item.startsWith('"') || item.startsWith("'")) {
+        // String literal
+        items.push(item);
+      } else {
+        // Variable
+        if (delim === 'SPACE') {
+          items.push(`(str(self.${toSnakeCase(item)}).split()[0] if str(self.${toSnakeCase(item)}).strip() else "")`);
+        } else {
+          items.push(`str(self.${toSnakeCase(item)})`);
+        }
+      }
+    }
+    
+    const concatExpr = items.length > 0 ? items.join(' + ') : '""';
+    
+    return {
+      type: 'assignment',
+      code: `self.${result} = ${concatExpr}`,
+      originalCobol: original,
+      confidence: 80,
+      indent: 0
+    };
+  }
+  
   return null;
 }
 
@@ -1683,6 +2058,15 @@ export function generatePythonCode(ast: PythonAST): string {
     }
     lines.push('');
   }
+  
+  // _move_corresponding helper for MOVE CORRESPONDING
+  lines.push('    def _move_corresponding(self, source: Any, dest: Any) -> None:');
+  lines.push('        """Move corresponding fields from source to dest."""');
+  lines.push('        if hasattr(source, "__dict__") and hasattr(dest, "__dict__"):');
+  lines.push('            for key in source.__dict__:');
+  lines.push('                if hasattr(dest, key):');
+  lines.push('                    setattr(dest, key, getattr(source, key))');
+  lines.push('');
   
   // Run method
   lines.push('    def run(self):');
