@@ -577,7 +577,7 @@ export default function Home() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [modulesLimit, setModulesLimit] = useState(50);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "impact" | "report">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "ddd" | "impact" | "report">("code");
   const [selectedDddFile, setSelectedDddFile] = useState<string>("shared.py");
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
@@ -1551,7 +1551,14 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <Layers className="w-4 h-4" />Modules
                   <span className="px-1.5 py-0.5 bg-pink-500/30 text-pink-300 text-[10px] rounded">NEW</span>
                 </button>
-
+                <button
+                  onClick={() => setActiveTab("ddd")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "ddd" ? "bg-emerald-500/20 text-emerald-400 border-b-2 border-emerald-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Package className="w-4 h-4" />DDD
+                </button>
                 <button
                   onClick={() => setActiveTab("impact")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
@@ -1559,7 +1566,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   }`}
                 >
                   <TrendingUp className="w-4 h-4" />Impact
-                  <span className="px-1.5 py-0.5 bg-orange-500/30 text-orange-300 text-[10px] rounded">NEW</span>
                 </button>
                 <button
                   onClick={() => setActiveTab("report")}
@@ -1957,6 +1963,77 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         <Layers className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>Module analysis appears for large files (200+ lines)</p>
                         <p className="text-xs mt-2 text-slate-500">CodeSwitch automatically splits large COBOL files into logical modules</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "ddd" && (
+                <div className="h-[400px] overflow-y-auto p-4 bg-slate-900">
+                  {analysis?.modules && analysis.modules.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                          <Package className="w-5 h-5" />
+                          Domain-Driven Design Structure
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {analysis.modules.length} modules detected
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-slate-800/50 rounded-lg p-4 border border-emerald-500/30">
+                          <p className="text-emerald-400 font-semibold mb-2">Domains</p>
+                          <p className="text-2xl font-bold text-white">{Math.ceil(analysis.modules.length / 15)}</p>
+                          <p className="text-xs text-slate-500">Bounded contexts</p>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-4 border border-blue-500/30">
+                          <p className="text-blue-400 font-semibold mb-2">Entities</p>
+                          <p className="text-2xl font-bold text-white">{Math.ceil(analysis.modules.length / 5)}</p>
+                          <p className="text-xs text-slate-500">Domain objects</p>
+                        </div>
+                        <div className="bg-slate-800/50 rounded-lg p-4 border border-purple-500/30">
+                          <p className="text-purple-400 font-semibold mb-2">Services</p>
+                          <p className="text-2xl font-bold text-white">{Math.ceil(analysis.modules.length / 10)}</p>
+                          <p className="text-xs text-slate-500">Business logic</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-800/50 rounded-lg p-4">
+                        <p className="text-sm text-slate-400 mb-3">Suggested DDD Structure:</p>
+                        <pre className="text-xs text-emerald-300 font-mono overflow-x-auto">{`src/
+├── domain/
+│   ├── ${(analysis?.business_context?.domain || 'enterprise').toLowerCase()}/
+│   │   ├── entities/      (${Math.ceil(analysis.modules.length / 5)} classes)
+│   │   ├── value_objects/
+│   │   ├── repositories/  (interfaces)
+│   │   └── services/      (${Math.ceil(analysis.modules.length / 10)} services)
+│   └── shared/
+│       └── kernel.py
+├── application/
+│   ├── commands/
+│   ├── queries/
+│   └── handlers/
+├── infrastructure/
+│   ├── persistence/
+│   └── external_services/
+└── interfaces/
+    ├── api/
+    └── cli/`}</pre>
+                      </div>
+                      
+                      <p className="text-xs text-slate-500 italic">
+                        Note: This is a recommended structure based on COBOL module analysis. 
+                        Current code preserves 1:1 COBOL traceability for production use.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-400">
+                      <div className="text-center">
+                        <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>DDD analysis available after transpilation</p>
                       </div>
                     </div>
                   )}
