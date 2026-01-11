@@ -816,7 +816,19 @@ function transpileAdd(upper: string, original: string): PythonStatement | null {
     };
   }
   
-  // ADD var TO var
+  // ADD var TO var GIVING var3 (must check before simple ADD TO)
+  match = upper.match(/ADD\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)\s+GIVING\s+([A-Z0-9][-A-Z0-9]*)/i);
+  if (match) {
+    return {
+      type: 'assignment',
+      code: `self.${toSnakeCase(match[3])} = self.${toSnakeCase(match[1])} + self.${toSnakeCase(match[2])}`,
+      originalCobol: original,
+      confidence: 100,
+      indent: 0
+    };
+  }
+  
+  // ADD var TO var (simple, in-place)
   match = upper.match(/ADD\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
   if (match) {
     return {
@@ -856,24 +868,24 @@ function transpileSubtract(upper: string, original: string): PythonStatement | n
     };
   }
   
-  // SUBTRACT var FROM var
-  match = upper.match(/SUBTRACT\s+([A-Z0-9][-A-Z0-9]*)\s+FROM\s+([A-Z0-9][-A-Z0-9]*)/i);
+  // SUBTRACT var1 FROM var2 GIVING var3 (must check before simple FROM)
+  match = upper.match(/SUBTRACT\s+([A-Z0-9][-A-Z0-9]*)\s+FROM\s+([A-Z0-9][-A-Z0-9]*)\s+GIVING\s+([A-Z0-9][-A-Z0-9]*)/i);
   if (match) {
     return {
       type: 'assignment',
-      code: `self.${toSnakeCase(match[2])} -= self.${toSnakeCase(match[1])}`,
+      code: `self.${toSnakeCase(match[3])} = self.${toSnakeCase(match[2])} - self.${toSnakeCase(match[1])}`,
       originalCobol: original,
       confidence: 100,
       indent: 0
     };
   }
   
-  // SUBTRACT var1 FROM var2 GIVING var3
-  match = upper.match(/SUBTRACT\s+([A-Z0-9][-A-Z0-9]*)\s+FROM\s+([A-Z0-9][-A-Z0-9]*)\s+GIVING\s+([A-Z0-9][-A-Z0-9]*)/i);
+  // SUBTRACT var FROM var (simple, in-place)
+  match = upper.match(/SUBTRACT\s+([A-Z0-9][-A-Z0-9]*)\s+FROM\s+([A-Z0-9][-A-Z0-9]*)/i);
   if (match) {
     return {
       type: 'assignment',
-      code: `self.${toSnakeCase(match[3])} = self.${toSnakeCase(match[2])} - self.${toSnakeCase(match[1])}`,
+      code: `self.${toSnakeCase(match[2])} -= self.${toSnakeCase(match[1])}`,
       originalCobol: original,
       confidence: 100,
       indent: 0
@@ -1333,8 +1345,43 @@ function transpileDisplay(upper: string, original: string): PythonStatement | nu
   if (match) {
     let content = match[1].trim().replace(/\.$/, '');
     
-    // Handle quoted strings - extract from original to preserve case
-    const quotedMatch = original.match(/DISPLAY\s+["']([^"']+)["']/i);
+    // Handle multiple items (string + variable concatenation)
+    // Pattern: "literal" VAR or VAR "literal" VAR etc.
+    const parts: string[] = [];
+    const displayContent = original.replace(/^\s*DISPLAY\s+/i, '').replace(/\.\s*$/, '');
+    
+    // Split by spaces but keep quoted strings together
+    const tokens = displayContent.match(/"[^"]+"|'[^']+'|[A-Z0-9][-A-Z0-9]*/gi) || [];
+    
+    for (const token of tokens) {
+      if (token.startsWith('"') || token.startsWith("'")) {
+        // String literal - remove quotes and add as string
+        parts.push(token);
+      } else if (/^[A-Z0-9][-A-Z0-9]*$/i.test(token)) {
+        // Variable
+        parts.push(`self.${toSnakeCase(token)}`);
+      }
+    }
+    
+    if (parts.length > 1) {
+      // Multiple parts - use f-string or concatenation
+      const fstringParts = parts.map(p => {
+        if (p.startsWith('"') || p.startsWith("'")) {
+          return p.slice(1, -1);  // Remove quotes
+        }
+        return `{${p}}`;
+      }).join('');
+      return {
+        type: 'call',
+        code: `print(f"${fstringParts}")`,
+        originalCobol: original,
+        confidence: 95,
+        indent: 0
+      };
+    }
+    
+    // Handle single quoted string - extract from original to preserve case
+    const quotedMatch = original.match(/DISPLAY\s+["']([^"']+)["']\s*$/i);
     if (quotedMatch) {
       return {
         type: 'call',
@@ -1345,7 +1392,7 @@ function transpileDisplay(upper: string, original: string): PythonStatement | nu
       };
     }
     
-    // Variable display
+    // Single variable display
     const varName = toSnakeCase(content);
     return {
       type: 'call',
@@ -1452,12 +1499,23 @@ function transpileCall(upper: string, original: string): PythonStatement | null 
 function transpileEvaluate(upper: string, original: string): PythonStatement | null {
   const match = upper.match(/EVALUATE\s+(.+)/i);
   if (match) {
-    const subject = toSnakeCase(match[1].trim());
+    const subject = match[1].trim();
+    // For EVALUATE TRUE, just add comment
+    if (subject.toUpperCase() === 'TRUE') {
+      return {
+        type: 'comment',
+        code: `# EVALUATE TRUE - using if/elif chain`,
+        originalCobol: original,
+        confidence: 75,
+        indent: 0
+      };
+    }
+    // For EVALUATE variable, store the subject for WHEN comparisons
     return {
-      type: 'comment',
-      code: `# EVALUATE ${match[1]} - using if/elif chain`,
+      type: 'assignment',
+      code: `_eval_subject = self.${toSnakeCase(subject)}  # EVALUATE ${subject}`,
       originalCobol: original,
-      confidence: 75,
+      confidence: 80,
       indent: 0
     };
   }
@@ -1481,9 +1539,21 @@ function transpileWhen(upper: string, original: string): PythonStatement | null 
   if (match) {
     return {
       type: 'elif',
-      code: `elif self._eval_subject == "${match[1].toLowerCase()}":`,
+      code: `elif _eval_subject == "${match[1]}":`,
       originalCobol: original,
       confidence: 70,
+      indent: 0
+    };
+  }
+  
+  // WHEN number (for EVALUATE variable)
+  match = upper.match(/WHEN\s+(\d+)(?:\s|$|\.)/i);
+  if (match) {
+    return {
+      type: 'elif',
+      code: `elif _eval_subject == Decimal("${match[1]}"):`,
+      originalCobol: original,
+      confidence: 85,
       indent: 0
     };
   }
