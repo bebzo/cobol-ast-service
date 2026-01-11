@@ -1,3 +1,26 @@
-# Python dependencies for COBOL AST Transpiler v2.0
+# MegaEnterpriseSystem - Python Dependencies
+
+# Code formatting
 autopep8>=2.0.0
 black>=24.0.0
+isort>=5.12.0
+
+# Production dependencies
+python-dateutil>=2.8.2
+
+# Testing dependencies
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-xdist>=3.3.0
+hypothesis>=6.82.0
+
+# Code quality
+flake8>=6.1.0
+mypy>=1.5.0
+
+# Security
+safety>=2.3.0
+bandit>=1.7.0
+
+# Logging
+structlog>=23.1.0
