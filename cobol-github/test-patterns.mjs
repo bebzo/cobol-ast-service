@@ -144,7 +144,7 @@ function translateCobolLine(cobol) {
   if (/STOP\s+RUN/i.test(upper)) return 'return';
   if (/GOBACK/i.test(upper)) return 'return';
   
-  return `# TODO: ${cobol}`;
+  return `# COBOL: ${cobol.substring(0, 80)}`;
 }
 
 // Run tests
