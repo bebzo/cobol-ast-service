@@ -480,6 +480,20 @@ function sanitizePythonCode(code: string): string {
   // 10. Fix double self: self.self. -> self.
   sanitized = sanitized.replace(/self\.self\./g, 'self.');
   
+  // 11. Fix self.'string' -> 'string' (AI hallucination: self prefix on string literals)
+  sanitized = sanitized.replace(/self\.'([^']+)'/g, "'$1'");
+  sanitized = sanitized.replace(/self\."([^"]+)"/g, '"$1"');
+  
+  // 12. Fix = self.'string' patterns in assignments
+  sanitized = sanitized.replace(/=\s*self\.'([^']+)'/g, "= '$1'");
+  sanitized = sanitized.replace(/=\s*self\."([^"]+)"/g, '= "$1"');
+  
+  // 13. Fix comparisons: == self.'x' or != self."y"
+  sanitized = sanitized.replace(/==\s*self\.'([^']+)'/g, "== '$1'");
+  sanitized = sanitized.replace(/==\s*self\."([^"]+)"/g, '== "$1"');
+  sanitized = sanitized.replace(/!=\s*self\.'([^']+)'/g, "!= '$1'");
+  sanitized = sanitized.replace(/!=\s*self\."([^"]+)"/g, '!= "$1"');
+  
   // === v8.2: Python keyword variable names ===
   const pythonKeywordsForVars = ['continue', 'pass', 'break', 'return', 'yield', 'raise', 'import', 'from', 'class', 'def', 'try', 'except', 'finally', 'with', 'as', 'global', 'nonlocal', 'lambda', 'assert', 'del', 'if', 'else', 'elif', 'for', 'while', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'async', 'await'];
   for (const kw of pythonKeywordsForVars) {
