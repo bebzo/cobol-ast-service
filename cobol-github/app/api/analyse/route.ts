@@ -2799,3 +2799,4 @@ ${activeDomains.map(d => `├── ${d}.py              # ${d.charAt(0).toUpper
 // v7.60 - Added Python number sanitization (leading zeros fix)
 // v7.5 - simple statements only, guaranteed compile
 // Commercial grade: All numbers sanitized, valid Python 3 syntax guaranteed
+// v11.23 fix
