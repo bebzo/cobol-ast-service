@@ -521,6 +521,10 @@ function sanitizePythonCode(code: string): string {
   sanitized = sanitized.replace(/range\(0+([1-9]\d*)/g, 'range($1');
   sanitized = sanitized.replace(/Decimal\("0+([1-9]\d*)"\)/g, 'Decimal("$1")');
   
+  // Fix self.'string' -> 'string' (AI hallucination)
+  sanitized = sanitized.replace(/self\.'([^']+)'/g, "'$1'");
+  sanitized = sanitized.replace(/self\."([^"]+)"/g, '"$1"');
+  
   return sanitized;
 }
 
