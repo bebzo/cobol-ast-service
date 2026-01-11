@@ -100,16 +100,21 @@ def parse_variables(source: str) -> List[CobolVariable]:
         pic_match = re.search(r'PIC(?:TURE)?\s+(?:IS\s+)?([SX9AV0-9()+-.,ZB*$]+)', line, re.IGNORECASE)
         picture = pic_match.group(1).rstrip('.') if pic_match else None
         
-        # Extract VALUE
+        # Extract VALUE - support .150 (COBOL implied decimal), 23350, "string", etc.
         value = None
         value_match = re.search(
-            r'VALUE\s+(?:IS\s+)?(?:ZEROS?|ZEROES|SPACES?|"([^"]*)"|\'([^\']*)\'|([-+]?\d+\.?\d*))',
+            r'VALUE\s+(?:IS\s+)?(?:ZEROS?|ZEROES|SPACES?|"([^"]*)"|\'([^\']*)\'|([-+]?\.?\d+\.?\d*))',
             line, re.IGNORECASE
         )
         if value_match:
-            if 'ZERO' in line.upper():
-                value = 'ZEROS'
-            elif 'SPACE' in line.upper():
+            if 'ZERO' in line.upper() and 'VALUE' in line.upper():
+                # Only treat as ZEROS if it's actually VALUE ZEROS, not just contains ZERO
+                upper_line = line.upper()
+                if re.search(r'VALUE\s+(?:IS\s+)?ZEROS?', upper_line) or re.search(r'VALUE\s+(?:IS\s+)?ZEROES', upper_line):
+                    value = 'ZEROS'
+                else:
+                    value = value_match.group(1) or value_match.group(2) or value_match.group(3)
+            elif 'SPACE' in line.upper() and re.search(r'VALUE\s+(?:IS\s+)?SPACES?', line.upper()):
                 value = 'SPACES'
             else:
                 value = value_match.group(1) or value_match.group(2) or value_match.group(3)
