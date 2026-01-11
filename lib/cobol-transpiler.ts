@@ -1087,9 +1087,8 @@ function transpileCompute(upper: string, original: string): PythonStatement | nu
     expr = expr.replace(/self\.self\./g, 'self.');
     expr = expr.replace(/\s+/g, ' ').trim();
     
-    // Convert numeric literals (but not array indices)
-    expr = expr.replace(/(\d+\.\d+)(?!\])/g, 'Decimal("$1")');
-    expr = expr.replace(/(?<!Decimal\(")(?<![a-zA-Z_\[])(\d+)(?!["\d\w\]])/g, 'Decimal("$1")');
+    // Convert numeric literals to Decimal() safely (avoid double-wrapping)
+    expr = safeConvertToDecimal(expr);
     
     const hasRounded = upper.includes('ROUNDED');
     const code = hasRounded 
@@ -1195,11 +1194,8 @@ function transpileCompute(upper: string, original: string): PythonStatement | nu
     expr = expr.replace(/self\.self\./g, 'self.');
     expr = expr.replace(/\s+/g, ' ').trim();
     
-    // Convert numeric literals to Decimal() for precision
-    // But NOT indices inside brackets [n]
-    expr = expr.replace(/(\d+\.\d+)(?!\])/g, 'Decimal("$1")');
-    // Convert standalone integers (not already in Decimal, not as array indices)
-    expr = expr.replace(/(?<!Decimal\(")(?<![a-zA-Z_\[])(\d+)(?!["\d\w\]])/g, 'Decimal("$1")');
+    // Convert numeric literals to Decimal() safely (avoid double-wrapping)
+    expr = safeConvertToDecimal(expr);
     
     const hasRounded = upper.includes('ROUNDED');
     const code = hasRounded 
@@ -2162,6 +2158,35 @@ function toSnakeCase(str: string): string {
 
 function toPascalCase(str: string): string {
   return str.split(/[-_\s]/).map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()).join('');
+}
+
+/**
+ * Safely convert numeric literals to Decimal() without double-wrapping.
+ * Uses placeholder protection to avoid corrupting existing Decimal strings.
+ */
+function safeConvertToDecimal(expr: string): string {
+  let result = expr;
+  
+  // Step 1: Protect existing Decimal("...") from double-wrapping
+  const placeholders: string[] = [];
+  result = result.replace(/Decimal\s*\(\s*["'][^"']*["']\s*\)/g, (match) => {
+    const placeholder = `@@DEC_${placeholders.length}@@`;
+    placeholders.push(match);
+    return placeholder;
+  });
+  
+  // Step 2: Convert decimal numbers (with dot) - avoid placeholders and strings
+  result = result.replace(/(?<!["'\w@])(\d+\.\d+)(?!["'\w\]@])/g, 'Decimal("$1")');
+  
+  // Step 3: Convert integers - avoid already wrapped, array indices, placeholders
+  result = result.replace(/(?<!["'\w\[@])(\d+)(?!["'\w\]\.@])/g, 'Decimal("$1")');
+  
+  // Step 4: Restore placeholders
+  for (let i = 0; i < placeholders.length; i++) {
+    result = result.replace(`@@DEC_${i}@@`, placeholders[i]);
+  }
+  
+  return result;
 }
 
 // ============================================================
