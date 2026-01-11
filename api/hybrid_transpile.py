@@ -122,48 +122,105 @@ def find_cobol_paragraph(cobol_source: str, method_name: str) -> str:
 def enrich_method_with_gemini(method: MethodInfo, cobol_context: str) -> Tuple[str, bool]:
     """Use Gemini to enrich a TODO method with real logic"""
     
-    prompt = f"""Convert this COBOL paragraph to Python method body.
+    prompt = f"""You are a COBOL-to-Python expert. Convert this COBOL paragraph to a Python method body.
 
+═══════════════════════════════════════════════════════════════
 COBOL SOURCE:
-```cobol
+═══════════════════════════════════════════════════════════════
 {cobol_context}
-```
 
-CURRENT PYTHON METHOD (has TODO):
-```python
+═══════════════════════════════════════════════════════════════
+CURRENT PYTHON SKELETON:
+═══════════════════════════════════════════════════════════════
 {method.code}
-```
 
-RULES:
-1. Output ONLY the method body (starting with 8 spaces indent)
-2. Keep the docstring
-3. Replace TODO with REAL Python logic
-4. Use self.variable_name for all variables
-5. Use Decimal for financial calculations
-6. Use self.logger.info() for logging
-7. NO new imports, NO class definitions
-8. If unsure, use reasonable business logic
+═══════════════════════════════════════════════════════════════
+COBOL → PYTHON TRANSLATION PATTERNS:
+═══════════════════════════════════════════════════════════════
+MOVE X TO Y           →  self.y = self.x
+ADD X TO Y            →  self.y += self.x
+SUBTRACT X FROM Y     →  self.y -= self.x
+MULTIPLY X BY Y       →  self.y *= self.x
+DIVIDE X INTO Y       →  self.y = self.y / self.x
+COMPUTE X = ...       →  self.x = Decimal(...)
+IF X = 'Y'            →  if self.x == True:  (or use boolean)
+IF X > Y              →  if self.x > self.y:
+PERFORM 1000-PARA     →  self.p_1000_para()
+DISPLAY "text"        →  self.logger.info("text")
+READ FILE NEXT        →  # async I/O - use self.logger.debug for now
+WRITE RECORD          →  # async I/O - use self.logger.debug for now
+SET FLAG TO TRUE      →  self.flag = True
+STRING A B INTO C     →  self.c = f"{{self.a}}{{self.b}}"
+ACCEPT DATE FROM DATE →  self.current_date = datetime.now()
 
-Output the improved method body:"""
+═══════════════════════════════════════════════════════════════
+STRICT OUTPUT RULES:
+═══════════════════════════════════════════════════════════════
+1. Output ONLY the method body content (lines after 'def xxx():')
+2. Each line MUST start with exactly 8 spaces
+3. First line MUST be the docstring: '''Business logic from: XXX'''
+4. Replace ALL logger.debug('TODO:...') with actual Python code
+5. Use self.variable for all variables (no bare names)
+6. Use Decimal('0.00') for money, not float
+7. NO imports, NO class definitions, NO 'def' line
+8. For file I/O, keep self.logger.debug('File I/O: ...') as placeholder
+9. Return None at the end if the method modifies state
+
+═══════════════════════════════════════════════════════════════
+EXAMPLE OUTPUT (correct format):
+═══════════════════════════════════════════════════════════════
+        \"\"\"Business logic from: 2100-PROCESS-DEPOSITS\"\"\"
+        self.logger.info('Processing deposits...')
+        if self.deposit_amount > Decimal('0'):
+            self.account_balance += self.deposit_amount
+            self.total_deposits += self.deposit_amount
+            self.transaction_count += 1
+        return None
+
+═══════════════════════════════════════════════════════════════
+NOW OUTPUT THE PYTHON METHOD BODY:
+═══════════════════════════════════════════════════════════════"""
 
     try:
         response = model.generate_content(prompt)
         result = response.text.strip()
         
-        # Clean up response
-        result = re.sub(r'^```python\s*', '', result)
-        result = re.sub(r'^```\s*', '', result)
-        result = re.sub(r'```$', '', result)
+        # Clean up response - remove markdown artifacts
+        result = re.sub(r'^```python\s*\n?', '', result, flags=re.MULTILINE)
+        result = re.sub(r'^```\s*\n?', '', result, flags=re.MULTILINE)
+        result = re.sub(r'\n?```$', '', result)
         result = result.strip()
         
-        # Ensure proper indentation
-        if not result.startswith('        '):
-            # Re-indent
-            lines = result.split('\n')
-            result = '\n'.join('        ' + line.lstrip() if line.strip() else '' for line in lines)
+        # Remove any 'def' line if Gemini included it
+        result = re.sub(r'^    def \w+\(self\)[^:]*:\s*\n', '', result)
+        
+        # Fix indentation - ensure exactly 8 spaces
+        lines = result.split('\n')
+        fixed_lines = []
+        for line in lines:
+            if line.strip():
+                # Remove existing indentation and add exactly 8 spaces
+                content = line.lstrip()
+                # Preserve relative indentation for nested blocks
+                original_indent = len(line) - len(line.lstrip())
+                if original_indent >= 8:
+                    extra_indent = original_indent - 8
+                else:
+                    extra_indent = 0
+                fixed_lines.append('        ' + ' ' * extra_indent + content)
+            else:
+                fixed_lines.append('')
+        result = '\n'.join(fixed_lines)
+        
+        # Ensure docstring is present
+        if '"""' not in result and "'''" not in result:
+            cobol_name = method.name.upper().replace('_', '-')
+            if cobol_name.startswith('P-'):
+                cobol_name = cobol_name[2:]
+            result = f'        """Business logic from: {cobol_name}"""\n' + result
         
         # Build complete method
-        method_def = f"    def {method.name}(self):\n"
+        method_def = f"    def {method.name}(self) -> None:\n"
         full_method = method_def + result
         
         return full_method, True
