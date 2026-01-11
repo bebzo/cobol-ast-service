@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execSync, spawnSync } from 'child_process';
-import * as fs from 'fs';
-import * as path from 'path';
 
 /**
  * CodeSwitch API v13.0 - Python AST Transpiler Integration
@@ -100,46 +97,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const totalLines = cobolCode.split('\n').length;
     console.log(`[v13.0] Processing ${totalLines} lines with Python AST transpiler`);
 
-    // Write COBOL to temp file
-    const tempDir = '/tmp';
-    const tempCobolPath = path.join(tempDir, 'input.cbl');
-    fs.writeFileSync(tempCobolPath, cobolCode, 'utf-8');
-
-    // Call Python transpiler
-    const transpilerPath = path.join(process.cwd(), 'api', 'transpile.py');
-    
+    // Call Python API transpiler
     let pythonResult: any;
     try {
-      // Execute Python transpiler script
-      const pythonCode = `
-import sys
-sys.path.insert(0, '${path.dirname(transpilerPath)}')
-from transpile import generate_python_code
-
-with open('${tempCobolPath}', 'r') as f:
-    cobol_source = f.read()
-
-import json
-result = generate_python_code(cobol_source)
-print(json.dumps(result))
-`;
+      // Determine base URL for Python API
+      const baseUrl = process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}` 
+        : 'http://localhost:3000';
       
-      const result = spawnSync('python3', ['-c', pythonCode], {
-        encoding: 'utf-8',
-        timeout: 60000,
-        maxBuffer: 50 * 1024 * 1024 // 50MB
+      const response = await fetch(`${baseUrl}/api/transpile_api`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cobolCode }),
       });
 
-      if (result.error) {
-        throw new Error(`Python execution failed: ${result.error.message}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `API returned ${response.status}`);
       }
 
-      if (result.status !== 0) {
-        console.error('[v13.0] Python stderr:', result.stderr);
-        throw new Error(`Python transpiler failed: ${result.stderr || 'Unknown error'}`);
-      }
-
-      pythonResult = JSON.parse(result.stdout.trim());
+      pythonResult = await response.json();
       
     } catch (e: any) {
       console.error('[v13.0] Transpiler error:', e.message);
