@@ -101,19 +101,64 @@ function transpileVariables(vars: VariableNode[]): PythonVariable[] {
       safePic += ')'.repeat(openParens - closeParens);
     }
     
+    // Handle COMP-3 / PACKED-DECIMAL
+    const usage = (v as any).usage || '';
+    const isPackedDecimal = /COMP-3|PACKED-DECIMAL|COMPUTATIONAL-3/i.test(usage);
+    const isBinary = /COMP|BINARY|COMPUTATIONAL$/i.test(usage);
+    
+    // Handle REDEFINES
+    const redefines = (v as any).redefines;
+    const redefinesNote = redefines ? ` (REDEFINES ${redefines})` : '';
+    
+    // Handle OCCURS (arrays) and OCCURS DEPENDING ON (variable-length arrays)
+    const occurs = (v as any).occurs;
+    const occursDependingOn = (v as any).occursDependingOn;
+    const isArray = occurs && occurs > 1;
+    const isVariableArray = !!occursDependingOn;
+    
+    // Build docstring with full context
+    let docstring = v.picture ? `PIC ${safePic}` : `from ${v.name}`;
+    if (isPackedDecimal) docstring += ' [PACKED-DECIMAL]';
+    if (isBinary) docstring += ' [BINARY]';
+    if (redefines) docstring += redefinesNote;
+    if (isVariableArray) {
+      docstring += ` [OCCURS DEPENDING ON ${occursDependingOn}]`;
+    } else if (isArray) {
+      docstring += ` [OCCURS ${occurs}]`;
+    }
+    
+    // Determine type (List if OCCURS)
+    const baseType = pictureToType(v.picture, usage);
+    const finalType = isArray ? 'List' : baseType;
+    
+    // Default value (array if OCCURS)
+    const baseDefault = getDefaultValue(v.picture, v.value, usage);
+    const finalDefault = isArray ? `[${baseDefault} for _ in range(${occurs})]` : baseDefault;
+    
     return {
       name: toSnakeCase(v.name),
-      type: pictureToType(v.picture),
-      default: getDefaultValue(v.picture, v.value),
+      type: finalType,
+      default: finalDefault,
       fromCobol: v.name,
-      docstring: v.picture ? `PIC ${safePic}` : `from ${v.name}`
+      docstring
     };
   });
 }
 
-function pictureToType(pic?: string): PythonVariable['type'] {
+function pictureToType(pic?: string, usage?: string): PythonVariable['type'] {
   if (!pic) return 'Any';
   const upper = pic.toUpperCase();
+  
+  // COMP-3/PACKED-DECIMAL always maps to Decimal for precision
+  if (usage && /COMP-3|PACKED-DECIMAL|COMPUTATIONAL-3/i.test(usage)) {
+    return 'Decimal';
+  }
+  
+  // COMP/BINARY maps to int for performance (unless has decimal places)
+  if (usage && /COMP|BINARY|COMPUTATIONAL$/i.test(usage)) {
+    return upper.includes('V') ? 'Decimal' : 'int';
+  }
+  
   if (upper.match(/^S?9/)) return 'Decimal';
   if (upper.match(/^X/)) return 'str';
   if (upper.match(/^A/)) return 'str';
@@ -121,7 +166,7 @@ function pictureToType(pic?: string): PythonVariable['type'] {
   return 'str';
 }
 
-function getDefaultValue(pic?: string, value?: string): string {
+function getDefaultValue(pic?: string, value?: string, usage?: string): string {
   if (value !== undefined) {
     const clean = value.replace(/['"]/g, '').trim();
     const upperClean = clean.toUpperCase();

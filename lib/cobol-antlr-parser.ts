@@ -41,6 +41,7 @@ export interface VariableNode {
   usage?: string;
   value?: string;
   occurs?: number;
+  occursDependingOn?: string;
   redefines?: string;
   indexed?: string[];
   line: number;
@@ -277,8 +278,8 @@ function parseVariables(source: string, section: string): VariableNode[] {
       // Extract USAGE clause
       const usageMatch = line.match(/USAGE\s+(?:IS\s+)?(COMP(?:-[1-5])?|COMPUTATIONAL(?:-[1-5])?|BINARY|PACKED-DECIMAL|DISPLAY|INDEX|POINTER)/i);
       
-      // Extract OCCURS clause
-      const occursMatch = line.match(/OCCURS\s+(\d+)(?:\s+TIMES)?/i);
+      // Extract OCCURS clause (with optional DEPENDING ON)
+      const occursMatch = line.match(/OCCURS\s+(\d+)(?:\s+TO\s+(\d+))?(?:\s+TIMES)?(?:\s+DEPENDING\s+(?:ON\s+)?([A-Z][A-Z0-9-]*))?/i);
       
       // Extract REDEFINES clause
       const redefinesMatch = line.match(/REDEFINES\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
@@ -289,7 +290,8 @@ function parseVariables(source: string, section: string): VariableNode[] {
         picture,
         value: value,
         usage: usageMatch ? usageMatch[1] : undefined,
-        occurs: occursMatch ? parseInt(occursMatch[1]) : undefined,
+        occurs: occursMatch ? parseInt(occursMatch[2] || occursMatch[1]) : undefined,
+        occursDependingOn: occursMatch && occursMatch[3] ? occursMatch[3] : undefined,
         redefines: redefinesMatch ? redefinesMatch[1] : undefined,
         line: i + 1
       });
