@@ -240,6 +240,7 @@ function pictureToType(pic?: string, usage?: string): PythonVariable['type'] {
   }
   
   if (upper.match(/^S?9/)) return 'Decimal';
+  if (upper.match(/^V9/)) return 'Decimal';  // PIC V99 = decimal without integer part
   if (upper.match(/^X/)) return 'str';
   if (upper.match(/^A/)) return 'str';
   if (upper === '1' || upper.match(/^88$/)) return 'bool';
@@ -1024,8 +1025,10 @@ function transpileCompute(upper: string, original: string): PythonStatement | nu
     expr = expr.replace(/self\.self\./g, 'self.');
     expr = expr.replace(/\s+/g, ' ').trim();
     
-    // Convert decimal literals to Decimal() for precision
+    // Convert numeric literals to Decimal() for precision
     expr = expr.replace(/(\d+\.\d+)/g, 'Decimal("$1")');
+    // Convert standalone integers (not already in Decimal or as indices)
+    expr = expr.replace(/(?<!Decimal\(")(?<![a-zA-Z_])(\d+)(?!["\d\w])/g, 'Decimal("$1")');
     
     const hasRounded = upper.includes('ROUNDED');
     const code = hasRounded 
