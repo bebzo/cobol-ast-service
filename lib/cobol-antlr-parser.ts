@@ -155,8 +155,11 @@ export function parseCobolWithANTLR(source: string): CobolFullAST {
   const dateMatch = source.match(/DATE-WRITTEN\.\s+(.+?)(?:\.|$)/im);
   const dateWritten = dateMatch ? dateMatch[1].trim() : undefined;
   
-  // Parse variables from WORKING-STORAGE and LINKAGE
-  const workingStorageVariables = parseVariables(source, 'WORKING-STORAGE');
+  // Parse variables from WORKING-STORAGE, FILE SECTION, and LINKAGE
+  const workingStorageVariables = [
+    ...parseVariables(source, 'WORKING-STORAGE'),
+    ...parseFileVariables(source)  // Include FILE SECTION record fields
+  ];
   const linkageVariables = parseVariables(source, 'LINKAGE');
   
   // Parse paragraphs
@@ -219,6 +222,7 @@ function parseVariables(source: string, section: string): VariableNode[] {
   const lines = source.split('\n');
   let inSection = false;
   let continuationLine = '';
+  let lastNon88Variable: VariableNode | null = null;
   
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
@@ -254,16 +258,20 @@ function parseVariables(source: string, section: string): VariableNode[] {
       continuationLine = '';
     }
     
-    // Multiple patterns for variable detection
-    // Pattern 1: Standard level number + name
+    // Enhanced patterns for variable detection - capture ALL levels (01-49, 66, 77, 88)
+    // Pattern 1: Standard level number + name (most common)
     let varMatch = line.match(/^\s*(\d{1,2})\s+([A-Z][A-Z0-9][-A-Z0-9_]*)(?:\s|\.|$)/i);
     if (!varMatch) {
       // Pattern 2: Level 77 or 88 special items
-      varMatch = line.match(/^\s*(77|88)\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
+      varMatch = line.match(/^\s*(77|88|66)\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
     }
     if (!varMatch) {
-      // Pattern 3: More relaxed - any 01-49, 77, 88 level
-      varMatch = line.match(/(?:^|\s)(0[1-9]|[1-4][0-9]|77|88)\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
+      // Pattern 3: More relaxed - any 01-49, 66, 77, 88 level with flexible spacing
+      varMatch = line.match(/(?:^|\s)(0[1-9]|[1-4][0-9]|66|77|88)\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
+    }
+    if (!varMatch) {
+      // Pattern 4: Handle indented sub-levels (05, 10, 15, etc.) with leading spaces
+      varMatch = line.match(/^\s{6,}(0[5-9]|[1-4][0-9])\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
     }
     
     if (varMatch) {
@@ -276,7 +284,7 @@ function parseVariables(source: string, section: string): VariableNode[] {
       // Handle 88-level (condition names)
       if (level === 88) {
         // 88-level is a condition attached to previous non-88 variable
-        const parentVar = variables.filter(v => v.level !== 88).pop();
+        const parentVar = lastNon88Variable;
         
         // Extract VALUES/VALUE clause for 88-level
         let conditionValues: string[] = [];
@@ -336,7 +344,7 @@ function parseVariables(source: string, section: string): VariableNode[] {
       // Extract REDEFINES clause
       const redefinesMatch = line.match(/REDEFINES\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
       
-      variables.push({
+      const newVar: VariableNode = {
         level,
         name,
         picture,
@@ -346,7 +354,14 @@ function parseVariables(source: string, section: string): VariableNode[] {
         occursDependingOn: occursMatch && occursMatch[3] ? occursMatch[3] : undefined,
         redefines: redefinesMatch ? redefinesMatch[1] : undefined,
         line: i + 1
-      });
+      };
+      
+      variables.push(newVar);
+      
+      // Track last non-88 variable for 88-level parent reference
+      if (level !== 88) {
+        lastNon88Variable = newVar;
+      }
     }
   }
   return variables;
@@ -664,6 +679,66 @@ function parseCopyStatements(source: string): CopyStatement[] {
   }
   
   return copies;
+}
+
+function parseFileVariables(source: string): VariableNode[] {
+  const variables: VariableNode[] = [];
+  const lines = source.split('\n');
+  let inFileSection = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const upperLine = line.toUpperCase();
+    
+    // Detect FILE SECTION start
+    if (upperLine.includes('FILE SECTION')) {
+      inFileSection = true;
+      continue;
+    }
+    
+    // Detect FILE SECTION end
+    if (inFileSection && (upperLine.includes('WORKING-STORAGE') || upperLine.includes('LINKAGE') || upperLine.includes('PROCEDURE'))) {
+      break;
+    }
+    
+    if (!inFileSection) continue;
+    if (line.length > 6 && (line[6] === '*' || line[6] === '/')) continue;
+    
+    // Skip FD and 01-level group records (no PIC)
+    if (upperLine.includes(' FD ') || upperLine.match(/^\s*FD\s/)) continue;
+    
+    // Match variable declarations (levels 01-49)
+    const varMatch = line.match(/^\s*(\d{1,2})\s+([A-Z][A-Z0-9][-A-Z0-9_]*)(?:\s|\.|$)/i);
+    
+    if (varMatch) {
+      const level = parseInt(varMatch[1]);
+      const name = varMatch[2].replace(/\.$/g, '');
+      if (name.toUpperCase() === 'FILLER') continue;
+      
+      // Extract PIC clause
+      const picMatch = line.match(/PIC(?:TURE)?\s+(?:IS\s+)?([SX9AV0-9()+-.,ZB*$]+)/i);
+      const picture = picMatch ? picMatch[1].replace(/\.$/, '') : undefined;
+      
+      // Only include elementary items (with PIC)
+      if (!picture && level !== 1 && level !== 77) continue;
+      
+      // Extract OCCURS
+      const occursMatch = line.match(/OCCURS\s+(\d+)/i);
+      
+      // Extract USAGE
+      const usageMatch = line.match(/(?:USAGE\s+(?:IS\s+)?)?(COMP-3|COMP-[1-5]|BINARY|PACKED-DECIMAL)/i);
+      
+      variables.push({
+        level,
+        name,
+        picture,
+        usage: usageMatch ? usageMatch[1] : undefined,
+        occurs: occursMatch ? parseInt(occursMatch[1]) : undefined,
+        line: i + 1
+      });
+    }
+  }
+  return variables;
 }
 
 function parseFileDescriptions(source: string): FileNode[] {
