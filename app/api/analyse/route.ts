@@ -381,6 +381,42 @@ ${testMethods.map(m => `    def test_${m}(self):
       }
     };
 
+    // Detect business domain from COBOL content
+    const upperCode = cobolCode.toUpperCase();
+    const domainKeywords: Record<string, string[]> = {
+      'Banking': ['ACCOUNT', 'DEPOSIT', 'WITHDRAW', 'BALANCE', 'INTEREST', 'LOAN', 'MORTGAGE', 'CREDIT'],
+      'Insurance': ['POLICY', 'PREMIUM', 'CLAIM', 'COVERAGE', 'INSURED', 'BENEFICIARY'],
+      'Taxation': ['TAX', 'FISCAL', 'DEDUCTION', 'BRACKET', 'INCOME', 'WITHHOLDING'],
+      'Payroll': ['SALARY', 'WAGE', 'EMPLOYEE', 'PAYROLL', 'OVERTIME', 'BENEFIT'],
+      'Inventory': ['STOCK', 'INVENTORY', 'WAREHOUSE', 'PRODUCT', 'SKU', 'QUANTITY'],
+      'Healthcare': ['PATIENT', 'MEDICAL', 'DIAGNOSIS', 'HOSPITAL', 'PRESCRIPTION']
+    };
+    
+    let detectedDomain = 'Enterprise';
+    let maxScore = 0;
+    for (const [domain, keywords] of Object.entries(domainKeywords)) {
+      const score = keywords.filter(kw => upperCode.includes(kw)).length;
+      if (score > maxScore) {
+        maxScore = score;
+        detectedDomain = domain;
+      }
+    }
+    
+    // Detect year from comments or date patterns
+    const yearMatch = cobolCode.match(/(?:19|20)\d{2}/) || cobolCode.match(/YEAR[\s-]*(\d{4})/);
+    const detectedYear = yearMatch ? yearMatch[0] : 'Legacy';
+    
+    // Calculate confidence based on code quality
+    const hasProperStructure = cobolCode.includes('IDENTIFICATION DIVISION') && cobolCode.includes('PROCEDURE DIVISION');
+    const hasClearNaming = (cobolCode.match(/[A-Z0-9]+-[A-Z0-9]+/g) || []).length > 10;
+    const hasComments = (cobolCode.match(/\*.*$/gm) || []).length > 5;
+    let confidenceScore = 85;
+    if (hasProperStructure) confidenceScore += 5;
+    if (hasClearNaming) confidenceScore += 5;
+    if (hasComments) confidenceScore += 3;
+    if (totalLines > 1000) confidenceScore += 2; // More code = more context
+    confidenceScore = Math.min(99, confidenceScore);
+
     // Build modules list
     const modules: any[] = [];
     const paragraphMatches = [...cobolCode.matchAll(/^\s{6,8}([A-Z0-9][-A-Z0-9]+)\.\s*$/gm)];
@@ -420,20 +456,20 @@ ${testMethods.map(m => `    def test_${m}(self):
       architecture_diagram: archDiagram,
       modules,
       
-      // Business context
+      // Business context (dynamically detected)
       business_context: {
-        domain: 'Enterprise',
-        detected_year: 'Legacy',
-        is_obsolete: true,
-        regulatory_context: 'COBOL modernization via AST transpilation'
+        domain: detectedDomain,
+        detected_year: detectedYear,
+        is_obsolete: detectedYear === 'Legacy' || (parseInt(detectedYear) < 2000),
+        regulatory_context: `${detectedDomain} system modernization via AST transpilation`
       },
       
-      // Migration score
+      // Migration score (calculated)
       migration_score: {
-        complexity: totalLines > 5000 ? 'HIGH' : 'MEDIUM',
-        risk_level: 'LOW',
+        complexity: totalLines > 5000 ? 'HIGH' : totalLines > 1000 ? 'MEDIUM' : 'LOW',
+        risk_level: maxScore > 5 ? 'LOW' : maxScore > 2 ? 'MEDIUM' : 'LOW',
         estimated_effort: `${Math.round(totalLines / 500)} person-days`,
-        confidence: 98
+        confidence: confidenceScore
       },
       
       // Next steps
