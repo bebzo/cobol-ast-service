@@ -1158,6 +1158,66 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
     };
   }
   
+  // ===== INLINE PERFORM UNTIL (no paragraph name) =====
+  // PERFORM UNTIL var >= value (inline block with END-PERFORM)
+  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>=\s*(\d+(?:\.\d+)?)/i);
+  if (match) {
+    const condVar = toSnakeCase(match[1]);
+    const condVal = match[2];
+    return {
+      type: 'while',
+      code: `while self.${condVar} < Decimal("${condVal}"):`,
+      originalCobol: original,
+      confidence: 95,
+      indent: 0
+    };
+  }
+  
+  // PERFORM UNTIL var > value (inline)
+  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>\s*(\d+(?:\.\d+)?)/i);
+  if (match) {
+    const condVar = toSnakeCase(match[1]);
+    const condVal = match[2];
+    return {
+      type: 'while',
+      code: `while self.${condVar} <= Decimal("${condVal}"):`,
+      originalCobol: original,
+      confidence: 95,
+      indent: 0
+    };
+  }
+  
+  // PERFORM UNTIL var < value (inline)
+  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*<\s*(\d+(?:\.\d+)?)/i);
+  if (match) {
+    const condVar = toSnakeCase(match[1]);
+    const condVal = match[2];
+    return {
+      type: 'while',
+      code: `while self.${condVar} >= Decimal("${condVal}"):`,
+      originalCobol: original,
+      confidence: 95,
+      indent: 0
+    };
+  }
+  
+  // PERFORM UNTIL var = value (inline)
+  match = upper.match(/^PERFORM\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*=\s*["']?([^"'\s]+)["']?/i);
+  if (match) {
+    const condVar = toSnakeCase(match[1]);
+    const condVal = match[2];
+    const isNumber = /^\d+(\.\d+)?$/.test(condVal);
+    const pyVal = isNumber ? `Decimal("${condVal}")` : `"${condVal.toLowerCase()}"`;
+    return {
+      type: 'while',
+      code: `while self.${condVar} != ${pyVal}:`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  // ===== PERFORM paragraph UNTIL (with paragraph name) =====
   // PERFORM ... UNTIL var > value (greater than)
   match = upper.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)\s*>\s*(\d+(?:\.\d+)?)/i);
   if (match) {
