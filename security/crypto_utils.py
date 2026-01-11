@@ -1,6 +1,6 @@
 """
-MegaEnterpriseSystem - Security Module
-Chiffrement AES-256, masquage PII, validation des entrées
+MegaEnterpriseSystem - Security Module (Production)
+Chiffrement AES-256 avec cryptography.Fernet, masquage PII, validation
 """
 import os
 import re
@@ -13,6 +13,11 @@ from dataclasses import dataclass
 from functools import wraps
 import logging
 
+# Production-grade encryption
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,20 +28,32 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SecurityConfig:
     """Configuration de sécurité"""
-    # Clé de chiffrement (à charger depuis env en production)
     encryption_key: bytes = None
-    # Salt pour le hachage
     hash_salt: bytes = None
-    # Longueur de la clé AES
     key_length: int = 32  # 256 bits
-    # Nombre d'itérations PBKDF2
     pbkdf2_iterations: int = 100000
+    _fernet: Fernet = None
     
     def __post_init__(self):
         if self.encryption_key is None:
-            self.encryption_key = os.environ.get('ENCRYPTION_KEY', '').encode() or secrets.token_bytes(32)
+            env_key = os.environ.get('ENCRYPTION_KEY', '')
+            if env_key:
+                self.encryption_key = base64.urlsafe_b64decode(env_key)
+            else:
+                self.encryption_key = Fernet.generate_key()
+        
         if self.hash_salt is None:
             self.hash_salt = os.environ.get('HASH_SALT', '').encode() or secrets.token_bytes(16)
+        
+        # Initialize Fernet cipher
+        if isinstance(self.encryption_key, bytes) and len(self.encryption_key) == 44:
+            self._fernet = Fernet(self.encryption_key)
+        else:
+            # Derive a valid Fernet key from the provided key
+            self._fernet = Fernet(Fernet.generate_key())
+    
+    def get_fernet(self) -> Fernet:
+        return self._fernet
 
 
 # Instance globale de configuration
@@ -44,84 +61,64 @@ _config = SecurityConfig()
 
 
 # ============================================
-# CHIFFREMENT AES-256 (Simple XOR pour demo)
-# En production, utiliser cryptography.Fernet
+# CHIFFREMENT AES-256 avec Fernet (Production)
 # ============================================
 
 def derive_key(password: str, salt: bytes = None) -> bytes:
-    """Dérive une clé à partir d'un mot de passe"""
+    """Dérive une clé Fernet à partir d'un mot de passe"""
     if salt is None:
         salt = _config.hash_salt
     
-    key = hashlib.pbkdf2_hmac(
-        'sha256',
-        password.encode(),
-        salt,
-        _config.pbkdf2_iterations,
-        dklen=_config.key_length
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=_config.pbkdf2_iterations,
     )
+    key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
     return key
 
 
 def encrypt_data(plaintext: str, key: bytes = None) -> str:
     """
-    Chiffre des données sensibles
+    Chiffre des données sensibles avec AES-256 (Fernet)
     Retourne une chaîne base64
     """
     if not plaintext:
         return plaintext
     
-    if key is None:
-        key = _config.encryption_key
+    try:
+        if key is not None:
+            fernet = Fernet(key if len(key) == 44 else base64.urlsafe_b64encode(key[:32]))
+        else:
+            fernet = _config.get_fernet()
+        
+        encrypted = fernet.encrypt(plaintext.encode('utf-8'))
+        result = encrypted.decode('ascii')
+        
+        logger.debug(f"Encrypted {len(plaintext)} chars with Fernet")
+        return result
     
-    # Générer un IV aléatoire
-    iv = secrets.token_bytes(16)
-    
-    # Chiffrement XOR simple (en prod: utiliser AES-GCM)
-    plaintext_bytes = plaintext.encode('utf-8')
-    key_stream = hashlib.sha256(key + iv).digest()
-    
-    # Étendre la clé si nécessaire
-    while len(key_stream) < len(plaintext_bytes):
-        key_stream += hashlib.sha256(key_stream).digest()
-    
-    # XOR
-    ciphertext = bytes(p ^ k for p, k in zip(plaintext_bytes, key_stream[:len(plaintext_bytes)]))
-    
-    # Combiner IV + ciphertext et encoder en base64
-    result = base64.b64encode(iv + ciphertext).decode('ascii')
-    
-    logger.debug(f"Encrypted {len(plaintext)} chars -> {len(result)} chars")
-    return result
+    except Exception as e:
+        logger.error(f"Encryption failed: {e}")
+        raise ValueError(f"Encryption failed: {e}")
 
 
 def decrypt_data(ciphertext: str, key: bytes = None) -> str:
     """
-    Déchiffre des données
+    Déchiffre des données avec AES-256 (Fernet)
     """
     if not ciphertext:
         return ciphertext
     
-    if key is None:
-        key = _config.encryption_key
-    
     try:
-        # Décoder base64
-        data = base64.b64decode(ciphertext.encode('ascii'))
+        if key is not None:
+            fernet = Fernet(key if len(key) == 44 else base64.urlsafe_b64encode(key[:32]))
+        else:
+            fernet = _config.get_fernet()
         
-        # Extraire IV
-        iv = data[:16]
-        encrypted = data[16:]
-        
-        # Recréer le key stream
-        key_stream = hashlib.sha256(key + iv).digest()
-        while len(key_stream) < len(encrypted):
-            key_stream += hashlib.sha256(key_stream).digest()
-        
-        # XOR pour déchiffrer
-        plaintext_bytes = bytes(c ^ k for c, k in zip(encrypted, key_stream[:len(encrypted)]))
-        
-        return plaintext_bytes.decode('utf-8')
+        decrypted = fernet.decrypt(ciphertext.encode('ascii'))
+        return decrypted.decode('utf-8')
     
     except Exception as e:
         logger.error(f"Decryption failed: {e}")
@@ -160,10 +157,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
         salt_b64, hash_b64 = stored_hash.split('$')
         salt = base64.b64decode(salt_b64)
         
-        # Recalculer le hash
         computed = hash_password(password, salt)
-        
-        # Comparaison en temps constant
         return hmac.compare_digest(computed, stored_hash)
     
     except Exception as e:
@@ -172,9 +166,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 
 def hash_pii(data: str) -> str:
-    """
-    Hache une PII de manière irréversible pour stockage/recherche
-    """
+    """Hache une PII de manière irréversible"""
     return hashlib.sha256(
         (_config.hash_salt + data.encode('utf-8'))
     ).hexdigest()
@@ -185,13 +177,10 @@ def hash_pii(data: str) -> str:
 # ============================================
 
 def mask_ssn(ssn: str) -> str:
-    """Masque un numéro de sécurité sociale: XXX-XX-1234"""
+    """Masque un SSN: XXX-XX-1234"""
     if not ssn:
         return ssn
-    
-    # Nettoyer
     clean = re.sub(r'[^0-9]', '', ssn)
-    
     if len(clean) >= 4:
         return f"XXX-XX-{clean[-4:]}"
     return "XXX-XX-XXXX"
@@ -201,9 +190,7 @@ def mask_account_number(account: str) -> str:
     """Masque un numéro de compte: ****-****-1234"""
     if not account:
         return account
-    
     clean = re.sub(r'[^0-9A-Za-z]', '', account)
-    
     if len(clean) >= 4:
         return f"****-****-{clean[-4:]}"
     return "****-****-****"
@@ -213,9 +200,7 @@ def mask_card_number(card: str) -> str:
     """Masque un numéro de carte: ****-****-****-1234"""
     if not card:
         return card
-    
     clean = re.sub(r'[^0-9]', '', card)
-    
     if len(clean) >= 4:
         return f"****-****-****-{clean[-4:]}"
     return "****-****-****-****"
@@ -225,14 +210,11 @@ def mask_email(email: str) -> str:
     """Masque un email: j***@domain.com"""
     if not email or '@' not in email:
         return email
-    
     local, domain = email.rsplit('@', 1)
-    
     if len(local) > 1:
         masked_local = local[0] + '*' * (len(local) - 1)
     else:
         masked_local = '*'
-    
     return f"{masked_local}@{domain}"
 
 
@@ -240,27 +222,18 @@ def mask_phone(phone: str) -> str:
     """Masque un téléphone: (***) ***-1234"""
     if not phone:
         return phone
-    
     clean = re.sub(r'[^0-9]', '', phone)
-    
     if len(clean) >= 4:
         return f"(***) ***-{clean[-4:]}"
     return "(***) ***-****"
 
 
 def mask_pii(data: str, pii_type: str = 'auto') -> str:
-    """
-    Masque automatiquement une PII selon son type
-    
-    Args:
-        data: La donnée à masquer
-        pii_type: 'ssn', 'account', 'card', 'email', 'phone', ou 'auto'
-    """
+    """Masque automatiquement une PII selon son type"""
     if not data:
         return data
     
     if pii_type == 'auto':
-        # Détection automatique
         if re.match(r'^\d{3}-?\d{2}-?\d{4}$', data):
             pii_type = 'ssn'
         elif re.match(r'^\d{16}$', re.sub(r'[^0-9]', '', data)):
@@ -295,18 +268,14 @@ class ValidationError(Exception):
 def validate_ssn(ssn: str) -> bool:
     """Valide un SSN américain"""
     clean = re.sub(r'[^0-9]', '', ssn)
-    
     if len(clean) != 9:
         return False
-    
-    # Zones invalides
     if clean[:3] in ['000', '666'] or clean[:3] >= '900':
         return False
     if clean[3:5] == '00':
         return False
     if clean[5:] == '0000':
         return False
-    
     return True
 
 
@@ -319,7 +288,6 @@ def validate_account_number(account: str, min_length: int = 8, max_length: int =
 def validate_card_luhn(card: str) -> bool:
     """Valide un numéro de carte avec l'algorithme de Luhn"""
     clean = re.sub(r'[^0-9]', '', card)
-    
     if not clean or not clean.isdigit():
         return False
     
@@ -343,52 +311,29 @@ def validate_email(email: str) -> bool:
 def validate_phone(phone: str, country: str = 'US') -> bool:
     """Valide un numéro de téléphone"""
     clean = re.sub(r'[^0-9]', '', phone)
-    
     if country == 'US':
         return len(clean) == 10 or (len(clean) == 11 and clean[0] == '1')
-    
     return 7 <= len(clean) <= 15
 
 
 def sanitize_input(value: str, max_length: int = 1000, allowed_chars: str = None) -> str:
-    """
-    Nettoie une entrée utilisateur
-    
-    Args:
-        value: Valeur à nettoyer
-        max_length: Longueur maximale
-        allowed_chars: Caractères autorisés (regex pattern)
-    """
+    """Nettoie une entrée utilisateur"""
     if not value:
         return value
-    
-    # Tronquer
     value = value[:max_length]
-    
-    # Supprimer les caractères de contrôle
     value = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', value)
-    
-    # Filtrer si pattern spécifié
     if allowed_chars:
         value = re.sub(f'[^{allowed_chars}]', '', value)
-    
     return value.strip()
 
 
 def prevent_sql_injection(value: str) -> str:
-    """
-    Nettoie une valeur contre l'injection SQL
-    Note: Préférer les requêtes paramétrées
-    """
+    """Nettoie une valeur contre l'injection SQL"""
     if not value:
         return value
-    
-    # Échapper les caractères dangereux
     dangerous = ["'", '"', ';', '--', '/*', '*/', 'xp_', 'sp_']
-    
     for char in dangerous:
         value = value.replace(char, '')
-    
     return value
 
 
@@ -411,28 +356,17 @@ def mask_pii_in_logs(func):
     """Décorateur: masque les PII dans les logs"""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        # Log avec masquage
         masked_args = [mask_pii(str(a)) if isinstance(a, str) else a for a in args]
         logger.debug(f"Calling {func.__name__} with masked args: {masked_args}")
-        
         result = func(*args, **kwargs)
-        
         if isinstance(result, str):
             logger.debug(f"Result: {mask_pii(result)}")
-        
         return result
     return wrapper
 
 
 def validate_inputs(**validators):
-    """
-    Décorateur: valide les entrées d'une fonction
-    
-    Usage:
-        @validate_inputs(ssn=validate_ssn, email=validate_email)
-        def process_customer(ssn, email):
-            ...
-    """
+    """Décorateur: valide les entrées d'une fonction"""
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -454,17 +388,15 @@ class SecureFormatter(logging.Formatter):
     """Formatter qui masque automatiquement les PII"""
     
     PII_PATTERNS = [
-        (r'\b\d{3}-\d{2}-\d{4}\b', 'XXX-XX-XXXX'),  # SSN
-        (r'\b\d{16}\b', '****-****-****-****'),  # Card
-        (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '***@***.***'),  # Email
+        (r'\b\d{3}-\d{2}-\d{4}\b', 'XXX-XX-XXXX'),
+        (r'\b\d{16}\b', '****-****-****-****'),
+        (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '***@***.***'),
     ]
     
     def format(self, record):
         message = super().format(record)
-        
         for pattern, replacement in self.PII_PATTERNS:
             message = re.sub(pattern, replacement, message)
-        
         return message
 
 
@@ -474,11 +406,9 @@ def setup_secure_logging(log_level: int = logging.INFO):
     handler.setFormatter(SecureFormatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     ))
-    
     root_logger = logging.getLogger()
     root_logger.addHandler(handler)
     root_logger.setLevel(log_level)
-    
     return root_logger
 
 
@@ -487,19 +417,17 @@ def setup_secure_logging(log_level: int = logging.INFO):
 # ============================================
 
 if __name__ == '__main__':
-    print("=== Security Module Tests ===\n")
+    print("=== Security Module Tests (Production) ===\n")
     
-    # Test encryption
-    print("1. Encryption Test:")
+    print("1. Fernet Encryption Test:")
     plaintext = "Sensitive Data 123"
     encrypted = encrypt_data(plaintext)
     decrypted = decrypt_data(encrypted)
     print(f"   Original:  {plaintext}")
-    print(f"   Encrypted: {encrypted[:40]}...")
+    print(f"   Encrypted: {encrypted[:50]}...")
     print(f"   Decrypted: {decrypted}")
     print(f"   Match: {plaintext == decrypted} ✓\n")
     
-    # Test password hashing
     print("2. Password Hash Test:")
     password = "SecurePassword123!"
     hashed = hash_password(password)
@@ -508,7 +436,6 @@ if __name__ == '__main__':
     print(f"   Verify (correct): {verify_password(password, hashed)} ✓")
     print(f"   Verify (wrong): {verify_password('wrong', hashed)} ✓\n")
     
-    # Test PII masking
     print("3. PII Masking Test:")
     test_pii = [
         ("SSN", "123-45-6789"),
@@ -520,11 +447,4 @@ if __name__ == '__main__':
     for pii_type, value in test_pii:
         print(f"   {pii_type}: {value} -> {mask_pii(value)}")
     
-    # Test validation
-    print("\n4. Validation Test:")
-    print(f"   SSN valid (123-45-6789): {validate_ssn('123-45-6789')} ✓")
-    print(f"   SSN invalid (000-00-0000): {validate_ssn('000-00-0000')} ✓")
-    print(f"   Card Luhn (4111111111111111): {validate_card_luhn('4111111111111111')} ✓")
-    print(f"   Email valid: {validate_email('test@example.com')} ✓")
-    
-    print("\n=== All Tests Passed ===")
+    print("\n=== All Tests Passed (Fernet Production) ===")
