@@ -1,1 +1,3 @@
+# Python dependencies for COBOL AST Transpiler v2.0
 autopep8>=2.0.0
+black>=24.0.0
