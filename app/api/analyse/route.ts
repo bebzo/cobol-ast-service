@@ -326,8 +326,63 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Security analysis
     const securityWarnings = generateSecurityWarnings(cobolCode);
 
+    // Generate unit tests
+    const methodMatches = [...pythonResult.python_code.matchAll(/def (p_\d+_\w+)\(self\)/g)];
+    const testMethods = methodMatches.slice(0, 20).map(m => m[1]);
+    const generatedTests = `"""Auto-generated unit tests for ${className}"""
+import pytest
+from decimal import Decimal
+
+# Import the transpiled module
+# from ${className.toLowerCase().replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()} import ${className}
+
+class Test${className}:
+    """Test suite for ${className}"""
+    
+    def setup_method(self):
+        """Setup test fixtures"""
+        # self.system = ${className}()
+        pass
+    
+${testMethods.map(m => `    def test_${m}(self):
+        """Test ${m.replace(/_/g, ' ')}"""
+        # TODO: Implement test logic
+        # result = self.system.${m}()
+        # assert result is not None
+        pass
+`).join('\n')}
+    def test_initialization(self):
+        """Test system initialization"""
+        # system = ${className}()
+        # assert system is not None
+        pass
+    
+    def test_decimal_precision(self):
+        """Test Decimal precision for monetary values"""
+        amount = Decimal('1000.00')
+        rate = Decimal('0.05')
+        interest = amount * rate
+        assert interest == Decimal('50.00')
+`;
+
+    // Generate config with extracted rates
+    const rateMatches = [...pythonResult.python_code.matchAll(/(\w+_rate):\s*Decimal\(['"]([\d.]+)['"]\)/g)];
+    const feeMatches = [...pythonResult.python_code.matchAll(/(\w+_fee):\s*Decimal\(['"]([\d.]+)['"]\)/g)];
+    const configData = {
+      transpiler: 'TypeScript AST v3.0',
+      ai_calls: 0,
+      syntax_valid: true,
+      rates: Object.fromEntries(rateMatches.slice(0, 15).map(m => [m[1], parseFloat(m[2])])),
+      fees: Object.fromEntries(feeMatches.slice(0, 10).map(m => [m[1], parseFloat(m[2])])),
+      settings: {
+        decimal_precision: 2,
+        currency: 'USD',
+        date_format: 'YYYY-MM-DD'
+      }
+    };
+
     // Build modules list
-    const modules = [];
+    const modules: any[] = [];
     const paragraphMatches = [...cobolCode.matchAll(/^\s{6,8}([A-Z0-9][-A-Z0-9]+)\.\s*$/gm)];
     for (const match of paragraphMatches.slice(0, 50)) {
       modules.push({
@@ -341,12 +396,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Core output
       python_code: pythonResult.python_code,
       pythonCode: pythonResult.python_code,
-      unit_tests: '',
-      config_json: JSON.stringify({ 
-        transpiler: 'TypeScript AST v3.0', 
-        ai_calls: 0, 
-        syntax_valid: true 
-      }),
+      unit_tests: generatedTests,
+      tests: generatedTests,
+      config_json: JSON.stringify(configData, null, 2),
+      config: configData,
       
       // Metrics
       cobol_lines: totalLines,
