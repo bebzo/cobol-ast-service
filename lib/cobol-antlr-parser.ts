@@ -26,7 +26,7 @@ export interface CobolFullAST {
   fileDescriptions: FileNode[];
   paragraphs: ParagraphNode[];
   sections: SectionNode[];
-  copyStatements: string[];
+  copyStatements: CopyStatement[];
   performStatements: PerformNode[];
   callStatements: CallNode[];
   sqlStatements: SQLNode[];
@@ -46,6 +46,18 @@ export interface VariableNode {
   indexed?: string[];
   line: number;
   children?: VariableNode[];
+  // 88-level condition support
+  isCondition?: boolean;
+  conditionValues?: string[];
+  conditionThru?: { from: string; to: string };
+  parentVariable?: string;
+}
+
+export interface CopyStatement {
+  copybook: string;
+  replacing?: { from: string; to: string }[];
+  inLibrary?: string;
+  line: number;
 }
 
 export interface FileNode {
@@ -261,6 +273,46 @@ function parseVariables(source: string, section: string): VariableNode[] {
       // Skip FILLER or reserved names
       if (name.toUpperCase() === 'FILLER') continue;
       
+      // Handle 88-level (condition names)
+      if (level === 88) {
+        // 88-level is a condition attached to previous non-88 variable
+        const parentVar = variables.filter(v => v.level !== 88).pop();
+        
+        // Extract VALUES/VALUE clause for 88-level
+        let conditionValues: string[] = [];
+        let conditionThru: { from: string; to: string } | undefined;
+        
+        // VALUE IS/VALUES ARE with THRU/THROUGH
+        const thruMatch = line.match(/VALUES?\s+(?:IS\s+|ARE\s+)?(?:"([^"]+)"|'([^']+)'|(\d+))\s+(?:THRU|THROUGH)\s+(?:"([^"]+)"|'([^']+)'|(\d+))/i);
+        if (thruMatch) {
+          const from = thruMatch[1] || thruMatch[2] || thruMatch[3];
+          const to = thruMatch[4] || thruMatch[5] || thruMatch[6];
+          conditionThru = { from, to };
+        }
+        
+        // Multiple values: VALUE IS 'A' 'B' 'C' or VALUES ARE 1, 2, 3
+        const valuesMatch = line.match(/VALUES?\s+(?:IS\s+|ARE\s+)?(.+?)(?:\.|$)/i);
+        if (valuesMatch && !thruMatch) {
+          const valStr = valuesMatch[1];
+          // Extract quoted strings or numbers
+          const vals = valStr.match(/"[^"]+"|'[^']+'|\d+/g);
+          if (vals) {
+            conditionValues = vals.map(v => v.replace(/["']/g, ''));
+          }
+        }
+        
+        variables.push({
+          level: 88,
+          name,
+          line: i + 1,
+          isCondition: true,
+          conditionValues: conditionValues.length > 0 ? conditionValues : undefined,
+          conditionThru,
+          parentVariable: parentVar?.name
+        });
+        continue;
+      }
+      
       // Extract PIC clause (flexible matching - include digits for repetition)
       let picture: string | undefined;
       const picMatch = line.match(/PIC(?:TURE)?\s+(?:IS\s+)?([SX9AV0-9()+-.,ZB*$]+)/i);
@@ -275,8 +327,8 @@ function parseVariables(source: string, section: string): VariableNode[] {
         value = valueMatch[1] || valueMatch[2] || valueMatch[3] || valueMatch[0].split(/\s+/).slice(-1)[0];
       }
       
-      // Extract USAGE clause
-      const usageMatch = line.match(/USAGE\s+(?:IS\s+)?(COMP(?:-[1-5])?|COMPUTATIONAL(?:-[1-5])?|BINARY|PACKED-DECIMAL|DISPLAY|INDEX|POINTER)/i);
+      // Extract USAGE clause (include COMP-3/PACKED-DECIMAL)
+      const usageMatch = line.match(/(?:USAGE\s+(?:IS\s+)?)?(COMP-3|COMP-[1-5]|COMPUTATIONAL-3|COMPUTATIONAL-[1-5]|BINARY|PACKED-DECIMAL|DISPLAY|INDEX|POINTER)/i);
       
       // Extract OCCURS clause (with optional DEPENDING ON)
       const occursMatch = line.match(/OCCURS\s+(\d+)(?:\s+TO\s+(\d+))?(?:\s+TIMES)?(?:\s+DEPENDING\s+(?:ON\s+)?([A-Z][A-Z0-9-]*))?/i);
@@ -541,15 +593,76 @@ function parseSQLStatements(source: string): SQLNode[] {
   return sqls;
 }
 
-function parseCopyStatements(source: string): string[] {
-  const copies: string[] = [];
-  const matches = source.match(/COPY\s+(\S+)/gi) || [];
-  for (const match of matches) {
-    const copyMatch = match.match(/COPY\s+(\S+)/i);
-    if (copyMatch) {
-      copies.push(copyMatch[1].replace('.', ''));
+function parseCopyStatements(source: string): CopyStatement[] {
+  const copies: CopyStatement[] = [];
+  const lines = source.split('\n');
+  
+  // Multi-line COPY statement accumulator
+  let copyBuffer = '';
+  let copyStartLine = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const upperLine = line.toUpperCase();
+    
+    // Skip comments
+    if (line.length > 6 && (line[6] === '*' || line[6] === '/')) continue;
+    
+    // Start of COPY statement
+    if (upperLine.includes('COPY ') && !copyBuffer) {
+      copyBuffer = line;
+      copyStartLine = i + 1;
+    } else if (copyBuffer) {
+      copyBuffer += ' ' + line;
+    }
+    
+    // End of COPY statement (period)
+    if (copyBuffer && copyBuffer.includes('.')) {
+      const copyMatch = copyBuffer.match(/COPY\s+([A-Z0-9][-A-Z0-9_]*)/i);
+      if (copyMatch) {
+        const copyStmt: CopyStatement = {
+          copybook: copyMatch[1].replace('.', ''),
+          line: copyStartLine
+        };
+        
+        // Parse IN/OF library
+        const libMatch = copyBuffer.match(/(?:IN|OF)\s+([A-Z0-9][-A-Z0-9_]*)/i);
+        if (libMatch) {
+          copyStmt.inLibrary = libMatch[1];
+        }
+        
+        // Parse REPLACING clause
+        const replacingMatch = copyBuffer.match(/REPLACING\s+(.+?)(?:\.|$)/i);
+        if (replacingMatch) {
+          const replacingClause = replacingMatch[1];
+          // Parse ==:TAG:== BY ==:NEWTAG:== or simple A BY B patterns
+          const replacements: { from: string; to: string }[] = [];
+          
+          // Pattern 1: ==xxx== BY ==yyy==
+          const pseudoMatches = replacingClause.matchAll(/==([^=]+)==\s+BY\s+==([^=]+)==/gi);
+          for (const m of pseudoMatches) {
+            replacements.push({ from: m[1].trim(), to: m[2].trim() });
+          }
+          
+          // Pattern 2: WORD BY WORD
+          if (replacements.length === 0) {
+            const simpleMatches = replacingClause.matchAll(/([A-Z0-9][-A-Z0-9_]*)\s+BY\s+([A-Z0-9][-A-Z0-9_]*)/gi);
+            for (const m of simpleMatches) {
+              replacements.push({ from: m[1], to: m[2] });
+            }
+          }
+          
+          if (replacements.length > 0) {
+            copyStmt.replacing = replacements;
+          }
+        }
+        
+        copies.push(copyStmt);
+      }
+      copyBuffer = '';
     }
   }
+  
   return copies;
 }
 

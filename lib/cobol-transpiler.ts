@@ -19,6 +19,14 @@ interface PythonAST {
   classVars: PythonVariable[];
   methods: PythonMethod[];
   dataclasses: PythonDataclass[];
+  conditionProperties: Python88Condition[];
+}
+
+interface Python88Condition {
+  name: string;
+  parentVariable: string;
+  values: string[];
+  thru?: { from: string; to: string };
 }
 
 interface PythonVariable {
@@ -59,8 +67,20 @@ interface PythonDataclass {
 export function transpileCobolToPythonAST(cobolAST: CobolFullAST, sourceLines: string[]): PythonAST {
   const className = toPascalCase(cobolAST.programId);
   
-  // Transpile variables
-  const classVars = transpileVariables(cobolAST.workingStorageVariables);
+  // Separate 88-level conditions from regular variables
+  const regularVars = cobolAST.workingStorageVariables.filter(v => v.level !== 88);
+  const conditionVars = cobolAST.workingStorageVariables.filter(v => v.level === 88);
+  
+  // Transpile regular variables
+  const classVars = transpileVariables(regularVars);
+  
+  // Transpile 88-level conditions to properties
+  const conditionProperties: Python88Condition[] = conditionVars.map(v => ({
+    name: toSnakeCase(v.name),
+    parentVariable: v.parentVariable ? toSnakeCase(v.parentVariable) : 'unknown',
+    values: v.conditionValues || [],
+    thru: v.conditionThru
+  }));
   
   // Transpile paragraphs to methods
   const methods = cobolAST.paragraphs.map(p => 
@@ -82,7 +102,8 @@ export function transpileCobolToPythonAST(cobolAST: CobolFullAST, sourceLines: s
     imports,
     classVars,
     methods,
-    dataclasses: []
+    dataclasses: [],
+    conditionProperties
   };
 }
 
@@ -1064,6 +1085,50 @@ export function generatePythonCode(ast: PythonAST): string {
     lines.push(`        self.${v.name}: ${v.type} = ${v.default}${comment}`);
   }
   lines.push('');
+  
+  // 88-level condition properties (COBOL conditions → Python @property)
+  if (ast.conditionProperties && ast.conditionProperties.length > 0) {
+    lines.push('    # ═══════════════════════════════════════════════════════════');
+    lines.push('    # COBOL 88-LEVEL CONDITIONS (Auto-generated properties)');
+    lines.push('    # ═══════════════════════════════════════════════════════════');
+    lines.push('');
+    
+    for (const cond of ast.conditionProperties) {
+      lines.push(`    @property`);
+      lines.push(`    def ${cond.name}(self) -> bool:`);
+      
+      if (cond.thru) {
+        // THRU/THROUGH range check
+        lines.push(`        """88-level condition: ${cond.parentVariable} in range ${cond.thru.from} THRU ${cond.thru.to}"""`);
+        lines.push(`        return "${cond.thru.from}" <= str(self.${cond.parentVariable}) <= "${cond.thru.to}"`);
+      } else if (cond.values.length > 0) {
+        // Multiple values check
+        const valuesStr = cond.values.map(v => `"${v}"`).join(', ');
+        lines.push(`        """88-level condition: ${cond.parentVariable} in (${valuesStr})"""`);
+        lines.push(`        return str(self.${cond.parentVariable}) in (${valuesStr})`);
+      } else {
+        lines.push(`        """88-level condition for ${cond.parentVariable}"""`);
+        lines.push(`        return False  # No values defined`);
+      }
+      lines.push('');
+      
+      // Setter for the condition
+      lines.push(`    @${cond.name}.setter`);
+      lines.push(`    def ${cond.name}(self, value: bool):`);
+      if (cond.values.length > 0) {
+        lines.push(`        """Set ${cond.parentVariable} to first condition value when True."""`);
+        lines.push(`        if value:`);
+        lines.push(`            self.${cond.parentVariable} = "${cond.values[0]}"`);
+      } else if (cond.thru) {
+        lines.push(`        """Set ${cond.parentVariable} to start of range when True."""`);
+        lines.push(`        if value:`);
+        lines.push(`            self.${cond.parentVariable} = "${cond.thru.from}"`);
+      } else {
+        lines.push(`        pass`);
+      }
+      lines.push('');
+    }
+  }
   
   // Methods
   for (const method of ast.methods) {
