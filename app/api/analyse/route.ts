@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseCobolWithANTLR } from '@/lib/cobol-antlr-parser';
+import { transpileCobol as transpileAdvanced, transpileToCleanArchitecture } from '@/lib/cobol-transpiler';
 
 /**
- * CodeSwitch API v14.0 - TypeScript AST Transpiler
+ * CodeSwitch API v15.0 - TypeScript AST Transpiler + Clean Architecture
  * 100% serverless compatible - no Python dependency
  */
 
@@ -249,7 +251,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
 
   try {
-    const { cobolCode, filename } = await request.json();
+    const { cobolCode, filename, outputMode } = await request.json();
 
     if (!cobolCode) {
       return NextResponse.json(
@@ -268,7 +270,47 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const totalLines = cobolCode.split('\n').length;
-    console.log(`[v14.0] Processing ${totalLines} lines with TypeScript AST transpiler`);
+    
+    // Clean Architecture mode - returns multiple files
+    if (outputMode === 'clean-architecture') {
+      console.log(`[v15.0] Processing ${totalLines} lines with Clean Architecture transpiler`);
+      
+      try {
+        const ast = parseCobolWithANTLR(cobolCode);
+        const result = transpileToCleanArchitecture(ast, cobolCode);
+        
+        // Convert Map to Object for JSON
+        const filesObject: Record<string, string> = {};
+        for (const [path, content] of result.files) {
+          filesObject[path] = content;
+        }
+        
+        const processingTime = Date.now() - startTime;
+        
+        return NextResponse.json({
+          success: true,
+          outputMode: 'clean-architecture',
+          programId: ast.programId,
+          files: filesObject,
+          stats: {
+            ...result.stats,
+            totalFiles: result.files.size,
+            processingTimeMs: processingTime
+          },
+          security_warnings: generateSecurityWarnings(cobolCode)
+        }, { headers: corsHeaders });
+        
+      } catch (e: any) {
+        console.error('Clean Architecture transpilation failed:', e);
+        return NextResponse.json(
+          { error: `Clean Architecture transpilation failed: ${e.message}` },
+          { status: 500, headers: corsHeaders }
+        );
+      }
+    }
+    
+    // Default: single-file mode
+    console.log(`[v15.0] Processing ${totalLines} lines with TypeScript AST transpiler`);
 
     // Call TypeScript transpiler
     const pythonResult = transpileCobol(cobolCode);
