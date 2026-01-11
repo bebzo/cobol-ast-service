@@ -14,7 +14,7 @@
 
 ---
 
-![CodeSwitch Demo](https://via.placeholder.com/800x400/1e293b/3b82f6?text=CodeSwitch+Live+Demo)
+[![CodeSwitch Demo](https://cobol-ast-service.vercel.app/og-image.png)](https://cobol-ast-service.vercel.app)
 
 </div>
 

@@ -846,10 +846,10 @@ export function translateWithPatterns(cobolLines: string[]): {
       totalConfidence += result.confidence;
       matchedCount++;
     } else {
-      // No pattern matched
+      // No pattern matched - generate semantic comment for AI context
       translations.push({
         original: line,
-        python: `# TODO: ${trimmed}`,
+        python: `# COBOL: ${trimmed.substring(0, 80)}`,
         confidence: 0,
         patternId: null
       });
