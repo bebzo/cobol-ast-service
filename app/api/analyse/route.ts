@@ -49,170 +49,25 @@ const nonCobolPatterns = [
   /^def\s+\w+\s*\(/m, /^class\s+\w+.*:/m, /^public\s+class/m,
 ];
 
-// TypeScript COBOL Transpiler
-function transpileCobol(cobolSource: string): { success: boolean; python_code: string; stats: any; error?: string } {
+// Unified AST Transpiler - uses advanced parser for all modes
+function transpileCobolUnified(cobolSource: string): { success: boolean; python_code: string; stats: any; error?: string } {
   try {
-    const lines = cobolSource.split('\n');
-    
-    // Extract program ID
-    let programId = 'Program';
-    for (const line of lines) {
-      const match = line.match(/PROGRAM-ID\.\s*(\w+)/i);
-      if (match) {
-        programId = match[1].replace(/-/g, '_').replace('.', '');
-        break;
-      }
-    }
-    
-    const className = programId.charAt(0).toUpperCase() + programId.slice(1).toLowerCase().replace(/_./g, m => m[1].toUpperCase()) + 'System';
-    
-    // Extract variables from DATA DIVISION
-    const variables: Array<{name: string; default: string; type: string}> = [];
-    let inData = false;
-    
-    for (const line of lines) {
-      const upper = line.toUpperCase();
-      if (upper.includes('DATA DIVISION')) inData = true;
-      if (upper.includes('PROCEDURE DIVISION')) inData = false;
-      
-      if (inData) {
-        const varMatch = line.match(/\s+(\d{2})\s+([\w-]+)/);
-        if (varMatch) {
-          const level = varMatch[1];
-          const varName = varMatch[2].toLowerCase().replace(/-/g, '_');
-          
-          if (level === '01' || level === '77' || level === '05') {
-            if (upper.includes('PIC 9') || upper.includes('PIC S9')) {
-              variables.push({ name: varName, default: "Decimal('0')", type: 'Decimal' });
-            } else if (upper.includes('PIC X')) {
-              variables.push({ name: varName, default: "''", type: 'str' });
-            } else {
-              variables.push({ name: varName, default: 'None', type: 'Any' });
-            }
-          }
-        }
-      }
-    }
-    
-    // Extract paragraphs from PROCEDURE DIVISION
-    const paragraphs: string[] = [];
-    let inProc = false;
-    
-    for (const line of lines) {
-      if (line.toUpperCase().includes('PROCEDURE DIVISION')) inProc = true;
-      
-      if (inProc) {
-        const paraMatch = line.match(/^\s{6,8}([A-Z0-9][-A-Z0-9]+)\s*\.\s*$/);
-        if (paraMatch) {
-          paragraphs.push(paraMatch[1]);
-        }
-      }
-    }
-    
-    // Generate Python code
-    const pythonLines: string[] = [
-      '"""',
-      `${className} - Auto-transpiled from COBOL`,
-      'Transpiler: CodeSwitch AST v3.0',
-      'Architecture: Clean Architecture with Domain-Driven Design',
-      '"""',
-      'from decimal import Decimal, ROUND_HALF_UP',
-      'from dataclasses import dataclass, field',
-      'from typing import Optional, List, Dict, Any',
-      'from datetime import datetime, date',
-      'from enum import Enum, auto',
-      'import logging',
-      '',
-      '',
-      'class ProcessingStatus(Enum):',
-      '    PENDING = auto()',
-      '    PROCESSING = auto()',
-      '    COMPLETED = auto()',
-      '    ERROR = auto()',
-      '',
-      '',
-      '@dataclass',
-      `class ${className}Config:`,
-      '    """Configuration settings for the system"""',
-    ];
-    
-    // Add config variables (first 30)
-    const configVars = variables.slice(0, 30);
-    if (configVars.length === 0) {
-      pythonLines.push('    default_rate: Decimal = Decimal("0.00")');
-    } else {
-      for (const v of configVars) {
-        pythonLines.push(`    ${v.name}: ${v.type} = ${v.default}`);
-      }
-    }
-    
-    pythonLines.push('');
-    pythonLines.push('');
-    pythonLines.push(`class ${className}:`);
-    pythonLines.push('    """Main processor for business logic"""');
-    pythonLines.push('');
-    pythonLines.push('    VERSION = "3.0.0"');
-    pythonLines.push('');
-    pythonLines.push('    def __init__(self):');
-    pythonLines.push('        self.logger = logging.getLogger(__name__)');
-    pythonLines.push(`        self.config = ${className}Config()`);
-    pythonLines.push('        self.process_count: int = 0');
-    pythonLines.push('        self.error_count: int = 0');
-    pythonLines.push('        self.status = ProcessingStatus.PENDING');
-    
-    // Add instance variables
-    for (const v of variables.slice(0, 100)) {
-      pythonLines.push(`        self.${v.name}: ${v.type} = ${v.default}`);
-    }
-    
-    pythonLines.push('');
-    
-    // Add methods for each paragraph
-    for (const para of paragraphs) {
-      const methodName = 'p_' + para.toLowerCase().replace(/-/g, '_');
-      pythonLines.push(`    def ${methodName}(self) -> None:`);
-      pythonLines.push(`        """Business logic from: ${para}"""`);
-      pythonLines.push(`        self.logger.info('Executing ${para}')`);
-      pythonLines.push('        self.process_count += 1');
-      pythonLines.push('');
-    }
-    
-    // Add run method
-    pythonLines.push('    def run(self) -> None:');
-    pythonLines.push('        """Main entry point"""');
-    pythonLines.push('        self.status = ProcessingStatus.PROCESSING');
-    pythonLines.push('        self.logger.info("Starting processing...")');
-    pythonLines.push('        try:');
-    
-    for (const para of paragraphs.slice(0, 20)) {
-      const methodName = 'p_' + para.toLowerCase().replace(/-/g, '_');
-      pythonLines.push(`            self.${methodName}()`);
-    }
-    
-    pythonLines.push('            self.status = ProcessingStatus.COMPLETED');
-    pythonLines.push('            self.logger.info(f"Completed. Processed: {self.process_count}")');
-    pythonLines.push('        except Exception as e:');
-    pythonLines.push('            self.status = ProcessingStatus.ERROR');
-    pythonLines.push('            self.error_count += 1');
-    pythonLines.push('            self.logger.error(f"Processing failed: {e}")');
-    pythonLines.push('            raise');
-    pythonLines.push('');
-    pythonLines.push('');
-    pythonLines.push('if __name__ == "__main__":');
-    pythonLines.push('    logging.basicConfig(level=logging.INFO)');
-    pythonLines.push(`    system = ${className}()`);
-    pythonLines.push('    system.run()');
+    const ast = parseCobolWithANTLR(cobolSource);
+    const result = transpileAdvanced(ast, cobolSource);
     
     return {
       success: true,
-      python_code: pythonLines.join('\n'),
+      python_code: result.pythonCode,
       stats: {
-        variables: variables.length,
-        paragraphs: paragraphs.length,
-        program_id: programId
+        variables: ast.workingStorageVariables.length,
+        paragraphs: ast.paragraphs.length,
+        program_id: ast.programId,
+        methods_transpiled: result.stats.methodsTranspiled,
+        statements_transpiled: result.stats.statementsTranspiled,
+        average_confidence: result.stats.averageConfidence,
+        fallback_count: result.stats.fallbackCount
       }
     };
-    
   } catch (e: any) {
     return {
       success: false,
@@ -309,11 +164,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
     
-    // Default: single-file mode
+    // Default: single-file mode with full AST parser
     console.log(`[v15.0] Processing ${totalLines} lines with TypeScript AST transpiler`);
 
-    // Call TypeScript transpiler
-    const pythonResult = transpileCobol(cobolCode);
+    // Call unified AST transpiler (same engine as Clean Architecture)
+    const pythonResult = transpileCobolUnified(cobolCode);
 
     if (!pythonResult.success) {
       return NextResponse.json(
