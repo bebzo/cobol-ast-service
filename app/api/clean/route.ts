@@ -76,7 +76,7 @@ function applyQuickFixes(code: string): string {
     
     // Fix orphan docstring after def
     if (line.trim() === '"""' && prevLine.trim().startsWith('def ') && prevLine.trim().endsWith(':')) {
-      line = '    """Method implementation."""';
+      line = '    """TODO"""';
     }
     
     // Fix truncated function def
@@ -92,7 +92,7 @@ function applyQuickFixes(code: string): string {
       const nextTrimmed = nextLine.trim();
       if (nextTrimmed.startsWith('def ') || nextTrimmed.startsWith('@') || nextTrimmed.startsWith('class ')) {
         fixedLines.push(line);
-        fixedLines.push('        return None  # Auto-generated');
+        fixedLines.push('    pass');
         continue;
       }
     }
@@ -194,7 +194,7 @@ PROCESS:
 RULES:
 - PRESERVE ALL CODE - do NOT delete functions or logic
 - Keep ~${lines.length} lines (same line count)
-- Replace broken code with valid return statements rather than deleting
+- Replace broken code with valid placeholders (pass, None) rather than deleting
 
 Context around error:
 ${context}

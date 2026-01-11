@@ -572,9 +572,7 @@ logger = logging.getLogger(__name__)
   for (const para of ast.paragraphs) {
     lines.push(`    def ${toSnakeCase(para.name)}(self):`);
     lines.push(`        """Paragraph: ${para.name}"""`);
-    lines.push(`        self.logger.info("Executing ${para.name}")`);
-    lines.push(`        # Business logic from COBOL paragraph`);
-    lines.push(`        self.status = "PROCESSED"`);
+    lines.push('        pass  # TODO: Implement');
     lines.push('');
   }
 
