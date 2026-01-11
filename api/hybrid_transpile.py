@@ -122,74 +122,49 @@ def find_cobol_paragraph(cobol_source: str, method_name: str) -> str:
 def enrich_method_with_gemini(method: MethodInfo, cobol_context: str) -> Tuple[str, bool]:
     """Use Gemini to enrich a TODO method with real logic"""
     
-    prompt = f"""Convert this COBOL to a Python method. Output ONLY valid Python.
+    prompt = f"""Convert this COBOL paragraph to Python method body.
 
-COBOL:
+COBOL SOURCE:
+```cobol
 {cobol_context}
+```
 
-OUTPUT THIS EXACT FORMAT (fill in the logic):
-    def {method.name}(self) -> None:
-        \"\"\"Business logic for {method.name}\"\"\"
-        self.logger.info("Executing {method.name}")
-        # Add your implementation here
-        pass
+CURRENT PYTHON METHOD (has TODO):
+```python
+{method.code}
+```
 
 RULES:
-- 4 spaces before 'def', 8 spaces for body
-- Every if/while/try MUST have code after it (not empty)
-- Use self.variable for all variables
-- Use Decimal('0') for numbers
-- End with pass or return
+1. Output ONLY the method body (starting with 8 spaces indent)
+2. Keep the docstring
+3. Replace TODO with REAL Python logic
+4. Use self.variable_name for all variables
+5. Use Decimal for financial calculations
+6. Use self.logger.info() for logging
+7. NO new imports, NO class definitions
+8. If unsure, use reasonable business logic
 
-Output the method now:"""
+Output the improved method body:"""
 
     try:
         response = model.generate_content(prompt)
         result = response.text.strip()
         
-        # Clean up response - remove markdown
-        result = re.sub(r'^```python\s*\n?', '', result, flags=re.MULTILINE)
-        result = re.sub(r'^```\s*$', '', result, flags=re.MULTILINE)
+        # Clean up response
+        result = re.sub(r'^```python\s*', '', result)
+        result = re.sub(r'^```\s*', '', result)
+        result = re.sub(r'```$', '', result)
         result = result.strip()
         
-        # Extract just the method if Gemini included extra stuff
-        lines = result.split('\n')
-        clean_lines = []
-        in_method = False
+        # Ensure proper indentation
+        if not result.startswith('        '):
+            # Re-indent
+            lines = result.split('\n')
+            result = '\n'.join('        ' + line.lstrip() if line.strip() else '' for line in lines)
         
-        for line in lines:
-            # Start capturing at def
-            if re.match(r'^\s*def\s+\w+\(self', line):
-                in_method = True
-                # Normalize to 4-space indent for def
-                clean_lines.append('    def ' + re.sub(r'^\s*def\s+', '', line))
-            elif in_method:
-                # Stop at next def or class
-                if re.match(r'^\s*def\s+', line) or re.match(r'^\s*class\s+', line):
-                    break
-                # Normalize body indent to 8 spaces
-                stripped = line.lstrip()
-                if stripped:
-                    clean_lines.append('        ' + stripped)
-                else:
-                    clean_lines.append('')
-        
-        if not clean_lines:
-            # Fallback: just wrap everything as method body
-            clean_lines = [f'    def {method.name}(self) -> None:']
-            clean_lines.append(f'        """Business logic for {method.name}"""')
-            for line in lines:
-                stripped = line.lstrip()
-                if stripped and not stripped.startswith('def ') and not stripped.startswith('class '):
-                    clean_lines.append('        ' + stripped)
-            if len(clean_lines) == 2:
-                clean_lines.append('        pass')
-        
-        full_method = '\n'.join(clean_lines)
-        
-        # Ensure method has a body
-        if full_method.rstrip().endswith(':'):
-            full_method += '\n        pass'
+        # Build complete method
+        method_def = f"    def {method.name}(self):\n"
+        full_method = method_def + result
         
         return full_method, True
         
