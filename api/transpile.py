@@ -1183,6 +1183,7 @@ def generate_python_code(cobol_source: str) -> Dict[str, Any]:
         compile(python_code, '<generated>', 'exec')
         
         # Generate unit tests
+        class_name = to_pascal_case(cobol_ast.program_id)
         test_code = generate_unit_tests(cobol_ast, class_name)
         
         return {
