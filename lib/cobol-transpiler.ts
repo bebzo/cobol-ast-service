@@ -228,20 +228,67 @@ function transpileParagraph(
   allParagraphs: ParagraphNode[]
 ): PythonMethod {
   const methodName = toSnakeCase(para.name);
-  const cobolLines = sourceLines.slice(para.lineStart - 1, para.lineEnd);
+  const rawLines = sourceLines.slice(para.lineStart - 1, para.lineEnd);
+  
+  // Pre-process: Join continuation lines (lines that continue a previous statement)
+  // COBOL continuation: line that doesn't start with a keyword and continues previous line
+  const cobolKeywords = ['IF', 'ELSE', 'END-IF', 'END-PERFORM', 'END-EVALUATE', 'END-READ', 
+    'PERFORM', 'MOVE', 'ADD', 'SUBTRACT', 'MULTIPLY', 'DIVIDE', 'COMPUTE', 'SET', 'DISPLAY', 
+    'OPEN', 'CLOSE', 'READ', 'WRITE', 'CALL', 'EVALUATE', 'WHEN', 'INITIALIZE', 'STOP', 
+    'GOBACK', 'CONTINUE', 'NOT', 'AT', 'EXIT'];
+  
+  const cobolLines: string[] = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    const trimmed = line.trim().toUpperCase();
+    
+    // Skip empty, comments, paragraph headers
+    if (!trimmed || (line.length > 6 && line[6] === '*') || trimmed.match(/^[A-Z0-9][-A-Z0-9]*\.$/)) {
+      continue;
+    }
+    
+    // Check if this line starts with a COBOL keyword or is a continuation
+    const startsWithKeyword = cobolKeywords.some(kw => trimmed.startsWith(kw + ' ') || trimmed === kw || trimmed.startsWith(kw + '.'));
+    const isEndStatement = trimmed.startsWith('END-');
+    const isFunctionContinuation = trimmed.startsWith('FUNCTION ') || trimmed.startsWith('(FUNCTION ');
+    const isExpressionContinuation = /^[\(\+\-\*\/]/.test(trimmed);  // Starts with operator or paren
+    
+    if ((!startsWithKeyword && !isEndStatement && cobolLines.length > 0) || 
+        isFunctionContinuation || isExpressionContinuation) {
+      // This is a continuation line - append to previous
+      const prevLine = cobolLines[cobolLines.length - 1];
+      // Remove trailing period from previous line if present, then join
+      const cleanPrev = prevLine.replace(/\.\s*$/, '');
+      cobolLines[cobolLines.length - 1] = cleanPrev + ' ' + line.trim();
+    } else {
+      cobolLines.push(line);
+    }
+  }
   
   const body: PythonStatement[] = [];
   const indentStack: number[] = [0];  // Stack to track nesting levels
   let currentIndent = 0;
+  let inEvaluate = false;  // Track if we're inside an EVALUATE block
+  let firstWhenSeen = false;  // Track if we've seen the first WHEN
   
   for (let i = 0; i < cobolLines.length; i++) {
     const line = cobolLines[i];
     const trimmed = line.trim().toUpperCase();
     const originalTrimmed = line.trim();
     
-    // Skip empty lines, paragraph headers, comments
-    if (!trimmed || trimmed.match(/^[A-Z0-9][-A-Z0-9]*\.$/) || (line.length > 6 && line[6] === '*')) {
+    // Skip empty lines (already pre-filtered but safety check)
+    if (!trimmed) {
       continue;
+    }
+    
+    // Track EVALUATE blocks
+    if (trimmed.startsWith('EVALUATE ')) {
+      inEvaluate = true;
+      firstWhenSeen = false;
+    }
+    if (trimmed.startsWith('END-EVALUATE')) {
+      inEvaluate = false;
+      firstWhenSeen = false;
     }
     
     // Handle END-* statements FIRST (reduce indent before processing)
@@ -273,7 +320,27 @@ function transpileParagraph(
     
     // Handle indentation changes
     for (const stmt of statements) {
-      if (stmt.type === 'if' || stmt.type === 'for' || stmt.type === 'while') {
+      // Handle EVALUATE/WHEN: convert first WHEN to 'if', others to 'elif'
+      if (inEvaluate && stmt.type === 'elif') {
+        if (!firstWhenSeen) {
+          // Convert first WHEN's elif to if
+          firstWhenSeen = true;
+          const ifCode = stmt.code.replace(/^elif /, 'if ');
+          body.push({ ...stmt, type: 'if', code: ifCode, indent: currentIndent });
+          indentStack.push(currentIndent);
+          currentIndent++;
+        } else {
+          // Subsequent WHEN - use elif
+          const prevIndent = indentStack.length > 0 ? indentStack[indentStack.length - 1] : 0;
+          body.push({ ...stmt, indent: prevIndent });
+          currentIndent = prevIndent + 1;
+        }
+      } else if (inEvaluate && stmt.type === 'else') {
+        // WHEN OTHER
+        const prevIndent = indentStack.length > 0 ? indentStack[indentStack.length - 1] : 0;
+        body.push({ ...stmt, indent: prevIndent });
+        currentIndent = prevIndent + 1;
+      } else if (stmt.type === 'if' || stmt.type === 'for' || stmt.type === 'while') {
         body.push({ ...stmt, indent: currentIndent });
         indentStack.push(currentIndent);  // Save current level
         currentIndent++;  // Increase for body
@@ -497,6 +564,30 @@ function transpileStatement(upper: string, original: string, indent: number): Py
     return results;
   }
   
+  // ===== EXIT PERFORM =====
+  if (upper.includes('EXIT PERFORM')) {
+    results.push({
+      type: 'call',
+      code: 'break  # EXIT PERFORM',
+      indent,
+      originalCobol: original,
+      confidence: 90
+    });
+    return results;
+  }
+  
+  // ===== CONTINUE =====
+  if (upper === 'CONTINUE' || upper === 'CONTINUE.') {
+    results.push({
+      type: 'call',
+      code: 'pass  # CONTINUE',
+      indent,
+      originalCobol: original,
+      confidence: 100
+    });
+    return results;
+  }
+  
   // ===== Fallback: commentaire =====
   if (!upper.startsWith('.') && upper.length > 1) {
     results.push({
@@ -574,6 +665,55 @@ function transpileMove(upper: string, original: string): PythonStatement | null 
       code: `self.${toSnakeCase(match[1])} = datetime.now()`,
       originalCobol: original,
       confidence: 95,
+      indent: 0
+    };
+  }
+  
+  // MOVE FUNCTION xxx(...) TO var - generic COBOL functions
+  match = upper.match(/MOVE\s+FUNCTION\s+([A-Z][-A-Z0-9]*)\s*\(([^)]+)\)\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
+  if (match) {
+    const funcName = toSnakeCase(match[1]);
+    const args = match[2].split(',').map(a => `self.${toSnakeCase(a.trim())}`).join(', ');
+    // Map common COBOL functions to Python equivalents
+    let pythonFunc: string;
+    switch (funcName) {
+      case 'integer_of_date': pythonFunc = `int(${args}.strftime('%Y%m%d'))`; break;
+      case 'date_of_integer': pythonFunc = `datetime.strptime(str(${args}), '%Y%m%d')`; break;
+      case 'length': pythonFunc = `len(${args})`; break;
+      case 'upper_case': pythonFunc = `str(${args}).upper()`; break;
+      case 'lower_case': pythonFunc = `str(${args}).lower()`; break;
+      case 'reverse': pythonFunc = `str(${args})[::-1]`; break;
+      case 'trim': pythonFunc = `str(${args}).strip()`; break;
+      case 'numval': pythonFunc = `Decimal(str(${args}).strip())`; break;
+      case 'numval_c': pythonFunc = `Decimal(str(${args}).strip().replace(',', ''))`; break;
+      case 'abs': pythonFunc = `abs(${args})`; break;
+      case 'mod': pythonFunc = `${args.split(',')[0]} % ${args.split(',')[1] || '1'}`; break;
+      default: pythonFunc = `self._cobol_function("${funcName}", ${args})`; break;
+    }
+    return {
+      type: 'assignment',
+      code: `self.${toSnakeCase(match[3])} = ${pythonFunc}`,
+      originalCobol: original,
+      confidence: 80,
+      indent: 0
+    };
+  }
+  
+  // MOVE FUNCTION xxx TO var (no args)
+  match = upper.match(/MOVE\s+FUNCTION\s+([A-Z][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
+  if (match) {
+    const funcName = toSnakeCase(match[1]);
+    let pythonFunc: string;
+    switch (funcName) {
+      case 'current_date': pythonFunc = 'datetime.now()'; break;
+      case 'when_compiled': pythonFunc = 'datetime.now()'; break;
+      default: pythonFunc = `self._cobol_function("${funcName}")`; break;
+    }
+    return {
+      type: 'assignment',
+      code: `self.${toSnakeCase(match[2])} = ${pythonFunc}`,
+      originalCobol: original,
+      confidence: 80,
       indent: 0
     };
   }
@@ -738,27 +878,87 @@ function transpileCompute(upper: string, original: string): PythonStatement | nu
     const target = toSnakeCase(match[1]);
     let expr = match[2].trim();
     
-    // Convert COBOL operators and variables
-    expr = expr.replace(/\*\*/g, ' ** ');  // Exponentiation
+    // Remove trailing period
+    expr = expr.replace(/\s*\.\s*$/, '');
+    
+    // Detect complex nested FUNCTION expressions and handle as fallback
+    const functionCount = (expr.match(/FUNCTION/gi) || []).length;
+    if (functionCount >= 2) {
+      // Complex nested functions - generate safe fallback
+      return {
+        type: 'assignment',
+        code: `self.${target} = 0  # TODO: Complex COBOL expression: ${original.substring(0, 60)}...`,
+        originalCobol: original,
+        confidence: 30,
+        indent: 0
+      };
+    }
+    
+    // Step 1: Replace FUNCTION calls with placeholder markers
+    // FUNCTION xxx(args) → @@FUNC_n@@
+    const funcReplacements: string[] = [];
+    
+    expr = expr.replace(/FUNCTION\s+([A-Z][-A-Z0-9]*)\s*\(([^)]+)\)/gi, (_, funcName, args) => {
+      const fn = funcName.toUpperCase().replace(/-/g, '_');
+      // Process args - convert COBOL var names to Python
+      const pyArgs = args.split(',').map((a: string) => {
+        const trimArg = a.trim();
+        if (/^\d+$/.test(trimArg)) return trimArg;
+        return `self.${toSnakeCase(trimArg)}`;
+      }).join(', ');
+      
+      let pythonExpr: string;
+      switch (fn) {
+        case 'INTEGER_OF_DATE': pythonExpr = `int(str(${pyArgs}).replace('-','')[:8])`; break;
+        case 'DATE_OF_INTEGER': pythonExpr = `datetime.strptime(str(${pyArgs}), '%Y%m%d')`; break;
+        case 'LENGTH': pythonExpr = `len(str(${pyArgs}))`; break;
+        case 'UPPER_CASE': pythonExpr = `str(${pyArgs}).upper()`; break;
+        case 'LOWER_CASE': pythonExpr = `str(${pyArgs}).lower()`; break;
+        case 'REVERSE': pythonExpr = `str(${pyArgs})[::-1]`; break;
+        case 'TRIM': pythonExpr = `str(${pyArgs}).strip()`; break;
+        case 'NUMVAL': pythonExpr = `Decimal(str(${pyArgs}).strip())`; break;
+        case 'ABS': pythonExpr = `abs(${pyArgs})`; break;
+        case 'ORD': pythonExpr = `ord(str(${pyArgs})[0])`; break;
+        case 'MOD': {
+          const argList = pyArgs.split(',').map(s => s.trim());
+          pythonExpr = `(${argList[0]} % ${argList[1] || '1'})`;
+          break;
+        }
+        default: pythonExpr = `self._cobol_function("${toSnakeCase(funcName)}", ${pyArgs})`; break;
+      }
+      
+      const idx = funcReplacements.length;
+      funcReplacements.push(pythonExpr);
+      return `@@FUNC_${idx}@@`;
+    });
+    
+    // Step 2: Convert COBOL operators
+    expr = expr.replace(/\*\*/g, ' ** ');
     expr = expr.replace(/\s+/g, ' ');
     
-    // Replace variable names with self.xxx
-    expr = expr.replace(/([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)/gi, (m) => {
-      // Check if it's a number
+    // Step 3: Replace remaining variable names with self.xxx
+    // Use word boundary to avoid matching inside placeholders
+    expr = expr.replace(/\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b/gi, (m) => {
       if (/^\d+$/.test(m)) return m;
-      // Check if it's an operator word
-      if (['AND', 'OR', 'NOT', 'ROUNDED'].includes(m.toUpperCase())) return m.toLowerCase();
+      if (['AND', 'OR', 'NOT', 'ROUNDED', 'FUNCTION', 'FUNC'].includes(m.toUpperCase())) return '';
+      // Skip if this looks like part of a placeholder
+      if (m.startsWith('FUNC_')) return m;
       return `self.${toSnakeCase(m)}`;
     });
     
+    // Step 4: Restore function placeholders
+    for (let i = 0; i < funcReplacements.length; i++) {
+      expr = expr.replace(`@@FUNC_${i}@@`, funcReplacements[i]);
+    }
+    
     // Clean up
-    expr = expr.replace(/\s*\.\s*$/, '');
-    expr = expr.replace(/rounded/gi, '');
+    expr = expr.replace(/self\.self\./g, 'self.');
+    expr = expr.replace(/\s+/g, ' ').trim();
     
     const hasRounded = upper.includes('ROUNDED');
     const code = hasRounded 
-      ? `self.${target} = round(${expr.trim()}, 2)`
-      : `self.${target} = ${expr.trim()}`;
+      ? `self.${target} = round(${expr}, 2)`
+      : `self.${target} = ${expr}`;
     
     return {
       type: 'assignment',
@@ -778,6 +978,20 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
   // Remove trailing THEN
   condition = condition.replace(/\s+THEN\s*$/i, '');
   
+  // Handle FUNCTION calls in conditions
+  condition = condition.replace(/FUNCTION\s+([A-Z][-A-Z0-9]*)\s*\(([^)]+)\)/gi, (_, funcName, args) => {
+    const fn = funcName.toUpperCase().replace(/-/g, '_');
+    const pyArgs = args.split(',').map((a: string) => a.trim()).join(', ');
+    switch (fn) {
+      case 'ABS': return `abs(${pyArgs})`;
+      case 'LENGTH': return `len(str(${pyArgs}))`;
+      case 'UPPER_CASE': return `str(${pyArgs}).upper()`;
+      case 'LOWER_CASE': return `str(${pyArgs}).lower()`;
+      case 'TRIM': return `str(${pyArgs}).strip()`;
+      default: return `self._cobol_function("${toSnakeCase(funcName)}", ${pyArgs})`;
+    }
+  });
+  
   // Handle NOT =
   condition = condition.replace(/\s+NOT\s*=\s*/gi, ' != ');
   
@@ -788,6 +1002,18 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
   condition = condition.replace(/\s+LESS\s+THAN\s+/gi, ' < ');
   condition = condition.replace(/\s+EQUAL\s+TO\s+/gi, ' == ');
   condition = condition.replace(/\s+NOT\s+EQUAL\s+TO\s+/gi, ' != ');
+  
+  // Handle IS NOT NUMERIC, IS NOT ALPHABETIC, etc. (must come before IS NUMERIC)
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NOT\s+NUMERIC/gi, 
+    (_, v) => `not str(self.${toSnakeCase(v)}).replace('.','').replace('-','').isdigit()`);
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NOT\s+ALPHABETIC/gi, 
+    (_, v) => `not str(self.${toSnakeCase(v)}).replace(' ','').isalpha()`);
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NOT\s+POSITIVE/gi, 
+    (_, v) => `self.${toSnakeCase(v)} <= 0`);
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NOT\s+NEGATIVE/gi, 
+    (_, v) => `self.${toSnakeCase(v)} >= 0`);
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NOT\s+ZERO/gi, 
+    (_, v) => `self.${toSnakeCase(v)} != 0`);
   
   // Handle IS NUMERIC, IS ALPHABETIC, etc.
   condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s+IS\s+NUMERIC/gi, 
@@ -809,16 +1035,38 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
   condition = condition.replace(/\s+OR\s+/gi, ' or ');
   condition = condition.replace(/\s+NOT\s+/gi, ' not ');
   
+  // Fix COBOL implicit subject in OR/AND conditions
+  // Pattern: "X < 6 OR > 360" → "X < 6 or X > 360"
+  // Pattern: "X = 'A' OR 'B'" → "X = 'A' or X = 'B'"
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s*(=|<|>|<=|>=|!=)\s*(\S+)\s+or\s+(=|<|>|<=|>=|!=)\s*/gi, 
+    (_, varName, op1, val1, op2) => `${varName} ${op1} ${val1} or ${varName} ${op2} `);
+  condition = condition.replace(/([A-Z0-9][-A-Z0-9]*)\s*(=|<|>|<=|>=|!=)\s*(\S+)\s+or\s+([^=<>!]+)$/gi, 
+    (_, varName, op, val1, val2) => `${varName} ${op} ${val1} or ${varName} ${op} ${val2}`);
+  
+  // Protect string literals before variable replacement
+  const stringLiterals: string[] = [];
+  condition = condition.replace(/"([^"]+)"/g, (_, lit) => {
+    const idx = stringLiterals.length;
+    stringLiterals.push(lit);
+    return `@@STR_${idx}@@`;
+  });
+  condition = condition.replace(/'([^']+)'/g, (_, lit) => {
+    const idx = stringLiterals.length;
+    stringLiterals.push(lit);
+    return `@@STR_${idx}@@`;
+  });
+  
   // Replace variable names
-  condition = condition.replace(/([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)/gi, (m) => {
+  condition = condition.replace(/\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b/gi, (m) => {
     if (/^\d+$/.test(m)) return m;
-    if (['AND', 'OR', 'NOT', 'TRUE', 'FALSE'].includes(m.toUpperCase())) return m.toLowerCase();
+    if (['AND', 'OR', 'NOT', 'TRUE', 'FALSE', 'STR'].includes(m.toUpperCase())) return m.toLowerCase();
     return `self.${toSnakeCase(m)}`;
   });
   
-  // Handle string literals - restore quotes
-  condition = condition.replace(/"([^"]+)"/g, '"$1"');
-  condition = condition.replace(/'([^']+)'/g, '"$1"');
+  // Restore string literals
+  for (let i = 0; i < stringLiterals.length; i++) {
+    condition = condition.replace(`@@STR_${i}@@`, `"${stringLiterals[i]}"`);
+  }
   
   return {
     type: 'if',
@@ -1026,7 +1274,18 @@ function transpileEvaluate(upper: string, original: string): PythonStatement | n
 }
 
 function transpileWhen(upper: string, original: string): PythonStatement | null {
-  // WHEN "value"
+  // WHEN OTHER (check first, as it's most specific)
+  if (upper.includes('WHEN OTHER')) {
+    return {
+      type: 'else',
+      code: `else:  # WHEN OTHER`,
+      originalCobol: original,
+      confidence: 90,
+      indent: 0
+    };
+  }
+  
+  // WHEN "value" (string literal)
   let match = upper.match(/WHEN\s+["']([^"']+)["']/i);
   if (match) {
     return {
@@ -1038,13 +1297,16 @@ function transpileWhen(upper: string, original: string): PythonStatement | null 
     };
   }
   
-  // WHEN OTHER
-  if (upper.includes('WHEN OTHER')) {
+  // WHEN identifier (88-level condition like WHEN ACCT-CHECKING)
+  // Used with EVALUATE TRUE
+  match = upper.match(/WHEN\s+([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)/i);
+  if (match) {
+    const conditionName = toSnakeCase(match[1]);
     return {
-      type: 'else',
-      code: `else:  # WHEN OTHER`,
+      type: 'elif',
+      code: `elif self.${conditionName}:`,
       originalCobol: original,
-      confidence: 90,
+      confidence: 85,
       indent: 0
     };
   }
@@ -1183,17 +1445,51 @@ export function optimizePythonCode(code: string): string {
   // Fix any double self. references
   optimized = optimized.replace(/self\.self\./g, 'self.');
   
+  // Fix elif after else (invalid Python)
+  optimized = optimized.replace(/(\n\s*else:.*\n(?:\s+.*\n)*?)(\s*)(elif\s)/g, '$1$2# TODO: $3');
+  
   // Fix trailing periods in variable names
   optimized = optimized.replace(/self\.([a-z_][a-z0-9_]*)\.([\s\)])/g, 'self.$1$2');
   
-  // Ensure proper indentation consistency
+  // Fix empty blocks (if/elif/else followed by else/elif/def/class without body)
   const lines = optimized.split('\n');
-  const cleanedLines = lines.map(line => {
-    // Remove trailing whitespace
-    return line.replace(/\s+$/, '');
-  });
+  const result: string[] = [];
   
-  return cleanedLines.join('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const currentIndent = line.match(/^(\s*)/)?.[0] || '';
+    
+    result.push(line.replace(/\s+$/, ''));  // Remove trailing whitespace
+    
+    // Check if this is a block statement (if, elif, else, for, while, etc.)
+    if (trimmed.endsWith(':') && 
+        (trimmed.startsWith('if ') || trimmed.startsWith('elif ') || 
+         trimmed === 'else:' || trimmed.startsWith('else:') ||
+         trimmed.startsWith('for ') || trimmed.startsWith('while ') ||
+         trimmed.startsWith('try:') || trimmed.startsWith('except') ||
+         trimmed.startsWith('finally:') || trimmed.startsWith('with '))) {
+      
+      // Check if next non-empty line is properly indented
+      let nextLineIdx = i + 1;
+      while (nextLineIdx < lines.length && lines[nextLineIdx].trim() === '') {
+        nextLineIdx++;
+      }
+      
+      if (nextLineIdx < lines.length) {
+        const nextLine = lines[nextLineIdx];
+        const nextTrimmed = nextLine.trim();
+        const nextIndent = nextLine.match(/^(\s*)/)?.[0] || '';
+        
+        // If next line is NOT more indented, we need to add pass
+        if (nextIndent.length <= currentIndent.length && nextTrimmed !== '') {
+          result.push(currentIndent + '    pass  # Empty block');
+        }
+      }
+    }
+  }
+  
+  return result.join('\n');
 }
 
 // ============================================================
