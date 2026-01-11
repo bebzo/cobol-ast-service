@@ -83,8 +83,8 @@ function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
     return { valid: false, reason: 'Input appears to be another programming language, not COBOL' };
   }
   
-  // Must have division OR at least 1 COBOL keyword OR COBOL structure
-  if (!hasDivision && keywordCount < 1 && !hasCobolStructure) {
+  // Must have division OR at least 3 COBOL keywords
+  if (!hasDivision && keywordCount < 3) {
     return { valid: false, reason: 'No COBOL structure detected. Expected DIVISION headers or COBOL keywords (PIC, MOVE, PERFORM, etc.)' };
   }
   
@@ -479,20 +479,6 @@ function sanitizePythonCode(code: string): string {
   
   // 10. Fix double self: self.self. -> self.
   sanitized = sanitized.replace(/self\.self\./g, 'self.');
-  
-  // 11. Fix self.'string' -> 'string' (AI hallucination: self prefix on string literals)
-  sanitized = sanitized.replace(/self\.'([^']+)'/g, "'$1'");
-  sanitized = sanitized.replace(/self\."([^"]+)"/g, '"$1"');
-  
-  // 12. Fix = self.'string' patterns in assignments
-  sanitized = sanitized.replace(/=\s*self\.'([^']+)'/g, "= '$1'");
-  sanitized = sanitized.replace(/=\s*self\."([^"]+)"/g, '= "$1"');
-  
-  // 13. Fix comparisons: == self.'x' or != self."y"
-  sanitized = sanitized.replace(/==\s*self\.'([^']+)'/g, "== '$1'");
-  sanitized = sanitized.replace(/==\s*self\."([^"]+)"/g, '== "$1"');
-  sanitized = sanitized.replace(/!=\s*self\.'([^']+)'/g, "!= '$1'");
-  sanitized = sanitized.replace(/!=\s*self\."([^"]+)"/g, '!= "$1"');
   
   // === v8.2: Python keyword variable names ===
   const pythonKeywordsForVars = ['continue', 'pass', 'break', 'return', 'yield', 'raise', 'import', 'from', 'class', 'def', 'try', 'except', 'finally', 'with', 'as', 'global', 'nonlocal', 'lambda', 'assert', 'del', 'if', 'else', 'elif', 'for', 'while', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None', 'async', 'await'];
@@ -2803,4 +2789,3 @@ ${activeDomains.map(d => `├── ${d}.py              # ${d.charAt(0).toUpper
 // v7.60 - Added Python number sanitization (leading zeros fix)
 // v7.5 - simple statements only, guaranteed compile
 // Commercial grade: All numbers sanitized, valid Python 3 syntax guaranteed
-// v11.23 fix
