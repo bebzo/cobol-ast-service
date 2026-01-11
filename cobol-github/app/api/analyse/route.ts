@@ -1164,11 +1164,11 @@ COBOL PARAGRAPHS:
             // v10.1: Pattern-only mode - skip AI completely
             if (usePatternOnly) {
               console.log(`[v10.1-PATTERN-ONLY] Skipping AI for ${needsAIBatch.length} paragraphs`);
-              const patternOnlyResults = needsAIBatch.map(p => ({
+              const stubResults = needsAIBatch.map(p => ({
                 name: p.name,
-                logic: `self.logger.info("Processing ${p.name}")\nself.status = "PATTERN_ONLY"\n# Complex logic requires AI - enable full mode for translation`
+                logic: `# Pattern coverage insufficient - manual review needed\n# Original COBOL: ${p.name}\npass  # TODO: Implement complex logic`
               }));
-              return [...cachedResults, ...patternResults.map(pr => ({ name: pr.name, logic: pr.logic })), ...patternOnlyResults];
+              return [...cachedResults, ...patternResults.map(pr => ({ name: pr.name, logic: pr.logic })), ...stubResults];
             }
             
             const uncachedCobol = needsAIBatch.map(p => {
@@ -1201,11 +1201,11 @@ COBOL PARAGRAPHS:
               const errorMsg = aiError?.message || String(aiError);
               if (errorMsg.includes('429') || errorMsg.includes('Resource exhausted') || errorMsg.includes('rate limit')) {
                 console.log(`[v10.1-RATE-LIMIT] AI rate limit hit, falling back to pattern-only`);
-                const rateLimitResults = needsAIBatch.map(p => ({
+                const stubResults = needsAIBatch.map(p => ({
                   name: p.name,
-                  logic: `self.logger.warning("Rate limit reached for ${p.name}")\nself.status = "RATE_LIMITED"\n# Retry with AI enabled when rate limit resets`
+                  logic: `# AI rate limit - using pattern stub\n# Original: ${p.name}\npass  # TODO: Retry later`
                 }));
-                return [...cachedResults, ...patternResults.map(pr => ({ name: pr.name, logic: pr.logic })), ...rateLimitResults];
+                return [...cachedResults, ...patternResults.map(pr => ({ name: pr.name, logic: pr.logic })), ...stubResults];
               }
               throw aiError;  // Re-throw non-rate-limit errors
             }
@@ -1313,20 +1313,14 @@ COBOL PARAGRAPHS:
         }));
         
         // v8.1: Flatten results with deduplication
-        // v11.24: Apply sanitizePythonCode on each translation to fix errors early
         for (const batchResults of waveResults) {
           for (const result of batchResults) {
-            // Sanitize the logic early to fix AI hallucinations like self.'string' and self.arr(idx)
-            const sanitizedResult = { 
-              name: result.name, 
-              logic: sanitizePythonCode(result.logic) 
-            };
-            const existingIdx = translations.findIndex(t => t.name.toUpperCase() === sanitizedResult.name.toUpperCase());
+            const existingIdx = translations.findIndex(t => t.name.toUpperCase() === result.name.toUpperCase());
             if (existingIdx === -1) {
-              translations.push(sanitizedResult);
-            } else if (sanitizedResult.logic.length > translations[existingIdx].logic.length) {
+              translations.push(result);
+            } else if (result.logic.length > translations[existingIdx].logic.length) {
               // Keep the one with more logic
-              translations[existingIdx] = sanitizedResult;
+              translations[existingIdx] = result;
             }
           }
         }
@@ -1691,10 +1685,15 @@ ${initVars.join('\n')}
           
           methodCode += validStatements.map(s => `        ${s}`).join('\n') + '\n';
         } else {
-          // v11.25: Generate contextual fallback based on method name semantics
+          // v9.0 PRODUCTION: NO FALLBACKS - Explicit failure for untranslated methods
+          methodCode += `        # v9.0 PRODUCTION: AI translation failed - requires manual COBOL analysis\n`;
+          methodCode += `        raise NotImplementedError(\n`;
+          methodCode += `            "Method '${methodName}' requires manual translation from COBOL paragraph '${safeName}'. "\n`;
+          methodCode += `            "Analyze source COBOL and implement equivalent Python logic."\n`;
+          methodCode += `        )\n`;
+          // REMOVED ALL PATTERN FALLBACKS - Production requires real translations
           const name = methodName.toLowerCase();
-          methodCode += `        # v11.25: Contextual fallback - review and enhance\n`;
-          if (name.includes('deposit')) {
+          if (false) {  // DISABLED - was: name.includes('deposit')
             methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        self.data["balance"] = self.data.get("balance", Decimal("0")) + amount\n        self.logger.info(f"Deposited {amount}")\n        return self.data["balance"]\n`;
           } else if (name.includes('withdraw')) {
             methodCode += `        amount = self.data.get("amount", Decimal("0"))\n        self.data["balance"] = self.data.get("balance", Decimal("0")) - amount\n        self.logger.info(f"Withdrew {amount}")\n        return self.data["balance"]\n`;
@@ -1801,10 +1800,8 @@ ${initVars.join('\n')}
           } else if (name.includes('call') || name.includes('invoke') || name.includes('request')) {
             methodCode += `        self.logger.info("Invoking external service")\n        return {"status": "OK"}\n`;
           } else {
-            // v11.25: Generic fallback with full logging for any unmatched method
-            methodCode += `        self.logger.info(f"Executing ${methodName}")\n`;
-            methodCode += `        self.status = "EXECUTED"\n`;
-            methodCode += `        return True\n`;
+            // v9.0: All fallbacks disabled - this branch never executes
+            // NotImplementedError already raised above
           }
         }
         
@@ -2066,8 +2063,8 @@ ${initVars.join('\n')}
             const isContaminated = /class\s|def __init__|TODO|FileAdapter|raise NotImplementedError/.test(newMethod);
             if (isContaminated) {
               console.log(`[v7.33] Rejected contaminated refactor for ${method.name}`);
-              // Use functional fallback with logging
-              newMethod = `    def ${method.name}(self):\n        """${method.name.replace(/_/g, ' ')} - requires manual review."""\n        self.logger.info("Executing ${method.name}")\n        self.status = "NEEDS_REVIEW"\n        return True\n`;
+              // Use clearly marked fallback
+              newMethod = `    def ${method.name}(self):\n        """${method.name.replace(/_/g, ' ')}"""\n        # ⚠️ REFACTOR-FALLBACK: AI response was contaminated\n        raise NotImplementedError("${method.name}: Refactor failed - manual implementation needed")\n`;
             }
             
             if (!newMethod.startsWith('    def ')) newMethod = '    ' + newMethod;
@@ -2182,12 +2179,11 @@ Answer:`;
               throw new Error('Translation too complex');
             }
           } catch {
-            // v11.25: Generate functional fallback instead of raising exception
+            // Fallback to stub
             stubs.push(`    def _cobol_${fn}(self, *args) -> Any:
-        """COBOL FUNCTION ${cobolName} - generic implementation."""
-        self.logger.info(f"Executing COBOL function ${fn} with args: {args}")
-        # Return first arg if provided, otherwise empty string (COBOL behavior)
-        return args[0] if args else ""`);
+        """⚠️ COBOL FUNCTION ${cobolName}: Needs manual implementation."""
+        self.logger.warning(f"Unimplemented COBOL function: ${fn}")
+        raise NotImplementedError("COBOL function ${cobolName} needs manual translation")`);
           }
         }
         cobolFunctionStubs = `    # === COBOL FUNCTION IMPLEMENTATIONS ===\n${stubs.join('\n\n')}\n`;
@@ -2374,15 +2370,17 @@ Output ONLY valid Python starting with imports. NO explanations.`;
           throw new Error('Invalid tests');
         }
       } catch (e: any) {
-        // v11.25: Generate real structural tests when AI fails
-        console.log(`[v11.25] AI test generation failed, generating structural tests: ${e.message}`);
+        // [FALLBACK:TESTS] AI generation failed - structural tests only
+        console.log(`[FALLBACK:TESTS] Test generation failed: ${e.message}`);
         const testLines = methodsToTest.map(m => 
-          `    def test_${m}_exists(self, processor):\n        """Test ${m} method exists and is callable."""\n        assert hasattr(processor, '${m}')\n        assert callable(getattr(processor, '${m}'))\n\n    def test_${m}_runs(self, processor):\n        """Test ${m} executes without exception."""\n        result = processor.${m}()\n        assert result is not None or processor.status is not None`
+          `    def test_${m}(self):\n        """Test ${m} method."""\n        # [FALLBACK:TESTS] AI failed - structural test only\n        assert hasattr(self.processor, '${m}'), "Method ${m} must exist"\n        assert callable(getattr(self.processor, '${m}')), "Method ${m} must be callable"`
         ).join('\n\n');
         unitTests = `import pytest
 from decimal import Decimal
 
-# v11.25: Structural tests - verifies method signatures and basic execution
+# [FALLBACK:TESTS] AI test generation failed - structural tests only
+# These tests verify method existence and callability
+# Replace with functional tests after code review
 
 class Test${className}:
     """Test suite for ${className} - migrated from COBOL."""
@@ -2391,12 +2389,6 @@ class Test${className}:
     def processor(self):
         """Create processor instance for testing."""
         return ${className}()
-    
-    def test_initialization(self, processor):
-        """Test processor initializes correctly."""
-        assert processor is not None
-        assert hasattr(processor, 'logger')
-        assert hasattr(processor, 'data')
 
 ${testLines}
 `;
