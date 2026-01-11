@@ -1,11 +1,7 @@
 /**
- * COBOL ANTLR4 Parser - Production Grade
- * Uses full COBOL85 grammar for complete AST generation
+ * COBOL Parser - Lightweight Version (no ANTLR)
+ * Uses regex-based parsing for Vercel serverless compatibility
  */
-
-import { CharStreams, CommonTokenStream } from 'antlr4ts';
-import { Cobol85Lexer } from './antlr/generated/Cobol85Lexer';
-import { Cobol85Parser, StartRuleContext } from './antlr/generated/Cobol85Parser';
 
 export interface CobolASTNode {
   type: string;
@@ -53,10 +49,9 @@ export interface VariableNode {
 
 export interface FileNode {
   name: string;
+  recordName?: string;
   organization?: string;
   accessMode?: string;
-  recordKey?: string;
-  status?: string;
   line: number;
 }
 
@@ -66,7 +61,6 @@ export interface ParagraphNode {
   lineStart: number;
   lineEnd: number;
   statements: StatementNode[];
-  performCalls: string[];
   complexity: number;
 }
 
@@ -80,17 +74,17 @@ export interface SectionNode {
 export interface StatementNode {
   type: string;
   line: number;
-  content: string;
   target?: string;
   condition?: string;
+  details?: Record<string, any>;
 }
 
 export interface PerformNode {
   target: string;
-  type: 'SIMPLE' | 'TIMES' | 'UNTIL' | 'VARYING';
+  type: 'simple' | 'times' | 'until' | 'varying' | 'thru';
   times?: number;
   condition?: string;
-  varying?: { variable: string; from: string; by: string; until: string };
+  thruTarget?: string;
   line: number;
 }
 
@@ -101,9 +95,11 @@ export interface CallNode {
 }
 
 export interface SQLNode {
-  type: 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' | 'CURSOR' | 'OTHER';
-  content: string;
+  type: string;
+  table?: string;
+  operation: string;
   line: number;
+  rawSQL?: string;
 }
 
 export interface ASTMetrics {
@@ -111,561 +107,516 @@ export interface ASTMetrics {
   codeLines: number;
   commentLines: number;
   blankLines: number;
-  divisions: number;
-  sections: number;
-  paragraphs: number;
-  variables: number;
-  level01Variables: number;
-  copyStatements: number;
-  performStatements: number;
-  callStatements: number;
-  gotoStatements: number;
-  evalStatements: number;
-  sqlStatements: number;
-  cyclomaticComplexity: number;
-  maintainabilityIndex: number;
-  halsteadVolume: number;
+  paragraphCount: number;
+  sectionCount: number;
+  variableCount: number;
+  complexity: number;
+  performCount: number;
+  callCount: number;
+  sqlCount: number;
 }
 
 export interface ParseError {
   line: number;
   column: number;
   message: string;
+  severity: 'error' | 'warning';
 }
 
 /**
- * Parse COBOL source code using ANTLR4 grammar
+ * Parse COBOL source code into full AST using regex
  */
 export function parseCobolWithANTLR(source: string): CobolFullAST {
+  const lines = source.split('\n');
   const errors: ParseError[] = [];
   
-  // Create input stream
-  const inputStream = CharStreams.fromString(source);
+  // Extract program ID
+  const programIdMatch = source.match(/PROGRAM-ID\.\s+(\S+)/i);
+  const programId = programIdMatch ? programIdMatch[1].replace('.', '') : 'UNKNOWN';
   
-  // Create lexer
-  const lexer = new Cobol85Lexer(inputStream);
-  lexer.removeErrorListeners();
+  // Extract author
+  const authorMatch = source.match(/AUTHOR\.\s+(.+?)(?:\.|$)/im);
+  const author = authorMatch ? authorMatch[1].trim() : undefined;
   
-  // Create token stream
-  const tokenStream = new CommonTokenStream(lexer);
+  // Extract date written
+  const dateMatch = source.match(/DATE-WRITTEN\.\s+(.+?)(?:\.|$)/im);
+  const dateWritten = dateMatch ? dateMatch[1].trim() : undefined;
   
-  // Create parser
-  const parser = new Cobol85Parser(tokenStream);
-  parser.removeErrorListeners();
+  // Parse variables from WORKING-STORAGE and LINKAGE
+  const workingStorageVariables = parseVariables(source, 'WORKING-STORAGE');
+  const linkageVariables = parseVariables(source, 'LINKAGE');
   
-  // Parse
-  let tree: StartRuleContext;
-  try {
-    tree = parser.startRule();
-  } catch (e) {
-    // Fallback to basic parsing
-    return createFallbackAST(source, errors);
-  }
+  // Parse paragraphs
+  const paragraphs = parseParagraphs(source);
   
-  // Extract AST
-  const ast = extractAST(tree, source, errors);
+  // Parse sections
+  const sections = parseSections(source);
   
-  return ast;
-}
-
-function extractAST(tree: StartRuleContext, source: string, errors: ParseError[]): CobolFullAST {
-  const lines = source.split('\n');
+  // Parse PERFORM statements
+  const performStatements = parsePerformStatements(source);
   
-  const ast: CobolFullAST = {
-    programId: 'UNKNOWN',
-    identificationDivision: null,
-    environmentDivision: null,
-    dataDivision: null,
-    procedureDivision: null,
-    workingStorageVariables: [],
-    linkageVariables: [],
-    fileDescriptions: [],
-    paragraphs: [],
-    sections: [],
-    copyStatements: [],
-    performStatements: [],
-    callStatements: [],
-    sqlStatements: [],
-    metrics: {
-      totalLines: lines.length,
-      codeLines: 0,
-      commentLines: 0,
-      blankLines: 0,
-      divisions: 0,
-      sections: 0,
-      paragraphs: 0,
-      variables: 0,
-      level01Variables: 0,
-      copyStatements: 0,
-      performStatements: 0,
-      callStatements: 0,
-      gotoStatements: 0,
-      evalStatements: 0,
-      sqlStatements: 0,
-      cyclomaticComplexity: 1,
-      maintainabilityIndex: 100,
-      halsteadVolume: 0,
-    },
-    errors,
-  };
+  // Parse CALL statements
+  const callStatements = parseCallStatements(source);
   
-  // Count line types and extract data
-  let inProcedureDivision = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-    const upper = trimmed.toUpperCase();
-    
-    // Track current division
-    if (upper.includes('PROCEDURE DIVISION')) inProcedureDivision = true;
-    
-    if (!trimmed) {
-      ast.metrics.blankLines++;
-      continue;
-    }
-    
-    if (line.length >= 7 && line[6] === '*') {
-      ast.metrics.commentLines++;
-      continue;
-    }
-    
-    ast.metrics.codeLines++;
-    
-    // Extract PROGRAM-ID
-    const progMatch = upper.match(/PROGRAM-ID\.\s*([A-Z0-9-]+)/);
-    if (progMatch) ast.programId = progMatch[1];
-    
-    // Extract AUTHOR
-    const authMatch = upper.match(/AUTHOR\.\s*(.+)/);
-    if (authMatch) ast.author = authMatch[1].replace('.', '').trim();
-    
-    // Count divisions
-    if (upper.includes('IDENTIFICATION DIVISION')) ast.metrics.divisions++;
-    if (upper.includes('ENVIRONMENT DIVISION')) ast.metrics.divisions++;
-    if (upper.includes('DATA DIVISION')) ast.metrics.divisions++;
-    if (upper.includes('PROCEDURE DIVISION')) ast.metrics.divisions++;
-    
-    // Extract variables (01-77 levels)
-    const varMatch = trimmed.match(/^(\d{2})\s+([A-Z0-9-]+)/i);
-    if (varMatch) {
-      const level = parseInt(varMatch[1]);
-      const name = varMatch[2].toUpperCase();
-      
-      const variable: VariableNode = {
-        level,
-        name,
-        line: i + 1,
-      };
-      
-      // Extract PIC
-      const picMatch = upper.match(/PIC(?:TURE)?\s+([SXA9()V+-]+)/);
-      if (picMatch) variable.picture = picMatch[1];
-      
-      // Extract VALUE
-      const valueMatch = upper.match(/VALUE\s+(['"]?[^.'"\s]+['"]?|SPACES?|ZEROS?)/);
-      if (valueMatch) variable.value = valueMatch[1];
-      
-      // Extract OCCURS
-      const occursMatch = upper.match(/OCCURS\s+(\d+)/);
-      if (occursMatch) variable.occurs = parseInt(occursMatch[1]);
-      
-      // Extract USAGE
-      const usageMatch = upper.match(/USAGE\s+(COMP(?:-\d)?|BINARY|PACKED-DECIMAL|DISPLAY)/);
-      if (usageMatch) variable.usage = usageMatch[1];
-      
-      // Extract REDEFINES
-      const redefinesMatch = upper.match(/REDEFINES\s+([A-Z0-9-]+)/);
-      if (redefinesMatch) variable.redefines = redefinesMatch[1];
-      
-      ast.workingStorageVariables.push(variable);
-      ast.metrics.variables++;
-      if (level === 1) ast.metrics.level01Variables++;
-    }
-    
-    // Extract paragraphs (only from PROCEDURE DIVISION)
-    const paraMatch = trimmed.match(/^([A-Z0-9][A-Z0-9-]*)\s*\.\s*$/);
-    // Exclude COBOL keywords that look like paragraphs but aren't
-    const excludedKeywords = [
-      'EXIT', 'STOP', 'GOBACK', 'FILE-CONTROL', 'I-O-CONTROL', 
-      'SPECIAL-NAMES', 'CONFIGURATION', 'INPUT-OUTPUT', 'FILE-SECTION',
-      'WORKING-STORAGE', 'LOCAL-STORAGE', 'LINKAGE', 'SCREEN', 'REPORT',
-      'ENVIRONMENT', 'IDENTIFICATION', 'DATA', 'PROCEDURE'
-    ];
-    if (inProcedureDivision && paraMatch && !excludedKeywords.includes(paraMatch[1])) {
-      ast.paragraphs.push({
-        name: paraMatch[1],
-        lineStart: i + 1,
-        lineEnd: i + 1,
-        statements: [],
-        performCalls: [],
-        complexity: 1,
-      });
-      ast.metrics.paragraphs++;
-    }
-    
-    // Extract PERFORM statements
-    const performMatch = upper.match(/PERFORM\s+([A-Z0-9-]+)/);
-    if (performMatch) {
-      let type: PerformNode['type'] = 'SIMPLE';
-      if (upper.includes('TIMES')) type = 'TIMES';
-      if (upper.includes('UNTIL')) type = 'UNTIL';
-      if (upper.includes('VARYING')) type = 'VARYING';
-      
-      ast.performStatements.push({
-        target: performMatch[1],
-        type,
-        line: i + 1,
-      });
-      ast.metrics.performStatements++;
-    }
-    
-    // Extract CALL statements
-    const callMatch = upper.match(/CALL\s+['"]?([A-Z0-9-]+)['"]?/);
-    if (callMatch) {
-      ast.callStatements.push({
-        program: callMatch[1],
-        line: i + 1,
-      });
-      ast.metrics.callStatements++;
-    }
-    
-    // Extract COPY statements
-    const copyMatch = upper.match(/COPY\s+([A-Z0-9-]+)/);
-    if (copyMatch) {
-      ast.copyStatements.push(copyMatch[1]);
-      ast.metrics.copyStatements++;
-    }
-    
-    // Count GO TO
-    if (upper.includes('GO TO')) {
-      ast.metrics.gotoStatements++;
-      ast.metrics.cyclomaticComplexity += 2;
-    }
-    
-    // Count EVALUATE
-    if (upper.includes('EVALUATE ')) {
-      ast.metrics.evalStatements++;
-      ast.metrics.cyclomaticComplexity++;
-    }
-    
-    // Count IF
-    if (upper.match(/\bIF\b/)) {
-      ast.metrics.cyclomaticComplexity++;
-    }
-    
-    // Extract SQL statements
-    if (upper.includes('EXEC SQL') || upper.includes('EXEC CICS')) {
-      let sqlType: SQLNode['type'] = 'OTHER';
-      if (upper.includes('SELECT')) sqlType = 'SELECT';
-      if (upper.includes('INSERT')) sqlType = 'INSERT';
-      if (upper.includes('UPDATE')) sqlType = 'UPDATE';
-      if (upper.includes('DELETE')) sqlType = 'DELETE';
-      if (upper.includes('DECLARE') && upper.includes('CURSOR')) sqlType = 'CURSOR';
-      
-      ast.sqlStatements.push({
-        type: sqlType,
-        content: trimmed,
-        line: i + 1,
-      });
-      ast.metrics.sqlStatements++;
-    }
-  }
+  // Parse SQL statements
+  const sqlStatements = parseSQLStatements(source);
   
-  // Calculate maintainability index
-  const V = ast.metrics.halsteadVolume = ast.metrics.codeLines * Math.log2(ast.metrics.variables + 1);
-  const CC = ast.metrics.cyclomaticComplexity;
-  const LOC = ast.metrics.codeLines;
-  ast.metrics.maintainabilityIndex = Math.max(0, Math.min(100, 
-    171 - 5.2 * Math.log(V + 1) - 0.23 * CC - 16.2 * Math.log(LOC + 1)
-  ));
+  // Parse COPY statements
+  const copyStatements = parseCopyStatements(source);
   
-  return ast;
-}
-
-function createFallbackAST(source: string, errors: ParseError[]): CobolFullAST {
-  const lines = source.split('\n');
+  // Parse file descriptions
+  const fileDescriptions = parseFileDescriptions(source);
+  
+  // Calculate metrics
+  const metrics = calculateMetrics(source, paragraphs, sections, workingStorageVariables, linkageVariables, performStatements, callStatements, sqlStatements);
   
   return {
-    programId: 'PARSE_ERROR',
-    identificationDivision: null,
-    environmentDivision: null,
-    dataDivision: null,
-    procedureDivision: null,
-    workingStorageVariables: [],
-    linkageVariables: [],
-    fileDescriptions: [],
-    paragraphs: [],
-    sections: [],
-    copyStatements: [],
-    performStatements: [],
-    callStatements: [],
-    sqlStatements: [],
-    metrics: {
-      totalLines: lines.length,
-      codeLines: lines.filter(l => l.trim() && !(l.length >= 7 && l[6] === '*')).length,
-      commentLines: lines.filter(l => l.length >= 7 && l[6] === '*').length,
-      blankLines: lines.filter(l => !l.trim()).length,
-      divisions: 0,
-      sections: 0,
-      paragraphs: 0,
-      variables: 0,
-      level01Variables: 0,
-      copyStatements: 0,
-      performStatements: 0,
-      callStatements: 0,
-      gotoStatements: 0,
-      evalStatements: 0,
-      sqlStatements: 0,
-      cyclomaticComplexity: 1,
-      maintainabilityIndex: 50,
-      halsteadVolume: 0,
-    },
-    errors,
+    programId,
+    author,
+    dateWritten,
+    installationDate: undefined,
+    identificationDivision: createDivisionNode('IDENTIFICATION', source),
+    environmentDivision: createDivisionNode('ENVIRONMENT', source),
+    dataDivision: createDivisionNode('DATA', source),
+    procedureDivision: createDivisionNode('PROCEDURE', source),
+    workingStorageVariables,
+    linkageVariables,
+    fileDescriptions,
+    paragraphs,
+    sections,
+    copyStatements,
+    performStatements,
+    callStatements,
+    sqlStatements,
+    metrics,
+    errors
+  };
+}
+
+function createDivisionNode(name: string, source: string): CobolASTNode | null {
+  const regex = new RegExp(`${name}\\s+DIVISION`, 'i');
+  if (regex.test(source)) {
+    return { type: 'division', name: `${name} DIVISION` };
+  }
+  return null;
+}
+
+function parseVariables(source: string, section: string): VariableNode[] {
+  const variables: VariableNode[] = [];
+  const lines = source.split('\n');
+  let inSection = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.match(new RegExp(`${section}\\s+SECTION`, 'i'))) {
+      inSection = true;
+      continue;
+    }
+    if (inSection && line.match(/^\s*(LINKAGE|PROCEDURE|FILE)\s+SECTION/i)) {
+      break;
+    }
+    if (inSection) {
+      const varMatch = line.match(/^\s*(\d{1,2})\s+(\S+)(?:\s+PIC(?:TURE)?\s+(\S+))?/i);
+      if (varMatch) {
+        const level = parseInt(varMatch[1]);
+        const name = varMatch[2].replace('.', '');
+        const picture = varMatch[3];
+        
+        const valueMatch = line.match(/VALUE\s+(?:IS\s+)?["']?([^"'.]+)["']?/i);
+        const usageMatch = line.match(/USAGE\s+(?:IS\s+)?(\S+)/i);
+        const occursMatch = line.match(/OCCURS\s+(\d+)/i);
+        const redefinesMatch = line.match(/REDEFINES\s+(\S+)/i);
+        
+        variables.push({
+          level,
+          name,
+          picture,
+          value: valueMatch ? valueMatch[1].trim() : undefined,
+          usage: usageMatch ? usageMatch[1] : undefined,
+          occurs: occursMatch ? parseInt(occursMatch[1]) : undefined,
+          redefines: redefinesMatch ? redefinesMatch[1] : undefined,
+          line: i + 1
+        });
+      }
+    }
+  }
+  return variables;
+}
+
+function parseParagraphs(source: string): ParagraphNode[] {
+  const paragraphs: ParagraphNode[] = [];
+  const lines = source.split('\n');
+  let inProcedure = false;
+  let currentParagraph: ParagraphNode | null = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.match(/PROCEDURE\s+DIVISION/i)) {
+      inProcedure = true;
+      continue;
+    }
+    if (inProcedure) {
+      // Paragraph definition (name followed by period, not a statement)
+      const paraMatch = line.match(/^\s{7}\s*([A-Z0-9][-A-Z0-9]*)\s*\.\s*$/i);
+      if (paraMatch && !line.match(/^\s*(MOVE|IF|PERFORM|CALL|ADD|SUBTRACT|MULTIPLY|DIVIDE|COMPUTE|READ|WRITE|OPEN|CLOSE|DISPLAY|ACCEPT|STOP|GO|EXIT|EVALUATE|STRING|UNSTRING|INSPECT|INITIALIZE|SET)/i)) {
+        if (currentParagraph) {
+          currentParagraph.lineEnd = i;
+          paragraphs.push(currentParagraph);
+        }
+        currentParagraph = {
+          name: paraMatch[1],
+          lineStart: i + 1,
+          lineEnd: i + 1,
+          statements: [],
+          complexity: 1
+        };
+      } else if (currentParagraph) {
+        // Count complexity
+        if (line.match(/\bIF\b/i)) currentParagraph.complexity++;
+        if (line.match(/\bEVALUATE\b/i)) currentParagraph.complexity++;
+        if (line.match(/\bPERFORM\b.*\bUNTIL\b/i)) currentParagraph.complexity++;
+      }
+    }
+  }
+  if (currentParagraph) {
+    currentParagraph.lineEnd = lines.length;
+    paragraphs.push(currentParagraph);
+  }
+  return paragraphs;
+}
+
+function parseSections(source: string): SectionNode[] {
+  const sections: SectionNode[] = [];
+  const lines = source.split('\n');
+  let currentSection: SectionNode | null = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const sectionMatch = line.match(/^\s{7}\s*([A-Z0-9][-A-Z0-9]*)\s+SECTION\s*\./i);
+    if (sectionMatch) {
+      if (currentSection) {
+        currentSection.lineEnd = i;
+        sections.push(currentSection);
+      }
+      currentSection = {
+        name: sectionMatch[1],
+        lineStart: i + 1,
+        lineEnd: i + 1,
+        paragraphs: []
+      };
+    }
+  }
+  if (currentSection) {
+    currentSection.lineEnd = lines.length;
+    sections.push(currentSection);
+  }
+  return sections;
+}
+
+function parsePerformStatements(source: string): PerformNode[] {
+  const performs: PerformNode[] = [];
+  const lines = source.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // PERFORM ... THRU
+    let match = line.match(/PERFORM\s+(\S+)\s+THRU\s+(\S+)/i);
+    if (match) {
+      performs.push({ target: match[1], type: 'thru', thruTarget: match[2], line: i + 1 });
+      continue;
+    }
+    
+    // PERFORM ... TIMES
+    match = line.match(/PERFORM\s+(\S+)\s+(\d+)\s+TIMES/i);
+    if (match) {
+      performs.push({ target: match[1], type: 'times', times: parseInt(match[2]), line: i + 1 });
+      continue;
+    }
+    
+    // PERFORM ... UNTIL
+    match = line.match(/PERFORM\s+(\S+)\s+UNTIL\s+(.+)/i);
+    if (match) {
+      performs.push({ target: match[1], type: 'until', condition: match[2].trim(), line: i + 1 });
+      continue;
+    }
+    
+    // PERFORM ... VARYING
+    match = line.match(/PERFORM\s+(\S+)\s+VARYING/i);
+    if (match) {
+      performs.push({ target: match[1], type: 'varying', line: i + 1 });
+      continue;
+    }
+    
+    // Simple PERFORM
+    match = line.match(/PERFORM\s+([A-Z0-9][-A-Z0-9]*)/i);
+    if (match && !line.match(/PERFORM\s+(UNTIL|VARYING|WITH)/i)) {
+      performs.push({ target: match[1], type: 'simple', line: i + 1 });
+    }
+  }
+  return performs;
+}
+
+function parseCallStatements(source: string): CallNode[] {
+  const calls: CallNode[] = [];
+  const lines = source.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line.match(/CALL\s+["']?(\S+?)["']?(?:\s+USING\s+(.+))?/i);
+    if (match) {
+      const usingVars = match[2] ? match[2].split(/\s+/).filter(v => v && !v.match(/^(BY|REFERENCE|CONTENT|VALUE)$/i)) : [];
+      calls.push({
+        program: match[1].replace(/["']/g, ''),
+        using: usingVars.length > 0 ? usingVars : undefined,
+        line: i + 1
+      });
+    }
+  }
+  return calls;
+}
+
+function parseSQLStatements(source: string): SQLNode[] {
+  const sqls: SQLNode[] = [];
+  const sqlBlocks = source.match(/EXEC\s+SQL[\s\S]*?END-EXEC/gi) || [];
+  
+  for (const block of sqlBlocks) {
+    const lineMatch = source.indexOf(block);
+    const line = source.substring(0, lineMatch).split('\n').length;
+    
+    let type = 'UNKNOWN';
+    let operation = 'unknown';
+    let table: string | undefined;
+    
+    if (block.match(/SELECT/i)) {
+      type = 'SELECT';
+      operation = 'read';
+      const fromMatch = block.match(/FROM\s+(\S+)/i);
+      table = fromMatch ? fromMatch[1] : undefined;
+    } else if (block.match(/INSERT/i)) {
+      type = 'INSERT';
+      operation = 'write';
+      const intoMatch = block.match(/INTO\s+(\S+)/i);
+      table = intoMatch ? intoMatch[1] : undefined;
+    } else if (block.match(/UPDATE/i)) {
+      type = 'UPDATE';
+      operation = 'write';
+      const updateMatch = block.match(/UPDATE\s+(\S+)/i);
+      table = updateMatch ? updateMatch[1] : undefined;
+    } else if (block.match(/DELETE/i)) {
+      type = 'DELETE';
+      operation = 'write';
+      const deleteMatch = block.match(/FROM\s+(\S+)/i);
+      table = deleteMatch ? deleteMatch[1] : undefined;
+    } else if (block.match(/DECLARE.*CURSOR/i)) {
+      type = 'CURSOR';
+      operation = 'cursor';
+    } else if (block.match(/OPEN\s+\S+/i)) {
+      type = 'OPEN_CURSOR';
+      operation = 'cursor';
+    } else if (block.match(/FETCH/i)) {
+      type = 'FETCH';
+      operation = 'read';
+    } else if (block.match(/CLOSE\s+\S+/i)) {
+      type = 'CLOSE_CURSOR';
+      operation = 'cursor';
+    }
+    
+    sqls.push({ type, table, operation, line, rawSQL: block });
+  }
+  return sqls;
+}
+
+function parseCopyStatements(source: string): string[] {
+  const copies: string[] = [];
+  const matches = source.match(/COPY\s+(\S+)/gi) || [];
+  for (const match of matches) {
+    const copyMatch = match.match(/COPY\s+(\S+)/i);
+    if (copyMatch) {
+      copies.push(copyMatch[1].replace('.', ''));
+    }
+  }
+  return copies;
+}
+
+function parseFileDescriptions(source: string): FileNode[] {
+  const files: FileNode[] = [];
+  const lines = source.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const fdMatch = line.match(/^\s*FD\s+(\S+)/i);
+    if (fdMatch) {
+      files.push({
+        name: fdMatch[1],
+        line: i + 1
+      });
+    }
+    const selectMatch = line.match(/SELECT\s+(\S+)\s+ASSIGN/i);
+    if (selectMatch) {
+      const orgMatch = line.match(/ORGANIZATION\s+(?:IS\s+)?(\S+)/i);
+      const accessMatch = line.match(/ACCESS\s+(?:MODE\s+)?(?:IS\s+)?(\S+)/i);
+      files.push({
+        name: selectMatch[1],
+        organization: orgMatch ? orgMatch[1] : undefined,
+        accessMode: accessMatch ? accessMatch[1] : undefined,
+        line: i + 1
+      });
+    }
+  }
+  return files;
+}
+
+function calculateMetrics(
+  source: string,
+  paragraphs: ParagraphNode[],
+  sections: SectionNode[],
+  wsVars: VariableNode[],
+  linkVars: VariableNode[],
+  performs: PerformNode[],
+  calls: CallNode[],
+  sqls: SQLNode[]
+): ASTMetrics {
+  const lines = source.split('\n');
+  let codeLines = 0;
+  let commentLines = 0;
+  let blankLines = 0;
+  
+  for (const line of lines) {
+    if (line.trim() === '') {
+      blankLines++;
+    } else if (line.length > 6 && line[6] === '*') {
+      commentLines++;
+    } else {
+      codeLines++;
+    }
+  }
+  
+  const complexity = paragraphs.reduce((sum, p) => sum + p.complexity, 0);
+  
+  return {
+    totalLines: lines.length,
+    codeLines,
+    commentLines,
+    blankLines,
+    paragraphCount: paragraphs.length,
+    sectionCount: sections.length,
+    variableCount: wsVars.length + linkVars.length,
+    complexity,
+    performCount: performs.length,
+    callCount: calls.length,
+    sqlCount: sqls.length
   };
 }
 
 /**
- * Generate JSON summary for Gemini
+ * Generate summary from AST
  */
 export function generateANTLRSummary(ast: CobolFullAST): string {
-  return JSON.stringify({
-    programId: ast.programId,
-    author: ast.author,
-    metrics: ast.metrics,
-    structure: {
-      variables: ast.workingStorageVariables.slice(0, 30).map(v => ({
-        level: v.level,
-        name: v.name,
-        picture: v.picture,
-        usage: v.usage,
-        value: v.value,
-      })),
-      paragraphs: ast.paragraphs.slice(0, 20).map(p => ({
-        name: p.name,
-        line: p.lineStart,
-      })),
-      performCalls: ast.performStatements.slice(0, 20).map(p => ({
-        target: p.target,
-        type: p.type,
-      })),
-      callStatements: ast.callStatements,
-      sqlStatements: ast.sqlStatements.slice(0, 10),
-      copybooks: ast.copyStatements,
-    },
-    analysis: {
-      hasSQL: ast.metrics.sqlStatements > 0,
-      hasGOTO: ast.metrics.gotoStatements > 0,
-      hasCopybooks: ast.metrics.copyStatements > 0,
-      complexityLevel: ast.metrics.cyclomaticComplexity > 50 ? 'HIGH' : ast.metrics.cyclomaticComplexity > 20 ? 'MEDIUM' : 'LOW',
-      maintainability: ast.metrics.maintainabilityIndex > 70 ? 'GOOD' : ast.metrics.maintainabilityIndex > 40 ? 'MODERATE' : 'POOR',
-    },
-    parseErrors: ast.errors.length,
-  }, null, 2);
+  return `Program: ${ast.programId}
+Variables: ${ast.workingStorageVariables.length + ast.linkageVariables.length}
+Paragraphs: ${ast.paragraphs.length}
+Sections: ${ast.sections.length}
+PERFORM statements: ${ast.performStatements.length}
+CALL statements: ${ast.callStatements.length}
+SQL statements: ${ast.sqlStatements.length}
+Complexity: ${ast.metrics.complexity}`;
 }
 
-
 /**
- * Generate Python skeleton from AST (deterministic, no LLM)
- * Structure is 100% predictable, only logic needs LLM translation
+ * Generate Python skeleton from AST
  */
 export function generatePythonSkeleton(ast: CobolFullAST): string {
   const lines: string[] = [];
   
-  // Header
-  lines.push(`"""${ast.programId} - Migrated from COBOL."""`);
-  lines.push('from dataclasses import dataclass, field');
-  lines.push('from decimal import Decimal');
-  lines.push('from typing import Optional, List, Dict, Any');
-  lines.push('from datetime import date, datetime');
-  lines.push('import logging');
-  lines.push('');
-  lines.push(`logger = logging.getLogger('${ast.programId}')`);
-  lines.push('');
-  
-  // Custom exceptions
-  lines.push('# Custom Exceptions');
-  lines.push('class BusinessError(Exception):');
-  lines.push('    """Base exception for business logic errors."""');
-  lines.push('    pass');
-  lines.push('');
-  lines.push('class ValidationError(BusinessError):');
-  lines.push('    """Raised when validation fails."""');
-  lines.push('    pass');
-  lines.push('');
-  lines.push('class ProcessingError(BusinessError):');
-  lines.push('    """Raised when processing fails."""');
-  lines.push('    pass');
-  lines.push('');
-  
-  // Generate dataclasses from 01-level variables (ALL of them for ratio)
-  lines.push('# ' + '='.repeat(70));
-  lines.push('# DATA STRUCTURES');
-  lines.push('# Migrated from COBOL WORKING-STORAGE SECTION');
-  lines.push('# ' + '='.repeat(70));
-  lines.push('');
-  const level01Vars = ast.workingStorageVariables.filter(v => v.level === 1);
-  
-  for (const variable of level01Vars) {
-    const className = toPythonClassName(variable.name);
+  lines.push(`"""
+Python conversion of COBOL program: ${ast.programId}
+Generated by CodeSwitch
+"""
+
+from decimal import Decimal
+from dataclasses import dataclass, field
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
+
+`);
+
+  // Generate data class for working storage
+  if (ast.workingStorageVariables.length > 0) {
     lines.push('@dataclass');
-    lines.push(`class ${className}:`);
-    lines.push(`    """${variable.name} data structure."""`);
-    if (variable.children && variable.children.length > 0) {
-      for (const child of variable.children.slice(0, 20)) {
-        const fieldName = toPythonVarName(child.name);
-        const fieldType = pictureToType(child.picture);
-        const defaultVal = getDefaultValue(fieldType);
-        lines.push(`    ${fieldName}: ${fieldType} = ${defaultVal}`);
+    lines.push('class WorkingStorage:');
+    lines.push('    """WORKING-STORAGE SECTION variables"""');
+    
+    for (const v of ast.workingStorageVariables) {
+      if (v.level === 1 || v.level === 77) {
+        const pyType = getPythonType(v.picture);
+        const defaultVal = getDefaultValue(v.picture, v.value);
+        lines.push(`    ${toSnakeCase(v.name)}: ${pyType} = ${defaultVal}`);
       }
-    } else {
-      lines.push('    value: str = ""');
     }
     lines.push('');
   }
-  
-  // Add ALL 77-level variables as standalone dataclasses too
-  const level77Vars = ast.workingStorageVariables.filter(v => v.level === 77);
-  for (const variable of level77Vars) {
-    const className = toPythonClassName(variable.name);
-    const varType = pictureToType(variable.picture);
-    const defaultVal = getDefaultValue(varType);
-    lines.push('@dataclass');
-    lines.push(`class ${className}:`);
-    lines.push(`    """Standalone variable ${variable.name}."""`);
-    lines.push(`    value: ${varType} = ${defaultVal}`);
-    lines.push('');
-  }
-  
-  // Generate main processor class
-  lines.push('# ' + '='.repeat(70));
-  lines.push('# MAIN PROCESSOR CLASS');
-  lines.push('# ' + '='.repeat(70));
-  lines.push('');
-  const mainClassName = toPythonClassName(ast.programId) + 'Processor';
-  lines.push(`class ${mainClassName}:`);
-  lines.push(`    """`);
-  lines.push(`    Main processor for ${ast.programId}.`);
-  lines.push(`    `);
-  lines.push(`    This class implements the core business logic migrated from COBOL.`);
-  lines.push(`    It handles all processing, validation, and data transformation`);
-  lines.push(`    operations defined in the original program.`);
-  lines.push(`    `);
-  lines.push(`    Attributes:`);
-  lines.push(`        logger: Logger instance for this processor`);
-  lines.push(`        status: Current processing status`);
-  lines.push(`        error_count: Number of errors encountered`);
-  lines.push(`        records_processed: Count of records processed`);
-  lines.push(`    """`);
+
+  // Generate main class
+  lines.push(`class ${toPascalCase(ast.programId)}:`);
+  lines.push(`    """Main program class for ${ast.programId}"""`);
   lines.push('');
   lines.push('    def __init__(self):');
-  lines.push('        """');
-  lines.push('        Initialize processor with all required state.');
-  lines.push('        ');
-  lines.push('        Sets up logging, initializes all counters and flags,');
-  lines.push('        and prepares the processor for execution.');
-  lines.push('        """');
-  lines.push('        # Setup logging');
-  lines.push('        self.logger = logging.getLogger(__name__)');
-  lines.push('        self.logger.info("Initializing processor")');
-  lines.push('        ');
-  lines.push('        # Processing state');
-  lines.push('        self.status: str = "INITIALIZED"');
-  lines.push('        self.error_count: int = 0');
-  lines.push('        self.records_processed: int = 0');
-  lines.push('        self.start_time: Optional[datetime] = None');
-  lines.push('        self.end_time: Optional[datetime] = None');
-  lines.push('        ');
-  lines.push('        # Flags and counters from COBOL');
-  
-  // Add ALL state variables from WORKING-STORAGE
-  for (const variable of ast.workingStorageVariables) {
-    if (variable.level === 1 || variable.level === 77) {
-      const varName = toPythonVarName(variable.name);
-      const varType = pictureToType(variable.picture);
-      const defaultVal = getDefaultValue(varType);
-      lines.push(`        self.${varName}: ${varType} = ${defaultVal}`);
-    }
-  }
-  lines.push('        ');
-  lines.push('        self.logger.info("Processor initialized successfully")');
+  lines.push('        self.ws = WorkingStorage()');
   lines.push('');
-  
-  // Generate methods from paragraphs (verbose for proper ratio)
-  lines.push('    # ' + '-'.repeat(60));
-  lines.push('    # BUSINESS LOGIC METHODS');
-  lines.push('    # ' + '-'.repeat(60));
-  lines.push('');
-  
-  for (const paragraph of ast.paragraphs) {
-    const methodName = toPythonMethodName(paragraph.name);
-    lines.push(`    def ${methodName}(self) -> None:`);
-    lines.push(`        """${paragraph.name} - Lines ${paragraph.lineStart}-${paragraph.lineEnd}."""`);
-    lines.push(`        # {{LOGIC:${paragraph.name}}}`);
+
+  // Generate paragraph methods
+  for (const para of ast.paragraphs) {
+    lines.push(`    def ${toSnakeCase(para.name)}(self):`);
+    lines.push(`        """Paragraph: ${para.name}"""`);
+    lines.push('        pass  # TODO: Implement');
     lines.push('');
   }
-  
-  // Main entry point
-  lines.push('    def run(self) -> None:');
-  lines.push('        """Main entry point."""');
-  lines.push('        self.logger.info("Starting processing")');
-  lines.push('        try:');
+
+  // Generate main entry point
+  lines.push('    def run(self):');
+  lines.push('        """Main entry point"""');
   if (ast.paragraphs.length > 0) {
-    const firstParagraph = toPythonMethodName(ast.paragraphs[0].name);
-    lines.push(`            self.${firstParagraph}()`);
+    lines.push(`        self.${toSnakeCase(ast.paragraphs[0].name)}()`);
+  } else {
+    lines.push('        pass');
   }
-  lines.push('            self.status = "COMPLETED"');
-  lines.push('        except Exception as e:');
-  lines.push('            self.logger.error(f"Processing failed: {e}")');
-  lines.push('            self.status = "FAILED"');
-  lines.push('            raise');
   lines.push('');
-  
-  // Module execution
+
   lines.push('');
   lines.push('if __name__ == "__main__":');
-  lines.push('    logging.basicConfig(level=logging.INFO)');
-  lines.push(`    processor = ${mainClassName}()`);
-  lines.push('    processor.run()');
-  lines.push('');
-  
+  lines.push(`    program = ${toPascalCase(ast.programId)}()`);
+  lines.push('    program.run()');
+
   return lines.join('\n');
 }
 
-// Helper functions for name conversion
-function toPythonClassName(cobolName: string): string {
-  return cobolName
-    .split(/[-_]/)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join('');
-}
-
-function toPythonVarName(cobolName: string): string {
-  return cobolName.toLowerCase().replace(/-/g, '_');
-}
-
-function toPythonMethodName(cobolName: string): string {
-  let name = cobolName.toLowerCase().replace(/-/g, '_');
-  // Python identifiers cannot start with a digit
-  if (/^\d/.test(name)) {
-    name = 'p_' + name;
-  }
-  return name;
-}
-
-function pictureToType(picture?: string): string {
-  if (!picture) return 'str';
-  const pic = picture.toUpperCase();
-  if (pic.includes('9') || pic.includes('V') || pic.includes('S')) {
-    return 'Decimal';
-  }
+function getPythonType(picture?: string): string {
+  if (!picture) return 'Any';
+  if (picture.match(/^9/)) return 'Decimal';
+  if (picture.match(/^S9/)) return 'Decimal';
+  if (picture.match(/^X/)) return 'str';
   return 'str';
 }
 
-function getDefaultValue(pythonType: string): string {
-  switch (pythonType) {
-    case 'Decimal': return 'Decimal("0")';
-    case 'int': return '0';
-    case 'bool': return 'False';
-    default: return '""';
+function getDefaultValue(picture?: string, value?: string): string {
+  if (value) {
+    if (picture?.match(/^[S]?9/)) {
+      return `Decimal("${value.replace(/['"]/g, '')}")`;
+    }
+    return `"${value.replace(/['"]/g, '')}"`;
   }
+  if (picture?.match(/^[S]?9/)) return 'Decimal("0")';
+  return '""';
+}
+
+function toSnakeCase(str: string): string {
+  return str.toLowerCase().replace(/-/g, '_').replace(/[^a-z0-9_]/g, '');
+}
+
+function toPascalCase(str: string): string {
+  return str.split(/[-_]/).map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()).join('');
 }
