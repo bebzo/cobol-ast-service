@@ -1220,6 +1220,9 @@ function transpileIf(upper: string, original: string): PythonStatement | null {
   // Remove trailing THEN
   condition = condition.replace(/\s+THEN\s*$/i, '');
   
+  // Convert COBOL substring references VAR(start:length) to Python slices FIRST
+  condition = convertCobolSubstring(condition);
+  
   // Handle FUNCTION calls in conditions
   condition = condition.replace(/FUNCTION\s+([A-Z][-A-Z0-9]*)\s*\(([^)]+)\)/gi, (_, funcName, args) => {
     const fn = funcName.toUpperCase().replace(/-/g, '_');
@@ -1850,12 +1853,24 @@ function transpileString(upper: string, original: string): PythonStatement | nul
   // Simplified pattern: STRING items INTO result
   const intoMatch = upper.match(/STRING\s+(.+)\s+INTO\s+([A-Z0-9][-A-Z0-9]*)/i);
   if (intoMatch) {
-    const itemsPart = intoMatch[1];
+    let itemsPart = intoMatch[1];
     const result = toSnakeCase(intoMatch[2]);
     
+    // First, convert COBOL substring references VAR(start:length) to Python slices
+    itemsPart = convertCobolSubstring(itemsPart);
+    
     // Parse items between STRING and INTO
-    // Pattern: var DELIMITED BY xxx or "literal" DELIMITED BY xxx
+    // Pattern: var DELIMITED BY xxx, "literal" DELIMITED BY xxx, or str(self.var)[x:y] (converted substring)
     const items: string[] = [];
+    
+    // Handle already-converted substrings (str(self.xxx)[n:m])
+    const substringPattern = /str\(self\.[a-z_]+\)\[\d+:\d+\]/gi;
+    const substrings = itemsPart.match(substringPattern) || [];
+    for (const sub of substrings) {
+      items.push(sub);
+      itemsPart = itemsPart.replace(sub, '@@SUBSTR@@');  // Remove to avoid double processing
+    }
+    
     const itemPattern = /([A-Z0-9][-A-Z0-9]*|"[^"]+"|'[^']+')(?:\s+DELIMITED\s+BY\s+(SPACE|SIZE|[A-Z0-9][-A-Z0-9]*|"[^"]+"|'[^']+'))?/gi;
     let itemMatch;
     
@@ -1863,12 +1878,13 @@ function transpileString(upper: string, original: string): PythonStatement | nul
       const item = itemMatch[1];
       const delim = (itemMatch[2] || 'SIZE').toUpperCase();
       
-      // Skip keywords
-      if (['DELIMITED', 'BY', 'SPACE', 'SIZE', 'INTO'].includes(item.toUpperCase())) continue;
+      // Skip keywords and placeholders
+      if (['DELIMITED', 'BY', 'SPACE', 'SIZE', 'INTO', '@@SUBSTR@@'].includes(item.toUpperCase())) continue;
       
       if (item.startsWith('"') || item.startsWith("'")) {
-        // String literal
-        items.push(item);
+        // String literal - convert to double quotes
+        const content = item.slice(1, -1);
+        items.push(`"${content}"`);
       } else {
         // Variable
         if (delim === 'SPACE') {
@@ -2187,6 +2203,23 @@ function safeConvertToDecimal(expr: string): string {
   }
   
   return result;
+}
+
+/**
+ * Convert COBOL reference modifiers (substrings) to Python slice notation.
+ * COBOL: VAR(start:length) → Python: str(VAR)[start-1:start-1+length]
+ */
+function convertCobolSubstring(expr: string): string {
+  // Pattern: VAR-NAME(start:length) where start and length are numbers or variables
+  return expr.replace(
+    /\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*(\d+)\s*:\s*(\d+)\s*\)/gi,
+    (_, varName, start, length) => {
+      const pyVar = `self.${toSnakeCase(varName)}`;
+      const startIdx = parseInt(start) - 1;  // COBOL is 1-indexed
+      const endIdx = startIdx + parseInt(length);
+      return `str(${pyVar})[${startIdx}:${endIdx}]`;
+    }
+  );
 }
 
 // ============================================================
