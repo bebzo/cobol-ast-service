@@ -1,3 +1,8 @@
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   images: {
@@ -5,29 +10,9 @@ const nextConfig = {
   },
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   
-  // Reduce serverless function size aggressively
-  experimental: {
-    outputFileTracingExcludes: {
-      '*': [
-        './node_modules/typescript/**',
-        './node_modules/monaco-editor/**',
-        './node_modules/@monaco-editor/**',
-        './.git/**',
-      ],
-    },
-  },
-  
-  // Webpack config to reduce bundle
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      // Don't bundle these packages for server
-      config.externals = config.externals || [];
-      config.externals.push({
-        '@monaco-editor/react': 'commonjs @monaco-editor/react',
-        'monaco-editor': 'commonjs monaco-editor',
-      });
-    }
-    return config;
+  // Fix Turbopack/Webpack conflict in Next.js 16
+  turbopack: {
+    root: __dirname,
   },
 };
 export default nextConfig;
