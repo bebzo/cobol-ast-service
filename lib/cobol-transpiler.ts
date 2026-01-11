@@ -91,13 +91,24 @@ export function transpileCobolToPythonAST(cobolAST: CobolFullAST, sourceLines: s
 // ============================================================
 
 function transpileVariables(vars: VariableNode[]): PythonVariable[] {
-  return vars.map(v => ({
-    name: toSnakeCase(v.name),
-    type: pictureToType(v.picture),
-    default: getDefaultValue(v.picture, v.value),
-    fromCobol: v.name,
-    docstring: v.picture ? `PIC ${v.picture}` : `from ${v.name}`
-  }));
+  return vars.map(v => {
+    // Sanitize PIC for safe Python comment (remove/escape problematic chars)
+    let safePic = v.picture || '';
+    // Ensure balanced parentheses in comment
+    const openParens = (safePic.match(/\(/g) || []).length;
+    const closeParens = (safePic.match(/\)/g) || []).length;
+    if (openParens > closeParens) {
+      safePic += ')'.repeat(openParens - closeParens);
+    }
+    
+    return {
+      name: toSnakeCase(v.name),
+      type: pictureToType(v.picture),
+      default: getDefaultValue(v.picture, v.value),
+      fromCobol: v.name,
+      docstring: v.picture ? `PIC ${safePic}` : `from ${v.name}`
+    };
+  });
 }
 
 function pictureToType(pic?: string): PythonVariable['type'] {

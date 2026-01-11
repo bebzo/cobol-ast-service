@@ -260,9 +260,9 @@ function parseVariables(source: string, section: string): VariableNode[] {
       // Skip FILLER or reserved names
       if (name.toUpperCase() === 'FILLER') continue;
       
-      // Extract PIC clause (flexible matching)
+      // Extract PIC clause (flexible matching - include digits for repetition)
       let picture: string | undefined;
-      const picMatch = line.match(/PIC(?:TURE)?\s+(?:IS\s+)?([SX9AV()+-]+)/i);
+      const picMatch = line.match(/PIC(?:TURE)?\s+(?:IS\s+)?([SX9AV0-9()+-.,ZB*$]+)/i);
       if (picMatch) {
         picture = picMatch[1].replace(/\.$/, '');
       }
