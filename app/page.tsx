@@ -2270,13 +2270,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
                 {/* Tests */}
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{(() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })()}</p>
+                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{testResults?.total || (() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })()}</p>
                   <p className="text-xs text-slate-400 mt-1">Tests</p>
                 </div>
                 {/* Total */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-blue-400 tabular-nums">
-                    {(analysis.python_lines || (analysis.python_code || '').split('\n').length) + ((() => { const t = analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return s.split('\n').length; })())}
+                    {(analysis.python_lines || (analysis.python_code || '').split('\n').length) + (testResults?.total || (() => { const t = analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })())}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Total</p>
                 </div>
