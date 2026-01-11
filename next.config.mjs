@@ -3,22 +3,31 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // Only process these extensions for pages/routes
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   
-  // Reduce serverless function size
+  // Reduce serverless function size aggressively
   experimental: {
     outputFileTracingExcludes: {
       '*': [
-        './lib/antlr/**',
-        './node_modules/antlr4ts/**',
-        './node_modules/@anthropic-ai/**',
         './node_modules/typescript/**',
+        './node_modules/monaco-editor/**',
+        './node_modules/@monaco-editor/**',
+        './.git/**',
       ],
     },
   },
   
-  // External packages not bundled into serverless functions
-  serverExternalPackages: ['antlr4ts', 'antlr4ts-cli'],
+  // Webpack config to reduce bundle
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Don't bundle these packages for server
+      config.externals = config.externals || [];
+      config.externals.push({
+        '@monaco-editor/react': 'commonjs @monaco-editor/react',
+        'monaco-editor': 'commonjs monaco-editor',
+      });
+    }
+    return config;
+  },
 };
 export default nextConfig;
