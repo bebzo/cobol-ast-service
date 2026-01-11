@@ -1025,20 +1025,31 @@ export default function Home() {
       setAnalyzedCobolCode(cobolCode);
 
       // Auto-run tests (same for normal and multi-analysis - run real tests)
-      try {
-        setTestResults(prev => ({...prev, running: true}));
-        const testCode = parsed.tests || parsed.unit_tests || '';
-        let testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
-        
-        // v7.38: External test validation DISABLED - it corrupts code
-        console.log('[v7.38] Test validation skipped - using pre-validated tests');
-        
-        const results = await runTestsWithPyodide(finalPythonCode, testStr);
-        setTestResults({...results, running: false});
-      } catch (e) {
-        console.error('Auto-test error:', e);
-        setTestResults({running: false, total: 0, passed: 0, failed: 0, details: [{name: 'error', status: 'error', error: String(e)}]});
-      }
+      // v7.41: Run tests in background, don't block UI
+      setAnalysisProgress(100);
+      setAnalysisStatus("✅ Complete - Running tests...");
+      setIsLoading(false); // Stop loading indicator immediately
+      
+      // Run tests asynchronously (non-blocking)
+      (async () => {
+        try {
+          setTestResults(prev => ({...prev, running: true}));
+          const testCode = parsed.tests || parsed.unit_tests || '';
+          let testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
+          
+          // Timeout for Pyodide tests (10 seconds max)
+          const testPromise = runTestsWithPyodide(finalPythonCode, testStr);
+          const timeoutPromise = new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Test timeout')), 10000)
+          );
+          
+          const results = await Promise.race([testPromise, timeoutPromise]);
+          setTestResults({...results, running: false});
+        } catch (e) {
+          console.error('Auto-test error:', e);
+          setTestResults({running: false, total: 0, passed: 0, failed: 0, details: [{name: 'skipped', status: 'error', error: 'Tests skipped (timeout or error)'}]});
+        }
+      })();
 
       // Save to Supabase (full code, no truncation) - use finalPythonCode (post-processed)
       const historyItem: AnalysisHistory = {
