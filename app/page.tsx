@@ -561,7 +561,7 @@ export default function Home() {
   const [apiKey, setApiKey] = useState(""); // Only for voice assistant
   const [showApiKey, setShowApiKey] = useState(false);
   const [isApiKeySet, setIsApiKeySet] = useState(true); // API is server-side
-  const [cobolCode, setCobolCode] = useState("");
+  const [cobolCode, setCobolCode] = useState(SAMPLE_COBOL);
   const [pythonCode, setPythonCode] = useState("");
   const [validatedTests, setValidatedTests] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);

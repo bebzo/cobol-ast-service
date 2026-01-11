@@ -83,8 +83,8 @@ function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
     return { valid: false, reason: 'Input appears to be another programming language, not COBOL' };
   }
   
-  // Must have division OR at least 3 COBOL keywords
-  if (!hasDivision && keywordCount < 3) {
+  // Must have division OR at least 1 COBOL keyword OR COBOL structure
+  if (!hasDivision && keywordCount < 1 && !hasCobolStructure) {
     return { valid: false, reason: 'No COBOL structure detected. Expected DIVISION headers or COBOL keywords (PIC, MOVE, PERFORM, etc.)' };
   }
   
