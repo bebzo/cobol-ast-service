@@ -124,11 +124,19 @@ function pictureToType(pic?: string): PythonVariable['type'] {
 function getDefaultValue(pic?: string, value?: string): string {
   if (value !== undefined) {
     const clean = value.replace(/['"]/g, '').trim();
+    const upperClean = clean.toUpperCase();
+    
+    // Handle COBOL special values FIRST
+    if (upperClean === 'SPACES' || upperClean === 'SPACE') return '""';
+    if (upperClean === 'ZEROS' || upperClean === 'ZEROES' || upperClean === 'ZERO') return 'Decimal("0")';
+    if (upperClean === 'LOW-VALUES' || upperClean === 'LOW-VALUE') return '""';
+    if (upperClean === 'HIGH-VALUES' || upperClean === 'HIGH-VALUE') return '"\\xff"';
+    if (upperClean === 'QUOTES' || upperClean === 'QUOTE') return '"\\""';
+    
+    // Then handle by type
     if (pictureToType(pic) === 'Decimal') {
       return `Decimal("${clean}")`;
     }
-    if (clean.toUpperCase() === 'SPACES' || clean === '') return '""';
-    if (clean.toUpperCase() === 'ZEROS' || clean.toUpperCase() === 'ZEROES') return 'Decimal("0")';
     return `"${clean}"`;
   }
   
