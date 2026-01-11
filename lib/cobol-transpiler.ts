@@ -96,7 +96,7 @@ function transpileVariables(vars: VariableNode[]): PythonVariable[] {
     type: pictureToType(v.picture),
     default: getDefaultValue(v.picture, v.value),
     fromCobol: v.name,
-    docstring: v.picture ? `PIC ${v.picture}` : undefined
+    docstring: v.picture ? `PIC ${v.picture}` : `from ${v.name}`
   }));
 }
 
@@ -146,34 +146,56 @@ function transpileParagraph(
   const cobolLines = sourceLines.slice(para.lineStart - 1, para.lineEnd);
   
   const body: PythonStatement[] = [];
+  const indentStack: number[] = [0];  // Stack to track nesting levels
   let currentIndent = 0;
-  let inIf = false;
-  let inEvaluate = false;
-  let evaluateVar = '';
   
   for (let i = 0; i < cobolLines.length; i++) {
     const line = cobolLines[i];
     const trimmed = line.trim().toUpperCase();
+    const originalTrimmed = line.trim();
     
     // Skip empty lines, paragraph headers, comments
     if (!trimmed || trimmed.match(/^[A-Z0-9][-A-Z0-9]*\.$/) || (line.length > 6 && line[6] === '*')) {
       continue;
     }
     
+    // Handle END-* statements FIRST (reduce indent before processing)
+    if (trimmed.startsWith('END-IF') || trimmed === 'END-IF.' || trimmed === 'END-IF') {
+      currentIndent = Math.max(0, indentStack.pop() || 0);
+      continue;  // Don't generate code for END-IF itself
+    }
+    if (trimmed.startsWith('END-PERFORM') || trimmed.startsWith('END-EVALUATE')) {
+      currentIndent = Math.max(0, indentStack.pop() || 0);
+      continue;
+    }
+    
+    // Handle ELSE (same level as IF, then increase)
+    if (trimmed === 'ELSE' || trimmed === 'ELSE.') {
+      const ifIndent = indentStack.length > 0 ? indentStack[indentStack.length - 1] : 0;
+      body.push({
+        type: 'else',
+        code: 'else:',
+        indent: ifIndent,
+        originalCobol: originalTrimmed,
+        confidence: 100
+      });
+      currentIndent = ifIndent + 1;
+      continue;
+    }
+    
     // Process COBOL statement
-    const statements = transpileStatement(trimmed, line.trim(), currentIndent);
+    const statements = transpileStatement(trimmed, originalTrimmed, currentIndent);
     
     // Handle indentation changes
     for (const stmt of statements) {
       if (stmt.type === 'if' || stmt.type === 'for' || stmt.type === 'while') {
-        body.push(stmt);
-        currentIndent++;
-      } else if (stmt.type === 'elif' || stmt.type === 'else') {
-        currentIndent = Math.max(0, currentIndent - 1);
         body.push({ ...stmt, indent: currentIndent });
-        currentIndent++;
-      } else if (trimmed.includes('END-IF') || trimmed.includes('END-PERFORM') || trimmed.includes('END-EVALUATE')) {
-        currentIndent = Math.max(0, currentIndent - 1);
+        indentStack.push(currentIndent);  // Save current level
+        currentIndent++;  // Increase for body
+      } else if (stmt.type === 'elif') {
+        const prevIndent = indentStack.length > 0 ? indentStack[indentStack.length - 1] : 0;
+        body.push({ ...stmt, indent: prevIndent });
+        currentIndent = prevIndent + 1;
       } else {
         body.push({ ...stmt, indent: currentIndent });
       }
@@ -183,8 +205,8 @@ function transpileParagraph(
   // Ensure method has at least one statement
   if (body.length === 0) {
     body.push({
-      type: 'comment',
-      code: 'pass  # Empty paragraph',
+      type: 'call',
+      code: 'self.logger.debug(f"Executing {self.__class__.__name__}.p_' + methodName + '")',
       indent: 0,
       confidence: 100
     });
@@ -257,15 +279,9 @@ function transpileStatement(upper: string, original: string, indent: number): Py
     return results;
   }
   
-  // ===== ELSE =====
-  if (upper === 'ELSE' || upper.startsWith('ELSE ')) {
-    results.push({
-      type: 'else',
-      code: 'else:',
-      indent,
-      originalCobol: original,
-      confidence: 100
-    });
+  // ===== ELSE ===== (handled in transpileParagraph for proper indentation)
+  if (upper === 'ELSE' || upper === 'ELSE.' || upper.startsWith('ELSE ')) {
+    // ELSE is now handled directly in transpileParagraph
     return results;
   }
   
@@ -438,12 +454,15 @@ function transpileMove(upper: string, original: string): PythonStatement | null 
     };
   }
   
-  // MOVE "literal" TO var
+  // MOVE "literal" TO var - PRESERVE original case
   match = upper.match(/MOVE\s+["']([^"']+)["']\s+TO\s+([A-Z0-9][-A-Z0-9]*)/i);
   if (match) {
+    // Extract original literal from the original line to preserve case
+    const literalMatch = original.match(/MOVE\s+["']([^"']+)["']/i);
+    const literal = literalMatch ? literalMatch[1] : match[1];
     return {
       type: 'assignment',
-      code: `self.${toSnakeCase(match[2])} = "${match[1].toLowerCase()}"`,
+      code: `self.${toSnakeCase(match[2])} = "${literal}"`,
       originalCobol: original,
       confidence: 100,
       indent: 0
@@ -788,13 +807,14 @@ function transpilePerform(upper: string, original: string): PythonStatement | nu
 function transpileDisplay(upper: string, original: string): PythonStatement | null {
   const match = upper.match(/DISPLAY\s+(.+)/i);
   if (match) {
-    let content = match[1].trim();
+    let content = match[1].trim().replace(/\.$/, '');
     
-    // Handle quoted strings
-    if (content.startsWith('"') || content.startsWith("'")) {
+    // Handle quoted strings - extract from original to preserve case
+    const quotedMatch = original.match(/DISPLAY\s+["']([^"']+)["']/i);
+    if (quotedMatch) {
       return {
         type: 'call',
-        code: `self.logger.info(${content})`,
+        code: `self.logger.info("${quotedMatch[1]}")`,
         originalCobol: original,
         confidence: 95,
         indent: 0
@@ -802,12 +822,12 @@ function transpileDisplay(upper: string, original: string): PythonStatement | nu
     }
     
     // Variable display
-    const varName = toSnakeCase(content.replace(/\.$/, ''));
+    const varName = toSnakeCase(content);
     return {
       type: 'call',
-      code: `self.logger.info(f"${content}: {self.${varName}}")`,
+      code: `self.logger.info(f"{self.${varName}}")`,
       originalCobol: original,
-      confidence: 90,
+      confidence: 95,
       indent: 0
     };
   }
@@ -1025,16 +1045,26 @@ export function generatePythonCode(ast: PythonAST): string {
 }
 
 // ============================================================
-// PASS 3: Optimizer (TODO: pour plus tard)
+// PASS 3: Optimizer - Clean up generated code
 // ============================================================
 
 export function optimizePythonCode(code: string): string {
-  // TODO: Implement AST-based optimizations
-  // - Remove temp variables
-  // - Convert to list comprehensions
-  // - Simplify conditionals
-  // - Add type hints
-  return code;
+  let optimized = code;
+  
+  // Fix any double self. references
+  optimized = optimized.replace(/self\.self\./g, 'self.');
+  
+  // Fix trailing periods in variable names
+  optimized = optimized.replace(/self\.([a-z_][a-z0-9_]*)\.([\s\)])/g, 'self.$1$2');
+  
+  // Ensure proper indentation consistency
+  const lines = optimized.split('\n');
+  const cleanedLines = lines.map(line => {
+    // Remove trailing whitespace
+    return line.replace(/\s+$/, '');
+  });
+  
+  return cleanedLines.join('\n');
 }
 
 // ============================================================
