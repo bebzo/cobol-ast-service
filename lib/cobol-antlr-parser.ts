@@ -205,39 +205,94 @@ function parseVariables(source: string, section: string): VariableNode[] {
   const variables: VariableNode[] = [];
   const lines = source.split('\n');
   let inSection = false;
+  let continuationLine = '';
   
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.match(new RegExp(`${section}\\s+SECTION`, 'i'))) {
+    let line = lines[i];
+    const upperLine = line.toUpperCase();
+    
+    // Detect section start (flexible matching)
+    if (upperLine.includes(section.toUpperCase()) && upperLine.includes('SECTION')) {
       inSection = true;
       continue;
     }
-    if (inSection && line.match(/^\s*(LINKAGE|PROCEDURE|FILE)\s+SECTION/i)) {
-      break;
-    }
-    if (inSection) {
-      const varMatch = line.match(/^\s*(\d{1,2})\s+(\S+)(?:\s+PIC(?:TURE)?\s+(\S+))?/i);
-      if (varMatch) {
-        const level = parseInt(varMatch[1]);
-        const name = varMatch[2].replace('.', '');
-        const picture = varMatch[3];
-        
-        const valueMatch = line.match(/VALUE\s+(?:IS\s+)?["']?([^"'.]+)["']?/i);
-        const usageMatch = line.match(/USAGE\s+(?:IS\s+)?(\S+)/i);
-        const occursMatch = line.match(/OCCURS\s+(\d+)/i);
-        const redefinesMatch = line.match(/REDEFINES\s+(\S+)/i);
-        
-        variables.push({
-          level,
-          name,
-          picture,
-          value: valueMatch ? valueMatch[1].trim() : undefined,
-          usage: usageMatch ? usageMatch[1] : undefined,
-          occurs: occursMatch ? parseInt(occursMatch[1]) : undefined,
-          redefines: redefinesMatch ? redefinesMatch[1] : undefined,
-          line: i + 1
-        });
+    
+    // Detect section end
+    if (inSection && (upperLine.includes('LINKAGE') || upperLine.includes('PROCEDURE') || upperLine.includes('FILE SECTION') || upperLine.includes('LOCAL-STORAGE') || upperLine.includes('SCREEN SECTION'))) {
+      if (!upperLine.includes(section.toUpperCase())) {
+        break;
       }
+    }
+    
+    if (!inSection) continue;
+    
+    // Skip comment lines
+    if (line.length > 6 && (line[6] === '*' || line[6] === '/')) continue;
+    
+    // Handle continuation lines (hyphen in column 7)
+    if (line.length > 6 && line[6] === '-') {
+      continuationLine += ' ' + line.substring(7).trim();
+      continue;
+    }
+    
+    // If we have accumulated continuation, prepend it
+    if (continuationLine) {
+      line = continuationLine + ' ' + line;
+      continuationLine = '';
+    }
+    
+    // Multiple patterns for variable detection
+    // Pattern 1: Standard level number + name
+    let varMatch = line.match(/^\s*(\d{1,2})\s+([A-Z][A-Z0-9][-A-Z0-9_]*)(?:\s|\.|$)/i);
+    if (!varMatch) {
+      // Pattern 2: Level 77 or 88 special items
+      varMatch = line.match(/^\s*(77|88)\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
+    }
+    if (!varMatch) {
+      // Pattern 3: More relaxed - any 01-49, 77, 88 level
+      varMatch = line.match(/(?:^|\s)(0[1-9]|[1-4][0-9]|77|88)\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
+    }
+    
+    if (varMatch) {
+      const level = parseInt(varMatch[1]);
+      const name = varMatch[2].replace(/\.$/g, '');
+      
+      // Skip FILLER or reserved names
+      if (name.toUpperCase() === 'FILLER') continue;
+      
+      // Extract PIC clause (flexible matching)
+      let picture: string | undefined;
+      const picMatch = line.match(/PIC(?:TURE)?\s+(?:IS\s+)?([SX9AV()+-]+)/i);
+      if (picMatch) {
+        picture = picMatch[1].replace(/\.$/, '');
+      }
+      
+      // Extract VALUE clause
+      let value: string | undefined;
+      const valueMatch = line.match(/VALUE\s+(?:IS\s+)?(?:ZEROS?|ZEROES|SPACES?|LOW-VALUES?|HIGH-VALUES?|QUOTES?|"([^"]*)"|'([^']*)'|([-+]?[0-9.]+))/i);
+      if (valueMatch) {
+        value = valueMatch[1] || valueMatch[2] || valueMatch[3] || valueMatch[0].split(/\s+/).slice(-1)[0];
+      }
+      
+      // Extract USAGE clause
+      const usageMatch = line.match(/USAGE\s+(?:IS\s+)?(COMP(?:-[1-5])?|COMPUTATIONAL(?:-[1-5])?|BINARY|PACKED-DECIMAL|DISPLAY|INDEX|POINTER)/i);
+      
+      // Extract OCCURS clause
+      const occursMatch = line.match(/OCCURS\s+(\d+)(?:\s+TIMES)?/i);
+      
+      // Extract REDEFINES clause
+      const redefinesMatch = line.match(/REDEFINES\s+([A-Z][A-Z0-9][-A-Z0-9_]*)/i);
+      
+      variables.push({
+        level,
+        name,
+        picture,
+        value: value,
+        usage: usageMatch ? usageMatch[1] : undefined,
+        occurs: occursMatch ? parseInt(occursMatch[1]) : undefined,
+        redefines: redefinesMatch ? redefinesMatch[1] : undefined,
+        line: i + 1
+      });
     }
   }
   return variables;
@@ -249,39 +304,95 @@ function parseParagraphs(source: string): ParagraphNode[] {
   let inProcedure = false;
   let currentParagraph: ParagraphNode | null = null;
   
+  // COBOL statements that should NOT be treated as paragraph names
+  const cobolStatements = /^\s*(MOVE|IF|PERFORM|CALL|ADD|SUBTRACT|MULTIPLY|DIVIDE|COMPUTE|READ|WRITE|OPEN|CLOSE|DISPLAY|ACCEPT|STOP|GO|EXIT|EVALUATE|STRING|UNSTRING|INSPECT|INITIALIZE|SET|EXEC|END-|WHEN|ELSE|COPY|CONTINUE|GOBACK|NEXT|NOT|AT|INVALID|ON|WITH|INTO|FROM|TO|BY|GIVING|THRU|THROUGH|UNTIL|VARYING|AFTER|BEFORE|ASCENDING|DESCENDING)\b/i;
+  
+  // Multiple patterns for paragraph detection (flexible formats)
+  const paragraphPatterns = [
+    // Standard COBOL format: 8+ spaces/tabs, name, period, optional whitespace
+    /^[\s\t]{4,}([A-Z][A-Z0-9][-A-Z0-9_]*)\s*\.\s*$/i,
+    // Free format: any leading whitespace, name alone on line ending with period
+    /^\s*([A-Z][A-Z0-9][-A-Z0-9_]{2,})\s*\.\s*$/i,
+    // Section-style paragraphs (NAME SECTION.)
+    /^[\s\t]*([A-Z][A-Z0-9][-A-Z0-9_]*)\s+SECTION\s*\.?\s*$/i,
+    // Column 8 style (common mainframe): columns 8-11 start, then name
+    /^.{7}([A-Z][A-Z0-9][-A-Z0-9_]*)\s*\.\s*$/i,
+    // Numbered paragraphs (e.g., 0000-MAIN, 1000-INIT)
+    /^[\s\t]*([0-9]{2,4}[-_][A-Z][-A-Z0-9_]*)\s*\.\s*$/i
+  ];
+  
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (line.match(/PROCEDURE\s+DIVISION/i)) {
+    const upperLine = line.toUpperCase();
+    
+    // Detect PROCEDURE DIVISION
+    if (upperLine.includes('PROCEDURE') && upperLine.includes('DIVISION')) {
       inProcedure = true;
       continue;
     }
-    if (inProcedure) {
-      // Paragraph definition (name followed by period, not a statement)
-      const paraMatch = line.match(/^\s{7}\s*([A-Z0-9][-A-Z0-9]*)\s*\.\s*$/i);
-      if (paraMatch && !line.match(/^\s*(MOVE|IF|PERFORM|CALL|ADD|SUBTRACT|MULTIPLY|DIVIDE|COMPUTE|READ|WRITE|OPEN|CLOSE|DISPLAY|ACCEPT|STOP|GO|EXIT|EVALUATE|STRING|UNSTRING|INSPECT|INITIALIZE|SET)/i)) {
-        if (currentParagraph) {
-          currentParagraph.lineEnd = i;
-          paragraphs.push(currentParagraph);
-        }
-        currentParagraph = {
-          name: paraMatch[1],
-          lineStart: i + 1,
-          lineEnd: i + 1,
-          statements: [],
-          complexity: 1
-        };
-      } else if (currentParagraph) {
+    
+    if (!inProcedure) continue;
+    
+    // Skip comment lines (column 7 = * or /)
+    if (line.length > 6 && (line[6] === '*' || line[6] === '/')) continue;
+    
+    // Skip empty lines
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    
+    // Skip lines that are clearly COBOL statements
+    if (cobolStatements.test(trimmed)) {
+      if (currentParagraph) {
         // Count complexity
-        if (line.match(/\bIF\b/i)) currentParagraph.complexity++;
-        if (line.match(/\bEVALUATE\b/i)) currentParagraph.complexity++;
-        if (line.match(/\bPERFORM\b.*\bUNTIL\b/i)) currentParagraph.complexity++;
+        if (upperLine.includes(' IF ') || upperLine.startsWith('IF ')) currentParagraph.complexity++;
+        if (upperLine.includes('EVALUATE ')) currentParagraph.complexity++;
+        if (upperLine.includes('PERFORM ') && upperLine.includes('UNTIL')) currentParagraph.complexity++;
+      }
+      continue;
+    }
+    
+    // Try each paragraph pattern
+    let paragraphName: string | null = null;
+    for (const pattern of paragraphPatterns) {
+      const match = line.match(pattern);
+      if (match && match[1]) {
+        // Additional validation: name should be at least 2 chars and not look like a variable
+        const name = match[1].toUpperCase();
+        // Skip if it looks like a level number (01, 05, 77, 88, etc.)
+        if (/^\d+$/.test(name)) continue;
+        // Skip reserved words that might match
+        if (['SECTION', 'DIVISION', 'FD', 'SD', 'RD', 'COPY', 'USE', 'USING'].includes(name)) continue;
+        paragraphName = name;
+        break;
       }
     }
+    
+    if (paragraphName) {
+      // Found a new paragraph
+      if (currentParagraph) {
+        currentParagraph.lineEnd = i;
+        paragraphs.push(currentParagraph);
+      }
+      currentParagraph = {
+        name: paragraphName,
+        lineStart: i + 1,
+        lineEnd: i + 1,
+        statements: [],
+        complexity: 1
+      };
+    } else if (currentParagraph) {
+      // Count complexity for existing paragraph
+      if (upperLine.includes(' IF ') || trimmed.toUpperCase().startsWith('IF ')) currentParagraph.complexity++;
+      if (upperLine.includes('EVALUATE ')) currentParagraph.complexity++;
+      if (upperLine.includes('PERFORM ') && upperLine.includes('UNTIL')) currentParagraph.complexity++;
+    }
   }
+  
   if (currentParagraph) {
     currentParagraph.lineEnd = lines.length;
     paragraphs.push(currentParagraph);
   }
+  
   return paragraphs;
 }
 
