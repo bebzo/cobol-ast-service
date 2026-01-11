@@ -200,6 +200,9 @@ def to_snake_case(name: str) -> str:
     # Remove common COBOL prefixes for cleaner Python code
     if result.startswith('ws_'):
         result = result[3:]
+    # Python identifiers cannot start with a digit
+    if result and result[0].isdigit():
+        result = 'p_' + result
     return result
 
 
