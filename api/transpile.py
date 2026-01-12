@@ -1354,10 +1354,99 @@ def transpile_initialize_v3(stmt: str) -> Optional[ast.stmt]:
 
 
 # ============================================================
+# Gemini Enrichment (Hybrid Mode)
+# ============================================================
+
+def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 50) -> Tuple[str, Dict]:
+    """Enrich TODO methods with Gemini AI"""
+    stats = {'gemini_calls': 0, 'enriched': 0, 'failed': 0}
+    
+    try:
+        import os
+        import google.generativeai as genai
+        
+        api_key = os.environ.get('GEMINI_API_KEY', '')
+        if not api_key:
+            return python_code, stats
+        
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        
+        # Find methods with TODO
+        todo_pattern = re.compile(r"(    def (p_\w+)\(self\)[^:]*:.*?(?=\n    def |\nclass |\nif __name__|$))", re.DOTALL)
+        methods = todo_pattern.findall(python_code)
+        
+        for method_code, method_name in methods[:max_calls]:
+            if 'TODO' not in method_code:
+                continue
+            
+            # Find COBOL paragraph
+            cobol_name = method_name.upper().replace('_', '-').replace('P-', '', 1)
+            para_match = re.search(rf'^\s{{6,8}}{cobol_name}\s*\.\s*$.*?(?=^\s{{6,8}}[A-Z0-9][-A-Z0-9]+\s*\.\s*$|\Z)', 
+                                   cobol_source, re.MULTILINE | re.DOTALL | re.IGNORECASE)
+            
+            if not para_match:
+                continue
+            
+            cobol_para = para_match.group(0)[:500]
+            
+            prompt = f"""Convert this COBOL to Python method body. Output ONLY the method body lines (8-space indent).
+
+COBOL:
+{cobol_para}
+
+RULES:
+- Use self.variable for all vars
+- Use Decimal('x') for numbers
+- MOVE X TO Y → self.y = self.x
+- ADD X TO Y → self.y += self.x
+- COMPUTE X = expr → self.x = expr (with Decimal)
+- PERFORM para → self.para()
+- Keep self.logger.debug for FILE I/O
+
+Output method body only (8-space indent):"""
+
+            try:
+                stats['gemini_calls'] += 1
+                response = model.generate_content(prompt)
+                new_body = response.text.strip()
+                
+                # Clean response
+                new_body = re.sub(r'^```python\s*\n?', '', new_body)
+                new_body = re.sub(r'\n?```$', '', new_body)
+                new_body = re.sub(r'^    def \w+\([^)]*\):\s*\n', '', new_body)
+                
+                # Build new method
+                new_method = f"    def {method_name}(self) -> None:\n"
+                for line in new_body.split('\n'):
+                    if line.strip():
+                        new_method += '        ' + line.lstrip() + '\n'
+                
+                # Validate syntax
+                test_code = f"class T:\n{new_method}"
+                ast.parse(test_code)
+                
+                # Replace in code
+                python_code = python_code.replace(method_code, new_method)
+                stats['enriched'] += 1
+                
+            except Exception:
+                stats['failed'] += 1
+                continue
+        
+        return python_code, stats
+        
+    except ImportError:
+        return python_code, stats
+    except Exception:
+        return python_code, stats
+
+
+# ============================================================
 # Code Generation & Unit Tests
 # ============================================================
 
-def generate_python_code(cobol_source: str) -> Dict[str, Any]:
+def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, Any]:
     """Main entry point: COBOL source → Python code"""
     try:
         cobol_ast = parse_cobol(cobol_source)
@@ -1372,6 +1461,13 @@ def generate_python_code(cobol_source: str) -> Dict[str, Any]:
         
         compile(python_code, '<generated>', 'exec')
         
+        # Hybrid mode: enrich TODOs with Gemini
+        gemini_stats = {}
+        if enhance:
+            python_code, gemini_stats = enrich_with_gemini(python_code, cobol_source)
+            # Re-validate after enrichment
+            compile(python_code, '<enriched>', 'exec')
+        
         class_name = to_pascal_case(cobol_ast.program_id)
         test_code = generate_unit_tests_v3(cobol_ast, class_name)
         
@@ -1379,12 +1475,13 @@ def generate_python_code(cobol_source: str) -> Dict[str, Any]:
             'success': True,
             'python_code': python_code,
             'unit_tests': test_code,
-            'version': '3.0.0',
-            'architecture': 'Clean Architecture',
+            'version': '4.0.0-hybrid' if enhance else '3.0.0',
+            'architecture': 'Clean Architecture + AI' if enhance else 'Clean Architecture',
             'stats': {
                 'variables': len(cobol_ast.variables),
                 'paragraphs': len(cobol_ast.paragraphs),
-                'program_id': cobol_ast.program_id
+                'program_id': cobol_ast.program_id,
+                **gemini_stats
             }
         }
     
