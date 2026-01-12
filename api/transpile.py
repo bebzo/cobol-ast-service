@@ -2619,7 +2619,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
             'success': True,
             'python_code': python_code,
             'unit_tests': test_code,
-            'version': '4.4.3-safe' if enhance else '4.4.3',
+            'version': '5.0.0-golden' if enhance else '5.0.0',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'stats': {
                 'variables': len(cobol_ast.variables),
