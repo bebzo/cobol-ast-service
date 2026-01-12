@@ -425,7 +425,7 @@ Architecture:
     # Categorize variables
     categories = categorize_variables(cobol_ast.variables)
     
-    # Generate Status enum if we have status flags
+    # Generate Status enum if we have status flags (without __init__)
     if categories['status']:
         enum_body = []
         for var in categories['status']:
@@ -441,12 +441,13 @@ Architecture:
                 )
             ))
         
+        # Only create enum if we have valid members (no __init__ method!)
         if enum_body:
             status_enum = ast.ClassDef(
                 name='ProcessingStatus',
                 bases=[ast.Name(id='Enum', ctx=ast.Load())],
                 keywords=[],
-                body=enum_body or [ast.Pass()],
+                body=enum_body,  # No __init__, just enum members
                 decorator_list=[]
             )
             body.append(status_enum)
@@ -484,8 +485,52 @@ Methods:
         simple=1
     ))
     
+    # COBOL constants (SPACES, LOW-VALUES)
+    class_body.append(ast.AnnAssign(
+        target=ast.Name(id='SPACES', ctx=ast.Store()),
+        annotation=ast.Subscript(
+            value=ast.Name(id='ClassVar', ctx=ast.Load()),
+            slice=ast.Name(id='str', ctx=ast.Load()),
+            ctx=ast.Load()
+        ),
+        value=ast.BinOp(
+            left=ast.Constant(value=' '),
+            op=ast.Mult(),
+            right=ast.Constant(value=256)
+        ),
+        simple=1
+    ))
+    class_body.append(ast.AnnAssign(
+        target=ast.Name(id='LOW_VALUES', ctx=ast.Store()),
+        annotation=ast.Subscript(
+            value=ast.Name(id='ClassVar', ctx=ast.Load()),
+            slice=ast.Name(id='str', ctx=ast.Load()),
+            ctx=ast.Load()
+        ),
+        value=ast.BinOp(
+            left=ast.Constant(value='\x00'),
+            op=ast.Mult(),
+            right=ast.Constant(value=256)
+        ),
+        simple=1
+    ))
+    class_body.append(ast.AnnAssign(
+        target=ast.Name(id='HIGH_VALUES', ctx=ast.Store()),
+        annotation=ast.Subscript(
+            value=ast.Name(id='ClassVar', ctx=ast.Load()),
+            slice=ast.Name(id='str', ctx=ast.Load()),
+            ctx=ast.Load()
+        ),
+        value=ast.BinOp(
+            left=ast.Constant(value='\xff'),
+            op=ast.Mult(),
+            right=ast.Constant(value=256)
+        ),
+        simple=1
+    ))
+    
     # __init__ method
-    init_body = generate_init_body(cobol_ast.variables, class_name)
+    init_body = generate_init_body(cobol_ast.variables, class_name, has_config=(config_class is not None))
     init_method = ast.FunctionDef(
         name='__init__',
         args=ast.arguments(
@@ -617,7 +662,7 @@ def generate_config_dataclass(config_vars: List[CobolVariable], class_name: str)
     )
 
 
-def generate_init_body(variables: List[CobolVariable], class_name: str) -> List[ast.stmt]:
+def generate_init_body(variables: List[CobolVariable], class_name: str, has_config: bool = True) -> List[ast.stmt]:
     """Generate __init__ body with clean variable names"""
     init_body = []
     
@@ -639,19 +684,20 @@ def generate_init_body(variables: List[CobolVariable], class_name: str) -> List[
         )
     ))
     
-    # Config instance
-    init_body.append(ast.Assign(
-        targets=[ast.Attribute(
-            value=ast.Name(id='self', ctx=ast.Load()),
-            attr='config',
-            ctx=ast.Store()
-        )],
-        value=ast.Call(
-            func=ast.Name(id=f'{class_name}Config', ctx=ast.Load()),
-            args=[],
-            keywords=[]
-        )
-    ))
+    # Config instance (only if config class exists)
+    if has_config:
+        init_body.append(ast.Assign(
+            targets=[ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr='config',
+                ctx=ast.Store()
+            )],
+            value=ast.Call(
+                func=ast.Name(id=f'{class_name}Config', ctx=ast.Load()),
+                args=[],
+                keywords=[]
+            )
+        ))
     
     # State variables (skip config vars already in dataclass)
     config_keywords = ['RATE', 'FEE', 'CHARGE', 'PREMIUM', 'PCT']
@@ -901,7 +947,45 @@ def transpile_move_v3(stmt: str) -> Optional[ast.stmt]:
                 attr=target,
                 ctx=ast.Store()
             )],
-            value=ast.Constant(value='')
+            value=ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr='SPACES',
+                ctx=ast.Load()
+            )
+        )
+    
+    # MOVE LOW-VALUES TO var
+    match = re.match(r'MOVE\s+LOW-VALUES?\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
+    if match:
+        target = to_snake_case(match.group(1))
+        return ast.Assign(
+            targets=[ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr=target,
+                ctx=ast.Store()
+            )],
+            value=ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr='LOW_VALUES',
+                ctx=ast.Load()
+            )
+        )
+    
+    # MOVE HIGH-VALUES TO var
+    match = re.match(r'MOVE\s+HIGH-VALUES?\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
+    if match:
+        target = to_snake_case(match.group(1))
+        return ast.Assign(
+            targets=[ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr=target,
+                ctx=ast.Store()
+            )],
+            value=ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr='HIGH_VALUES',
+                ctx=ast.Load()
+            )
         )
     
     # MOVE "literal" TO var
