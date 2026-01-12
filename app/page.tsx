@@ -889,12 +889,17 @@ export default function Home() {
                 data = eventData;
               }
               
-              if (eventData.message && !eventData.percent) {
-                // Error event
+              if (eventData.message && !eventData.percent && !eventData.python_code) {
+                // Error event from API - propagate it properly
                 throw new Error(eventData.message);
               }
             } catch (e) {
-              // Ignore parse errors for incomplete chunks
+              // Re-throw actual errors, only ignore JSON parse errors
+              if (e instanceof SyntaxError) {
+                // Ignore JSON parse errors for incomplete chunks
+                continue;
+              }
+              throw e; // Propagate real errors
             }
           }
         }
