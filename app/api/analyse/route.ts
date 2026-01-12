@@ -85,11 +85,20 @@ async function resolveTodosWithGemini(pythonCode: string, cobolCode: string): Pr
     
     let resolvedCode = pythonCode;
     let resolvedCount = 0;
-    const maxTodos = Math.min(todoLines.length, 15);
+    const maxTodos = Math.min(todoLines.length, 20);
+    const failedTodos: typeof todoLines = [];
     
-    for (let t = 0; t < maxTodos; t++) {
-      const todo = todoLines[t];
-      const prompt = `Fix this TODO. Return ONLY the replacement Python code line(s), no explanation.
+    // Helper function to resolve a single TODO
+    const resolveTodo = async (todo: typeof todoLines[0], isRetry: boolean = false): Promise<boolean> => {
+      const prompt = isRetry 
+        ? `Implement this Python code. Be concise. Return ONLY code, no markdown.
+
+LINE: ${todo.line.trim()}
+CONTEXT:
+${todo.context}
+
+Code:`
+        : `Fix this TODO. Return ONLY the replacement Python code line(s), no explanation.
 
 TODO: ${todo.line.trim()}
 CONTEXT:
@@ -104,17 +113,39 @@ Replacement code:`;
         let replacement = result.response.text().trim()
           .replace(/^```python\n?/gm, '').replace(/```$/gm, '').trim();
         
-        if (replacement && replacement.length < 400 && !replacement.includes('class ')) {
+        if (replacement && replacement.length < 500 && !replacement.includes('class ') && !replacement.includes('import ')) {
           const indent = todo.line.match(/^(\s*)/)?.[1] || '';
           const indentedReplacement = replacement.split('\n')
             .map((l: string) => l.trim() ? indent + l.trim() : l).join('\n');
           const codeLines = resolvedCode.split('\n');
           codeLines[todo.index] = indentedReplacement;
           resolvedCode = codeLines.join('\n');
-          resolvedCount++;
+          return true;
         }
-      } catch { /* skip failed TODO */ }
+      } catch { /* failed */ }
+      return false;
+    };
+    
+    // First pass: try all TODOs
+    for (let t = 0; t < maxTodos; t++) {
+      const todo = todoLines[t];
+      const success = await resolveTodo(todo, false);
+      if (success) {
+        resolvedCount++;
+      } else {
+        failedTodos.push(todo);
+      }
       await new Promise(r => setTimeout(r, 50));
+    }
+    
+    // Second pass: retry failed TODOs with simpler prompt
+    if (failedTodos.length > 0 && failedTodos.length <= 10) {
+      console.log(`[Gemini] Retrying ${failedTodos.length} failed TODOs...`);
+      for (const todo of failedTodos) {
+        const success = await resolveTodo(todo, true);
+        if (success) resolvedCount++;
+        await new Promise(r => setTimeout(r, 100));
+      }
     }
     
     console.log(`[Gemini] Resolved ${resolvedCount}/${maxTodos} TODOs`);
