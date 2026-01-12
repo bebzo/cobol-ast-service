@@ -569,6 +569,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [targetProgress, setTargetProgress] = useState(0); // v8.4: Smooth progress animation
   const [analysisStatus, setAnalysisStatus] = useState("");
   const [error, setError] = useState("");
   const [filename, setFilename] = useState("");
@@ -880,7 +881,7 @@ export default function Home() {
               
               if (eventData.percent !== undefined) {
                 // Progress event
-                setAnalysisProgress(eventData.percent);
+                setTargetProgress(eventData.percent); // v8.4: Set target, animation will follow
                 setAnalysisStatus(eventData.message || 'Processing...');
               }
               
