@@ -57,98 +57,68 @@ async function resolveTodosWithGemini(pythonCode: string, cobolCode: string): Pr
     return pythonCode;
   }
   
-  // Check if there are TODOs to resolve (both # TODO and logger.debug('TODO: patterns)
-  const todoComments = (pythonCode.match(/# TODO/g) || []).length;
-  const todoLogs = (pythonCode.match(/\.debug\(['"]TODO:/g) || []).length;
-  const todoCount = todoComments + todoLogs;
-  if (todoCount === 0) {
+  // Find all TODO lines with context
+  const lines = pythonCode.split('\n');
+  const todoLines: { index: number; line: string; context: string }[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes('TODO:') || lines[i].includes('# TODO')) {
+      const start = Math.max(0, i - 3);
+      const end = Math.min(lines.length, i + 4);
+      const context = lines.slice(start, end).join('\n');
+      todoLines.push({ index: i, line: lines[i], context });
+    }
+  }
+  
+  if (todoLines.length === 0) {
     return pythonCode;
   }
   
-  console.log(`[Gemini] Resolving ${todoCount} TODOs...`);
+  console.log(`[Gemini] Resolving ${todoLines.length} TODOs incrementally...`);
   
   try {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-2.0-flash',
-      generationConfig: { maxOutputTokens: 65536 }
+      generationConfig: { maxOutputTokens: 2048 }
     });
     
-    // Timeout: 50s for Gemini call (maxDuration is 60s)
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('Gemini timeout')), 50000)
-    );
+    let resolvedCode = pythonCode;
+    let resolvedCount = 0;
+    const maxTodos = Math.min(todoLines.length, 15);
     
-    const prompt = `You are a COBOL-to-Python migration expert. The following Python code was auto-transpiled from COBOL but has TODO markers that need implementation.
+    for (let t = 0; t < maxTodos; t++) {
+      const todo = todoLines[t];
+      const prompt = `Fix this TODO. Return ONLY the replacement Python code line(s), no explanation.
 
-ORIGINAL COBOL CODE (first 15000 chars):
-\`\`\`cobol
-${cobolCode.substring(0, 15000)}
-\`\`\`
+TODO: ${todo.line.trim()}
+CONTEXT:
+${todo.context}
 
-TRANSPILED PYTHON WITH TODOs:
-\`\`\`python
-${pythonCode.substring(0, 60000)}
-\`\`\`
+COBOL hint: ${cobolCode.substring(0, 1500)}
 
-TODO MARKERS TO FIX:
-- Lines with: self.logger.debug('TODO: ...')
-- Lines with: # TODO ...
+Replacement code:`;
 
-INSTRUCTIONS:
-1. Find ALL lines containing 'TODO:' (in logger.debug or comments)
-2. Replace each TODO with ACTUAL working Python code implementing the COBOL logic
-3. For COMPUTE statements: implement the math using Decimal operations
-4. For MOVE statements: implement proper assignments
-5. For FILE operations: use Python file I/O or add pass with a comment
-6. Keep ALL existing working code unchanged
-7. Preserve exact class/method names
-8. Use Decimal('...') for all monetary values
-9. Return ONLY the complete Python code, no explanations
-
-CRITICAL: Replace logger.debug('TODO: X') with actual implementation of X.
-
-Return the complete fixed Python code:`;
-    
-    const result = await Promise.race([
-      model.generateContent(prompt),
-      timeoutPromise
-    ]);
-    let response = result.response.text();
-    
-    // Extract code from response
-    const codeMatch = response.match(/```python\n([\s\S]*?)```/);
-    if (codeMatch) {
-      response = codeMatch[1];
-    } else {
-      response = response.replace(/^```python\n?/gm, '').replace(/```$/gm, '');
+      try {
+        const result = await model.generateContent(prompt);
+        let replacement = result.response.text().trim()
+          .replace(/^```python\n?/gm, '').replace(/```$/gm, '').trim();
+        
+        if (replacement && replacement.length < 400 && !replacement.includes('class ')) {
+          const indent = todo.line.match(/^(\s*)/)?.[1] || '';
+          const indentedReplacement = replacement.split('\n')
+            .map((l: string) => l.trim() ? indent + l.trim() : l).join('\n');
+          const codeLines = resolvedCode.split('\n');
+          codeLines[todo.index] = indentedReplacement;
+          resolvedCode = codeLines.join('\n');
+          resolvedCount++;
+        }
+      } catch { /* skip failed TODO */ }
+      await new Promise(r => setTimeout(r, 50));
     }
     
-    // Validate we got reasonable code back
-    const trimmedResponse = response.trim();
-    
-    // Strict validation to prevent Gemini corruption
-    const hasBasicStructure = trimmedResponse.includes('class ') && trimmedResponse.includes('def ');
-    const hasProperImports = trimmedResponse.includes('from decimal import') || trimmedResponse.includes('import logging');
-    const hasProperDocstring = trimmedResponse.startsWith('"""') && trimmedResponse.includes('"""', 10);
-    
-    // Check for common Gemini corruption patterns
-    const hasEnumCorruption = /class \w+\(Enum\):\s*\n\s*def __init__/.test(trimmedResponse);
-    const hasDocstringCorruption = /"""[^"]*"""[^"]*"""/.test(trimmedResponse.substring(0, 500));
-    const hasMergedMethods = /"""Documentation\."""/.test(trimmedResponse);
-    
-    // Length sanity check - Gemini output should be similar size
-    const lengthRatio = trimmedResponse.length / pythonCode.length;
-    const hasReasonableLength = lengthRatio > 0.5 && lengthRatio < 2.0;
-    
-    if (hasBasicStructure && hasProperImports && hasProperDocstring && 
-        !hasEnumCorruption && !hasDocstringCorruption && !hasMergedMethods && hasReasonableLength) {
-      console.log('[Gemini] TODOs resolved successfully');
-      return trimmedResponse;
-    }
-    
-    console.log('[Gemini] Response failed validation (corruption detected), keeping original');
-    return pythonCode;
+    console.log(`[Gemini] Resolved ${resolvedCount}/${maxTodos} TODOs`);
+    return resolvedCode;
     
   } catch (error: any) {
     console.error('[Gemini] TODO resolution failed:', error.message);
