@@ -1,0 +1,475 @@
+"""BanqueSysteme - Clean Architecture Python Code
+Auto-transpiled from COBOL [AST Transpiler v5.7.2]
+
+Architecture:
+- FileManager with context managers for safe I/O
+- Business domain Enums (StatusCode, AccountType, etc.)
+- Dataclasses for COBOL records
+- Proper @property for 88-level conditions
+- Boolean flags (not Y/N strings)
+- Decimal for all monetary values
+from __future__ import annotations
+from decimal import Decimal, ROUND_HALF_UP
+from dataclasses import dataclass, field
+from typing import Optional, List, Dict, Any, ClassVar
+from datetime import datetime, date
+from enum import Enum, auto
+from contextlib import contextmanager
+import logging
+
+class StatusCode(Enum):
+    def __init__(self):
+        """Initialize StatusCode."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    """Standard status codes"""
+    ACTIVE = 'A'
+    INACTIVE = 'I'
+    CLOSED = 'C'
+    PENDING = 'P'
+    SUSPENDED = 'S'
+    DELETED = 'D'
+
+class AccountType(Enum):
+    def __init__(self):
+        """Initialize AccountType."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    """Account type codes"""
+    CHECKING = 'CK'
+    SAVINGS = 'SV'
+    MONEY_MARKET = 'MM'
+    CERTIFICATE_OF_DEPOSIT = 'CD'
+    CREDIT_CARD = 'CC'
+    LOAN = 'LN'
+
+class TransactionType(Enum):
+    def __init__(self):
+        """Initialize TransactionType."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    """Transaction type codes"""
+    DEPOSIT = 'DEP'
+    WITHDRAWAL = 'WDR'
+    TRANSFER = 'TRF'
+    PAYMENT = 'PAY'
+    FEE = 'FEE'
+    INTEREST = 'INT'
+    ADJUSTMENT = 'ADJ'
+
+class RiskLevel(Enum):
+    def __init__(self):
+        """Initialize RiskLevel."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    """Risk rating levels"""
+    LOW = 'L'
+    MEDIUM = 'M'
+    HIGH = 'H'
+    CRITICAL = 'C'
+
+class FileManager:
+    def __init__(self):
+        """Initialize FileManager."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    """Centralized file management with context manager support.
+    
+    Usage:
+        with FileManager(file_paths) as fm:
+            data = fm.read_record('customer_master')
+            fm.write_record('audit_log', record)
+    """Documentation."""Open all configured files"""Documentation."""Close all open files"""Documentation."""Open all files in file_paths"""Documentation."""Open a single file with error handling"""Documentation."""Close all open files"""Documentation."""Close a single file"""Documentation."""Read a record from file (returns None at EOF)"""Documentation."""Write a record to file"""Documentation."""Get file status code (COBOL FILE STATUS compatible)"""Documentation."""Check if end of file reached"""Documentation."""Check if last operation was successful"""
+        return self._status.get(name) == '00'
+
+@dataclass
+class WsFlags:
+    """Data record from COBOL: WS-FLAGS"""
+    file_status: str = field(default='')
+    trans_status: str = field(default='')
+    eof_flag: str = field(default='')
+    validation_flag: str = field(default='')
+    security_flag: str = field(default='')
+
+@dataclass
+class WsCalculationFields:
+    """Data record from COBOL: WS-CALCULATION-FIELDS"""
+    new_balance: Decimal = field(default_factory=lambda: Decimal('0'))
+    interest_rate: Decimal = field(default_factory=lambda: Decimal('0'))
+    fee_amount: Decimal = field(default_factory=lambda: Decimal('0'))
+    daily_limit: Decimal = field(default_factory=lambda: Decimal('0'))
+    monthly_limit: Decimal = field(default_factory=lambda: Decimal('0'))
+    transaction_count: Decimal = field(default_factory=lambda: Decimal('0'))
+    monthly_total: Decimal = field(default_factory=lambda: Decimal('0'))
+    tax_rate: Decimal = field(default_factory=lambda: Decimal('0'))
+    tax_amount: Decimal = field(default_factory=lambda: Decimal('0'))
+
+@dataclass
+class WsDateTime:
+    """Data record from COBOL: WS-DATE-TIME"""
+    current_date: Any = field(default=None)
+    year: Decimal = field(default_factory=lambda: Decimal('0'))
+    month: Decimal = field(default_factory=lambda: Decimal('0'))
+    day: Decimal = field(default_factory=lambda: Decimal('0'))
+    current_time: Any = field(default=None)
+    hour: Decimal = field(default_factory=lambda: Decimal('0'))
+    minute: Decimal = field(default_factory=lambda: Decimal('0'))
+    second: Decimal = field(default_factory=lambda: Decimal('0'))
+
+@dataclass
+class WsClientData:
+    """Data record from COBOL: WS-CLIENT-DATA"""
+    input_account: Decimal = field(default_factory=lambda: Decimal('0'))
+    input_pin: Decimal = field(default_factory=lambda: Decimal('0'))
+    input_amount: Decimal = field(default_factory=lambda: Decimal('0'))
+    target_account: Decimal = field(default_factory=lambda: Decimal('0'))
+    retry_count: Decimal = field(default_factory=lambda: Decimal('0'))
+    max_retries: Decimal = field(default_factory=lambda: Decimal('0'))
+
+@dataclass
+class WsSecurityFields:
+    """Data record from COBOL: WS-SECURITY-FIELDS"""
+    encrypted_pin: str = field(default='')
+    session_token: str = field(default='')
+    auth_attempts: Decimal = field(default_factory=lambda: Decimal('0'))
+    last_login_time: Decimal = field(default_factory=lambda: Decimal('0'))
+    ip_address: str = field(default='')
+
+@dataclass
+class WsAuditData:
+    """Data record from COBOL: WS-AUDIT-DATA"""
+    audit_message: str = field(default='')
+    audit_user: str = field(default='')
+    audit_timestamp: Decimal = field(default_factory=lambda: Decimal('0'))
+    audit_severity: str = field(default='')
+
+@dataclass
+class WsConstants:
+    """Data record from COBOL: WS-CONSTANTS"""
+    max_daily_withdrawal: Decimal = field(default_factory=lambda: Decimal('0'))
+    min_balance: Decimal = field(default_factory=lambda: Decimal('0'))
+    fee_percentage: Decimal = field(default_factory=lambda: Decimal('0'))
+    fixed_fee: Decimal = field(default_factory=lambda: Decimal('0'))
+
+@dataclass
+class BanqueSystemeConfig:
+    """Configuration settings for rates and fees"""
+    interest_rate: Decimal = Decimal('0.025')
+    tax_rate: Decimal = Decimal('0.196')
+    fee_percentage: Decimal = Decimal('0.015')
+    fixed_fee: Decimal = Decimal('5.00')
+
+class BanqueSysteme:
+    def __init__(self):
+        """Initialize BanqueSysteme."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    """Main processor for BANQUE-SYSTEME
+
+Attributes:
+    logger: Logging instance
+    config: Configuration settings
+    file_manager: FileManager for safe I/O
+    
+Methods:
+    run(): Main entry point
+"""Documentation."""COBOL 88-level condition: FILE-OK
+
+Parent variable: file_status"""Documentation."""COBOL 88-level condition: FILE-EOF
+
+Parent variable: file_status"""Documentation."""COBOL 88-level condition: FILE-NOT-FOUND
+
+Parent variable: file_status"""Documentation."""COBOL 88-level condition: FILE-INVALID-KEY
+
+Parent variable: file_status"""Documentation."""COBOL 88-level condition: EOF-REACHED
+
+Parent variable: eof_flag"""Documentation."""COBOL 88-level condition: NOT-EOF
+
+Parent variable: eof_flag"""Documentation."""COBOL 88-level condition: VALID-DATA
+
+Parent variable: validation_flag"""Documentation."""COBOL 88-level condition: INVALID-DATA
+
+Parent variable: validation_flag"""Documentation."""COBOL 88-level condition: SECURITY-PASS
+
+Parent variable: security_flag"""Documentation."""COBOL 88-level condition: SECURITY-FAIL
+
+Parent variable: security_flag"""Documentation."""COBOL 88-level condition: AUDIT-INFO
+
+Parent variable: audit_severity"""Documentation."""COBOL 88-level condition: AUDIT-WARNING
+
+Parent variable: audit_severity"""Documentation."""COBOL 88-level condition: AUDIT-ERROR
+
+Parent variable: audit_severity"""Documentation."""COBOL 88-level condition: AUDIT-SECURITY
+
+Parent variable: audit_severity"""Documentation."""Handle undefined COBOL variables with safety warnings.
+    
+    This method catches access to undeclared variables, which may indicate:
+    - REDEFINES fields not explicitly declared
+    - Sub-fields of group items
+    - Typos in variable names (logs warning!)
+    
+    Set self._strict_mode = True to raise AttributeError instead of auto-creating.
+        if name.startswith('_'):
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+        if getattr(self, '_strict_mode', False):
+            raise AttributeError(f"Undefined variable '{name}'. In strict mode, all variables must be declared. Add 'self.{name} = ...' in __init__ or set _strict_mode = False.")
+        if hasattr(self, 'logger'):
+            self.logger.warning(f"Accessing undeclared variable '{name}' - auto-creating with default value")
+        lower = name.lower()
+        string_keywords = ('msg', 'message', 'text', 'name', 'desc', 'description', 'status', 'code', 'type', 'id', 'key', 'record', 'line', 'reason', 'path', 'file', 'string', 'char', 'alpha', 'label', 'title', 'header', 'footer', 'display', 'output', 'input', 'buffer', 'format')
+        is_string = any((kw in lower for kw in string_keywords))
+        bool_keywords = ('flag', 'eof', 'error', 'valid', 'found', 'done', 'active', 'enabled', 'disabled', 'ok', 'success', 'failed', 'exists', 'empty', 'full')
+        is_bool = any((kw in lower for kw in bool_keywords))
+        if is_string:
+            self.__dict__[name] = ''
+        elif is_bool:
+            self.__dict__[name] = False
+        else:
+            self.__dict__[name] = Decimal('0')
+        return self.__dict__[name]
+
+    def main_procedure(self) -> None:
+        """Business logic from COBOL paragraph: MAIN-PROCEDURE
+    
+    COBOL Traceability:
+        - Source: Lines 165-178
+        - Paragraph: MAIN-PROCEDURE
+        - Statements: 12
+    
+    Original COBOL (first 3 statements):
+                PERFORM INITIALIZE-PROGRAM
+        PERFORM AUTHENTICATE-USER
+        IF SECURITY-PASS
+    """Documentation."""Business logic from COBOL paragraph: INITIALIZE-PROGRAM
+    
+    COBOL Traceability:
+        - Source: Lines 179-187
+        - Paragraph: INITIALIZE-PROGRAM
+        - Statements: 6
+    
+    Original COBOL (first 3 statements):
+                OPEN I-O CLIENT-FILE
+        OPEN INPUT TRANSACTION-FILE
+        OPEN OUTPUT AUDIT-FILE
+    """Documentation."""Business logic from COBOL paragraph: AUTHENTICATE-USER
+    
+    COBOL Traceability:
+        - Source: Lines 188-230
+        - Paragraph: AUTHENTICATE-USER
+        - Statements: 33
+    
+    Original COBOL (first 3 statements):
+                DISPLAY "Enter account number: "
+        ACCEPT WS-INPUT-ACCOUNT
+        DISPLAY "Enter PIN: "
+    """Documentation."""Business logic from COBOL paragraph: PROCESS-TRANSACTIONS
+    
+    COBOL Traceability:
+        - Source: Lines 231-247
+        - Paragraph: PROCESS-TRANSACTIONS
+        - Statements: 14
+    
+    Original COBOL (first 3 statements):
+                MOVE 'N' TO WS-EOF-FLAG
+        PERFORM UNTIL EOF-REACHED
+        READ TRANSACTION-FILE
+    """Documentation."""Business logic from COBOL paragraph: VALIDATE-TRANSACTION
+    
+    COBOL Traceability:
+        - Source: Lines 248-275
+        - Paragraph: VALIDATE-TRANSACTION
+        - Statements: 18
+    
+    Original COBOL (first 3 statements):
+                MOVE 'Y' TO WS-VALIDATION-FLAG *> Vérification du montant
+        IF TRANS-AMOUNT <= 0
+        MOVE 'N' TO WS-VALIDATION-FLAG
+    """Documentation."""Business logic from COBOL paragraph: EXECUTE-TRANSACTION
+    
+    COBOL Traceability:
+        - Source: Lines 276-292
+        - Paragraph: EXECUTE-TRANSACTION
+        - Statements: 14
+    
+    Original COBOL (first 3 statements):
+                EVALUATE TRUE
+        WHEN TRANS-DEPOSIT
+        PERFORM PROCESS-DEPOSIT
+    """Documentation."""Business logic from COBOL paragraph: PROCESS-DEPOSIT
+    
+    COBOL Traceability:
+        - Source: Lines 293-300
+        - Paragraph: PROCESS-DEPOSIT
+        - Statements: 4
+    
+    Original COBOL (first 3 statements):
+                COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT
+        MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+        MOVE 'C' TO TRANS-STATUS
+    """Documentation."""Business logic from COBOL paragraph: PROCESS-WITHDRAWAL
+    
+    COBOL Traceability:
+        - Source: Lines 301-320
+        - Paragraph: PROCESS-WITHDRAWAL
+        - Statements: 14
+    
+    Original COBOL (first 3 statements):
+                IF CLIENT-BALANCE >= TRANS-AMOUNT
+        COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE - TRANS-AMOUNT
+        IF WS-NEW-BALANCE >= WS-MIN-BALANCE
+    """Documentation."""Business logic from COBOL paragraph: PROCESS-TRANSFER
+    
+    COBOL Traceability:
+        - Source: Lines 321-329
+        - Paragraph: PROCESS-TRANSFER
+        - Statements: 6
+    
+    Original COBOL (first 3 statements):
+                MOVE TRANS-AMOUNT TO WS-INPUT-AMOUNT
+        MOVE TRANS-DESCRIPTION(1:16) TO WS-TARGET-ACCOUNT
+        PERFORM DEBIT-SOURCE-ACCOUNT
+    """Documentation."""Business logic from COBOL paragraph: DEBIT-SOURCE-ACCOUNT
+    
+    COBOL Traceability:
+        - Source: Lines 330-339
+        - Paragraph: DEBIT-SOURCE-ACCOUNT
+        - Statements: 7
+    
+    Original COBOL (first 3 statements):
+                IF CLIENT-BALANCE >= TRANS-AMOUNT
+        COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE - TRANS-AMOUNT
+        MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+    """Documentation."""Business logic from COBOL paragraph: CREDIT-TARGET-ACCOUNT
+    
+    COBOL Traceability:
+        - Source: Lines 340-352
+        - Paragraph: CREDIT-TARGET-ACCOUNT
+        - Statements: 9
+    
+    Original COBOL (first 3 statements):
+                MOVE WS-TARGET-ACCOUNT TO CLIENT-ID
+        READ CLIENT-FILE
+        INVALID KEY
+    """Documentation."""Business logic from COBOL paragraph: REVERSE-TRANSACTION
+    
+    COBOL Traceability:
+        - Source: Lines 353-362
+        - Paragraph: REVERSE-TRANSACTION
+        - Statements: 5
+    
+    Original COBOL (first 3 statements):
+                MOVE WS-INPUT-ACCOUNT TO CLIENT-ID
+        READ CLIENT-FILE
+        COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT
+    """Documentation."""Business logic from COBOL paragraph: PROCESS-FEE
+    
+    COBOL Traceability:
+        - Source: Lines 363-375
+        - Paragraph: PROCESS-FEE
+        - Statements: 7
+    
+    Original COBOL (first 3 statements):
+                COMPUTE WS-FEE-AMOUNT = TRANS-AMOUNT * WS-FEE-PERCENTAGE
+        IF WS-FEE-AMOUNT < WS-FIXED-FEE
+        MOVE WS-FIXED-FEE TO WS-FEE-AMOUNT
+    """Documentation."""Business logic from COBOL paragraph: PROCESS-INTEREST
+    
+    COBOL Traceability:
+        - Source: Lines 376-382
+        - Paragraph: PROCESS-INTEREST
+        - Statements: 3
+    
+    Original COBOL (first 3 statements):
+                COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT
+        MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+        PERFORM LOG-AUDIT-ENTRY USING 'Interest applied' 'I'.
+    """Documentation."""Business logic from COBOL paragraph: CALCULATE-INTEREST
+    
+    COBOL Traceability:
+        - Source: Lines 383-408
+        - Paragraph: CALCULATE-INTEREST
+        - Statements: 15
+    
+    Original COBOL (first 3 statements):
+                EVALUATE TRUE
+        WHEN CHECKING-ACCOUNT
+        COMPUTE WS-INTEREST-RATE = 0.005
+    """Documentation."""Business logic from COBOL paragraph: APPLY-FEES
+    
+    COBOL Traceability:
+        - Source: Lines 409-421
+        - Paragraph: APPLY-FEES
+        - Statements: 9
+    
+    Original COBOL (first 3 statements):
+                IF CLIENT-BALANCE < 500.00
+        MOVE 2.00 TO WS-FEE-AMOUNT
+        PERFORM PROCESS-FEE
+    """Documentation."""Business logic from COBOL paragraph: GENERATE-REPORTS
+    
+    COBOL Traceability:
+        - Source: Lines 422-433
+        - Paragraph: GENERATE-REPORTS
+        - Statements: 8
+    
+    Original COBOL (first 3 statements):
+                DISPLAY "=== TRANSACTION REPORT ==="
+        DISPLAY "Account: " CLIENT-ACCOUNT-NUM
+        DISPLAY "Name: " CLIENT-NAME " " CLIENT-SURNAME
+    """Documentation."""Business logic from COBOL paragraph: UPDATE-CLIENT-RECORD
+    
+    COBOL Traceability:
+        - Source: Lines 434-451
+        - Paragraph: UPDATE-CLIENT-RECORD
+        - Statements: 11
+    
+    Original COBOL (first 3 statements):
+                MOVE WS-CURRENT-DATE TO CLIENT-LAST-TRANS-DATE *> Mise à jour du niveau de risque
+        IF WS-TRANSACTION-COUNT > 20
+        MOVE 'H' TO CLIENT-RISK-LEVEL
+    """Documentation."""Business logic from COBOL paragraph: LOG-AUDIT-ENTRY
+    
+    COBOL Traceability:
+        - Source: Lines 452-462
+        - Paragraph: LOG-AUDIT-ENTRY
+        - Statements: 5
+    
+    Original COBOL (first 3 statements):
+                USING WS-AUDIT-MESSAGE WS-AUDIT-SEVERITY.
+        MOVE FUNCTION CURRENT-DATE TO WS-AUDIT-TIMESTAMP
+        MOVE SPACES TO AUDIT-RECORD
+    """Documentation."""Business logic from COBOL paragraph: LOG-SECURITY-VIOLATION
+    
+    COBOL Traceability:
+        - Source: Lines 463-468
+        - Paragraph: LOG-SECURITY-VIOLATION
+        - Statements: 3
+    
+    Original COBOL (first 3 statements):
+                PERFORM LOG-AUDIT-ENTRY USING 'Security violation detected' 'S'
+        DISPLAY "SECURITY VIOLATION - ACCESS DENIED"
+        DISPLAY "This incident has been logged.".
+    """Documentation."""Business logic from COBOL paragraph: CLOSE-FILES
+    
+    COBOL Traceability:
+        - Source: Lines 469-474
+        - Paragraph: CLOSE-FILES
+        - Statements: 4
+    
+    Original COBOL (first 3 statements):
+                CLOSE CLIENT-FILE
+        CLOSE TRANSACTION-FILE
+        CLOSE AUDIT-FILE
+    """Documentation."""Main entry point - executes primary workflow"""
+        self.logger.info('Starting BanqueSysteme v%s', self.VERSION)
+        self.main_procedure()
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    processor = BanqueSysteme()
+    processor.run()
