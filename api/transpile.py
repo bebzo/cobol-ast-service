@@ -1357,9 +1357,9 @@ def transpile_initialize_v3(stmt: str) -> Optional[ast.stmt]:
 # Gemini Enrichment (Hybrid Mode)
 # ============================================================
 
-def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 50) -> Tuple[str, Dict]:
-    """Enrich TODO methods with Gemini AI"""
-    stats = {'gemini_calls': 0, 'enriched': 0, 'failed': 0}
+def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 100) -> Tuple[str, Dict]:
+    """Enrich TODO methods with Gemini AI (v4.1 - improved matching)"""
+    stats = {'gemini_calls': 0, 'enriched': 0, 'failed': 0, 'total_methods': 0}
     
     try:
         import os
@@ -1367,44 +1367,68 @@ def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 50)
         
         api_key = os.environ.get('GEMINI_API_KEY', '')
         if not api_key:
+            stats['error'] = 'No GEMINI_API_KEY'
             return python_code, stats
         
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         
-        # Find methods with TODO
-        todo_pattern = re.compile(r"(    def (p_\w+)\(self\)[^:]*:.*?(?=\n    def |\nclass |\nif __name__|$))", re.DOTALL)
+        # Find ALL methods (not just p_ prefix - clean architecture uses snake_case)
+        todo_pattern = re.compile(r"(    def ([a-z][a-z0-9_]*)\(self\)[^:]*:.*?(?=\n    def |\nclass |\nif __name__|$))", re.DOTALL)
         methods = todo_pattern.findall(python_code)
+        stats['total_methods'] = len(methods)
         
         for method_code, method_name in methods[:max_calls]:
-            if 'TODO' not in method_code:
+            # Skip built-in methods and methods without TODO
+            if method_name in ('__init__', 'run') or 'TODO' not in method_code:
                 continue
             
-            # Find COBOL paragraph
-            cobol_name = method_name.upper().replace('_', '-').replace('P-', '', 1)
-            para_match = re.search(rf'^\s{{6,8}}{cobol_name}\s*\.\s*$.*?(?=^\s{{6,8}}[A-Z0-9][-A-Z0-9]+\s*\.\s*$|\Z)', 
-                                   cobol_source, re.MULTILINE | re.DOTALL | re.IGNORECASE)
+            # Find COBOL paragraph - convert snake_case back to COBOL-CASE
+            # e.g., calculate_interest -> CALCULATE-INTEREST or 0100_initialize -> 0100-INITIALIZE
+            cobol_name = method_name.upper().replace('_', '-')
+            # Also try without numeric prefix
+            cobol_name_alt = re.sub(r'^P-', '', cobol_name)  # Remove P- prefix if any
+            cobol_name_alt2 = re.sub(r'^\d+-', '', cobol_name)  # Remove numeric prefix like 0100-
+            
+            # Try multiple patterns for COBOL paragraph matching
+            para_match = None
+            for name_variant in [cobol_name, cobol_name_alt, cobol_name_alt2]:
+                # Pattern: paragraph name followed by period, then content until next paragraph
+                para_match = re.search(
+                    rf'^\s*{re.escape(name_variant)}\s*\.\s*$.*?(?=^\s*[A-Z0-9][-A-Z0-9]+\s*\.\s*$|STOP\s+RUN|GOBACK|\Z)', 
+                    cobol_source, re.MULTILINE | re.DOTALL | re.IGNORECASE
+                )
+                if para_match:
+                    break
             
             if not para_match:
+                stats['failed'] += 1
                 continue
             
-            cobol_para = para_match.group(0)[:500]
+            # Extract up to 1500 chars for better context
+            cobol_para = para_match.group(0)[:1500]
             
-            prompt = f"""Convert this COBOL to Python method body. Output ONLY the method body lines (8-space indent).
+            prompt = f"""Convert this COBOL paragraph to Python. Output ONLY executable code lines with 8-space indent.
 
 COBOL:
 {cobol_para}
 
-RULES:
-- Use self.variable for all vars
-- Use Decimal('x') for numbers
-- MOVE X TO Y → self.y = self.x
-- ADD X TO Y → self.y += self.x
-- COMPUTE X = expr → self.x = expr (with Decimal)
-- PERFORM para → self.para()
-- Keep self.logger.debug for FILE I/O
+TRANSLATION RULES:
+1. Variables: self.var_name (snake_case, remove WS- prefix)
+2. Numbers: Decimal('value') for ALL numeric operations
+3. MOVE X TO Y → self.y = self.x (or self.y = Decimal('value'))
+4. ADD X TO Y → self.y += self.x
+5. SUBTRACT X FROM Y → self.y -= self.x
+6. MULTIPLY X BY Y GIVING Z → self.z = self.x * self.y
+7. DIVIDE X BY Y GIVING Z → self.z = self.x / self.y
+8. COMPUTE X = expr → self.x = expr (use Decimal, convert vars)
+9. PERFORM para → self.para_name() (snake_case)
+10. IF cond / END-IF → if cond:
+11. DISPLAY → self.logger.info()
+12. File I/O → self.logger.debug('TODO: file operation')
+13. Booleans: Use True/False not 'Y'/'N'
 
-Output method body only (8-space indent):"""
+Output ONLY the method body (8-space indent), NO 'def' line:"""
 
             try:
                 stats['gemini_calls'] += 1
