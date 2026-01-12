@@ -1,6 +1,11 @@
 """
-COBOL → Python Transpiler v5.7.0 (User Feedback Release)
+COBOL → Python Transpiler v5.7.1 (READ AT END Fix)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.1:
+- FIX: READ ... AT END now generates conditional EOF handling
+- Generates: if _record is None: <at_end_block> else: assign record
+- Fixes infinite loop bug where eof_flag was always set unconditionally
 
 Improvements in v5.7.0:
 - FIX: ACCEPT now generates input() calls instead of empty strings
@@ -1798,7 +1803,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.0]
+Auto-transpiled from COBOL [AST Transpiler v5.7.1]
 
 Architecture:
 - FileManager with context managers for safe I/O
