@@ -1680,24 +1680,23 @@ def transpile_if_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast
     condition = re.sub(r'\s+AND\s+', ' and ', condition, flags=re.IGNORECASE)
     condition = re.sub(r'\s+OR\s+', ' or ', condition, flags=re.IGNORECASE)
     
-    # v4.4.3: Only replace identifiers NOT inside quotes
-    # First, protect quoted strings by temporarily replacing them
-    # Use lowercase placeholder to avoid being captured by COBOL identifier regex
-    quoted_strings = []
-    def save_quoted(m):
-        quoted_strings.append(m.group(0))
-        return f'_q{len(quoted_strings) - 1}_'
+    # v4.4.3: Replace COBOL identifiers but NOT content inside quotes
+    # Strategy: Use negative lookbehind/lookahead to skip quoted content
+    # Match COBOL identifiers: must have hyphen OR be 2+ uppercase letters, NOT inside quotes
+    def replace_identifier(m):
+        # Check if this match is inside quotes by looking at the original condition
+        start = m.start()
+        before = condition[:start]
+        # Count unescaped quotes before this position
+        single_quotes = before.count("'") - before.count("\\'")
+        double_quotes = before.count('"') - before.count('\\"')
+        # If odd number of quotes, we're inside a string
+        if single_quotes % 2 == 1 or double_quotes % 2 == 1:
+            return m.group(0)  # Keep original
+        return f'self.{to_snake_case(m.group(1))}'
     
-    condition = re.sub(r"'[^']*'", save_quoted, condition)
-    condition = re.sub(r'"[^"]*"', save_quoted, condition)
-    
-    # Now replace COBOL identifiers with self.snake_case (only multi-char identifiers)
     condition = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+|[A-Z]{2,}[A-Z0-9]*)', 
-                      lambda m: f'self.{to_snake_case(m.group(1))}', condition)
-    
-    # Restore quoted strings
-    for i, qs in enumerate(quoted_strings):
-        condition = condition.replace(f'_q{i}_', qs)
+                      replace_identifier, condition)
     
     try:
         test_ast = ast.parse(condition, mode='eval').body
@@ -1913,17 +1912,15 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
         if is_true_eval:
             try:
                 cond_py = cond.replace(' AND ', ' and ').replace(' OR ', ' or ')
-                # v4.4.3: Protect quoted strings from substitution
-                quoted_parts = []
-                def save_q(m):
-                    quoted_parts.append(m.group(0))
-                    return f'__Q_{len(quoted_parts) - 1}__'
-                cond_py = re.sub(r"'[^']*'", save_q, cond_py)
-                cond_py = re.sub(r'"[^"]*"', save_q, cond_py)
+                # v4.4.3: Replace identifiers but skip quoted content
+                def replace_id_eval(m):
+                    start = m.start()
+                    before = cond_py[:start]
+                    if before.count("'") % 2 == 1 or before.count('"') % 2 == 1:
+                        return m.group(0)
+                    return f'self.{to_snake_case(m.group(1))}'
                 cond_py = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+|[A-Z]{2,}[A-Z0-9]*)', 
-                                lambda m: f'self.{to_snake_case(m.group(1))}', cond_py)
-                for i, qp in enumerate(quoted_parts):
-                    cond_py = cond_py.replace(f'__Q_{i}__', qp)
+                                replace_id_eval, cond_py)
                 test_ast = ast.parse(cond_py, mode='eval').body
             except:
                 test_ast = ast.Constant(value=True)
