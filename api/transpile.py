@@ -1682,10 +1682,11 @@ def transpile_if_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast
     
     # v4.4.3: Only replace identifiers NOT inside quotes
     # First, protect quoted strings by temporarily replacing them
+    # Use lowercase placeholder to avoid being captured by COBOL identifier regex
     quoted_strings = []
     def save_quoted(m):
         quoted_strings.append(m.group(0))
-        return f'__QUOTED_{len(quoted_strings) - 1}__'
+        return f'_q{len(quoted_strings) - 1}_'
     
     condition = re.sub(r"'[^']*'", save_quoted, condition)
     condition = re.sub(r'"[^"]*"', save_quoted, condition)
@@ -1696,7 +1697,7 @@ def transpile_if_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast
     
     # Restore quoted strings
     for i, qs in enumerate(quoted_strings):
-        condition = condition.replace(f'__QUOTED_{i}__', qs)
+        condition = condition.replace(f'_q{i}_', qs)
     
     try:
         test_ast = ast.parse(condition, mode='eval').body
