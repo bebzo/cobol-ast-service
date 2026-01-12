@@ -3050,10 +3050,11 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     cond = re.sub(r'\s+EQUAL\s+TO\s+', ' == ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+NOT\s+>\s*', ' <= ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+NOT\s+<\s*', ' >= ', cond, flags=re.IGNORECASE)
-    cond = re.sub(r'\s+>=\s*', ' >= ', cond)
-    cond = re.sub(r'\s+<=\s*', ' <= ', cond)
-    cond = re.sub(r'\s+>\s*', ' > ', cond)
-    cond = re.sub(r'\s+<\s*', ' < ', cond)
+    # Handle operators - >= and <= must come before > and <
+    cond = re.sub(r'\s*>=\s*', ' >= ', cond)
+    cond = re.sub(r'\s*<=\s*', ' <= ', cond)
+    cond = re.sub(r'\s*>\s*(?!=)', ' > ', cond)  # > but not >=
+    cond = re.sub(r'\s*<\s*(?!=)', ' < ', cond)  # < but not <=
     cond = re.sub(r'([^!=<>])\s*=\s*([^=])', r'\1 == \2', cond)
     cond = re.sub(r'\s+AND\s+', ' and ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+OR\s+', ' or ', cond, flags=re.IGNORECASE)
