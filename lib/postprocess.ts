@@ -8,7 +8,8 @@
  */
 function fixCorruptedDocstrings(code: string): string {
   // Skip for v4+ - already clean (AST-generated code is syntax-valid)
-  if (code.includes('[AST Transpiler v4') || code.includes('[v4.') || code.includes('[v5.') || code.includes('[v6.') || code.includes('[v7.') || code.includes('[v8.')) return code;
+  // v5.7.2: Fixed version detection to match "[AST Transpiler v5.x]" format
+  if (/\[AST Transpiler v[4-9]/.test(code) || /Transpiler v[4-9]\./.test(code) || code.includes('[v4.') || code.includes('[v5.') || code.includes('[v6.') || code.includes('[v7.') || code.includes('[v8.')) return code;
   
   // Fix docstrings that contain 'def ' - these are corrupted
   // Pattern: """...def ...  → """Documentation."""
@@ -277,8 +278,9 @@ export function postProcessPythonCode(code: string, programId: string = 'PROGRAM
   code = code.replace(/^\s*pass\s*#.*syntax error.*$/gim, '');
   
   // Skip ALL post-processing for v4+ skeletons - they are already clean
-  // AST Transpiler v4.x generates syntax-valid code via Python's ast module
-  if (code.includes('[AST Transpiler v4') || code.includes('[v4.') || code.includes('[v5.') || code.includes('[v6.') || code.includes('[v7.') || code.includes('[v8.')) {
+  // AST Transpiler v4.x+ generates syntax-valid code via Python's ast module
+  // v5.7.2: Fixed version detection to match "[AST Transpiler v5.x]" format
+  if (/\[AST Transpiler v[4-9]/.test(code) || /Transpiler v[4-9]\./.test(code) || code.includes('[v4.') || code.includes('[v5.') || code.includes('[v6.') || code.includes('[v7.') || code.includes('[v8.')) {
     return code;
   }
 
@@ -561,7 +563,8 @@ function removeOrphanClassPass(code: string): string {
  */
 function injectMissingInit(code: string): string {
   // Skip injection for v4+ skeletons - they already have proper __init__
-  if (code.includes('[AST Transpiler v4') || code.includes('[v4.') || code.includes('[v5.') || code.includes('[v6.') || code.includes('[v7.') || code.includes('[v8.')) {
+  // v5.7.2: Fixed version detection to match "[AST Transpiler v5.x]" format
+  if (/\[AST Transpiler v[4-9]/.test(code) || /Transpiler v[4-9]\./.test(code) || code.includes('[v4.') || code.includes('[v5.') || code.includes('[v6.') || code.includes('[v7.') || code.includes('[v8.')) {
     return code;
   }
   
