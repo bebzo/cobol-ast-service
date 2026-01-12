@@ -2418,15 +2418,23 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
         except ImportError:
             pass
         
-        # Auto-fix any syntax errors in base generation
+        # Pre-format fused docstrings (critical for large files)
+        python_code, preformat_count = preformat_fused_docstrings(python_code)
+        
+        # Auto-fix any remaining syntax errors
         python_code, base_fixes = fix_syntax_errors(python_code)
         
-        gemini_stats = {'syntax_fixes_base': base_fixes}
+        gemini_stats = {
+            'preformat_fixes': preformat_count,
+            'syntax_fixes_base': base_fixes
+        }
         if enhance:
             python_code, gemini_stats = enrich_with_gemini(python_code, cobol_source)
             
-            # Auto-fix any syntax errors introduced by Gemini
+            # Pre-format and fix after Gemini
+            python_code, gemini_preformat = preformat_fused_docstrings(python_code)
             python_code, gemini_fixes = fix_syntax_errors(python_code)
+            gemini_stats['preformat_fixes_gemini'] = gemini_preformat
             gemini_stats['syntax_fixes_gemini'] = gemini_fixes
         
         class_name = to_pascal_case(cobol_ast.program_id)
