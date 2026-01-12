@@ -54,10 +54,10 @@ export interface ParagraphInfo {
  */
 export async function transpileCobolViaPython(cobolCode: string, enhance: boolean = false): Promise<TranspileResult> {
   try {
-    // Use internal Vercel function URL or localhost
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'http://localhost:3000';
+    // Use production URL for consistent access
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL 
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
+      || 'https://cobol-ast-service.vercel.app';
     
     const response = await fetch(`${baseUrl}/api/transpile`, {
       method: 'POST',
