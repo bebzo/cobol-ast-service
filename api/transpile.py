@@ -2436,8 +2436,12 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
             # Save the clean AST code for rollback
             clean_ast_code = python_code
             
+            # Limit Gemini calls based on file size (avoid timeout)
+            lines_count = len(cobol_source.split('\n'))
+            max_gemini_calls = 10 if lines_count > 5000 else 25 if lines_count > 1000 else 50
+            
             # Attempt Gemini enrichment
-            enriched_code, enrich_stats = enrich_with_gemini(python_code, cobol_source)
+            enriched_code, enrich_stats = enrich_with_gemini(python_code, cobol_source, max_calls=max_gemini_calls)
             gemini_stats.update(enrich_stats)
             
             # Validate enriched code

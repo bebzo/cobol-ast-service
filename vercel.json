@@ -7,6 +7,10 @@
       "maxDuration": 300,
       "memory": 1024
     },
+    "app/api/analyse-sse/route.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
     "app/api/analyse-stream/route.ts": {
       "maxDuration": 300,
       "memory": 1024
