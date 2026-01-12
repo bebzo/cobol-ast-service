@@ -20,6 +20,135 @@ from decimal import Decimal
 
 
 # ============================================================
+# COPYBOOK Preprocessor
+# ============================================================
+
+def preprocess_copybooks(cobol_source: str, copybooks: Dict[str, str]) -> Tuple[str, Dict]:
+    """
+    Preprocess COBOL source by expanding COPY statements.
+    
+    Args:
+        cobol_source: The main COBOL source code
+        copybooks: Dictionary mapping copybook names to their content
+                   e.g., {'CUSTOMER-REC': '01 CUSTOMER-RECORD...', 'ACCT-DATA': '...'}
+    
+    Returns:
+        Tuple of (expanded_source, stats_dict)
+    """
+    stats = {
+        'copybooks_found': 0,
+        'copybooks_resolved': 0,
+        'copybooks_missing': [],
+        'replacements_applied': 0
+    }
+    
+    if not copybooks:
+        return cobol_source, stats
+    
+    # Normalize copybook names (COBOL is case-insensitive)
+    normalized_copybooks = {}
+    for name, content in copybooks.items():
+        # Remove extensions and normalize
+        clean_name = name.upper().replace('.CPY', '').replace('.CBL', '').replace('.COB', '')
+        clean_name = clean_name.replace('-', '_').replace(' ', '_').strip()
+        normalized_copybooks[clean_name] = content
+        # Also store with original name variants
+        normalized_copybooks[name.upper().strip()] = content
+        normalized_copybooks[name.upper().replace('.CPY', '').strip()] = content
+    
+    # Pattern to match COPY statements
+    # COPY copybook-name [OF|IN library-name] [REPLACING ...]
+    copy_pattern = re.compile(
+        r'^\s*COPY\s+([A-Z0-9][-A-Z0-9_]*)(?:\s+(?:OF|IN)\s+[A-Z0-9][-A-Z0-9_]*)?'
+        r'(?:\s+REPLACING\s+(.+?))?\s*\.\s*$',
+        re.IGNORECASE | re.MULTILINE
+    )
+    
+    def expand_copy(match) -> str:
+        """Expand a single COPY statement"""
+        copybook_name = match.group(1).upper().strip()
+        replacing_clause = match.group(2)
+        
+        stats['copybooks_found'] += 1
+        
+        # Try to find the copybook
+        content = None
+        for variant in [copybook_name, 
+                        copybook_name.replace('-', '_'),
+                        copybook_name.replace('_', '-')]:
+            if variant in normalized_copybooks:
+                content = normalized_copybooks[variant]
+                break
+        
+        if content is None:
+            stats['copybooks_missing'].append(copybook_name)
+            # Return a comment indicating the missing copybook
+            return f"      * COPYBOOK NOT FOUND: {copybook_name}\n      * (Add this copybook to resolve)"
+        
+        stats['copybooks_resolved'] += 1
+        
+        # Apply REPLACING clause if present
+        if replacing_clause:
+            content = apply_replacing(content, replacing_clause)
+            stats['replacements_applied'] += 1
+        
+        # Add markers for traceability
+        expanded = f"      * === BEGIN COPYBOOK: {copybook_name} ===\n"
+        expanded += content.rstrip()
+        expanded += f"\n      * === END COPYBOOK: {copybook_name} ==="
+        
+        return expanded
+    
+    # Expand all COPY statements (may need multiple passes for nested copies)
+    max_passes = 5
+    for _ in range(max_passes):
+        new_source = copy_pattern.sub(expand_copy, cobol_source)
+        if new_source == cobol_source:
+            break
+        cobol_source = new_source
+    
+    return cobol_source, stats
+
+
+def apply_replacing(content: str, replacing_clause: str) -> str:
+    """
+    Apply COBOL REPLACING clause to copybook content.
+    
+    Syntax: REPLACING ==old-text== BY ==new-text== [==old2== BY ==new2==]...
+    Or:     REPLACING old-word BY new-word
+    """
+    # Pattern for ==text== BY ==text== format
+    pseudo_pattern = re.compile(
+        r'==([^=]+)==\s+BY\s+==([^=]+)==',
+        re.IGNORECASE
+    )
+    
+    for match in pseudo_pattern.finditer(replacing_clause):
+        old_text = match.group(1).strip()
+        new_text = match.group(2).strip()
+        content = content.replace(old_text, new_text)
+    
+    # Pattern for simple word BY word format
+    word_pattern = re.compile(
+        r'([A-Z0-9][-A-Z0-9_]*)\s+BY\s+([A-Z0-9][-A-Z0-9_]*)',
+        re.IGNORECASE
+    )
+    
+    for match in word_pattern.finditer(replacing_clause):
+        old_word = match.group(1)
+        new_word = match.group(2)
+        # Replace whole words only
+        content = re.sub(
+            rf'\b{re.escape(old_word)}\b',
+            new_word,
+            content,
+            flags=re.IGNORECASE
+        )
+    
+    return content
+
+
+# ============================================================
 # COBOL Parser - Enhanced with 88-level conditions
 # ============================================================
 
@@ -2637,12 +2766,23 @@ class handler(BaseHTTPRequestHandler):
             data = json.loads(body)
             cobol_code = data.get('cobolCode', '')
             enhance = data.get('enhance', False)
+            copybooks = data.get('copybooks', {})  # New: copybooks dictionary
             
             if not cobol_code:
                 self.send_error_response({'error': 'cobolCode is required'})
                 return
             
+            # Preprocess copybooks if provided
+            copybook_stats = {}
+            if copybooks:
+                cobol_code, copybook_stats = preprocess_copybooks(cobol_code, copybooks)
+            
             result = generate_python_code(cobol_code, enhance)
+            
+            # Add copybook stats to result
+            if copybook_stats:
+                result['copybook_stats'] = copybook_stats
+            
             self.send_json_response(result)
         
         except json.JSONDecodeError:
@@ -2653,10 +2793,11 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '4.4.0',
+            'version': '4.5.0',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'features': [
+                'COPYBOOK preprocessor with REPLACING support',
                 'FileManager with context managers',
                 'Business domain Enums (StatusCode, AccountType, etc.)',
                 'Dataclasses for COBOL records',
@@ -2665,7 +2806,8 @@ class handler(BaseHTTPRequestHandler):
                 'Decimal for all monetary values',
                 'Comprehensive pytest suite'
             ],
-            'syntax_guarantee': '100%'
+            'syntax_guarantee': '100%',
+            'copybook_support': True
         })
     
     def send_json_response(self, data: dict, status: int = 200):

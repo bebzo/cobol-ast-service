@@ -44,7 +44,7 @@ function createSSEStream() {
 }
 
 export async function POST(request: NextRequest) {
-  const { cobolCode, filename } = await request.json();
+  const { cobolCode, filename, copybooks } = await request.json();
   
   if (!cobolCode) {
     return new Response(JSON.stringify({ error: 'cobolCode is required' }), { 
@@ -127,7 +127,8 @@ export async function POST(request: NextRequest) {
       
       let result;
       try {
-        result = await transpileCobolViaPython(cobolCode, false);
+        // Pass copybooks to Python transpiler for COPY statement resolution
+        result = await transpileCobolViaPython(cobolCode, false, copybooks || {});
       } finally {
         clearInterval(progressInterval);
       }

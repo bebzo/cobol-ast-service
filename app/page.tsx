@@ -572,6 +572,8 @@ export default function Home() {
   const [analysisStatus, setAnalysisStatus] = useState("");
   const [error, setError] = useState("");
   const [filename, setFilename] = useState("");
+  const [copybooks, setCopybooks] = useState<Record<string, string>>({});
+  const [copybookCount, setCopybookCount] = useState(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -752,6 +754,38 @@ export default function Home() {
     }
   }, []);
 
+  // Handle copybook file upload (supports multiple files)
+  const handleCopybookUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const newCopybooks: Record<string, string> = { ...copybooks };
+    let processed = 0;
+    
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const content = ev.target?.result as string;
+        // Use filename without extension as copybook name
+        const name = file.name.replace(/\.(cpy|cbl|cob|txt)$/i, '').toUpperCase();
+        newCopybooks[name] = content;
+        processed++;
+        
+        if (processed === files.length) {
+          setCopybooks(newCopybooks);
+          setCopybookCount(Object.keys(newCopybooks).length);
+        }
+      };
+      reader.readAsText(file);
+    });
+  }, [copybooks]);
+
+  // Clear all copybooks
+  const clearCopybooks = useCallback(() => {
+    setCopybooks({});
+    setCopybookCount(0);
+  }, []);
+
   const handleConvert = async () => {
     // API key is now server-side
     if (!cobolCode.trim()) {
@@ -783,7 +817,7 @@ export default function Home() {
       const sseResponse = await fetch('/api/analyse-sse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cobolCode, filename }),
+        body: JSON.stringify({ cobolCode, filename, copybooks }),
         signal: controller.signal
       });
       
@@ -1334,6 +1368,27 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <FileCode className="w-4 h-4" />
                 <span>Load Demo (10K LOC)</span>
               </button>
+              {/* Copybook Upload */}
+              <label className="flex items-center gap-2 px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded-lg cursor-pointer transition">
+                <Package className="w-4 h-4" />
+                <span>Copybooks {copybookCount > 0 && `(${copybookCount})`}</span>
+                <input 
+                  type="file" 
+                  accept=".cpy,.cbl,.cob,.txt" 
+                  multiple 
+                  onChange={handleCopybookUpload} 
+                  className="hidden" 
+                />
+              </label>
+              {copybookCount > 0 && (
+                <button
+                  onClick={clearCopybooks}
+                  className="flex items-center gap-1 px-2 py-2 bg-slate-700 hover:bg-red-600 rounded-lg transition text-xs"
+                  title="Clear copybooks"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
               {filename && (
                 <div className="flex items-center gap-2 text-slate-400">
                   <FileCode className="w-4 h-4" />

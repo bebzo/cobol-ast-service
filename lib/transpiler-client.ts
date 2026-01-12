@@ -24,6 +24,12 @@ export interface TranspileResult {
     enriched?: number;
     failed?: number;
   };
+  copybook_stats?: {
+    copybooks_found: number;
+    copybooks_resolved: number;
+    copybooks_missing: string[];
+    replacements_applied: number;
+  };
   error?: string;
 }
 
@@ -52,7 +58,11 @@ export interface ParagraphInfo {
  * Call the Python transpiler API
  * Works both locally and on Vercel (internal routing)
  */
-export async function transpileCobolViaPython(cobolCode: string, enhance: boolean = false): Promise<TranspileResult> {
+export async function transpileCobolViaPython(
+  cobolCode: string, 
+  enhance: boolean = false,
+  copybooks?: Record<string, string>
+): Promise<TranspileResult> {
   try {
     // Always use the production domain for internal calls
     const baseUrl = 'https://cobol-ast-service.vercel.app';
@@ -60,7 +70,7 @@ export async function transpileCobolViaPython(cobolCode: string, enhance: boolea
     const response = await fetch(`${baseUrl}/api/transpile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cobolCode, enhance }),
+      body: JSON.stringify({ cobolCode, enhance, copybooks: copybooks || {} }),
     });
     
     if (!response.ok) {
@@ -75,9 +85,10 @@ export async function transpileCobolViaPython(cobolCode: string, enhance: boolea
       python_code: result.python_code || result.pythonCode || '',
       pythonCode: result.python_code || result.pythonCode || '',
       unit_tests: result.unit_tests || '',
-      version: result.version || '4.4.0',
+      version: result.version || '4.5.0',
       architecture: result.architecture || 'Clean Architecture',
       stats: result.stats || {},
+      copybook_stats: result.copybook_stats,
       error: result.error,
     };
   } catch (error: any) {
