@@ -168,11 +168,18 @@ Methods:
         self.formatted_count: str = ''
 
     def __getattr__(self, name):
-        """Handle undefined COBOL variables (REDEFINES, sub-fields)"""
-        if 'amount' in name.lower() or 'total' in name.lower() or 'count' in name.lower() or ('rate' in name.lower()) or ('year' in name.lower()):
-            self.__dict__[name] = Decimal('0')
-        else:
+        """Handle undefined COBOL variables (REDEFINES, sub-fields, implicit vars)"""
+        lower = name.lower()
+        string_keywords = ('msg', 'message', 'text', 'name', 'desc', 'description', 'status', 'code', 'type', 'id', 'key', 'record', 'line', 'reason', 'path', 'file', 'string', 'char', 'alpha', 'label', 'title', 'header', 'footer')
+        is_string = any((kw in lower for kw in string_keywords))
+        bool_keywords = ('flag', 'eof', 'error', 'valid', 'found', 'done', 'active', 'enabled', 'disabled')
+        is_bool = any((kw in lower for kw in bool_keywords))
+        if is_string:
             self.__dict__[name] = ''
+        elif is_bool:
+            self.__dict__[name] = False
+        else:
+            self.__dict__[name] = Decimal('0')
         return self.__dict__[name]
 
     def p_0000_main_control(self) -> None:
