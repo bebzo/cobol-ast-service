@@ -3392,6 +3392,203 @@ def fix_syntax_errors(code: str, max_attempts: int = 10) -> Tuple[str, List[str]
 
 
 # ============================================================
+# Business Pattern Detection & Confidence Scoring
+# ============================================================
+
+# Business patterns commonly found in COBOL programs
+BUSINESS_PATTERNS = {
+    'INTEREST_CALCULATION': r'(?:COMPUTE|MULTIPLY).*(?:INTERET|INTEREST|TAUX|RATE).*(?:SOLDE|BALANCE|PRINCIPAL)',
+    'LOAN_PROCESSING': r'(?:COMPUTE|CALCULATE).*(?:PAYMENT|PAIEMENT|MENSUALITE|AMORTISSEMENT)',
+    'DATE_CALCULATION': r'(?:COMPUTE|SUBTRACT).*(?:DATE|JOUR|DAY|MONTH|YEAR)',
+    'FILE_SEQUENTIAL_READ': r'PERFORM.*UNTIL.*(?:EOF|END-OF-FILE|WS-EOF)',
+    'VALIDATION_CHECK': r'IF\s+(?:NOT\s+)?[\w-]+\s*(?:=|NOT\s*=)\s*(?:SPACES?|ZEROS?|LOW-VALUES?)',
+    'ACCUMULATOR': r'ADD\s+[\w-]+\s+TO\s+(?:WS-)?(?:TOTAL|SUM|ACCUM|COUNT)',
+    'RECORD_PROCESSING': r'(?:READ|WRITE)\s+[\w-]+\s+(?:RECORD|INTO|FROM)',
+    'ERROR_HANDLING': r'IF\s+(?:WS-)?(?:STATUS|RETURN-CODE|SQLCODE)\s*(?:NOT\s*)?=',
+    'BATCH_CONTROL': r'(?:OPEN|CLOSE)\s+(?:INPUT|OUTPUT|I-O)\s+[\w-]+',
+    'CURRENCY_ROUNDING': r'(?:COMPUTE|DIVIDE).*ROUNDED',
+}
+
+def detect_business_patterns(cobol_source: str) -> Dict[str, List[str]]:
+    """Detect business patterns in COBOL source code.
+    
+    Returns a dictionary of pattern names and their matches.
+    This helps understand the business domain of the program.
+    """
+    patterns_found = {}
+    
+    for pattern_name, regex in BUSINESS_PATTERNS.items():
+        try:
+            matches = re.findall(regex, cobol_source, re.IGNORECASE | re.MULTILINE)
+            if matches:
+                patterns_found[pattern_name] = matches[:5]  # Limit to 5 examples
+        except re.error:
+            continue
+    
+    return patterns_found
+
+
+def calculate_confidence_score(cobol_ast: 'CobolAST', python_code: str, 
+                                gemini_stats: Dict) -> Dict[str, Any]:
+    """Calculate a confidence score for the transpilation.
+    
+    Score is based on:
+    - % of statements successfully transpiled
+    - Syntax validity
+    - Gemini enrichment success
+    - Complexity of the COBOL program
+    """
+    # Count total COBOL statements
+    total_statements = sum(len(p.statements) for p in cobol_ast.paragraphs)
+    
+    # Count Python method bodies (excluding pass statements)
+    python_methods = re.findall(r'def \w+\(self\)[^:]*:\s*"""[^"]*"""(.*?)(?=def |\Z)', 
+                                 python_code, re.DOTALL)
+    non_empty_methods = sum(1 for m in python_methods if 'pass' not in m and m.strip())
+    
+    # Base score calculation
+    if total_statements == 0:
+        statement_coverage = 0.0
+    else:
+        # Estimate transpiled statements by counting Python statements
+        python_statements = len(re.findall(r'self\.\w+', python_code))
+        statement_coverage = min(1.0, python_statements / max(total_statements, 1))
+    
+    # Syntax validity bonus
+    syntax_bonus = 0.2 if gemini_stats.get('syntax_valid', False) else 0.0
+    
+    # Gemini enrichment bonus
+    enrichment_bonus = 0.0
+    if gemini_stats.get('enrichment_mode') == 'gemini_safe':
+        enriched_count = gemini_stats.get('enriched', 0)
+        enrichment_bonus = min(0.15, enriched_count * 0.01)
+    
+    # Penalty for rollback
+    rollback_penalty = 0.1 if gemini_stats.get('enrichment_mode') == 'ast_rollback' else 0.0
+    
+    # Calculate final score (0-100)
+    raw_score = (statement_coverage * 0.65) + syntax_bonus + enrichment_bonus - rollback_penalty
+    confidence_score = round(min(1.0, max(0.0, raw_score)) * 100, 1)
+    
+    return {
+        'confidence_score': confidence_score,
+        'coverage': {
+            'cobol_statements': total_statements,
+            'cobol_paragraphs': len(cobol_ast.paragraphs),
+            'cobol_variables': len(cobol_ast.variables),
+            'python_methods': len(python_methods),
+            'methods_with_logic': non_empty_methods,
+            'statement_coverage_pct': round(statement_coverage * 100, 1)
+        },
+        'quality_factors': {
+            'syntax_valid': gemini_stats.get('syntax_valid', False),
+            'enrichment_mode': gemini_stats.get('enrichment_mode', 'unknown'),
+            'enriched_methods': gemini_stats.get('enriched', 0)
+        }
+    }
+
+
+def generate_transformation_doc(cobol_ast: 'CobolAST', patterns_found: Dict,
+                                  confidence: Dict, program_id: str) -> str:
+    """Generate Markdown documentation for the transformation.
+    
+    Includes:
+    - Program overview
+    - Business patterns detected
+    - Variable mappings
+    - Paragraph → Method mappings
+    - Confidence metrics
+    """
+    doc_lines = []
+    
+    # Header
+    doc_lines.append(f"# COBOL→Python Transformation Report")
+    doc_lines.append(f"## Program: {program_id}")
+    doc_lines.append("")
+    doc_lines.append(f"**Generated by**: CodeSwitch AST Transpiler v5.2.0")
+    doc_lines.append(f"**Confidence Score**: {confidence['confidence_score']}%")
+    doc_lines.append("")
+    
+    # Business Patterns
+    doc_lines.append("## 📊 Business Patterns Detected")
+    doc_lines.append("")
+    if patterns_found:
+        for pattern_name, matches in patterns_found.items():
+            doc_lines.append(f"### {pattern_name.replace('_', ' ').title()}")
+            doc_lines.append(f"- Found {len(matches)} occurrence(s)")
+            doc_lines.append("")
+    else:
+        doc_lines.append("*No specific business patterns detected*")
+        doc_lines.append("")
+    
+    # Coverage Metrics
+    doc_lines.append("## 📈 Coverage Metrics")
+    doc_lines.append("")
+    doc_lines.append("| Metric | Value |")
+    doc_lines.append("|--------|-------|")
+    coverage = confidence.get('coverage', {})
+    doc_lines.append(f"| COBOL Statements | {coverage.get('cobol_statements', 0)} |")
+    doc_lines.append(f"| COBOL Paragraphs | {coverage.get('cobol_paragraphs', 0)} |")
+    doc_lines.append(f"| COBOL Variables | {coverage.get('cobol_variables', 0)} |")
+    doc_lines.append(f"| Python Methods | {coverage.get('python_methods', 0)} |")
+    doc_lines.append(f"| Methods with Logic | {coverage.get('methods_with_logic', 0)} |")
+    doc_lines.append(f"| Statement Coverage | {coverage.get('statement_coverage_pct', 0)}% |")
+    doc_lines.append("")
+    
+    # Variable Mappings
+    doc_lines.append("## 🔄 Variable Mappings (COBOL → Python)")
+    doc_lines.append("")
+    doc_lines.append("| COBOL Variable | Python Attribute | Type |")
+    doc_lines.append("|----------------|------------------|------|")
+    for var in cobol_ast.variables[:20]:  # Limit to first 20
+        py_name = to_snake_case(var.name)
+        py_type, _ = pic_to_python_type(var.picture, var.value)
+        doc_lines.append(f"| {var.name} | self.{py_name} | {py_type} |")
+    if len(cobol_ast.variables) > 20:
+        doc_lines.append(f"| ... | *({len(cobol_ast.variables) - 20} more)* | |")
+    doc_lines.append("")
+    
+    # Paragraph Mappings
+    doc_lines.append("## 📋 Paragraph → Method Mappings")
+    doc_lines.append("")
+    doc_lines.append("| COBOL Paragraph | Python Method | Lines |")
+    doc_lines.append("|-----------------|---------------|-------|")
+    for para in cobol_ast.paragraphs[:30]:  # Limit to first 30
+        py_method = to_snake_case(para.name)
+        doc_lines.append(f"| {para.name} | {py_method}() | {para.line_start}-{para.line_end} |")
+    if len(cobol_ast.paragraphs) > 30:
+        doc_lines.append(f"| ... | *({len(cobol_ast.paragraphs) - 30} more)* | |")
+    doc_lines.append("")
+    
+    # Quality Factors
+    doc_lines.append("## ✅ Quality Factors")
+    doc_lines.append("")
+    quality = confidence.get('quality_factors', {})
+    doc_lines.append(f"- **Syntax Valid**: {'Yes ✅' if quality.get('syntax_valid') else 'No ❌'}")
+    doc_lines.append(f"- **Enrichment Mode**: {quality.get('enrichment_mode', 'N/A')}")
+    doc_lines.append(f"- **Enriched Methods**: {quality.get('enriched_methods', 0)}")
+    doc_lines.append("")
+    
+    # Recommendations
+    doc_lines.append("## 💡 Recommendations")
+    doc_lines.append("")
+    score = confidence['confidence_score']
+    if score >= 85:
+        doc_lines.append("✅ **High confidence** - Code is ready for review and testing")
+    elif score >= 70:
+        doc_lines.append("⚠️ **Medium confidence** - Review business logic carefully")
+        doc_lines.append("- Check calculations against COBOL originals")
+        doc_lines.append("- Validate file I/O operations")
+    else:
+        doc_lines.append("🔴 **Low confidence** - Significant manual review required")
+        doc_lines.append("- Many statements may need manual implementation")
+        doc_lines.append("- Consider running with Gemini enhancement enabled")
+    doc_lines.append("")
+    
+    return '\n'.join(doc_lines)
+
+
+# ============================================================
 # Code Generation & Unit Tests
 # ============================================================
 
@@ -3490,12 +3687,26 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         class_name = to_pascal_case(cobol_ast.program_id)
         test_code = generate_unit_tests_v4(cobol_ast, class_name, python_code)
         
+        # v5.2.0: Business pattern detection
+        patterns_found = detect_business_patterns(cobol_source)
+        
+        # v5.2.0: Confidence score calculation
+        confidence = calculate_confidence_score(cobol_ast, python_code, gemini_stats)
+        
+        # v5.2.0: Transformation documentation
+        transformation_doc = generate_transformation_doc(
+            cobol_ast, patterns_found, confidence, cobol_ast.program_id
+        )
+        
         return {
             'success': True,
             'python_code': python_code,
             'unit_tests': test_code,
+            'transformation_doc': transformation_doc,
             'version': '5.2.0-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.2.0-golden' if enhance else '5.2.0',
             'architecture': 'Clean Architecture + Enterprise Patterns',
+            'confidence_score': confidence['confidence_score'],
+            'business_patterns': list(patterns_found.keys()),
             'stats': {
                 'variables': len(cobol_ast.variables),
                 'paragraphs': len(cobol_ast.paragraphs),
@@ -3507,7 +3718,9 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
                 'sql_commands': len(cobol_ast.sql_commands),
                 'has_cics': cobol_ast.has_cics,
                 'has_sql': cobol_ast.has_sql,
-                **gemini_stats
+                **gemini_stats,
+                **confidence['coverage'],
+                **confidence['quality_factors']
             }
         }
     
@@ -3515,7 +3728,8 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         return {
             'success': False,
             'error': str(e),
-            'python_code': ''
+            'python_code': '',
+            'confidence_score': 0
         }
 
 
