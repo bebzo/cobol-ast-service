@@ -946,6 +946,11 @@ Methods:
                         keywords=[]
                     ))]
                 
+                # Sanitize condition name for docstring
+                safe_cond_name = cond.name.replace('"', "'").replace('\n', ' ')
+                safe_parent = parent.replace('"', "'").replace('\n', ' ')
+                docstring_text = f"COBOL 88-level condition: {safe_cond_name}\n\nParent variable: {safe_parent}"
+                
                 getter = ast.FunctionDef(
                     name=prop_name,
                     args=ast.arguments(
@@ -958,7 +963,7 @@ Methods:
                         defaults=[]
                     ),
                     body=[
-                        ast.Expr(value=ast.Constant(value=f"88-level: {cond.name}")),
+                        ast.Expr(value=ast.Constant(value=docstring_text)),
                         *getter_body
                     ],
                     decorator_list=[ast.Name(id='property', ctx=ast.Load())],
@@ -2164,14 +2169,37 @@ Output ONLY the method body (8-space indent), NO 'def' line:"""
                 response = model.generate_content(prompt)
                 new_body = response.text.strip()
                 
+                # Clean markdown code blocks
                 new_body = re.sub(r'^```python\s*\n?', '', new_body)
-                new_body = re.sub(r'\n?```$', '', new_body)
+                new_body = re.sub(r'\n?```\s*$', '', new_body)
                 new_body = re.sub(r'^    def \w+\([^)]*\):\s*\n', '', new_body)
                 
+                # Build new method with proper indentation
                 new_method = f"    def {method_name}(self) -> None:\n"
-                for line in new_body.split('\n'):
-                    if line.strip():
-                        new_method += '        ' + line.lstrip() + '\n'
+                new_method += f'        """Business logic from COBOL paragraph: {method_name.upper().replace("_", "-")}"""\n'
+                
+                lines = new_body.split('\n')
+                base_indent = None
+                
+                for line in lines:
+                    stripped = line.lstrip()
+                    if not stripped:
+                        continue
+                    
+                    # Detect base indentation from first non-empty line
+                    if base_indent is None:
+                        base_indent = len(line) - len(stripped)
+                    
+                    # Calculate relative indentation
+                    current_indent = len(line) - len(stripped)
+                    relative_indent = max(0, current_indent - base_indent)
+                    
+                    # Add 8-space base indent + relative indentation
+                    new_method += ' ' * (8 + relative_indent) + stripped + '\n'
+                
+                # Ensure method has at least a pass statement
+                if 'pass' not in new_method and 'return' not in new_method and 'self.' not in new_method:
+                    new_method += '        pass\n'
                 
                 test_code = f"class T:\n{new_method}"
                 ast.parse(test_code)
