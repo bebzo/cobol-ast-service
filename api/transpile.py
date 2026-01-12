@@ -149,6 +149,270 @@ def apply_replacing(content: str, replacing_clause: str) -> str:
 
 
 # ============================================================
+# CICS Preprocessor - Enterprise Transaction Support
+# ============================================================
+
+@dataclass
+class CICSCommand:
+    """Represents a parsed CICS command"""
+    command_type: str  # SEND, RECEIVE, READ, WRITE, LINK, XCTL, etc.
+    options: Dict[str, str] = field(default_factory=dict)
+    line: int = 0
+    original_text: str = ''
+
+
+# CICS command patterns and their Python method mappings
+CICS_COMMAND_MAP = {
+    'SEND': 'send_data',
+    'RECEIVE': 'receive_data', 
+    'READ': 'read_file',
+    'WRITE': 'write_file',
+    'REWRITE': 'rewrite_file',
+    'DELETE': 'delete_file',
+    'LINK': 'link_program',
+    'XCTL': 'transfer_control',
+    'RETURN': 'return_control',
+    'SYNCPOINT': 'syncpoint',
+    'ABEND': 'abend',
+    'HANDLE': 'handle_condition',
+    'IGNORE': 'ignore_condition',
+    'ASKTIME': 'get_time',
+    'FORMATTIME': 'format_time',
+    'ASSIGN': 'get_system_value',
+    'ADDRESS': 'get_address',
+    'GETMAIN': 'allocate_memory',
+    'FREEMAIN': 'free_memory',
+    'ENQ': 'enqueue_resource',
+    'DEQ': 'dequeue_resource',
+    'START': 'start_transaction',
+    'RETRIEVE': 'retrieve_data',
+    'WRITEQ': 'write_queue',
+    'READQ': 'read_queue',
+    'DELETEQ': 'delete_queue',
+}
+
+
+def preprocess_cics(cobol_source: str) -> Tuple[str, List[CICSCommand], Dict]:
+    """
+    Preprocess COBOL source to convert EXEC CICS blocks to method calls.
+    
+    Converts:
+        EXEC CICS SEND MAP('MAP1') FROM(WS-DATA) END-EXEC
+    To:
+        PERFORM CICS-SEND-MAP-001
+        
+    And tracks the command for Python generation.
+    
+    Returns:
+        Tuple of (modified_source, cics_commands_list, stats_dict)
+    """
+    stats = {
+        'cics_commands_found': 0,
+        'cics_commands_converted': 0,
+        'cics_types': {}
+    }
+    
+    commands: List[CICSCommand] = []
+    
+    # Pattern to match EXEC CICS ... END-EXEC (multiline)
+    cics_pattern = re.compile(
+        r'EXEC\s+CICS\s+(.*?)END-EXEC',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    command_counter = 0
+    
+    def parse_cics_command(match) -> str:
+        """Parse a single EXEC CICS block and return a PERFORM statement"""
+        nonlocal command_counter
+        command_counter += 1
+        
+        stats['cics_commands_found'] += 1
+        
+        # Extract command body (remove line continuations, normalize whitespace)
+        body = match.group(1)
+        body = re.sub(r'\s+', ' ', body).strip()
+        
+        # Parse command type (first word after EXEC CICS)
+        words = body.split()
+        if not words:
+            return f"      * CICS PARSE ERROR: Empty command"
+        
+        cmd_type = words[0].upper()
+        
+        # Parse options (KEY(VALUE) or KEY VALUE or just KEY)
+        options = {}
+        option_pattern = re.compile(r'([A-Z][A-Z0-9-]*)\s*(?:\(([^)]+)\)|(?=\s|$))', re.IGNORECASE)
+        for opt_match in option_pattern.finditer(body):
+            opt_name = opt_match.group(1).upper()
+            opt_value = opt_match.group(2) if opt_match.group(2) else 'TRUE'
+            if opt_name != cmd_type:  # Skip the command type itself
+                options[opt_name] = opt_value.strip().strip("'\"")
+        
+        # Track command type stats
+        stats['cics_types'][cmd_type] = stats['cics_types'].get(cmd_type, 0) + 1
+        stats['cics_commands_converted'] += 1
+        
+        # Create command object
+        cmd = CICSCommand(
+            command_type=cmd_type,
+            options=options,
+            line=command_counter,
+            original_text=match.group(0).strip()
+        )
+        commands.append(cmd)
+        
+        # Generate a traceable PERFORM call
+        para_name = f"CICS-{cmd_type}-{command_counter:03d}"
+        
+        # Return comment + pseudo-perform for the transpiler
+        return f"      * CICS: {cmd_type} -> {para_name}\n           PERFORM {para_name}"
+    
+    # Replace all EXEC CICS blocks
+    modified_source = cics_pattern.sub(parse_cics_command, cobol_source)
+    
+    return modified_source, commands, stats
+
+
+# ============================================================
+# SQL Preprocessor - Embedded SQL Support
+# ============================================================
+
+@dataclass 
+class SQLCommand:
+    """Represents a parsed embedded SQL command"""
+    command_type: str  # SELECT, INSERT, UPDATE, DELETE, OPEN, FETCH, CLOSE, etc.
+    sql_text: str = ''
+    host_variables: List[str] = field(default_factory=list)  # :VAR references
+    into_variables: List[str] = field(default_factory=list)  # INTO clause vars
+    cursor_name: Optional[str] = None
+    line: int = 0
+    original_text: str = ''
+
+
+def preprocess_sql(cobol_source: str) -> Tuple[str, List[SQLCommand], Dict]:
+    """
+    Preprocess COBOL source to convert EXEC SQL blocks to method calls.
+    
+    Converts:
+        EXEC SQL SELECT NAME INTO :WS-NAME FROM CUSTOMER WHERE ID = :WS-ID END-EXEC
+    To:
+        PERFORM SQL-SELECT-001
+        
+    And tracks the command for Python generation.
+    
+    Returns:
+        Tuple of (modified_source, sql_commands_list, stats_dict)
+    """
+    stats = {
+        'sql_commands_found': 0,
+        'sql_commands_converted': 0,
+        'sql_types': {},
+        'cursors_declared': [],
+        'tables_referenced': []
+    }
+    
+    commands: List[SQLCommand] = []
+    
+    # Pattern to match EXEC SQL ... END-EXEC (multiline)
+    sql_pattern = re.compile(
+        r'EXEC\s+SQL\s+(.*?)END-EXEC',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    command_counter = 0
+    
+    def parse_sql_command(match) -> str:
+        """Parse a single EXEC SQL block and return a PERFORM statement"""
+        nonlocal command_counter
+        command_counter += 1
+        
+        stats['sql_commands_found'] += 1
+        
+        # Extract SQL body (normalize whitespace)
+        body = match.group(1)
+        body = re.sub(r'\s+', ' ', body).strip()
+        
+        # Determine SQL command type
+        first_word = body.split()[0].upper() if body.split() else 'UNKNOWN'
+        
+        # Map SQL statements to types
+        if first_word in ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'MERGE'):
+            cmd_type = first_word
+        elif first_word == 'DECLARE':
+            cmd_type = 'DECLARE_CURSOR'
+        elif first_word == 'OPEN':
+            cmd_type = 'OPEN_CURSOR'
+        elif first_word == 'FETCH':
+            cmd_type = 'FETCH_CURSOR'
+        elif first_word == 'CLOSE':
+            cmd_type = 'CLOSE_CURSOR'
+        elif first_word == 'COMMIT':
+            cmd_type = 'COMMIT'
+        elif first_word == 'ROLLBACK':
+            cmd_type = 'ROLLBACK'
+        elif first_word == 'INCLUDE':
+            cmd_type = 'INCLUDE'
+            # INCLUDE SQLCA - add SQLCODE, SQLSTATE variables
+            return "      * SQL INCLUDE: Added via SQLContext"
+        else:
+            cmd_type = first_word
+        
+        # Extract host variables (prefixed with :)
+        host_vars = re.findall(r':([A-Z][A-Z0-9-]*)', body, re.IGNORECASE)
+        
+        # Extract INTO clause variables
+        into_vars = []
+        into_match = re.search(r'INTO\s+(.+?)(?:FROM|WHERE|$)', body, re.IGNORECASE)
+        if into_match:
+            into_clause = into_match.group(1)
+            into_vars = re.findall(r':([A-Z][A-Z0-9-]*)', into_clause, re.IGNORECASE)
+        
+        # Extract cursor name for cursor operations
+        cursor_name = None
+        if cmd_type in ('DECLARE_CURSOR', 'OPEN_CURSOR', 'FETCH_CURSOR', 'CLOSE_CURSOR'):
+            cursor_match = re.search(r'(?:DECLARE|OPEN|FETCH|CLOSE)\s+([A-Z][A-Z0-9-]*)', body, re.IGNORECASE)
+            if cursor_match:
+                cursor_name = cursor_match.group(1)
+                if cmd_type == 'DECLARE_CURSOR':
+                    stats['cursors_declared'].append(cursor_name)
+        
+        # Extract table names (simplified)
+        if cmd_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE'):
+            table_match = re.search(r'(?:FROM|INTO|UPDATE)\s+([A-Z][A-Z0-9_]*)', body, re.IGNORECASE)
+            if table_match:
+                table = table_match.group(1)
+                if table not in stats['tables_referenced']:
+                    stats['tables_referenced'].append(table)
+        
+        # Track stats
+        stats['sql_types'][cmd_type] = stats['sql_types'].get(cmd_type, 0) + 1
+        stats['sql_commands_converted'] += 1
+        
+        # Create command object
+        cmd = SQLCommand(
+            command_type=cmd_type,
+            sql_text=body,
+            host_variables=host_vars,
+            into_variables=into_vars,
+            cursor_name=cursor_name,
+            line=command_counter,
+            original_text=match.group(0).strip()
+        )
+        commands.append(cmd)
+        
+        # Generate a traceable PERFORM call
+        para_name = f"SQL-{cmd_type.replace('_', '-')}-{command_counter:03d}"
+        
+        return f"      * SQL: {cmd_type} -> {para_name}\n           PERFORM {para_name}"
+    
+    # Replace all EXEC SQL blocks
+    modified_source = sql_pattern.sub(parse_sql_command, cobol_source)
+    
+    return modified_source, commands, stats
+
+
+# ============================================================
 # COBOL Parser - Enhanced with 88-level conditions
 # ============================================================
 
@@ -199,6 +463,10 @@ class CobolAST:
     conditions_88: List[Cobol88Condition] = field(default_factory=list)
     file_descriptors: List[CobolFileDescriptor] = field(default_factory=list)
     record_groups: Dict[str, List[CobolVariable]] = field(default_factory=dict)
+    cics_commands: List[CICSCommand] = field(default_factory=list)
+    sql_commands: List[SQLCommand] = field(default_factory=list)
+    has_cics: bool = False
+    has_sql: bool = False
 
 
 def parse_cobol(source: str) -> CobolAST:
@@ -800,6 +1068,443 @@ class FileManager:
     def is_ok(self, name: str) -> bool:
         """Check if last operation was successful"""
         return self._status.get(name) == '00'
+'''
+
+
+def generate_cics_context_code() -> str:
+    """Generate CICSContext class for CICS command abstraction"""
+    return '''
+# ============================================================
+# CICSContext - CICS Transaction Processing Abstraction
+# ============================================================
+
+class CICSContext:
+    """
+    Abstraction layer for CICS commands.
+    
+    This class provides Python equivalents for CICS operations.
+    Override methods to integrate with your transaction processing system.
+    
+    Usage:
+        class MyCICSAdapter(CICSContext):
+            def send_data(self, map_name: str, data: dict, **options):
+                # Send to web API, terminal, etc.
+                ...
+    """
+    
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.eibresp = 0   # CICS response code (EIBRESP)
+        self.eibresp2 = 0  # CICS response code 2 (EIBRESP2)
+        self.eibcalen = 0  # COMMAREA length
+        self.dfhcommarea: bytes = b''  # Communication area
+        self._handlers: Dict[str, Callable] = {}
+    
+    # ═══════════════════════════════════════════════════════════
+    # Screen/Terminal Operations
+    # ═══════════════════════════════════════════════════════════
+    
+    def send_data(self, map_name: str = '', mapset: str = '', 
+                  from_data: Any = None, **options) -> bool:
+        """EXEC CICS SEND MAP(...) - Send data to terminal/screen"""
+        self.logger.info(f"CICS SEND: map={map_name}, mapset={mapset}")
+        self.eibresp = 0
+        return True
+    
+    def receive_data(self, map_name: str = '', mapset: str = '',
+                     into: Any = None, **options) -> Optional[dict]:
+        """EXEC CICS RECEIVE MAP(...) - Receive data from terminal"""
+        self.logger.info(f"CICS RECEIVE: map={map_name}")
+        self.eibresp = 0
+        return {}
+    
+    # ═══════════════════════════════════════════════════════════
+    # File Operations
+    # ═══════════════════════════════════════════════════════════
+    
+    def read_file(self, file: str, into: Any = None, 
+                  ridfld: bytes = b'', **options) -> Optional[bytes]:
+        """EXEC CICS READ FILE(...) - Read record from VSAM file"""
+        self.logger.info(f"CICS READ: file={file}, key={ridfld}")
+        self.eibresp = 0
+        return None  # Override to return actual data
+    
+    def write_file(self, file: str, from_data: bytes = b'',
+                   ridfld: bytes = b'', **options) -> bool:
+        """EXEC CICS WRITE FILE(...) - Write record to VSAM file"""
+        self.logger.info(f"CICS WRITE: file={file}")
+        self.eibresp = 0
+        return True
+    
+    def rewrite_file(self, file: str, from_data: bytes = b'', **options) -> bool:
+        """EXEC CICS REWRITE FILE(...) - Update record in VSAM file"""
+        self.logger.info(f"CICS REWRITE: file={file}")
+        self.eibresp = 0
+        return True
+    
+    def delete_file(self, file: str, ridfld: bytes = b'', **options) -> bool:
+        """EXEC CICS DELETE FILE(...) - Delete record from VSAM file"""
+        self.logger.info(f"CICS DELETE: file={file}")
+        self.eibresp = 0
+        return True
+    
+    # ═══════════════════════════════════════════════════════════
+    # Program Control
+    # ═══════════════════════════════════════════════════════════
+    
+    def link_program(self, program: str, commarea: bytes = b'', **options) -> bytes:
+        """EXEC CICS LINK PROGRAM(...) - Call another program"""
+        self.logger.info(f"CICS LINK: program={program}")
+        self.eibresp = 0
+        return commarea  # Return possibly modified COMMAREA
+    
+    def transfer_control(self, program: str, commarea: bytes = b'', **options) -> None:
+        """EXEC CICS XCTL PROGRAM(...) - Transfer to another program"""
+        self.logger.info(f"CICS XCTL: program={program}")
+        raise SystemExit(f"XCTL to {program}")  # Simulates program exit
+    
+    def return_control(self, transid: str = '', commarea: bytes = b'', **options) -> None:
+        """EXEC CICS RETURN - Return to CICS or calling program"""
+        self.logger.info(f"CICS RETURN: transid={transid}")
+        self.eibresp = 0
+    
+    # ═══════════════════════════════════════════════════════════
+    # Transaction Control
+    # ═══════════════════════════════════════════════════════════
+    
+    def syncpoint(self, **options) -> bool:
+        """EXEC CICS SYNCPOINT - Commit transaction"""
+        self.logger.info("CICS SYNCPOINT")
+        self.eibresp = 0
+        return True
+    
+    def abend(self, abcode: str = 'ABND', **options) -> None:
+        """EXEC CICS ABEND - Abnormal end transaction"""
+        self.logger.error(f"CICS ABEND: {abcode}")
+        raise RuntimeError(f"CICS ABEND: {abcode}")
+    
+    # ═══════════════════════════════════════════════════════════
+    # Queue Operations
+    # ═══════════════════════════════════════════════════════════
+    
+    def write_queue(self, queue: str, from_data: bytes = b'', 
+                    td: bool = False, ts: bool = False, **options) -> bool:
+        """EXEC CICS WRITEQ TD/TS - Write to queue"""
+        q_type = "TD" if td else "TS"
+        self.logger.info(f"CICS WRITEQ {q_type}: queue={queue}")
+        self.eibresp = 0
+        return True
+    
+    def read_queue(self, queue: str, into: Any = None,
+                   td: bool = False, ts: bool = False, **options) -> Optional[bytes]:
+        """EXEC CICS READQ TD/TS - Read from queue"""
+        q_type = "TD" if td else "TS"
+        self.logger.info(f"CICS READQ {q_type}: queue={queue}")
+        self.eibresp = 0
+        return None
+    
+    def delete_queue(self, queue: str, ts: bool = True, **options) -> bool:
+        """EXEC CICS DELETEQ TS - Delete queue"""
+        self.logger.info(f"CICS DELETEQ: queue={queue}")
+        self.eibresp = 0
+        return True
+    
+    # ═══════════════════════════════════════════════════════════
+    # System Services
+    # ═══════════════════════════════════════════════════════════
+    
+    def get_time(self, **options) -> None:
+        """EXEC CICS ASKTIME - Get current time"""
+        self.eibtime = datetime.now().strftime("%H%M%S")
+        self.eibdate = datetime.now().strftime("%y%j")  # Julian date
+        self.eibresp = 0
+    
+    def format_time(self, abstime: int = 0, **options) -> str:
+        """EXEC CICS FORMATTIME - Format time value"""
+        self.eibresp = 0
+        return datetime.now().isoformat()
+    
+    def get_system_value(self, **options) -> dict:
+        """EXEC CICS ASSIGN - Get system values"""
+        self.eibresp = 0
+        return {
+            'applid': 'PYTHON',
+            'sysid': 'PYTH',
+            'userid': 'USER',
+            'opid': 'OPR',
+        }
+    
+    def handle_condition(self, condition: str, label: str = '', **options) -> None:
+        """EXEC CICS HANDLE CONDITION - Set error handler"""
+        self._handlers[condition.upper()] = label
+    
+    def ignore_condition(self, condition: str, **options) -> None:
+        """EXEC CICS IGNORE CONDITION - Ignore specific condition"""
+        self._handlers[condition.upper()] = None
+'''
+
+
+def generate_sql_context_code() -> str:
+    """Generate SQLContext class for embedded SQL abstraction"""
+    return '''
+# ============================================================
+# SQLContext - Embedded SQL Abstraction (DB2/Oracle compatible)
+# ============================================================
+
+class SQLContext:
+    """
+    Abstraction layer for embedded SQL commands.
+    
+    Provides Python equivalents for EXEC SQL operations.
+    Override methods to integrate with your database.
+    
+    Usage:
+        class MyDBAdapter(SQLContext):
+            def __init__(self, connection_string: str):
+                super().__init__()
+                self.engine = create_engine(connection_string)
+    """
+    
+    def __init__(self, connection: Any = None):
+        self.logger = logging.getLogger(__name__)
+        self.connection = connection
+        
+        # SQLCA - SQL Communication Area
+        self.sqlcode = 0       # SQL return code (0=OK, 100=NOT FOUND, <0=ERROR)
+        self.sqlstate = '00000'  # SQL state (5-char code)
+        self.sqlerrd = [0] * 6   # SQL error diagnostic info
+        self.sqlwarn = [''] * 8  # SQL warning flags
+        
+        # Cursor management
+        self._cursors: Dict[str, Any] = {}
+        self._cursor_results: Dict[str, List] = {}
+        self._cursor_position: Dict[str, int] = {}
+    
+    # ═══════════════════════════════════════════════════════════
+    # Query Operations
+    # ═══════════════════════════════════════════════════════════
+    
+    def execute_select_into(self, sql: str, params: dict = None, 
+                            into_vars: List[str] = None) -> Optional[dict]:
+        """
+        EXEC SQL SELECT ... INTO :var1, :var2 ... END-EXEC
+        
+        Returns dict mapping variable names to values, or None if not found.
+        Sets sqlcode = 0 (found), 100 (not found), or <0 (error).
+        """
+        self.logger.info(f"SQL SELECT INTO: {sql[:50]}...")
+        
+        try:
+            if self.connection:
+                # Real database execution
+                result = self.connection.execute(sql, params or {}).fetchone()
+                if result:
+                    self.sqlcode = 0
+                    self.sqlstate = '00000'
+                    if into_vars:
+                        return dict(zip(into_vars, result))
+                    return {'result': result}
+                else:
+                    self.sqlcode = 100  # NOT FOUND
+                    self.sqlstate = '02000'
+                    return None
+            else:
+                # Simulation mode
+                self.sqlcode = 0
+                self.sqlstate = '00000'
+                return {var: None for var in (into_vars or [])}
+                
+        except Exception as e:
+            self.logger.error(f"SQL Error: {e}")
+            self.sqlcode = -1
+            self.sqlstate = '58000'
+            return None
+    
+    def execute_insert(self, sql: str, params: dict = None) -> bool:
+        """EXEC SQL INSERT INTO ... END-EXEC"""
+        self.logger.info(f"SQL INSERT: {sql[:50]}...")
+        
+        try:
+            if self.connection:
+                self.connection.execute(sql, params or {})
+            self.sqlcode = 0
+            self.sqlstate = '00000'
+            self.sqlerrd[2] = 1  # Rows affected
+            return True
+        except Exception as e:
+            self.logger.error(f"SQL Insert Error: {e}")
+            self.sqlcode = -1
+            self.sqlstate = '58000'
+            return False
+    
+    def execute_update(self, sql: str, params: dict = None) -> int:
+        """EXEC SQL UPDATE ... END-EXEC - Returns rows affected"""
+        self.logger.info(f"SQL UPDATE: {sql[:50]}...")
+        
+        try:
+            if self.connection:
+                result = self.connection.execute(sql, params or {})
+                rows = result.rowcount
+            else:
+                rows = 0
+            self.sqlcode = 0
+            self.sqlstate = '00000'
+            self.sqlerrd[2] = rows
+            return rows
+        except Exception as e:
+            self.logger.error(f"SQL Update Error: {e}")
+            self.sqlcode = -1
+            self.sqlstate = '58000'
+            return 0
+    
+    def execute_delete(self, sql: str, params: dict = None) -> int:
+        """EXEC SQL DELETE FROM ... END-EXEC - Returns rows deleted"""
+        self.logger.info(f"SQL DELETE: {sql[:50]}...")
+        
+        try:
+            if self.connection:
+                result = self.connection.execute(sql, params or {})
+                rows = result.rowcount
+            else:
+                rows = 0
+            self.sqlcode = 0
+            self.sqlstate = '00000'
+            self.sqlerrd[2] = rows
+            return rows
+        except Exception as e:
+            self.logger.error(f"SQL Delete Error: {e}")
+            self.sqlcode = -1
+            self.sqlstate = '58000'
+            return 0
+    
+    # ═══════════════════════════════════════════════════════════
+    # Cursor Operations
+    # ═══════════════════════════════════════════════════════════
+    
+    def declare_cursor(self, cursor_name: str, sql: str) -> None:
+        """EXEC SQL DECLARE cursor-name CURSOR FOR ... END-EXEC"""
+        self.logger.info(f"SQL DECLARE CURSOR: {cursor_name}")
+        self._cursors[cursor_name] = sql
+        self.sqlcode = 0
+    
+    def open_cursor(self, cursor_name: str, params: dict = None) -> bool:
+        """EXEC SQL OPEN cursor-name END-EXEC"""
+        self.logger.info(f"SQL OPEN CURSOR: {cursor_name}")
+        
+        if cursor_name not in self._cursors:
+            self.sqlcode = -502  # Cursor not declared
+            return False
+        
+        try:
+            if self.connection:
+                sql = self._cursors[cursor_name]
+                result = self.connection.execute(sql, params or {})
+                self._cursor_results[cursor_name] = result.fetchall()
+            else:
+                self._cursor_results[cursor_name] = []
+            
+            self._cursor_position[cursor_name] = 0
+            self.sqlcode = 0
+            self.sqlstate = '00000'
+            return True
+        except Exception as e:
+            self.logger.error(f"SQL Open Cursor Error: {e}")
+            self.sqlcode = -1
+            return False
+    
+    def fetch_cursor(self, cursor_name: str, into_vars: List[str] = None) -> Optional[dict]:
+        """EXEC SQL FETCH cursor-name INTO :var1, :var2 ... END-EXEC"""
+        self.logger.info(f"SQL FETCH: {cursor_name}")
+        
+        if cursor_name not in self._cursor_results:
+            self.sqlcode = -501  # Cursor not open
+            return None
+        
+        results = self._cursor_results[cursor_name]
+        pos = self._cursor_position.get(cursor_name, 0)
+        
+        if pos >= len(results):
+            self.sqlcode = 100  # NOT FOUND (end of cursor)
+            self.sqlstate = '02000'
+            return None
+        
+        row = results[pos]
+        self._cursor_position[cursor_name] = pos + 1
+        self.sqlcode = 0
+        self.sqlstate = '00000'
+        
+        if into_vars:
+            return dict(zip(into_vars, row))
+        return {'row': row}
+    
+    def close_cursor(self, cursor_name: str) -> bool:
+        """EXEC SQL CLOSE cursor-name END-EXEC"""
+        self.logger.info(f"SQL CLOSE CURSOR: {cursor_name}")
+        
+        if cursor_name in self._cursor_results:
+            del self._cursor_results[cursor_name]
+        if cursor_name in self._cursor_position:
+            del self._cursor_position[cursor_name]
+        
+        self.sqlcode = 0
+        self.sqlstate = '00000'
+        return True
+    
+    # ═══════════════════════════════════════════════════════════
+    # Transaction Control
+    # ═══════════════════════════════════════════════════════════
+    
+    def commit(self) -> bool:
+        """EXEC SQL COMMIT END-EXEC"""
+        self.logger.info("SQL COMMIT")
+        try:
+            if self.connection:
+                self.connection.commit()
+            self.sqlcode = 0
+            self.sqlstate = '00000'
+            return True
+        except Exception as e:
+            self.logger.error(f"SQL Commit Error: {e}")
+            self.sqlcode = -1
+            return False
+    
+    def rollback(self) -> bool:
+        """EXEC SQL ROLLBACK END-EXEC"""
+        self.logger.info("SQL ROLLBACK")
+        try:
+            if self.connection:
+                self.connection.rollback()
+            self.sqlcode = 0
+            self.sqlstate = '00000'
+            return True
+        except Exception as e:
+            self.logger.error(f"SQL Rollback Error: {e}")
+            self.sqlcode = -1
+            return False
+    
+    # ═══════════════════════════════════════════════════════════
+    # Utility Properties
+    # ═══════════════════════════════════════════════════════════
+    
+    @property
+    def is_ok(self) -> bool:
+        """Check if last SQL operation succeeded"""
+        return self.sqlcode == 0
+    
+    @property
+    def not_found(self) -> bool:
+        """Check if last SELECT/FETCH found no data"""
+        return self.sqlcode == 100
+    
+    @property
+    def is_error(self) -> bool:
+        """Check if last operation had an error"""
+        return self.sqlcode < 0
+    
+    @property
+    def rows_affected(self) -> int:
+        """Get number of rows affected by last INSERT/UPDATE/DELETE"""
+        return self.sqlerrd[2]
 '''
 
 
@@ -2557,17 +3262,54 @@ def fix_syntax_errors(code: str, max_attempts: int = 10) -> Tuple[str, List[str]
 # Code Generation & Unit Tests
 # ============================================================
 
-def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, Any]:
+def generate_python_code(cobol_source: str, enhance: bool = False,
+                         cics_commands: List[CICSCommand] = None,
+                         sql_commands: List[SQLCommand] = None) -> Dict[str, Any]:
     """Main entry point: COBOL source → Python code
     
+    v5.1.0: CICS and SQL support
     v4.4.2: Safe Gemini enrichment with rollback protection
     - Always validates syntax after each step
     - If Gemini enrichment breaks code, returns clean AST version
     """
+    # Auto-detect and preprocess CICS/SQL if not provided
+    if cics_commands is None and 'EXEC CICS' in cobol_source.upper():
+        cobol_source, cics_commands, _ = preprocess_cics(cobol_source)
+    if sql_commands is None and 'EXEC SQL' in cobol_source.upper():
+        cobol_source, sql_commands, _ = preprocess_sql(cobol_source)
+    
+    cics_commands = cics_commands or []
+    sql_commands = sql_commands or []
+    
     try:
         cobol_ast = parse_cobol(cobol_source)
+        
+        # Store CICS/SQL commands in AST for code generation
+        cobol_ast.cics_commands = cics_commands
+        cobol_ast.sql_commands = sql_commands
+        cobol_ast.has_cics = len(cics_commands) > 0
+        cobol_ast.has_sql = len(sql_commands) > 0
+        
         python_ast = generate_python_ast_v4(cobol_ast)
         python_code = ast.unparse(python_ast)
+        
+        # Prepend CICS/SQL context classes if needed
+        infrastructure_code = ""
+        if cobol_ast.has_cics:
+            infrastructure_code += generate_cics_context_code() + "\n\n"
+        if cobol_ast.has_sql:
+            infrastructure_code += generate_sql_context_code() + "\n\n"
+        
+        if infrastructure_code:
+            # Insert after imports but before the main class
+            lines = python_code.split('\n')
+            insert_pos = 0
+            for i, line in enumerate(lines):
+                if line.startswith('class ') or line.startswith('@dataclass'):
+                    insert_pos = i
+                    break
+            lines.insert(insert_pos, infrastructure_code)
+            python_code = '\n'.join(lines)
         
         # Format with black if available
         try:
@@ -2619,7 +3361,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
             'success': True,
             'python_code': python_code,
             'unit_tests': test_code,
-            'version': '5.0.0-golden' if enhance else '5.0.0',
+            'version': '5.1.0-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.0.0-golden' if enhance else '5.0.0',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'stats': {
                 'variables': len(cobol_ast.variables),
@@ -2628,6 +3370,10 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
                 'conditions_88': len(cobol_ast.conditions_88),
                 'file_descriptors': len(cobol_ast.file_descriptors),
                 'record_groups': len(cobol_ast.record_groups),
+                'cics_commands': len(cobol_ast.cics_commands),
+                'sql_commands': len(cobol_ast.sql_commands),
+                'has_cics': cobol_ast.has_cics,
+                'has_sql': cobol_ast.has_sql,
                 **gemini_stats
             }
         }
@@ -3178,11 +3924,29 @@ class handler(BaseHTTPRequestHandler):
             if copybooks:
                 cobol_code, copybook_stats = preprocess_copybooks(cobol_code, copybooks)
             
-            result = generate_python_code(cobol_code, enhance)
+            # Preprocess CICS commands
+            cics_commands = []
+            cics_stats = {}
+            if 'EXEC CICS' in cobol_code.upper():
+                cobol_code, cics_commands, cics_stats = preprocess_cics(cobol_code)
             
-            # Add copybook stats to result
+            # Preprocess SQL commands
+            sql_commands = []
+            sql_stats = {}
+            if 'EXEC SQL' in cobol_code.upper():
+                cobol_code, sql_commands, sql_stats = preprocess_sql(cobol_code)
+            
+            result = generate_python_code(cobol_code, enhance, 
+                                          cics_commands=cics_commands, 
+                                          sql_commands=sql_commands)
+            
+            # Add preprocessor stats to result
             if copybook_stats:
                 result['copybook_stats'] = copybook_stats
+            if cics_stats.get('cics_commands_found', 0) > 0:
+                result['cics_stats'] = cics_stats
+            if sql_stats.get('sql_commands_found', 0) > 0:
+                result['sql_stats'] = sql_stats
             
             self.send_json_response(result)
         
@@ -3194,12 +3958,16 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '4.5.0',
+            'version': '5.1.0',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'features': [
                 'COPYBOOK preprocessor with REPLACING support',
+                'CICS transaction support (SEND, RECEIVE, READ, WRITE, LINK, etc.)',
+                'Embedded SQL support (SELECT, INSERT, UPDATE, DELETE, CURSOR)',
                 'FileManager with context managers',
+                'CICSContext abstraction layer',
+                'SQLContext with SQLCODE/SQLSTATE',
                 'Business domain Enums (StatusCode, AccountType, etc.)',
                 'Dataclasses for COBOL records',
                 'Proper @property for 88-level conditions',
@@ -3208,7 +3976,9 @@ class handler(BaseHTTPRequestHandler):
                 'Comprehensive pytest suite'
             ],
             'syntax_guarantee': '100%',
-            'copybook_support': True
+            'copybook_support': True,
+            'cics_support': True,
+            'sql_support': True
         })
     
     def send_json_response(self, data: dict, status: int = 200):
