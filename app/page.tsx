@@ -741,6 +741,24 @@ export default function Home() {
     }
   }, [analysis, cobolCode, metricsAnimated]);
 
+  // Detect COPY statements in COBOL code
+  const detectCopyStatements = useCallback((code: string): string[] => {
+    const copyPattern = /^\s*COPY\s+([A-Z0-9][-A-Z0-9_]*)/gim;
+    const matches = code.matchAll(copyPattern);
+    const found = new Set<string>();
+    for (const match of matches) {
+      found.add(match[1].toUpperCase());
+    }
+    return Array.from(found);
+  }, []);
+
+  // Check which copybooks are missing
+  const updateMissingCopybooks = useCallback((required: string[], loaded: Record<string, string>) => {
+    const loadedNames = Object.keys(loaded).map(n => n.toUpperCase());
+    const missing = required.filter(name => !loadedNames.includes(name.toUpperCase()));
+    setMissingCopybooks(missing);
+  }, []);
+
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -795,24 +813,6 @@ export default function Home() {
     setCopybookCount(0);
     setMissingCopybooks(requiredCopybooks);
   }, [requiredCopybooks]);
-
-  // Detect COPY statements in COBOL code
-  const detectCopyStatements = useCallback((code: string): string[] => {
-    const copyPattern = /^\s*COPY\s+([A-Z0-9][-A-Z0-9_]*)/gim;
-    const matches = code.matchAll(copyPattern);
-    const copybooks = new Set<string>();
-    for (const match of matches) {
-      copybooks.add(match[1].toUpperCase());
-    }
-    return Array.from(copybooks);
-  }, []);
-
-  // Check which copybooks are missing
-  const updateMissingCopybooks = useCallback((required: string[], loaded: Record<string, string>) => {
-    const loadedNames = Object.keys(loaded).map(n => n.toUpperCase());
-    const missing = required.filter(name => !loadedNames.includes(name.toUpperCase()));
-    setMissingCopybooks(missing);
-  }, []);
 
   const handleConvert = async () => {
     // API key is now server-side
@@ -1414,26 +1414,19 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <FileCode className="w-4 h-4" />
                 <span>Load Demo (10K LOC)</span>
               </button>
-              {/* Copybook Upload */}
-              <label className="flex items-center gap-2 px-4 py-2 bg-purple-700 hover:bg-purple-600 rounded-lg cursor-pointer transition">
-                <Package className="w-4 h-4" />
-                <span>Copybooks {copybookCount > 0 && `(${copybookCount})`}</span>
-                <input 
-                  type="file" 
-                  accept=".cpy,.cbl,.cob,.txt" 
-                  multiple 
-                  onChange={handleCopybookUpload} 
-                  className="hidden" 
-                />
-              </label>
+              {/* Copybook indicator (if loaded) */}
               {copybookCount > 0 && (
-                <button
-                  onClick={clearCopybooks}
-                  className="flex items-center gap-1 px-2 py-2 bg-slate-700 hover:bg-red-600 rounded-lg transition text-xs"
-                  title="Clear copybooks"
-                >
-                  <X className="w-3 h-3" />
-                </button>
+                <div className="flex items-center gap-2 px-3 py-2 bg-purple-700/50 rounded-lg text-sm">
+                  <Package className="w-4 h-4 text-purple-300" />
+                  <span className="text-purple-200">{copybookCount} copybook{copybookCount > 1 ? 's' : ''}</span>
+                  <button
+                    onClick={clearCopybooks}
+                    className="ml-1 hover:text-red-400 transition"
+                    title="Clear copybooks"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
               )}
               {filename && (
                 <div className="flex items-center gap-2 text-slate-400">
