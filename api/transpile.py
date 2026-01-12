@@ -2396,26 +2396,24 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
         except ImportError:
             pass
         
-        # Quick syntax fix - simplified for performance
+        # v4.4.1: No post-processing - AST output should be clean
+        # Verify syntax
         try:
-            # Only attempt fixes if code doesn't compile
-            compile(python_code, '<test>', 'exec')
-            base_fixes = []
-        except SyntaxError:
-            # Simple fix: separate fused docstrings on same line
-            python_code = re.sub(r'"""([^"]{1,500})"""([A-Z])', r'"""\1"""\n        # \2', python_code)
-            python_code, base_fixes = fix_syntax_errors(python_code, max_attempts=3)
+            compile(python_code, '<generated>', 'exec')
+            syntax_valid = True
+        except SyntaxError as e:
+            syntax_valid = False
+            # Log error but don't try to fix - return as-is for debugging
         
-        gemini_stats = {'syntax_fixes': base_fixes}
+        gemini_stats = {'syntax_valid': syntax_valid}
         
         if enhance:
             python_code, gemini_stats = enrich_with_gemini(python_code, cobol_source)
             try:
-                compile(python_code, '<test>', 'exec')
+                compile(python_code, '<enriched>', 'exec')
+                gemini_stats['syntax_valid'] = True
             except SyntaxError:
-                python_code = re.sub(r'"""([^"]{1,500})"""([A-Z])', r'"""\1"""\n        # \2', python_code)
-                python_code, gemini_fixes = fix_syntax_errors(python_code, max_attempts=3)
-                gemini_stats['syntax_fixes_gemini'] = gemini_fixes
+                gemini_stats['syntax_valid'] = False
         
         class_name = to_pascal_case(cobol_ast.program_id)
         test_code = generate_unit_tests_v4(cobol_ast, class_name)
