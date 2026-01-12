@@ -2613,7 +2613,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
                 gemini_stats['rollback_reason'] = f"Enrichment syntax error: {e.msg} at line {e.lineno}"
         
         class_name = to_pascal_case(cobol_ast.program_id)
-        test_code = generate_unit_tests_v4(cobol_ast, class_name)
+        test_code = generate_unit_tests_v4(cobol_ast, class_name, python_code)
         
         return {
             'success': True,
@@ -2640,7 +2640,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
         }
 
 
-def generate_unit_tests_v4(cobol_ast: CobolAST, class_name: str) -> str:
+def generate_unit_tests_v4(cobol_ast: CobolAST, class_name: str, python_code: str = '') -> str:
     """Generate comprehensive unit tests with Golden Tests (v5.0)
     
     Includes:
@@ -2650,6 +2650,11 @@ def generate_unit_tests_v4(cobol_ast: CobolAST, class_name: str) -> str:
     - FileManager tests
     - Enum tests
     - Method callable tests
+    
+    Args:
+        cobol_ast: Parsed COBOL AST
+        class_name: Name of the generated Python class
+        python_code: The generated Python code (included as header for self-contained tests)
     """
     # Determine if Config class exists
     has_config = any(
@@ -2684,7 +2689,157 @@ def generate_unit_tests_v4(cobol_ast: CobolAST, class_name: str) -> str:
     tests.append('from unittest.mock import Mock, patch, MagicMock')
     tests.append('import tempfile')
     tests.append('import os')
+    tests.append('import logging')
+    tests.append('from enum import Enum, auto')
+    tests.append('from dataclasses import dataclass, field')
+    tests.append('from typing import Optional, List, Dict, Any, ClassVar')
+    tests.append('from datetime import datetime, date')
+    tests.append('from contextlib import contextmanager')
     tests.append('')
+    tests.append('')
+    tests.append('# ════════════════════════════════════════════════════════════════')
+    tests.append('# TRANSPILED CODE (Self-Contained Tests)')
+    tests.append('# ════════════════════════════════════════════════════════════════')
+    tests.append('')
+    
+    # Include the generated Python code directly (without docstring and if __name__ block)
+    if python_code:
+        # Remove the module docstring (first triple-quoted string)
+        code_lines = python_code.split('\n')
+        in_docstring = False
+        filtered_lines = []
+        skip_main = False
+        
+        for line in code_lines:
+            # Skip module docstring
+            if line.strip().startswith('"""') and not in_docstring:
+                in_docstring = True
+                if line.count('"""') >= 2:  # Single-line docstring
+                    in_docstring = False
+                continue
+            if in_docstring:
+                if '"""' in line:
+                    in_docstring = False
+                continue
+            
+            # Skip if __name__ == '__main__' block
+            if "if __name__ ==" in line:
+                skip_main = True
+                continue
+            if skip_main:
+                continue
+            
+            # Skip duplicate imports (already added above)
+            if line.startswith('from __future__'):
+                continue
+            if line.startswith('from decimal import'):
+                continue
+            if line.startswith('from dataclasses import'):
+                continue
+            if line.startswith('from typing import'):
+                continue
+            if line.startswith('from datetime import'):
+                continue
+            if line.startswith('from enum import'):
+                continue
+            if line.startswith('from contextlib import'):
+                continue
+            if line.startswith('import logging'):
+                continue
+            
+            filtered_lines.append(line)
+        
+        tests.extend(filtered_lines)
+    else:
+        # Fallback: Include minimal stubs for testing
+        tests.append('# Minimal stubs for standalone test execution')
+        tests.append('')
+        tests.append('class StatusCode(Enum):')
+        tests.append('    ACTIVE = "A"')
+        tests.append('    INACTIVE = "I"')
+        tests.append('    CLOSED = "C"')
+        tests.append('    PENDING = "P"')
+        tests.append('    SUSPENDED = "S"')
+        tests.append('    DELETED = "D"')
+        tests.append('')
+        tests.append('class AccountType(Enum):')
+        tests.append('    CHECKING = "CK"')
+        tests.append('    SAVINGS = "SV"')
+        tests.append('    MONEY_MARKET = "MM"')
+        tests.append('    CERTIFICATE_OF_DEPOSIT = "CD"')
+        tests.append('    CREDIT_CARD = "CC"')
+        tests.append('    LOAN = "LN"')
+        tests.append('')
+        tests.append('class TransactionType(Enum):')
+        tests.append('    DEPOSIT = "DEP"')
+        tests.append('    WITHDRAWAL = "WDR"')
+        tests.append('    TRANSFER = "TRF"')
+        tests.append('    PAYMENT = "PAY"')
+        tests.append('    FEE = "FEE"')
+        tests.append('    INTEREST = "INT"')
+        tests.append('    ADJUSTMENT = "ADJ"')
+        tests.append('')
+        tests.append('class RiskLevel(Enum):')
+        tests.append('    LOW = "L"')
+        tests.append('    MEDIUM = "M"')
+        tests.append('    HIGH = "H"')
+        tests.append('    CRITICAL = "C"')
+        tests.append('')
+        tests.append('class FileManager:')
+        tests.append('    def __init__(self, file_paths=None):')
+        tests.append('        self.file_paths = file_paths or {}')
+        tests.append('        self._files = {}')
+        tests.append('        self._status = {}')
+        tests.append('        self.logger = logging.getLogger(__name__)')
+        tests.append('    def __enter__(self): return self')
+        tests.append('    def __exit__(self, *args): self.close_all()')
+        tests.append('    def open_all(self): pass')
+        tests.append('    def open_file(self, name, path, mode="r"):')
+        tests.append('        try:')
+        tests.append('            self._files[name] = open(path, mode)')
+        tests.append('            self._status[name] = "00"')
+        tests.append('            return True')
+        tests.append('        except FileNotFoundError:')
+        tests.append('            self._status[name] = "35"')
+        tests.append('            return False')
+        tests.append('        except: self._status[name] = "99"; return False')
+        tests.append('    def close_all(self):')
+        tests.append('        for f in self._files.values():')
+        tests.append('            try: f.close()')
+        tests.append('            except: pass')
+        tests.append('        self._files.clear()')
+        tests.append('    def close_file(self, name):')
+        tests.append('        if name in self._files:')
+        tests.append('            self._files[name].close()')
+        tests.append('            del self._files[name]')
+        tests.append('            return True')
+        tests.append('        return False')
+        tests.append('    def read_record(self, name):')
+        tests.append('        if name not in self._files: return None')
+        tests.append('        line = self._files[name].readline()')
+        tests.append('        if not line: self._status[name] = "10"; return None')
+        tests.append('        self._status[name] = "00"')
+        tests.append('        return line.rstrip()')
+        tests.append('    def write_record(self, name, record):')
+        tests.append('        if name not in self._files: return False')
+        tests.append('        self._files[name].write(record + "\\n")')
+        tests.append('        self._status[name] = "00"')
+        tests.append('        return True')
+        tests.append('    def get_status(self, name): return self._status.get(name, "99")')
+        tests.append('    def is_eof(self, name): return self._status.get(name) == "10"')
+        tests.append('    def is_ok(self, name): return self._status.get(name) == "00"')
+        tests.append('')
+        tests.append(f'class {class_name}:')
+        tests.append(f'    VERSION = "5.0.0"')
+        tests.append(f'    SPACES = " " * 256')
+        tests.append(f'    def __init__(self):')
+        tests.append(f'        self.logger = logging.getLogger(__name__)')
+        tests.append(f'        self.file_manager = FileManager()')
+        if has_config:
+            tests.append(f'        self.config = type("Config", (), {{}})()  # Mock config')
+        tests.append(f'    def run(self): pass')
+        tests.append('')
+    
     tests.append('')
     tests.append('# ════════════════════════════════════════════════════════════════')
     tests.append('# FIXTURES')
