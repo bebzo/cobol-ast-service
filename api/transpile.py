@@ -662,7 +662,11 @@ def group_into_records(variables: List[CobolVariable]) -> Dict[str, List[CobolVa
 
 
 def parse_paragraphs(lines: List[str]) -> List[CobolParagraph]:
-    """Extract PROCEDURE DIVISION paragraphs"""
+    """Extract PROCEDURE DIVISION paragraphs with continuation line support
+    
+    v5.2.1: Properly joins COBOL continuation lines (lines starting with spaces
+    that continue the previous statement)
+    """
     paragraphs = []
     in_procedure = False
     current_para = None
@@ -674,6 +678,9 @@ def parse_paragraphs(lines: List[str]) -> List[CobolParagraph]:
         'END-PERFORM', 'END-COMPUTE', 'END-READ', 'END-WRITE', 'INITIALIZE', 'SET',
         'STRING', 'UNSTRING', 'INSPECT', 'CONTINUE', 'NEXT', 'GO', 'COPY'
     }
+    
+    # COBOL keywords that start a statement (not continuation)
+    statement_starters = reserved | {'EXEC', 'END-EXEC', 'WHEN', 'ELSE', 'NOT', 'AT', 'INVALID', 'ON'}
     
     for i, line in enumerate(lines):
         upper = line.upper().strip()
@@ -704,7 +711,23 @@ def parse_paragraphs(lines: List[str]) -> List[CobolParagraph]:
                 continue
         
         if current_para and upper:
-            current_para.statements.append(line.strip())
+            # Check if this is a continuation line (starts with operators or doesn't start with keyword)
+            first_word = upper.split()[0].rstrip('.') if upper.split() else ''
+            is_continuation = (
+                first_word.startswith('*') or  # Multiplication continuation
+                first_word.startswith('/') or  # Division continuation  
+                first_word.startswith('+') or  # Addition continuation
+                first_word.startswith('-') or  # Subtraction continuation
+                (first_word not in statement_starters and 
+                 current_para.statements and 
+                 not current_para.statements[-1].rstrip().endswith('.'))
+            )
+            
+            if is_continuation and current_para.statements:
+                # Join with previous statement
+                current_para.statements[-1] = current_para.statements[-1].rstrip() + ' ' + line.strip()
+            else:
+                current_para.statements.append(line.strip())
     
     if current_para:
         current_para.line_end = len(lines)
@@ -2376,37 +2399,79 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
 
 
 def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
-    """Transpile DISPLAY statement"""
-    match = re.match(r'DISPLAY\s+["\']([^"\']+)["\']', stmt, re.IGNORECASE)
-    if match:
-        message = match.group(1)
+    """Transpile DISPLAY statement to print() with proper variable interpolation
+    
+    v5.2.1: Uses print() instead of logger.info() for COBOL DISPLAY equivalence
+    Handles mixed text and variables: DISPLAY "Text: " WS-VAR
+    """
+    # Remove DISPLAY keyword and clean up
+    display_content = re.sub(r'^DISPLAY\s+', '', stmt, flags=re.IGNORECASE).strip().rstrip('.')
+    
+    if not display_content:
+        return None
+    
+    # Parse the DISPLAY content into parts (strings and variables)
+    parts = []
+    remaining = display_content
+    
+    while remaining:
+        remaining = remaining.strip()
+        if not remaining:
+            break
+            
+        # Check for quoted string
+        string_match = re.match(r'^["\']([^"\']*)["\'](.*)$', remaining)
+        if string_match:
+            text = string_match.group(1)
+            parts.append(('text', text))
+            remaining = string_match.group(2)
+            continue
+        
+        # Check for variable
+        var_match = re.match(r'^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)(.*)$', remaining, re.IGNORECASE)
+        if var_match:
+            var_name = var_match.group(1)
+            parts.append(('var', to_snake_case(var_name)))
+            remaining = var_match.group(2)
+            continue
+        
+        # Skip unknown characters
+        remaining = remaining[1:]
+    
+    if not parts:
+        return None
+    
+    # Build the f-string or simple string
+    if len(parts) == 1 and parts[0][0] == 'text':
+        # Simple string literal
         return ast.Expr(value=ast.Call(
-            func=ast.Attribute(
-                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='logger', ctx=ast.Load()),
-                attr='info', ctx=ast.Load()
-            ),
-            args=[ast.Constant(value=message)],
+            func=ast.Name(id='print', ctx=ast.Load()),
+            args=[ast.Constant(value=parts[0][1])],
             keywords=[]
         ))
     
-    match = re.match(r'DISPLAY\s+([A-Z0-9][-A-Z0-9]*)', stmt, re.IGNORECASE)
-    if match:
-        var = to_snake_case(match.group(1))
-        return ast.Expr(value=ast.Call(
-            func=ast.Attribute(
-                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='logger', ctx=ast.Load()),
-                attr='info', ctx=ast.Load()
-            ),
-            args=[ast.JoinedStr(values=[
-                ast.FormattedValue(
-                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=var, ctx=ast.Load()),
-                    conversion=-1, format_spec=None
-                )
-            ])],
-            keywords=[]
-        ))
+    # Build f-string with mixed content
+    fstring_parts = []
+    for part_type, part_value in parts:
+        if part_type == 'text':
+            fstring_parts.append(ast.Constant(value=part_value))
+        else:
+            # Variable reference
+            fstring_parts.append(ast.FormattedValue(
+                value=ast.Attribute(
+                    value=ast.Name(id='self', ctx=ast.Load()),
+                    attr=part_value,
+                    ctx=ast.Load()
+                ),
+                conversion=-1,
+                format_spec=None
+            ))
     
-    return None
+    return ast.Expr(value=ast.Call(
+        func=ast.Name(id='print', ctx=ast.Load()),
+        args=[ast.JoinedStr(values=fstring_parts)],
+        keywords=[]
+    ))
 
 
 def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
