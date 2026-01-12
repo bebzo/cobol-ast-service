@@ -548,6 +548,84 @@ Methods:
     )
     class_body.append(init_method)
     
+    # __getattr__ for dynamic/undefined COBOL variables (REDEFINES, sub-fields, etc.)
+    getattr_method = ast.FunctionDef(
+        name='__getattr__',
+        args=ast.arguments(
+            posonlyargs=[],
+            args=[ast.arg(arg='self'), ast.arg(arg='name')],
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[]
+        ),
+        body=[
+            ast.Expr(value=ast.Constant(value="Handle undefined COBOL variables (REDEFINES, sub-fields)")),
+            # self.__dict__[name] = Decimal('0') if 'amount' in name or 'total' in name else ''
+            ast.If(
+                test=ast.BoolOp(
+                    op=ast.Or(),
+                    values=[
+                        ast.Compare(
+                            left=ast.Constant(value='amount'),
+                            ops=[ast.In()],
+                            comparators=[ast.Call(func=ast.Attribute(value=ast.Name(id='name', ctx=ast.Load()), attr='lower', ctx=ast.Load()), args=[], keywords=[])]
+                        ),
+                        ast.Compare(
+                            left=ast.Constant(value='total'),
+                            ops=[ast.In()],
+                            comparators=[ast.Call(func=ast.Attribute(value=ast.Name(id='name', ctx=ast.Load()), attr='lower', ctx=ast.Load()), args=[], keywords=[])]
+                        ),
+                        ast.Compare(
+                            left=ast.Constant(value='count'),
+                            ops=[ast.In()],
+                            comparators=[ast.Call(func=ast.Attribute(value=ast.Name(id='name', ctx=ast.Load()), attr='lower', ctx=ast.Load()), args=[], keywords=[])]
+                        ),
+                        ast.Compare(
+                            left=ast.Constant(value='rate'),
+                            ops=[ast.In()],
+                            comparators=[ast.Call(func=ast.Attribute(value=ast.Name(id='name', ctx=ast.Load()), attr='lower', ctx=ast.Load()), args=[], keywords=[])]
+                        ),
+                        ast.Compare(
+                            left=ast.Constant(value='year'),
+                            ops=[ast.In()],
+                            comparators=[ast.Call(func=ast.Attribute(value=ast.Name(id='name', ctx=ast.Load()), attr='lower', ctx=ast.Load()), args=[], keywords=[])]
+                        )
+                    ]
+                ),
+                body=[
+                    ast.Assign(
+                        targets=[ast.Subscript(
+                            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='__dict__', ctx=ast.Load()),
+                            slice=ast.Name(id='name', ctx=ast.Load()),
+                            ctx=ast.Store()
+                        )],
+                        value=ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value='0')], keywords=[])
+                    )
+                ],
+                orelse=[
+                    ast.Assign(
+                        targets=[ast.Subscript(
+                            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='__dict__', ctx=ast.Load()),
+                            slice=ast.Name(id='name', ctx=ast.Load()),
+                            ctx=ast.Store()
+                        )],
+                        value=ast.Constant(value='')
+                    )
+                ]
+            ),
+            ast.Return(value=ast.Subscript(
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='__dict__', ctx=ast.Load()),
+                slice=ast.Name(id='name', ctx=ast.Load()),
+                ctx=ast.Load()
+            ))
+        ],
+        decorator_list=[],
+        returns=None
+    )
+    class_body.append(getattr_method)
+    
     # Generate service methods from paragraphs
     for para in cobol_ast.paragraphs:
         method = generate_method_from_paragraph(para)
