@@ -3100,12 +3100,14 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     
     # v5.6.0: First, protect numeric literals by wrapping them temporarily
     # This prevents them from being transformed into self.xxx
+    # Use lowercase markers to avoid being captured by COBOL identifier pattern
     literal_map = {}
     literal_counter = [0]
     
     def protect_literal(m):
         val = m.group(0)
-        key = f'__LITERAL_{literal_counter[0]}__'
+        # Use lowercase 'num' to avoid matching COBOL identifier pattern [A-Z]
+        key = f'_num{literal_counter[0]}_'
         literal_counter[0] += 1
         literal_map[key] = val
         return key
@@ -3164,9 +3166,6 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     # Replace COBOL identifiers with self.xxx (but NOT content inside quotes or literals)
     def replace_identifier(m):
         ident = m.group(0)
-        # Don't touch protected literals
-        if ident.startswith('__LITERAL_') and ident.endswith('__'):
-            return ident
         start = m.start()
         before = cond[:start]
         single_quotes = before.count("'") - before.count("\\'")
