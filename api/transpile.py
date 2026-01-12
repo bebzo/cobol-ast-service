@@ -1,5 +1,5 @@
 """
-COBOL → Python Transpiler v5.3.1 (String Parsing Fix)
+COBOL → Python Transpiler v5.4.0 (Robust Variable Declaration)
 Uses Python's ast module for 100% syntax-valid output
 
 Improvements in v5.3.0:
@@ -669,6 +669,100 @@ def group_into_records(variables: List[CobolVariable]) -> Dict[str, List[CobolVa
         records[current_record] = current_fields
     
     return records
+
+
+def extract_all_used_variables(source: str) -> Set[str]:
+    """
+    Extract ALL variable names used in COBOL source code.
+    Scans PROCEDURE DIVISION for variable references in statements.
+    
+    Returns a set of variable names (uppercase, with hyphens).
+    """
+    used_vars = set()
+    
+    # Pattern to find COBOL identifiers (variables)
+    # Matches: WS-VARIABLE, CUSTOMER-NAME, X, etc.
+    var_pattern = re.compile(r'\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b', re.IGNORECASE)
+    
+    # Reserved words to exclude
+    reserved = {
+        'MOVE', 'TO', 'IF', 'ELSE', 'END-IF', 'PERFORM', 'UNTIL', 'TIMES', 'VARYING',
+        'COMPUTE', 'ADD', 'SUBTRACT', 'MULTIPLY', 'DIVIDE', 'GIVING', 'ROUNDED',
+        'DISPLAY', 'ACCEPT', 'FROM', 'READ', 'WRITE', 'INTO', 'OPEN', 'CLOSE',
+        'INPUT', 'OUTPUT', 'I-O', 'EXTEND', 'CALL', 'USING', 'STOP', 'RUN',
+        'GOBACK', 'EXIT', 'EVALUATE', 'WHEN', 'OTHER', 'END-EVALUATE', 'TRUE', 'FALSE',
+        'END-PERFORM', 'END-COMPUTE', 'END-READ', 'END-WRITE', 'END-STRING',
+        'INITIALIZE', 'SET', 'STRING', 'DELIMITED', 'BY', 'SIZE', 'UNSTRING',
+        'INSPECT', 'TALLYING', 'REPLACING', 'ALL', 'LEADING', 'FIRST',
+        'CONTINUE', 'NEXT', 'SENTENCE', 'GO', 'COPY', 'THRU', 'THROUGH',
+        'NOT', 'AND', 'OR', 'EQUAL', 'GREATER', 'LESS', 'THAN', 'ZERO', 'ZEROS',
+        'ZEROES', 'SPACE', 'SPACES', 'QUOTE', 'QUOTES', 'HIGH-VALUE', 'HIGH-VALUES',
+        'LOW-VALUE', 'LOW-VALUES', 'NULL', 'NULLS', 'SECTION', 'DIVISION',
+        'PROCEDURE', 'WORKING-STORAGE', 'DATA', 'IDENTIFICATION', 'ENVIRONMENT',
+        'CONFIGURATION', 'FILE', 'PROGRAM-ID', 'AUTHOR', 'DATE-WRITTEN',
+        'PIC', 'PICTURE', 'VALUE', 'REDEFINES', 'OCCURS', 'TIMES', 'INDEXED',
+        'ASCENDING', 'DESCENDING', 'KEY', 'DEPENDING', 'ON', 'BINARY', 'COMP',
+        'COMP-3', 'PACKED-DECIMAL', 'USAGE', 'SYNC', 'SYNCHRONIZED', 'JUST',
+        'JUSTIFIED', 'BLANK', 'WHEN', 'ZERO', 'SIGN', 'SEPARATE', 'CHARACTER',
+        'AT', 'END', 'INVALID', 'NOT', 'STATUS', 'FILE-STATUS', 'EXEC', 'SQL',
+        'CICS', 'END-EXEC', 'SELECT', 'ASSIGN', 'ORGANIZATION', 'ACCESS', 'MODE',
+        'SEQUENTIAL', 'RANDOM', 'DYNAMIC', 'RELATIVE', 'RECORD', 'BLOCK', 'CONTAINS',
+        'LABEL', 'STANDARD', 'OMITTED', 'RECORDING', 'FIXED', 'VARIABLE',
+        'FD', 'SD', 'COPY', 'REPLACING', 'OF', 'IN', 'REMAINDER', 'DATE', 'TIME',
+        'WITH', 'TEST', 'BEFORE', 'AFTER', 'THEN'
+    }
+    
+    lines = source.split('\n')
+    in_procedure = False
+    
+    for line in lines:
+        upper = line.upper()
+        
+        # Enter PROCEDURE DIVISION
+        if 'PROCEDURE' in upper and 'DIVISION' in upper:
+            in_procedure = True
+            continue
+        
+        if not in_procedure:
+            continue
+        
+        # Skip comments
+        if len(line) > 6 and line[6] in ('*', '/'):
+            continue
+        
+        # Skip lines that are just paragraph names (end with . and no spaces after first word)
+        stripped = line.strip()
+        if stripped and not stripped.startswith('*'):
+            # Find all identifiers in the line
+            for match in var_pattern.finditer(stripped):
+                var_name = match.group(1).upper()
+                # Filter out reserved words and single letters (loop counters)
+                if var_name not in reserved and len(var_name) > 1:
+                    # Must contain hyphen OR be all uppercase with numbers
+                    if '-' in var_name or (var_name.isupper() and any(c.isdigit() for c in var_name)):
+                        used_vars.add(var_name)
+                    # Or be a typical WS- or similar prefix
+                    elif var_name.startswith(('WS-', 'LS-', 'WK-', 'SW-', 'CT-', 'IX-', 'FL-')):
+                        used_vars.add(var_name)
+    
+    return used_vars
+
+
+def is_monetary_variable(var_name: str) -> bool:
+    """
+    Detect if a variable name suggests it holds monetary values.
+    Used for automatic financial rounding.
+    """
+    monetary_keywords = (
+        'solde', 'balance', 'amount', 'montant', 'prix', 'price', 'cost', 'cout',
+        'total', 'subtotal', 'fee', 'frais', 'charge', 'payment', 'paiement',
+        'interet', 'interest', 'rate', 'taux', 'debit', 'credit', 'deposit',
+        'withdrawal', 'retrait', 'versement', 'commission', 'tax', 'taxe',
+        'salary', 'salaire', 'income', 'revenue', 'expense', 'depense',
+        'budget', 'capital', 'principal', 'premium', 'discount', 'remise'
+    )
+    lower = var_name.lower().replace('-', '_').replace('_', '')
+    return any(kw in lower for kw in monetary_keywords)
 
 
 def parse_paragraphs(lines: List[str]) -> List[CobolParagraph]:
@@ -1769,10 +1863,12 @@ Methods:
         simple=1
     ))
     
-    # __init__ method
+    # __init__ method - v5.4.0: now includes pre-declared used variables
+    used_vars = getattr(cobol_ast, 'used_variables', None)
     init_body = generate_init_body_v4(cobol_ast.variables, class_name, 
                                       has_config=(config_class is not None),
-                                      has_files=bool(cobol_ast.file_descriptors))
+                                      has_files=bool(cobol_ast.file_descriptors),
+                                      used_variables=used_vars)
     init_method = ast.FunctionDef(
         name='__init__',
         args=ast.arguments(
@@ -1891,17 +1987,43 @@ Methods:
                 )
                 class_body.append(setter)
     
-    # __getattr__ for dynamic COBOL variables
+    # __getattr__ for dynamic COBOL variables - with warning for undeclared vars
     getattr_code = '''
 def __getattr__(self, name):
-    """Handle undefined COBOL variables (REDEFINES, sub-fields, implicit vars)"""
+    """Handle undefined COBOL variables with safety warnings.
+    
+    This method catches access to undeclared variables, which may indicate:
+    - REDEFINES fields not explicitly declared
+    - Sub-fields of group items
+    - Typos in variable names (logs warning!)
+    
+    Set self._strict_mode = True to raise AttributeError instead of auto-creating.
+    """
+    # Skip internal attributes
+    if name.startswith('_'):
+        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+    
+    # Check strict mode
+    if getattr(self, '_strict_mode', False):
+        raise AttributeError(
+            f"Undefined variable '{name}'. In strict mode, all variables must be declared. "
+            f"Add 'self.{name} = ...' in __init__ or set _strict_mode = False."
+        )
+    
+    # Log warning for undeclared variable access
+    if hasattr(self, 'logger'):
+        self.logger.warning(f"Accessing undeclared variable '{name}' - auto-creating with default value")
+    
+    # Determine type based on naming conventions
     lower = name.lower()
     string_keywords = ('msg', 'message', 'text', 'name', 'desc', 'description', 'status', 
                        'code', 'type', 'id', 'key', 'record', 'line', 'reason', 'path',
-                       'file', 'string', 'char', 'alpha', 'label', 'title', 'header', 'footer')
+                       'file', 'string', 'char', 'alpha', 'label', 'title', 'header', 'footer',
+                       'display', 'output', 'input', 'buffer', 'format')
     is_string = any(kw in lower for kw in string_keywords)
     
-    bool_keywords = ('flag', 'eof', 'error', 'valid', 'found', 'done', 'active', 'enabled', 'disabled')
+    bool_keywords = ('flag', 'eof', 'error', 'valid', 'found', 'done', 'active', 'enabled', 
+                     'disabled', 'ok', 'success', 'failed', 'exists', 'empty', 'full')
     is_bool = any(kw in lower for kw in bool_keywords)
     
     if is_string:
@@ -1910,6 +2032,7 @@ def __getattr__(self, name):
         self.__dict__[name] = False
     else:
         self.__dict__[name] = Decimal('0')
+    
     return self.__dict__[name]
 '''
     getattr_ast = ast.parse(getattr_code).body[0]
@@ -2028,9 +2151,15 @@ def generate_config_dataclass(config_vars: List[CobolVariable], class_name: str)
 
 
 def generate_init_body_v4(variables: List[CobolVariable], class_name: str, 
-                          has_config: bool = True, has_files: bool = False) -> List[ast.stmt]:
-    """Generate __init__ body with FileManager support"""
+                          has_config: bool = True, has_files: bool = False,
+                          used_variables: Optional[Set[str]] = None) -> List[ast.stmt]:
+    """Generate __init__ body with FileManager support and explicit variable declaration.
+    
+    v5.4.0: Now accepts used_variables to pre-declare variables referenced in code,
+    reducing reliance on __getattr__ dynamic creation.
+    """
     init_body = []
+    declared_vars = set()  # Track what we've declared
     
     # Logger
     init_body.append(ast.Assign(
@@ -2064,6 +2193,16 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
         )
     ))
     
+    # Strict mode flag (default False for backward compatibility)
+    init_body.append(ast.Assign(
+        targets=[ast.Attribute(
+            value=ast.Name(id='self', ctx=ast.Load()),
+            attr='_strict_mode',
+            ctx=ast.Store()
+        )],
+        value=ast.Constant(value=False)
+    ))
+    
     # Config instance
     if has_config:
         init_body.append(ast.Assign(
@@ -2079,7 +2218,7 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
             )
         ))
     
-    # State variables
+    # State variables from WORKING-STORAGE declarations
     config_keywords = ['RATE', 'FEE', 'CHARGE', 'PREMIUM', 'PCT']
     
     for var in variables:
@@ -2109,8 +2248,57 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
             value=py_value,
             simple=0
         ))
+        declared_vars.add(py_name)
     
-    if len(init_body) <= 3:
+    # Pre-declare variables used in code but not in WORKING-STORAGE
+    # This reduces __getattr__ calls and makes code more explicit
+    if used_variables:
+        for var_name in sorted(used_variables):
+            py_name = to_snake_case(var_name)
+            if py_name in declared_vars:
+                continue
+            
+            # Determine default value based on naming conventions
+            lower = py_name.lower()
+            
+            # String variables
+            string_keywords = ('msg', 'message', 'text', 'name', 'desc', 'description', 
+                              'status', 'code', 'type', 'id', 'key', 'record', 'line',
+                              'display', 'output', 'input', 'buffer', 'format')
+            is_string = any(kw in lower for kw in string_keywords)
+            
+            # Boolean variables
+            bool_keywords = ('flag', 'eof', 'error', 'valid', 'found', 'done', 
+                            'active', 'enabled', 'disabled', 'ok', 'success')
+            is_bool = any(kw in lower for kw in bool_keywords)
+            
+            if is_string:
+                py_value = ast.Constant(value='')
+                py_type = 'str'
+            elif is_bool:
+                py_value = ast.Constant(value=False)
+                py_type = 'bool'
+            else:
+                py_value = ast.Call(
+                    func=ast.Name(id='Decimal', ctx=ast.Load()),
+                    args=[ast.Constant(value='0')],
+                    keywords=[]
+                )
+                py_type = 'Decimal'
+            
+            init_body.append(ast.AnnAssign(
+                target=ast.Attribute(
+                    value=ast.Name(id='self', ctx=ast.Load()),
+                    attr=py_name,
+                    ctx=ast.Store()
+                ),
+                annotation=ast.Name(id=py_type, ctx=ast.Load()),
+                value=py_value,
+                simple=0
+            ))
+            declared_vars.add(py_name)
+    
+    if len(init_body) <= 4:  # logger, file_manager, _strict_mode, config
         init_body.append(ast.Pass())
     
     return init_body
@@ -2493,18 +2681,24 @@ def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
 def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile COMPUTE statement with enhanced precision handling
     
-    Improvements:
+    v5.4.0 Improvements:
     - ROUNDED support with proper Decimal quantization
+    - AUTO-ROUNDING for monetary variables (detected by name)
     - Better variable name conversion
     - Handles COBOL operators (** for exponent)
     """
-    # Check if ROUNDED is specified
+    # Check if ROUNDED is specified explicitly
     is_rounded = 'ROUNDED' in stmt.upper()
     
     match = re.match(r'COMPUTE\s+([A-Z0-9][-A-Z0-9]*)\s*(?:ROUNDED)?\s*=\s*(.+)', stmt, re.IGNORECASE)
     if match:
-        target = to_snake_case(match.group(1))
+        target_cobol = match.group(1)
+        target = to_snake_case(target_cobol)
         expr_str = match.group(2).strip().rstrip('.')
+        
+        # v5.4.0: Auto-detect monetary variables for automatic rounding
+        auto_round_monetary = is_monetary_variable(target_cobol)
+        should_round = is_rounded or auto_round_monetary
         
         # Convert COBOL variable names to Python (self.var_name)
         expr_str = re.sub(r'\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b', 
@@ -2517,8 +2711,8 @@ def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
         try:
             expr_ast = ast.parse(expr_str, mode='eval').body
             
-            # If ROUNDED, wrap with quantize
-            if is_rounded:
+            # If ROUNDED or monetary variable, wrap with quantize
+            if should_round:
                 # result.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
                 rounded_expr = ast.Call(
                     func=ast.Attribute(
@@ -3907,6 +4101,9 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         cobol_ast.has_cics = len(cics_commands) > 0
         cobol_ast.has_sql = len(sql_commands) > 0
         
+        # v5.4.0: Extract all used variables for explicit declaration
+        cobol_ast.used_variables = extract_all_used_variables(cobol_source)
+        
         python_ast = generate_python_ast_v4(cobol_ast)
         python_code = ast.unparse(python_ast)
         
@@ -4592,7 +4789,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.3.1',
+            'version': '5.4.0',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
