@@ -1,21 +1,36 @@
 """
-COBOL → Python Transpiler v3.0 (Clean Architecture)
+COBOL → Python Transpiler v4.4 (Clean Architecture + Enterprise Patterns)
 Uses Python's ast module for 100% syntax-valid output
-Generates Clean Architecture code with entities, services, and tests
+
+Improvements in v4.4:
+- FileManager class with context managers for safe file I/O
+- Comprehensive Enums (StatusCode, AccountType, TransactionType, etc.)
+- Dataclasses for COBOL records (CustomerRecord, AccountRecord, etc.)
+- Proper @property decorators for 88-level conditions
+- Strategy pattern for interest/fee calculations
 """
 
 import ast
 import re
 import json
 from http.server import BaseHTTPRequestHandler
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Set
 from dataclasses import dataclass, field
 from decimal import Decimal
 
 
 # ============================================================
-# COBOL Parser (Regex-based)
+# COBOL Parser - Enhanced with 88-level conditions
 # ============================================================
+
+@dataclass
+class Cobol88Condition:
+    """COBOL 88-level condition (boolean flag)"""
+    name: str
+    parent_var: str
+    values: List[str]  # VALUES that make this condition TRUE
+    line: int = 0
+
 
 @dataclass
 class CobolVariable:
@@ -26,6 +41,17 @@ class CobolVariable:
     usage: Optional[str] = None
     line: int = 0
     parent_group: Optional[str] = None
+    conditions_88: List[Cobol88Condition] = field(default_factory=list)
+
+
+@dataclass
+class CobolFileDescriptor:
+    """FD - File Descriptor from FILE SECTION"""
+    name: str
+    record_name: str
+    organization: str = 'SEQUENTIAL'
+    access_mode: str = 'SEQUENTIAL'
+    status_var: Optional[str] = None
 
 
 @dataclass
@@ -41,35 +67,49 @@ class CobolAST:
     program_id: str
     variables: List[CobolVariable]
     paragraphs: List[CobolParagraph]
+    conditions_88: List[Cobol88Condition] = field(default_factory=list)
+    file_descriptors: List[CobolFileDescriptor] = field(default_factory=list)
+    record_groups: Dict[str, List[CobolVariable]] = field(default_factory=dict)
 
 
 def parse_cobol(source: str) -> CobolAST:
-    """Parse COBOL source into structured AST"""
+    """Parse COBOL source into structured AST with enhanced features"""
     lines = source.split('\n')
     
     # Extract program ID
     program_match = re.search(r'PROGRAM-ID\.\s+(\S+)', source, re.IGNORECASE)
     program_id = program_match.group(1).replace('.', '') if program_match else 'UNKNOWN'
     
-    # Parse variables
-    variables = parse_variables(source)
+    # Parse variables with 88-level conditions
+    variables, conditions_88 = parse_variables_with_88(source)
+    
+    # Parse file descriptors
+    file_descriptors = parse_file_descriptors(source)
     
     # Parse paragraphs
     paragraphs = parse_paragraphs(lines)
     
+    # Group variables into records
+    record_groups = group_into_records(variables)
+    
     return CobolAST(
         program_id=program_id,
         variables=variables,
-        paragraphs=paragraphs
+        paragraphs=paragraphs,
+        conditions_88=conditions_88,
+        file_descriptors=file_descriptors,
+        record_groups=record_groups
     )
 
 
-def parse_variables(source: str) -> List[CobolVariable]:
-    """Extract WORKING-STORAGE variables with group hierarchy"""
+def parse_variables_with_88(source: str) -> Tuple[List[CobolVariable], List[Cobol88Condition]]:
+    """Extract WORKING-STORAGE variables including 88-level conditions"""
     variables = []
+    conditions_88 = []
     lines = source.split('\n')
     in_working_storage = False
     current_group = None
+    last_variable = None
     
     for i, line in enumerate(lines):
         upper = line.upper()
@@ -99,6 +139,25 @@ def parse_variables(source: str) -> List[CobolVariable]:
         if name.upper() == 'FILLER':
             continue
         
+        # Handle 88-level conditions (boolean values)
+        if level == 88 and last_variable:
+            # Extract VALUE(S) for 88-level
+            value_match = re.search(
+                r'VALUE(?:S)?\s+(?:IS\s+|ARE\s+)?(?:"([^"]*)"|\'([^\']*)\'|([A-Z0-9][-A-Z0-9]*)|(\d+))',
+                line, re.IGNORECASE
+            )
+            if value_match:
+                value = value_match.group(1) or value_match.group(2) or value_match.group(3) or value_match.group(4)
+                condition = Cobol88Condition(
+                    name=name,
+                    parent_var=last_variable.name,
+                    values=[value] if value else [],
+                    line=i + 1
+                )
+                conditions_88.append(condition)
+                last_variable.conditions_88.append(condition)
+            continue
+        
         # Track group hierarchy
         if level == 1:
             current_group = name if 'PIC' not in line.upper() else None
@@ -126,16 +185,83 @@ def parse_variables(source: str) -> List[CobolVariable]:
                 raw_value = value_match.group(1) or value_match.group(2) or value_match.group(3)
                 value = raw_value.rstrip('.') if raw_value else None
         
-        variables.append(CobolVariable(
+        var = CobolVariable(
             level=level,
             name=name,
             picture=picture,
             value=value,
             line=i + 1,
             parent_group=current_group if level > 1 else None
+        )
+        variables.append(var)
+        last_variable = var
+    
+    return variables, conditions_88
+
+
+def parse_file_descriptors(source: str) -> List[CobolFileDescriptor]:
+    """Extract FILE SECTION file descriptors"""
+    descriptors = []
+    
+    # Match FD statements
+    fd_pattern = re.compile(
+        r'FD\s+([A-Z0-9][-A-Z0-9]*)[^.]*\.\s*(?:\d{1,2}\s+([A-Z][A-Z0-9][-A-Z0-9]*))?',
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    for match in fd_pattern.finditer(source):
+        fd_name = match.group(1)
+        record_name = match.group(2) if match.group(2) else f'{fd_name}-RECORD'
+        
+        # Try to find SELECT statement for this file
+        select_match = re.search(
+            rf'SELECT\s+{re.escape(fd_name)}\s+.*?(?:FILE\s+STATUS\s+(?:IS\s+)?([A-Z][A-Z0-9-]*))?',
+            source, re.IGNORECASE | re.DOTALL
+        )
+        status_var = select_match.group(1) if select_match and select_match.group(1) else None
+        
+        descriptors.append(CobolFileDescriptor(
+            name=fd_name,
+            record_name=record_name,
+            status_var=status_var
         ))
     
-    return variables
+    return descriptors
+
+
+def group_into_records(variables: List[CobolVariable]) -> Dict[str, List[CobolVariable]]:
+    """Group variables into logical records based on level structure"""
+    records = {}
+    current_record = None
+    current_fields = []
+    
+    # Keywords that indicate record structures
+    record_keywords = ['RECORD', 'REC', 'DATA', 'LINE', 'AREA', 'BLOCK']
+    
+    for var in variables:
+        if var.level == 1:
+            # Save previous record
+            if current_record and current_fields:
+                records[current_record] = current_fields
+            
+            # Check if this looks like a record
+            name_upper = var.name.upper()
+            is_record = any(kw in name_upper for kw in record_keywords) or not var.picture
+            
+            if is_record:
+                current_record = var.name
+                current_fields = []
+            else:
+                current_record = None
+                current_fields = []
+        elif current_record and var.level in (5, 10, 15, 20, 49, 77):
+            current_fields.append(var)
+    
+    # Save last record
+    if current_record and current_fields:
+        records[current_record] = current_fields
+    
+    return records
 
 
 def parse_paragraphs(lines: List[str]) -> List[CobolParagraph]:
@@ -191,16 +317,14 @@ def parse_paragraphs(lines: List[str]) -> List[CobolParagraph]:
 
 
 # ============================================================
-# Python AST Generator - Clean Architecture v3.0
+# Python Code Generators - Clean Architecture v4.4
 # ============================================================
 
 def to_snake_case(name: str) -> str:
-    """Convert COBOL-STYLE-NAME to python_style_name (removes ws_ prefix)"""
+    """Convert COBOL-STYLE-NAME to python_style_name"""
     result = name.lower().replace('-', '_').replace('.', '')
-    # Remove common COBOL prefixes for cleaner Python code
     if result.startswith('ws_'):
         result = result[3:]
-    # Python identifiers cannot start with a digit
     if result and result[0].isdigit():
         result = 'p_' + result
     return result
@@ -218,7 +342,6 @@ def pic_to_python_type(pic: Optional[str], value: Optional[str] = None) -> Tuple
     
     upper = pic.upper()
     
-    # Check for decimal/numeric
     if 'V' in upper or re.match(r'^S?9', upper):
         default_val = parse_pic_default(upper, value)
         return 'Decimal', ast.Call(
@@ -304,7 +427,6 @@ def cobol_value_to_python_v3(value: Optional[str], pic: Optional[str], var_name:
     
     upper = value.upper() if isinstance(value, str) else str(value)
     
-    # Convert Y/N flags to bool
     if is_flag_variable(var_name, value):
         if upper in ('Y', 'TRUE', '1'):
             return ast.Constant(value=True)
@@ -342,14 +464,14 @@ def cobol_value_to_python_v3(value: Optional[str], pic: Optional[str], var_name:
 def categorize_variables(variables: List[CobolVariable]) -> Dict[str, List[CobolVariable]]:
     """Categorize variables into domain groups for Clean Architecture"""
     categories = {
-        'status': [],      # Status flags
-        'counters': [],    # Counters
-        'totals': [],      # Financial totals
-        'rates': [],       # Interest/tax rates
-        'fees': [],        # Fee schedules
-        'config': [],      # Configuration
-        'temp': [],        # Temporary/work areas
-        'other': []        # Everything else
+        'status': [],
+        'counters': [],
+        'totals': [],
+        'rates': [],
+        'fees': [],
+        'config': [],
+        'temp': [],
+        'other': []
     }
     
     for var in variables:
@@ -373,8 +495,266 @@ def categorize_variables(variables: List[CobolVariable]) -> Dict[str, List[Cobol
     return categories
 
 
-def generate_python_ast_v3(cobol_ast: CobolAST) -> ast.Module:
-    """Generate Python AST with Clean Architecture patterns"""
+# ============================================================
+# AST Generators for Enhanced Features
+# ============================================================
+
+def generate_enums_code() -> str:
+    """Generate standard business enums as code string"""
+    return '''
+# ============================================================
+# Business Domain Enums
+# ============================================================
+
+class StatusCode(Enum):
+    """Standard status codes"""
+    ACTIVE = "A"
+    INACTIVE = "I"
+    CLOSED = "C"
+    PENDING = "P"
+    SUSPENDED = "S"
+    DELETED = "D"
+
+class AccountType(Enum):
+    """Account type codes"""
+    CHECKING = "CK"
+    SAVINGS = "SV"
+    MONEY_MARKET = "MM"
+    CERTIFICATE_OF_DEPOSIT = "CD"
+    CREDIT_CARD = "CC"
+    LOAN = "LN"
+
+class TransactionType(Enum):
+    """Transaction type codes"""
+    DEPOSIT = "DEP"
+    WITHDRAWAL = "WDR"
+    TRANSFER = "TRF"
+    PAYMENT = "PAY"
+    FEE = "FEE"
+    INTEREST = "INT"
+    ADJUSTMENT = "ADJ"
+
+class RiskLevel(Enum):
+    """Risk rating levels"""
+    LOW = "L"
+    MEDIUM = "M"
+    HIGH = "H"
+    CRITICAL = "C"
+'''
+
+
+def generate_file_manager_code() -> str:
+    """Generate FileManager class with context managers"""
+    return '''
+# ============================================================
+# FileManager - Safe File I/O with Context Managers
+# ============================================================
+
+class FileManager:
+    """Centralized file management with context manager support.
+    
+    Usage:
+        with FileManager(file_paths) as fm:
+            data = fm.read_record('customer_master')
+            fm.write_record('audit_log', record)
+    """
+    
+    def __init__(self, file_paths: Optional[Dict[str, str]] = None):
+        self.file_paths = file_paths or {}
+        self._files: Dict[str, Any] = {}
+        self._status: Dict[str, str] = {}
+        self.logger = logging.getLogger(__name__)
+    
+    def __enter__(self) -> 'FileManager':
+        """Open all configured files"""
+        self.open_all()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Close all open files"""
+        self.close_all()
+    
+    def open_all(self) -> None:
+        """Open all files in file_paths"""
+        for name, path in self.file_paths.items():
+            self.open_file(name, path)
+    
+    def open_file(self, name: str, path: str, mode: str = 'r') -> bool:
+        """Open a single file with error handling"""
+        try:
+            self._files[name] = open(path, mode)
+            self._status[name] = '00'  # COBOL success status
+            self.logger.debug(f"Opened file: {name} ({path})")
+            return True
+        except FileNotFoundError:
+            self._status[name] = '35'  # COBOL file not found
+            self.logger.error(f"File not found: {path}")
+            return False
+        except PermissionError:
+            self._status[name] = '37'  # COBOL permission denied
+            self.logger.error(f"Permission denied: {path}")
+            return False
+        except Exception as e:
+            self._status[name] = '99'  # COBOL general error
+            self.logger.error(f"Error opening {path}: {e}")
+            return False
+    
+    def close_all(self) -> None:
+        """Close all open files"""
+        for name, file_obj in self._files.items():
+            try:
+                if file_obj and not file_obj.closed:
+                    file_obj.close()
+                    self._status[name] = '00'
+                    self.logger.debug(f"Closed file: {name}")
+            except Exception as e:
+                self.logger.error(f"Error closing {name}: {e}")
+        self._files.clear()
+    
+    def close_file(self, name: str) -> bool:
+        """Close a single file"""
+        if name in self._files:
+            try:
+                self._files[name].close()
+                del self._files[name]
+                self._status[name] = '00'
+                return True
+            except Exception as e:
+                self.logger.error(f"Error closing {name}: {e}")
+                return False
+        return False
+    
+    def read_record(self, name: str) -> Optional[str]:
+        """Read a record from file (returns None at EOF)"""
+        if name not in self._files:
+            self._status[name] = '35'
+            return None
+        
+        try:
+            line = self._files[name].readline()
+            if not line:
+                self._status[name] = '10'  # COBOL end of file
+                return None
+            self._status[name] = '00'
+            return line.rstrip('\\n')
+        except Exception as e:
+            self._status[name] = '99'
+            self.logger.error(f"Error reading {name}: {e}")
+            return None
+    
+    def write_record(self, name: str, record: str) -> bool:
+        """Write a record to file"""
+        if name not in self._files:
+            self._status[name] = '35'
+            return False
+        
+        try:
+            self._files[name].write(record + '\\n')
+            self._status[name] = '00'
+            return True
+        except Exception as e:
+            self._status[name] = '99'
+            self.logger.error(f"Error writing to {name}: {e}")
+            return False
+    
+    def get_status(self, name: str) -> str:
+        """Get file status code (COBOL FILE STATUS compatible)"""
+        return self._status.get(name, '99')
+    
+    def is_eof(self, name: str) -> bool:
+        """Check if end of file reached"""
+        return self._status.get(name) == '10'
+    
+    def is_ok(self, name: str) -> bool:
+        """Check if last operation was successful"""
+        return self._status.get(name) == '00'
+'''
+
+
+def generate_record_dataclass(record_name: str, fields: List[CobolVariable]) -> str:
+    """Generate a dataclass for a COBOL record"""
+    class_name = to_pascal_case(record_name)
+    
+    lines = []
+    lines.append('@dataclass')
+    lines.append(f'class {class_name}:')
+    lines.append(f'    """Data record from COBOL: {record_name}"""')
+    
+    if not fields:
+        lines.append('    pass')
+        return '\n'.join(lines)
+    
+    for var in fields:
+        py_name = to_snake_case(var.name)
+        py_type, _ = pic_to_python_type(var.picture, var.value)
+        
+        # Determine default value
+        if py_type == 'Decimal':
+            default = "field(default_factory=lambda: Decimal('0'))"
+        elif py_type == 'str':
+            default = "field(default='')"
+        else:
+            default = "field(default=None)"
+        
+        lines.append(f'    {py_name}: {py_type} = {default}')
+    
+    return '\n'.join(lines)
+
+
+def generate_88_level_properties(conditions: List[Cobol88Condition]) -> str:
+    """Generate @property decorators for 88-level conditions"""
+    if not conditions:
+        return ''
+    
+    lines = []
+    lines.append('')
+    lines.append('    # ═══════════════════════════════════════════════════════════')
+    lines.append('    # COBOL 88-LEVEL CONDITIONS (Boolean properties)')
+    lines.append('    # ═══════════════════════════════════════════════════════════')
+    
+    # Group conditions by parent variable
+    by_parent: Dict[str, List[Cobol88Condition]] = {}
+    for cond in conditions:
+        parent = to_snake_case(cond.parent_var)
+        if parent not in by_parent:
+            by_parent[parent] = []
+        by_parent[parent].append(cond)
+    
+    for parent, conds in by_parent.items():
+        for cond in conds:
+            prop_name = to_snake_case(cond.name)
+            values = cond.values
+            
+            # Generate getter
+            lines.append('')
+            lines.append(f'    @property')
+            lines.append(f'    def {prop_name}(self) -> bool:')
+            lines.append(f'        """88-level condition: {cond.name} (parent: {parent})"""')
+            
+            if values:
+                # Check if parent equals any of the values
+                value_checks = ' or '.join([f'self.{parent} == {repr(v)}' for v in values])
+                lines.append(f'        return {value_checks}')
+            else:
+                lines.append(f'        return bool(self.{parent})')
+            
+            # Generate setter
+            lines.append('')
+            lines.append(f'    @{prop_name}.setter')
+            lines.append(f'    def {prop_name}(self, value: bool) -> None:')
+            lines.append(f'        """Set {parent} to first condition value when True"""')
+            if values:
+                first_value = values[0]
+                lines.append(f'        if value:')
+                lines.append(f'            self.{parent} = {repr(first_value)}')
+            else:
+                lines.append(f'        self.{parent} = value')
+    
+    return '\n'.join(lines)
+
+
+def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
+    """Generate Python AST with Clean Architecture v4.4 patterns"""
     class_name = to_pascal_case(cobol_ast.program_id)
     
     body = []
@@ -382,11 +762,13 @@ def generate_python_ast_v3(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v3.0]
+Auto-transpiled from COBOL [AST Transpiler v4.4]
 
 Architecture:
-- Domain entities with strict typing
-- Service methods for business logic
+- FileManager with context managers for safe I/O
+- Business domain Enums (StatusCode, AccountType, etc.)
+- Dataclasses for COBOL records
+- Proper @property for 88-level conditions
 - Boolean flags (not Y/N strings)
 - Decimal for all monetary values
 """
@@ -418,39 +800,26 @@ Architecture:
             ast.alias(name='Enum'),
             ast.alias(name='auto')
         ], level=0),
+        ast.ImportFrom(module='contextlib', names=[
+            ast.alias(name='contextmanager')
+        ], level=0),
         ast.Import(names=[ast.alias(name='logging')]),
     ]
     body.extend(imports)
     
+    # Parse and add enum, FileManager, and record dataclass code
+    extra_code = generate_enums_code() + '\n' + generate_file_manager_code()
+    
+    # Add record dataclasses
+    for record_name, fields in cobol_ast.record_groups.items():
+        extra_code += '\n\n' + generate_record_dataclass(record_name, fields)
+    
+    # Parse extra code and add to body
+    extra_ast = ast.parse(extra_code)
+    body.extend(extra_ast.body)
+    
     # Categorize variables
     categories = categorize_variables(cobol_ast.variables)
-    
-    # Generate Status enum if we have status flags (without __init__)
-    if categories['status']:
-        enum_body = []
-        for var in categories['status']:
-            if is_flag_variable(var.name, var.value):
-                continue  # Skip simple flags, use bool
-            enum_name = to_snake_case(var.name).upper()
-            enum_body.append(ast.Assign(
-                targets=[ast.Name(id=enum_name, ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id='auto', ctx=ast.Load()),
-                    args=[],
-                    keywords=[]
-                )
-            ))
-        
-        # Only create enum if we have valid members (no __init__ method!)
-        if enum_body:
-            status_enum = ast.ClassDef(
-                name='ProcessingStatus',
-                bases=[ast.Name(id='Enum', ctx=ast.Load())],
-                keywords=[],
-                body=enum_body,  # No __init__, just enum members
-                decorator_list=[]
-            )
-            body.append(status_enum)
     
     # Generate Configuration dataclass
     config_class = generate_config_dataclass(categories['rates'] + categories['fees'], class_name)
@@ -467,6 +836,7 @@ Architecture:
 Attributes:
     logger: Logging instance
     config: Configuration settings
+    file_manager: FileManager for safe I/O
     
 Methods:
     run(): Main entry point
@@ -481,11 +851,11 @@ Methods:
             slice=ast.Name(id='str', ctx=ast.Load()),
             ctx=ast.Load()
         ),
-        value=ast.Constant(value='3.0.0'),
+        value=ast.Constant(value='4.4.0'),
         simple=1
     ))
     
-    # COBOL constants (SPACES, LOW-VALUES)
+    # COBOL constants
     class_body.append(ast.AnnAssign(
         target=ast.Name(id='SPACES', ctx=ast.Store()),
         annotation=ast.Subscript(
@@ -530,7 +900,9 @@ Methods:
     ))
     
     # __init__ method
-    init_body = generate_init_body(cobol_ast.variables, class_name, has_config=(config_class is not None))
+    init_body = generate_init_body_v4(cobol_ast.variables, class_name, 
+                                      has_config=(config_class is not None),
+                                      has_files=bool(cobol_ast.file_descriptors))
     init_method = ast.FunctionDef(
         name='__init__',
         args=ast.arguments(
@@ -548,19 +920,112 @@ Methods:
     )
     class_body.append(init_method)
     
-    # __getattr__ for dynamic/undefined COBOL variables (REDEFINES, sub-fields, etc.)
-    # Generate the method body as code string and parse it (cleaner approach)
+    # Add 88-level properties as code
+    if cobol_ast.conditions_88:
+        prop_code = generate_88_level_properties(cobol_ast.conditions_88)
+        if prop_code.strip():
+            # Parse and add each property
+            # We need to add these as method definitions
+            for cond in cobol_ast.conditions_88:
+                prop_name = to_snake_case(cond.name)
+                parent = to_snake_case(cond.parent_var)
+                values = cond.values
+                
+                # Create getter
+                if values:
+                    value_check = f'self.{parent} == {repr(values[0])}'
+                    getter_body = [ast.Return(value=ast.parse(value_check, mode='eval').body)]
+                else:
+                    getter_body = [ast.Return(value=ast.Call(
+                        func=ast.Name(id='bool', ctx=ast.Load()),
+                        args=[ast.Attribute(
+                            value=ast.Name(id='self', ctx=ast.Load()),
+                            attr=parent,
+                            ctx=ast.Load()
+                        )],
+                        keywords=[]
+                    ))]
+                
+                getter = ast.FunctionDef(
+                    name=prop_name,
+                    args=ast.arguments(
+                        posonlyargs=[],
+                        args=[ast.arg(arg='self')],
+                        vararg=None,
+                        kwonlyargs=[],
+                        kw_defaults=[],
+                        kwarg=None,
+                        defaults=[]
+                    ),
+                    body=[
+                        ast.Expr(value=ast.Constant(value=f"88-level: {cond.name}")),
+                        *getter_body
+                    ],
+                    decorator_list=[ast.Name(id='property', ctx=ast.Load())],
+                    returns=ast.Name(id='bool', ctx=ast.Load())
+                )
+                class_body.append(getter)
+                
+                # Create setter
+                if values:
+                    setter_body = [
+                        ast.If(
+                            test=ast.Name(id='value', ctx=ast.Load()),
+                            body=[ast.Assign(
+                                targets=[ast.Attribute(
+                                    value=ast.Name(id='self', ctx=ast.Load()),
+                                    attr=parent,
+                                    ctx=ast.Store()
+                                )],
+                                value=ast.Constant(value=values[0])
+                            )],
+                            orelse=[]
+                        )
+                    ]
+                else:
+                    setter_body = [ast.Assign(
+                        targets=[ast.Attribute(
+                            value=ast.Name(id='self', ctx=ast.Load()),
+                            attr=parent,
+                            ctx=ast.Store()
+                        )],
+                        value=ast.Name(id='value', ctx=ast.Load())
+                    )]
+                
+                setter = ast.FunctionDef(
+                    name=prop_name,
+                    args=ast.arguments(
+                        posonlyargs=[],
+                        args=[
+                            ast.arg(arg='self'),
+                            ast.arg(arg='value', annotation=ast.Name(id='bool', ctx=ast.Load()))
+                        ],
+                        vararg=None,
+                        kwonlyargs=[],
+                        kw_defaults=[],
+                        kwarg=None,
+                        defaults=[]
+                    ),
+                    body=setter_body,
+                    decorator_list=[ast.Attribute(
+                        value=ast.Name(id=prop_name, ctx=ast.Load()),
+                        attr='setter',
+                        ctx=ast.Load()
+                    )],
+                    returns=None
+                )
+                class_body.append(setter)
+    
+    # __getattr__ for dynamic COBOL variables
     getattr_code = '''
 def __getattr__(self, name):
     """Handle undefined COBOL variables (REDEFINES, sub-fields, implicit vars)"""
     lower = name.lower()
-    # String indicators: message, text, name, desc, status, code, type, id, key, record, line, reason
     string_keywords = ('msg', 'message', 'text', 'name', 'desc', 'description', 'status', 
                        'code', 'type', 'id', 'key', 'record', 'line', 'reason', 'path',
                        'file', 'string', 'char', 'alpha', 'label', 'title', 'header', 'footer')
     is_string = any(kw in lower for kw in string_keywords)
     
-    # Boolean indicators: flag, eof, error, valid, found, done, active
     bool_keywords = ('flag', 'eof', 'error', 'valid', 'found', 'done', 'active', 'enabled', 'disabled')
     is_bool = any(kw in lower for kw in bool_keywords)
     
@@ -569,7 +1034,6 @@ def __getattr__(self, name):
     elif is_bool:
         self.__dict__[name] = False
     else:
-        # Default: numeric (Decimal) - most COBOL variables are numeric
         self.__dict__[name] = Decimal('0')
     return self.__dict__[name]
 '''
@@ -578,11 +1042,33 @@ def __getattr__(self, name):
     
     # Generate service methods from paragraphs
     for para in cobol_ast.paragraphs:
-        method = generate_method_from_paragraph(para)
+        method = generate_method_from_paragraph_v4(para)
         class_body.append(method)
     
     # Run method
     run_body = []
+    run_body.append(ast.Expr(value=ast.Constant(value="Main entry point - executes primary workflow")))
+    run_body.append(ast.Expr(value=ast.Call(
+        func=ast.Attribute(
+            value=ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr='logger',
+                ctx=ast.Load()
+            ),
+            attr='info',
+            ctx=ast.Load()
+        ),
+        args=[
+            ast.Constant(value=f"Starting {class_name} v%s"),
+            ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr='VERSION',
+                ctx=ast.Load()
+            )
+        ],
+        keywords=[]
+    )))
+    
     if cobol_ast.paragraphs:
         first_method = to_snake_case(cobol_ast.paragraphs[0].name)
         run_body.append(ast.Expr(value=ast.Call(
@@ -608,30 +1094,7 @@ def __getattr__(self, name):
             kwarg=None,
             defaults=[]
         ),
-        body=[
-            ast.Expr(value=ast.Constant(value="Main entry point - executes primary workflow")),
-            ast.Expr(value=ast.Call(
-                func=ast.Attribute(
-                    value=ast.Attribute(
-                        value=ast.Name(id='self', ctx=ast.Load()),
-                        attr='logger',
-                        ctx=ast.Load()
-                    ),
-                    attr='info',
-                    ctx=ast.Load()
-                ),
-                args=[
-                    ast.Constant(value=f"Starting {class_name} v%s"),
-                    ast.Attribute(
-                        value=ast.Name(id='self', ctx=ast.Load()),
-                        attr='VERSION',
-                        ctx=ast.Load()
-                    )
-                ],
-                keywords=[]
-            )),
-            *run_body
-        ],
+        body=run_body,
         decorator_list=[],
         returns=None
     )
@@ -667,7 +1130,6 @@ def generate_config_dataclass(config_vars: List[CobolVariable], class_name: str)
         py_name = to_snake_case(var.name)
         py_type, py_default = pic_to_python_type(var.picture, var.value)
         
-        # Create field assignment
         fields.append(ast.AnnAssign(
             target=ast.Name(id=py_name, ctx=ast.Store()),
             annotation=ast.Name(id=py_type, ctx=ast.Load()),
@@ -690,8 +1152,9 @@ def generate_config_dataclass(config_vars: List[CobolVariable], class_name: str)
     )
 
 
-def generate_init_body(variables: List[CobolVariable], class_name: str, has_config: bool = True) -> List[ast.stmt]:
-    """Generate __init__ body with clean variable names"""
+def generate_init_body_v4(variables: List[CobolVariable], class_name: str, 
+                          has_config: bool = True, has_files: bool = False) -> List[ast.stmt]:
+    """Generate __init__ body with FileManager support"""
     init_body = []
     
     # Logger
@@ -712,7 +1175,21 @@ def generate_init_body(variables: List[CobolVariable], class_name: str, has_conf
         )
     ))
     
-    # Config instance (only if config class exists)
+    # FileManager
+    init_body.append(ast.Assign(
+        targets=[ast.Attribute(
+            value=ast.Name(id='self', ctx=ast.Load()),
+            attr='file_manager',
+            ctx=ast.Store()
+        )],
+        value=ast.Call(
+            func=ast.Name(id='FileManager', ctx=ast.Load()),
+            args=[],
+            keywords=[]
+        )
+    ))
+    
+    # Config instance
     if has_config:
         init_body.append(ast.Assign(
             targets=[ast.Attribute(
@@ -727,21 +1204,19 @@ def generate_init_body(variables: List[CobolVariable], class_name: str, has_conf
             )
         ))
     
-    # State variables (skip config vars already in dataclass)
+    # State variables
     config_keywords = ['RATE', 'FEE', 'CHARGE', 'PREMIUM', 'PCT']
     
     for var in variables:
         name_upper = var.name.upper()
         if any(kw in name_upper for kw in config_keywords):
-            continue  # Skip, already in config
+            continue
         
         py_name = to_snake_case(var.name)
         
-        # Skip group headers without PIC
         if var.level == 1 and not var.picture:
             continue
         
-        # Determine type
         if is_flag_variable(var.name, var.value):
             py_type = 'bool'
             py_value = cobol_value_to_python_v3(var.value, var.picture, var.name)
@@ -760,19 +1235,16 @@ def generate_init_body(variables: List[CobolVariable], class_name: str, has_conf
             simple=0
         ))
     
-    if len(init_body) <= 2:  # Only logger and config
+    if len(init_body) <= 3:
         init_body.append(ast.Pass())
     
     return init_body
 
 
-def generate_method_from_paragraph(para: CobolParagraph) -> ast.FunctionDef:
-    """Generate method from COBOL paragraph with clean naming"""
-    # Clean method name (no p_ prefix for cleaner API)
+def generate_method_from_paragraph_v4(para: CobolParagraph) -> ast.FunctionDef:
+    """Generate method from COBOL paragraph"""
     method_name = to_snake_case(para.name)
-    
-    # Transpile statements
-    method_body = transpile_statements_v3(para.statements)
+    method_body = transpile_statements_v4(para.statements)
     
     if not method_body:
         method_body = [ast.Pass()]
@@ -846,8 +1318,12 @@ def generate_main_block(class_name: str) -> ast.If:
     )
 
 
-def transpile_statements_v3(statements: List[str]) -> List[ast.stmt]:
-    """Transpile COBOL statements to Python AST (v3: clean architecture)"""
+# ============================================================
+# Statement Transpilers v4 (with FileManager support)
+# ============================================================
+
+def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
+    """Transpile COBOL statements to Python AST (v4: FileManager)"""
     result = []
     i = 0
     
@@ -859,127 +1335,105 @@ def transpile_statements_v3(statements: List[str]) -> List[ast.stmt]:
             i += 1
             continue
         
-        # MOVE statement
         if upper.startswith('MOVE '):
-            py_stmt = transpile_move_v3(stmt)
+            py_stmt = transpile_move_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # DISPLAY statement
         elif upper.startswith('DISPLAY '):
-            py_stmt = transpile_display_v3(stmt)
+            py_stmt = transpile_display_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # COMPUTE statement
         elif upper.startswith('COMPUTE '):
-            py_stmt = transpile_compute_v3(stmt)
+            py_stmt = transpile_compute_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # ADD statement
         elif upper.startswith('ADD '):
-            py_stmt = transpile_add_v3(stmt)
+            py_stmt = transpile_add_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # SUBTRACT statement
         elif upper.startswith('SUBTRACT '):
-            py_stmt = transpile_subtract_v3(stmt)
+            py_stmt = transpile_subtract_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # PERFORM statement
         elif upper.startswith('PERFORM '):
-            py_stmt = transpile_perform_v3(stmt)
+            py_stmt = transpile_perform_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # IF statement
         elif upper.startswith('IF '):
-            py_stmt, consumed = transpile_if_v3(statements, i)
+            py_stmt, consumed = transpile_if_v4(statements, i)
             if py_stmt:
                 result.append(py_stmt)
             i += consumed
             continue
         
-        # STOP RUN / GOBACK
         elif 'STOP RUN' in upper or upper == 'GOBACK' or upper == 'GOBACK.':
             result.append(ast.Return(value=None))
         
-        # SET statement
         elif upper.startswith('SET '):
-            py_stmt = transpile_set_v3(stmt)
+            py_stmt = transpile_set_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # INITIALIZE
         elif upper.startswith('INITIALIZE '):
-            py_stmt = transpile_initialize_v3(stmt)
+            py_stmt = transpile_initialize_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # MULTIPLY statement
         elif upper.startswith('MULTIPLY '):
-            py_stmt = transpile_multiply_v3(stmt)
+            py_stmt = transpile_multiply_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # DIVIDE statement
         elif upper.startswith('DIVIDE '):
-            py_stmt = transpile_divide_v3(stmt)
+            py_stmt = transpile_divide_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # EVALUATE statement
         elif upper.startswith('EVALUATE '):
-            py_stmt, consumed = transpile_evaluate_v3(statements, i)
+            py_stmt, consumed = transpile_evaluate_v4(statements, i)
             if py_stmt:
                 result.append(py_stmt)
             i += consumed
             continue
         
-        # STRING statement
         elif upper.startswith('STRING '):
-            py_stmt = transpile_string_v3(stmt)
+            py_stmt = transpile_string_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # OPEN/CLOSE/READ/WRITE - file I/O
         elif upper.startswith(('OPEN ', 'CLOSE ', 'READ ', 'WRITE ')):
-            py_stmt = transpile_file_io_v3(stmt)
+            py_stmt = transpile_file_io_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # ACCEPT statement
         elif upper.startswith('ACCEPT '):
-            py_stmt = transpile_accept_v3(stmt)
+            py_stmt = transpile_accept_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # CALL statement
         elif upper.startswith('CALL '):
-            py_stmt = transpile_call_v3(stmt)
+            py_stmt = transpile_call_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
-        # CONTINUE / NEXT SENTENCE
         elif upper in ('CONTINUE', 'CONTINUE.', 'NEXT SENTENCE', 'NEXT SENTENCE.'):
             result.append(ast.Pass())
         
-        # EXIT
         elif upper.startswith('EXIT'):
-            result.append(ast.Pass())  # EXIT PARAGRAPH/SECTION = no-op
+            result.append(ast.Pass())
         
-        # Skip END-* statements
         elif upper.startswith('END-'):
             pass
         
-        # Skip pure periods and short statements
         elif len(upper) <= 1 or upper == '.':
             pass
         
-        # Fallback: pass (silent - no TODO spam)
         else:
             pass  # Complex statements handled by Gemini
         
@@ -988,145 +1442,81 @@ def transpile_statements_v3(statements: List[str]) -> List[ast.stmt]:
     return result
 
 
-def transpile_move_v3(stmt: str) -> Optional[ast.stmt]:
-    """Transpile MOVE statement (v3: clean names)"""
+def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
+    """Transpile MOVE statement"""
     upper = stmt.upper()
     
-    # MOVE ZEROS TO var
     match = re.match(r'MOVE\s+ZEROS?\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
         return ast.Assign(
-            targets=[ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            )],
-            value=ast.Call(
-                func=ast.Name(id='Decimal', ctx=ast.Load()),
-                args=[ast.Constant(value='0')],
-                keywords=[]
-            )
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
+            value=ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value='0')], keywords=[])
         )
     
-    # MOVE SPACES TO var
     match = re.match(r'MOVE\s+SPACES?\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
         return ast.Assign(
-            targets=[ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            )],
-            value=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr='SPACES',
-                ctx=ast.Load()
-            )
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='SPACES', ctx=ast.Load())
         )
     
-    # MOVE LOW-VALUES TO var
     match = re.match(r'MOVE\s+LOW-VALUES?\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
         return ast.Assign(
-            targets=[ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            )],
-            value=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr='LOW_VALUES',
-                ctx=ast.Load()
-            )
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='LOW_VALUES', ctx=ast.Load())
         )
     
-    # MOVE HIGH-VALUES TO var
     match = re.match(r'MOVE\s+HIGH-VALUES?\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
         return ast.Assign(
-            targets=[ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            )],
-            value=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr='HIGH_VALUES',
-                ctx=ast.Load()
-            )
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='HIGH_VALUES', ctx=ast.Load())
         )
     
-    # MOVE "literal" TO var
     match = re.match(r'MOVE\s+["\']([^"\']+)["\']\s+TO\s+([A-Z0-9][-A-Z0-9]*)', stmt, re.IGNORECASE)
     if match:
         literal = match.group(1)
         target = to_snake_case(match.group(2))
         return ast.Assign(
-            targets=[ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            )],
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
             value=ast.Constant(value=literal)
         )
     
-    # MOVE number TO var
     match = re.match(r'MOVE\s+(\d+(?:\.\d+)?)\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
     if match:
         value = match.group(1)
         target = to_snake_case(match.group(2))
         return ast.Assign(
-            targets=[ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            )],
-            value=ast.Call(
-                func=ast.Name(id='Decimal', ctx=ast.Load()),
-                args=[ast.Constant(value=value)],
-                keywords=[]
-            )
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
+            value=ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=value)], keywords=[])
         )
     
-    # MOVE var TO var
     match = re.match(r'MOVE\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
     if match:
         source = to_snake_case(match.group(1))
         target = to_snake_case(match.group(2))
         return ast.Assign(
-            targets=[ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            )],
-            value=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=source,
-                ctx=ast.Load()
-            )
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=source, ctx=ast.Load())
         )
     
     return None
 
 
-def transpile_display_v3(stmt: str) -> Optional[ast.stmt]:
+def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile DISPLAY statement"""
     match = re.match(r'DISPLAY\s+["\']([^"\']+)["\']', stmt, re.IGNORECASE)
     if match:
         message = match.group(1)
         return ast.Expr(value=ast.Call(
             func=ast.Attribute(
-                value=ast.Attribute(
-                    value=ast.Name(id='self', ctx=ast.Load()),
-                    attr='logger',
-                    ctx=ast.Load()
-                ),
-                attr='info',
-                ctx=ast.Load()
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='logger', ctx=ast.Load()),
+                attr='info', ctx=ast.Load()
             ),
             args=[ast.Constant(value=message)],
             keywords=[]
@@ -1137,23 +1527,13 @@ def transpile_display_v3(stmt: str) -> Optional[ast.stmt]:
         var = to_snake_case(match.group(1))
         return ast.Expr(value=ast.Call(
             func=ast.Attribute(
-                value=ast.Attribute(
-                    value=ast.Name(id='self', ctx=ast.Load()),
-                    attr='logger',
-                    ctx=ast.Load()
-                ),
-                attr='info',
-                ctx=ast.Load()
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='logger', ctx=ast.Load()),
+                attr='info', ctx=ast.Load()
             ),
             args=[ast.JoinedStr(values=[
                 ast.FormattedValue(
-                    value=ast.Attribute(
-                        value=ast.Name(id='self', ctx=ast.Load()),
-                        attr=var,
-                        ctx=ast.Load()
-                    ),
-                    conversion=-1,
-                    format_spec=None
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=var, ctx=ast.Load()),
+                    conversion=-1, format_spec=None
                 )
             ])],
             keywords=[]
@@ -1162,7 +1542,7 @@ def transpile_display_v3(stmt: str) -> Optional[ast.stmt]:
     return None
 
 
-def transpile_compute_v3(stmt: str) -> Optional[ast.stmt]:
+def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile COMPUTE statement"""
     match = re.match(r'COMPUTE\s+([A-Z0-9][-A-Z0-9]*)\s*(?:ROUNDED)?\s*=\s*(.+)', stmt, re.IGNORECASE)
     if match:
@@ -1175,11 +1555,7 @@ def transpile_compute_v3(stmt: str) -> Optional[ast.stmt]:
         try:
             expr_ast = ast.parse(expr_str, mode='eval').body
             return ast.Assign(
-                targets=[ast.Attribute(
-                    value=ast.Name(id='self', ctx=ast.Load()),
-                    attr=target,
-                    ctx=ast.Store()
-                )],
+                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
                 value=expr_ast
             )
         except SyntaxError:
@@ -1188,7 +1564,7 @@ def transpile_compute_v3(stmt: str) -> Optional[ast.stmt]:
     return None
 
 
-def transpile_add_v3(stmt: str) -> Optional[ast.stmt]:
+def transpile_add_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile ADD statement"""
     upper = stmt.upper()
     
@@ -1197,17 +1573,9 @@ def transpile_add_v3(stmt: str) -> Optional[ast.stmt]:
         value = match.group(1)
         target = to_snake_case(match.group(2))
         return ast.AugAssign(
-            target=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            ),
+            target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store()),
             op=ast.Add(),
-            value=ast.Call(
-                func=ast.Name(id='Decimal', ctx=ast.Load()),
-                args=[ast.Constant(value=value)],
-                keywords=[]
-            )
+            value=ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=value)], keywords=[])
         )
     
     match = re.match(r'ADD\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
@@ -1215,23 +1583,15 @@ def transpile_add_v3(stmt: str) -> Optional[ast.stmt]:
         source = to_snake_case(match.group(1))
         target = to_snake_case(match.group(2))
         return ast.AugAssign(
-            target=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            ),
+            target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store()),
             op=ast.Add(),
-            value=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=source,
-                ctx=ast.Load()
-            )
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=source, ctx=ast.Load())
         )
     
     return None
 
 
-def transpile_subtract_v3(stmt: str) -> Optional[ast.stmt]:
+def transpile_subtract_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile SUBTRACT statement"""
     upper = stmt.upper()
     
@@ -1240,51 +1600,32 @@ def transpile_subtract_v3(stmt: str) -> Optional[ast.stmt]:
         source = to_snake_case(match.group(1))
         target = to_snake_case(match.group(2))
         return ast.AugAssign(
-            target=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            ),
+            target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store()),
             op=ast.Sub(),
-            value=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=source,
-                ctx=ast.Load()
-            )
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=source, ctx=ast.Load())
         )
     
     return None
 
 
-def transpile_perform_v3(stmt: str) -> Optional[ast.stmt]:
-    """Transpile PERFORM statement (v3: clean method names)"""
+def transpile_perform_v4(stmt: str) -> Optional[ast.stmt]:
+    """Transpile PERFORM statement"""
     upper = stmt.upper()
     
-    # PERFORM ... TIMES
     match = re.match(r'PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+(\d+)\s+TIMES', upper, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
         times = int(match.group(2))
         return ast.For(
             target=ast.Name(id='_', ctx=ast.Store()),
-            iter=ast.Call(
-                func=ast.Name(id='range', ctx=ast.Load()),
-                args=[ast.Constant(value=times)],
-                keywords=[]
-            ),
+            iter=ast.Call(func=ast.Name(id='range', ctx=ast.Load()), args=[ast.Constant(value=times)], keywords=[]),
             body=[ast.Expr(value=ast.Call(
-                func=ast.Attribute(
-                    value=ast.Name(id='self', ctx=ast.Load()),
-                    attr=target,
-                    ctx=ast.Load()
-                ),
-                args=[],
-                keywords=[]
+                func=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Load()),
+                args=[], keywords=[]
             ))],
             orelse=[]
         )
     
-    # PERFORM ... UNTIL
     match = re.match(r'PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+UNTIL\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
@@ -1292,42 +1633,27 @@ def transpile_perform_v3(stmt: str) -> Optional[ast.stmt]:
         return ast.While(
             test=ast.UnaryOp(
                 op=ast.Not(),
-                operand=ast.Attribute(
-                    value=ast.Name(id='self', ctx=ast.Load()),
-                    attr=cond_var,
-                    ctx=ast.Load()
-                )
+                operand=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=cond_var, ctx=ast.Load())
             ),
             body=[ast.Expr(value=ast.Call(
-                func=ast.Attribute(
-                    value=ast.Name(id='self', ctx=ast.Load()),
-                    attr=target,
-                    ctx=ast.Load()
-                ),
-                args=[],
-                keywords=[]
+                func=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Load()),
+                args=[], keywords=[]
             ))],
             orelse=[]
         )
     
-    # Simple PERFORM
     match = re.match(r'PERFORM\s+([A-Z0-9][-A-Z0-9]+)', upper, re.IGNORECASE)
     if match and 'UNTIL' not in upper and 'TIMES' not in upper and 'VARYING' not in upper:
         target = to_snake_case(match.group(1))
         return ast.Expr(value=ast.Call(
-            func=ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Load()
-            ),
-            args=[],
-            keywords=[]
+            func=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Load()),
+            args=[], keywords=[]
         ))
     
     return None
 
 
-def transpile_if_v3(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
+def transpile_if_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
     """Transpile IF statement block"""
     stmt = statements[start_idx].strip()
     upper = stmt.upper()
@@ -1372,7 +1698,7 @@ def transpile_if_v3(statements: List[str], start_idx: int) -> Tuple[Optional[ast
         elif line_upper.startswith('END-'):
             continue
         
-        transpiled = transpile_statements_v3([line])
+        transpiled = transpile_statements_v4([line])
         if transpiled:
             if in_else:
                 else_stmts.extend(transpiled)
@@ -1389,8 +1715,8 @@ def transpile_if_v3(statements: List[str], start_idx: int) -> Tuple[Optional[ast
     ), consumed
 
 
-def transpile_set_v3(stmt: str) -> Optional[ast.stmt]:
-    """Transpile SET statement (v3: proper booleans)"""
+def transpile_set_v4(stmt: str) -> Optional[ast.stmt]:
+    """Transpile SET statement"""
     upper = stmt.upper()
     
     match = re.match(r'SET\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+(TRUE|FALSE)', upper, re.IGNORECASE)
@@ -1398,38 +1724,29 @@ def transpile_set_v3(stmt: str) -> Optional[ast.stmt]:
         target = to_snake_case(match.group(1))
         value = match.group(2).upper() == 'TRUE'
         return ast.Assign(
-            targets=[ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            )],
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
             value=ast.Constant(value=value)
         )
     
     return None
 
 
-def transpile_initialize_v3(stmt: str) -> Optional[ast.stmt]:
+def transpile_initialize_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile INITIALIZE statement"""
     match = re.match(r'INITIALIZE\s+([A-Z0-9][-A-Z0-9]*)', stmt, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
         return ast.Assign(
-            targets=[ast.Attribute(
-                value=ast.Name(id='self', ctx=ast.Load()),
-                attr=target,
-                ctx=ast.Store()
-            )],
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
             value=ast.Constant(value=None)
         )
     return None
 
 
-def transpile_multiply_v3(stmt: str) -> Optional[ast.stmt]:
+def transpile_multiply_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile MULTIPLY statement"""
     upper = stmt.upper()
     
-    # MULTIPLY X BY Y GIVING Z
     match = re.match(r'MULTIPLY\s+([A-Z0-9][-A-Z0-9]*)\s+BY\s+([A-Z0-9][-A-Z0-9]*)\s+GIVING\s+([A-Z0-9][-A-Z0-9]*)', upper)
     if match:
         x = to_snake_case(match.group(1))
@@ -1444,7 +1761,6 @@ def transpile_multiply_v3(stmt: str) -> Optional[ast.stmt]:
             )
         )
     
-    # MULTIPLY X BY Y (Y = X * Y)
     match = re.match(r'MULTIPLY\s+([A-Z0-9][-A-Z0-9]*)\s+BY\s+([A-Z0-9][-A-Z0-9]*)', upper)
     if match:
         x = to_snake_case(match.group(1))
@@ -1458,18 +1774,16 @@ def transpile_multiply_v3(stmt: str) -> Optional[ast.stmt]:
     return None
 
 
-def transpile_divide_v3(stmt: str) -> Optional[ast.stmt]:
+def transpile_divide_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile DIVIDE statement"""
     upper = stmt.upper()
     
-    # DIVIDE X BY Y GIVING Z REMAINDER R
     match = re.match(r'DIVIDE\s+([A-Z0-9][-A-Z0-9]*)\s+BY\s+([A-Z0-9][-A-Z0-9]*)\s+GIVING\s+([A-Z0-9][-A-Z0-9]*)\s+REMAINDER\s+([A-Z0-9][-A-Z0-9]*)', upper)
     if match:
         x = to_snake_case(match.group(1))
         y = to_snake_case(match.group(2))
         z = to_snake_case(match.group(3))
         r = to_snake_case(match.group(4))
-        # z, r = divmod(x, y)
         return ast.Assign(
             targets=[ast.Tuple(elts=[
                 ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=z, ctx=ast.Store()),
@@ -1485,7 +1799,6 @@ def transpile_divide_v3(stmt: str) -> Optional[ast.stmt]:
             )
         )
     
-    # DIVIDE X BY Y GIVING Z
     match = re.match(r'DIVIDE\s+([A-Z0-9][-A-Z0-9]*)\s+BY\s+([A-Z0-9][-A-Z0-9]*)\s+GIVING\s+([A-Z0-9][-A-Z0-9]*)', upper)
     if match:
         x = to_snake_case(match.group(1))
@@ -1500,7 +1813,6 @@ def transpile_divide_v3(stmt: str) -> Optional[ast.stmt]:
             )
         )
     
-    # DIVIDE X INTO Y (Y = Y / X)
     match = re.match(r'DIVIDE\s+([A-Z0-9][-A-Z0-9]*)\s+INTO\s+([A-Z0-9][-A-Z0-9]*)', upper)
     if match:
         x = to_snake_case(match.group(1))
@@ -1514,12 +1826,11 @@ def transpile_divide_v3(stmt: str) -> Optional[ast.stmt]:
     return None
 
 
-def transpile_evaluate_v3(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
+def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
     """Transpile EVALUATE statement (COBOL switch/case)"""
     stmt = statements[start_idx].strip()
     upper = stmt.upper()
     
-    # EVALUATE var or EVALUATE TRUE
     match = re.match(r'EVALUATE\s+(.+)', upper)
     if not match:
         return None, 0
@@ -1558,10 +1869,9 @@ def transpile_evaluate_v3(statements: List[str], start_idx: int) -> Tuple[Option
             continue
         
         if current_when is not None and line.strip():
-            transpiled = transpile_statements_v3([line])
+            transpiled = transpile_statements_v4([line])
             current_body.extend(transpiled)
     
-    # Build if-elif-else chain
     if not cases:
         return ast.Pass(), consumed
     
@@ -1576,9 +1886,7 @@ def transpile_evaluate_v3(statements: List[str], start_idx: int) -> Tuple[Option
             else_body = body
             continue
         
-        # Build condition
         if is_true_eval:
-            # EVALUATE TRUE: WHEN condition
             try:
                 cond_py = cond.replace(' AND ', ' and ').replace(' OR ', ' or ')
                 cond_py = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)', 
@@ -1587,7 +1895,6 @@ def transpile_evaluate_v3(statements: List[str], start_idx: int) -> Tuple[Option
             except:
                 test_ast = ast.Constant(value=True)
         else:
-            # EVALUATE var: WHEN value
             subject_py = to_snake_case(subject)
             try:
                 value_py = cond.strip('"\'')
@@ -1614,20 +1921,17 @@ def transpile_evaluate_v3(statements: List[str], start_idx: int) -> Tuple[Option
     return result, consumed
 
 
-def transpile_string_v3(stmt: str) -> Optional[ast.stmt]:
+def transpile_string_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile STRING statement (concatenation)"""
-    # STRING a b c DELIMITED BY SIZE INTO result
     match = re.match(r'STRING\s+(.+?)\s+INTO\s+([A-Z0-9][-A-Z0-9]*)', stmt, re.IGNORECASE)
     if match:
         parts = match.group(1)
         target = to_snake_case(match.group(2))
         
-        # Extract variables (simplified - assumes space-separated)
         parts_clean = re.sub(r'DELIMITED\s+BY\s+\S+', '', parts, flags=re.IGNORECASE).strip()
         vars_list = re.findall(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*', parts_clean, re.IGNORECASE)
         
         if vars_list:
-            # result = str(a) + str(b) + str(c)
             concat_parts = []
             for v in vars_list:
                 concat_parts.append(ast.Call(
@@ -1651,66 +1955,89 @@ def transpile_string_v3(stmt: str) -> Optional[ast.stmt]:
     return None
 
 
-def transpile_file_io_v3(stmt: str) -> Optional[ast.stmt]:
-    """Transpile file I/O statements as simulation (logging) - safe for testing"""
+def transpile_file_io_v4(stmt: str) -> Optional[ast.stmt]:
+    """Transpile file I/O using FileManager"""
     upper = stmt.upper()
-    
-    # Helper to create logger.debug call
-    def make_log_stmt(message: str) -> ast.Expr:
-        return ast.Expr(value=ast.Call(
-            func=ast.Attribute(
-                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='logger', ctx=ast.Load()),
-                attr='debug',
-                ctx=ast.Load()
-            ),
-            args=[ast.Constant(value=message)],
-            keywords=[]
-        ))
     
     if upper.startswith('OPEN '):
         match = re.match(r'OPEN\s+(INPUT|OUTPUT|I-O|EXTEND)\s+([A-Z0-9][-A-Z0-9]*)', upper)
         if match:
             mode = match.group(1)
-            file_name = match.group(2)
-            return make_log_stmt(f"FILE-IO: OPEN {mode} {file_name}")
+            file_name = to_snake_case(match.group(2))
+            py_mode = {'INPUT': 'r', 'OUTPUT': 'w', 'I-O': 'r+', 'EXTEND': 'a'}.get(mode, 'r')
+            return ast.Expr(value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='file_manager', ctx=ast.Load()),
+                    attr='open_file', ctx=ast.Load()
+                ),
+                args=[
+                    ast.Constant(value=file_name),
+                    ast.Constant(value=f'{file_name}.dat'),
+                    ast.Constant(value=py_mode)
+                ],
+                keywords=[]
+            ))
     
     elif upper.startswith('CLOSE '):
         match = re.match(r'CLOSE\s+([A-Z0-9][-A-Z0-9]*)', upper)
         if match:
-            file_name = match.group(1)
-            return make_log_stmt(f"FILE-IO: CLOSE {file_name}")
+            file_name = to_snake_case(match.group(1))
+            return ast.Expr(value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='file_manager', ctx=ast.Load()),
+                    attr='close_file', ctx=ast.Load()
+                ),
+                args=[ast.Constant(value=file_name)],
+                keywords=[]
+            ))
     
     elif upper.startswith('READ '):
         match = re.match(r'READ\s+([A-Z0-9][-A-Z0-9]*)', upper)
         if match:
             file_name = to_snake_case(match.group(1))
-            # Set EOF flag to True after simulated read
             return ast.Assign(
-                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_eof', ctx=ast.Store())],
-                value=ast.Constant(value=True)
+                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_record', ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='file_manager', ctx=ast.Load()),
+                        attr='read_record', ctx=ast.Load()
+                    ),
+                    args=[ast.Constant(value=file_name)],
+                    keywords=[]
+                )
             )
     
     elif upper.startswith('WRITE '):
         match = re.match(r'WRITE\s+([A-Z0-9][-A-Z0-9]*)', upper)
         if match:
-            record_name = match.group(1)
-            return make_log_stmt(f"FILE-IO: WRITE {record_name}")
+            record_name = to_snake_case(match.group(1))
+            return ast.Expr(value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='file_manager', ctx=ast.Load()),
+                    attr='write_record', ctx=ast.Load()
+                ),
+                args=[
+                    ast.Constant(value=record_name),
+                    ast.Call(func=ast.Name(id='str', ctx=ast.Load()),
+                            args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=record_name, ctx=ast.Load())],
+                            keywords=[])
+                ],
+                keywords=[]
+            ))
     
     return None
 
 
-def transpile_accept_v3(stmt: str) -> Optional[ast.stmt]:
-    """Transpile ACCEPT statement (simulate with datetime for DATE/TIME)"""
+def transpile_accept_v4(stmt: str) -> Optional[ast.stmt]:
+    """Transpile ACCEPT statement"""
     upper = stmt.upper()
     
-    # ACCEPT var FROM DATE/TIME - use datetime
     if 'FROM DATE' in upper or 'FROM TIME' in upper:
         match = re.match(r'ACCEPT\s+([A-Z0-9][-A-Z0-9]*)\s+FROM\s+(DATE|TIME)', upper)
         if match:
             target = to_snake_case(match.group(1))
             source = match.group(2)
             if source == 'DATE':
-                # datetime.now().strftime('%Y%m%d')
                 return ast.Assign(
                     targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
                     value=ast.Call(
@@ -1719,14 +2046,13 @@ def transpile_accept_v3(stmt: str) -> Optional[ast.stmt]:
                                 func=ast.Attribute(value=ast.Name(id='datetime', ctx=ast.Load()), attr='now', ctx=ast.Load()),
                                 args=[], keywords=[]
                             ),
-                            attr='strftime',
-                            ctx=ast.Load()
+                            attr='strftime', ctx=ast.Load()
                         ),
                         args=[ast.Constant(value='%Y%m%d')],
                         keywords=[]
                     )
                 )
-            else:  # TIME
+            else:
                 return ast.Assign(
                     targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
                     value=ast.Call(
@@ -1735,34 +2061,31 @@ def transpile_accept_v3(stmt: str) -> Optional[ast.stmt]:
                                 func=ast.Attribute(value=ast.Name(id='datetime', ctx=ast.Load()), attr='now', ctx=ast.Load()),
                                 args=[], keywords=[]
                             ),
-                            attr='strftime',
-                            ctx=ast.Load()
+                            attr='strftime', ctx=ast.Load()
                         ),
                         args=[ast.Constant(value='%H%M%S%f')],
                         keywords=[]
                     )
                 )
     
-    # Regular ACCEPT - use empty string (non-blocking)
     match = re.match(r'ACCEPT\s+([A-Z0-9][-A-Z0-9]*)', stmt, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
         return ast.Assign(
             targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
-            value=ast.Constant(value='')  # Non-blocking simulation
+            value=ast.Constant(value='')
         )
     return None
 
 
-def transpile_call_v3(stmt: str) -> Optional[ast.stmt]:
+def transpile_call_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile CALL statement"""
     match = re.match(r'CALL\s+["\']?([A-Z0-9][-A-Z0-9]*)["\']?', stmt, re.IGNORECASE)
     if match:
         program = to_snake_case(match.group(1))
         return ast.Expr(value=ast.Call(
             func=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'call_{program}', ctx=ast.Load()),
-            args=[],
-            keywords=[]
+            args=[], keywords=[]
         ))
     return None
 
@@ -1772,7 +2095,7 @@ def transpile_call_v3(stmt: str) -> Optional[ast.stmt]:
 # ============================================================
 
 def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 100) -> Tuple[str, Dict]:
-    """Enrich TODO methods with Gemini AI (v4.1 - improved matching)"""
+    """Enrich TODO methods with Gemini AI"""
     stats = {'gemini_calls': 0, 'enriched': 0, 'failed': 0, 'total_methods': 0}
     
     try:
@@ -1787,27 +2110,20 @@ def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 100
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         
-        # Find ALL methods (not just p_ prefix - clean architecture uses snake_case)
         todo_pattern = re.compile(r"(    def ([a-z][a-z0-9_]*)\(self\)[^:]*:.*?(?=\n    def |\nclass |\nif __name__|$))", re.DOTALL)
         methods = todo_pattern.findall(python_code)
         stats['total_methods'] = len(methods)
         
         for method_code, method_name in methods[:max_calls]:
-            # Skip built-in methods and methods without TODO
-            if method_name in ('__init__', 'run') or 'TODO' not in method_code:
+            if method_name in ('__init__', 'run', '__getattr__') or 'TODO' not in method_code:
                 continue
             
-            # Find COBOL paragraph - convert snake_case back to COBOL-CASE
-            # e.g., calculate_interest -> CALCULATE-INTEREST or 0100_initialize -> 0100-INITIALIZE
             cobol_name = method_name.upper().replace('_', '-')
-            # Also try without numeric prefix
-            cobol_name_alt = re.sub(r'^P-', '', cobol_name)  # Remove P- prefix if any
-            cobol_name_alt2 = re.sub(r'^\d+-', '', cobol_name)  # Remove numeric prefix like 0100-
+            cobol_name_alt = re.sub(r'^P-', '', cobol_name)
+            cobol_name_alt2 = re.sub(r'^\d+-', '', cobol_name)
             
-            # Try multiple patterns for COBOL paragraph matching
             para_match = None
             for name_variant in [cobol_name, cobol_name_alt, cobol_name_alt2]:
-                # Pattern: paragraph name followed by period, then content until next paragraph
                 para_match = re.search(
                     rf'^\s*{re.escape(name_variant)}\s*\.\s*$.*?(?=^\s*[A-Z0-9][-A-Z0-9]+\s*\.\s*$|STOP\s+RUN|GOBACK|\Z)', 
                     cobol_source, re.MULTILINE | re.DOTALL | re.IGNORECASE
@@ -1819,7 +2135,6 @@ def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 100
                 stats['failed'] += 1
                 continue
             
-            # Extract up to 1500 chars for better context
             cobol_para = para_match.group(0)[:1500]
             
             prompt = f"""Convert this COBOL paragraph to Python. Output ONLY executable code lines with 8-space indent.
@@ -1830,16 +2145,16 @@ COBOL:
 TRANSLATION RULES:
 1. Variables: self.var_name (snake_case, remove WS- prefix)
 2. Numbers: Decimal('value') for ALL numeric operations
-3. MOVE X TO Y → self.y = self.x (or self.y = Decimal('value'))
+3. MOVE X TO Y → self.y = self.x
 4. ADD X TO Y → self.y += self.x
 5. SUBTRACT X FROM Y → self.y -= self.x
 6. MULTIPLY X BY Y GIVING Z → self.z = self.x * self.y
 7. DIVIDE X BY Y GIVING Z → self.z = self.x / self.y
-8. COMPUTE X = expr → self.x = expr (use Decimal, convert vars)
-9. PERFORM para → self.para_name() (snake_case)
+8. COMPUTE X = expr → self.x = expr
+9. PERFORM para → self.para_name()
 10. IF cond / END-IF → if cond:
 11. DISPLAY → self.logger.info()
-12. File I/O → self.logger.debug('TODO: file operation')
+12. File I/O → self.file_manager.read_record() / write_record()
 13. Booleans: Use True/False not 'Y'/'N'
 
 Output ONLY the method body (8-space indent), NO 'def' line:"""
@@ -1849,22 +2164,18 @@ Output ONLY the method body (8-space indent), NO 'def' line:"""
                 response = model.generate_content(prompt)
                 new_body = response.text.strip()
                 
-                # Clean response
                 new_body = re.sub(r'^```python\s*\n?', '', new_body)
                 new_body = re.sub(r'\n?```$', '', new_body)
                 new_body = re.sub(r'^    def \w+\([^)]*\):\s*\n', '', new_body)
                 
-                # Build new method
                 new_method = f"    def {method_name}(self) -> None:\n"
                 for line in new_body.split('\n'):
                     if line.strip():
                         new_method += '        ' + line.lstrip() + '\n'
                 
-                # Validate syntax
                 test_code = f"class T:\n{new_method}"
                 ast.parse(test_code)
                 
-                # Replace in code
                 python_code = python_code.replace(method_code, new_method)
                 stats['enriched'] += 1
                 
@@ -1888,7 +2199,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
     """Main entry point: COBOL source → Python code"""
     try:
         cobol_ast = parse_cobol(cobol_source)
-        python_ast = generate_python_ast_v3(cobol_ast)
+        python_ast = generate_python_ast_v4(cobol_ast)
         python_code = ast.unparse(python_ast)
         
         try:
@@ -1899,26 +2210,27 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
         
         compile(python_code, '<generated>', 'exec')
         
-        # Hybrid mode: enrich TODOs with Gemini
         gemini_stats = {}
         if enhance:
             python_code, gemini_stats = enrich_with_gemini(python_code, cobol_source)
-            # Re-validate after enrichment
             compile(python_code, '<enriched>', 'exec')
         
         class_name = to_pascal_case(cobol_ast.program_id)
-        test_code = generate_unit_tests_v3(cobol_ast, class_name)
+        test_code = generate_unit_tests_v4(cobol_ast, class_name)
         
         return {
             'success': True,
             'python_code': python_code,
             'unit_tests': test_code,
-            'version': '4.0.0-hybrid' if enhance else '3.0.0',
-            'architecture': 'Clean Architecture + AI' if enhance else 'Clean Architecture',
+            'version': '4.4.0-hybrid' if enhance else '4.4.0',
+            'architecture': 'Clean Architecture + Enterprise Patterns',
             'stats': {
                 'variables': len(cobol_ast.variables),
                 'paragraphs': len(cobol_ast.paragraphs),
                 'program_id': cobol_ast.program_id,
+                'conditions_88': len(cobol_ast.conditions_88),
+                'file_descriptors': len(cobol_ast.file_descriptors),
+                'record_groups': len(cobol_ast.record_groups),
                 **gemini_stats
             }
         }
@@ -1931,17 +2243,18 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
         }
 
 
-def generate_unit_tests_v3(cobol_ast: CobolAST, class_name: str) -> str:
-    """Generate comprehensive unit tests (v3)"""
+def generate_unit_tests_v4(cobol_ast: CobolAST, class_name: str) -> str:
+    """Generate comprehensive unit tests (v4.4)"""
     tests = []
     tests.append(f'"""')
     tests.append(f'Auto-generated unit tests for {class_name}')
-    tests.append(f'Transpiler: AST v3.0 (Clean Architecture)')
+    tests.append(f'Transpiler: AST v4.4 (Clean Architecture + Enterprise Patterns)')
     tests.append(f'"""')
     tests.append('')
     tests.append('import pytest')
     tests.append('from decimal import Decimal')
-    tests.append(f'from main import {class_name}, {class_name}Config')
+    tests.append(f'from main import {class_name}, {class_name}Config, FileManager')
+    tests.append('from main import StatusCode, AccountType, TransactionType')
     tests.append('')
     tests.append('')
     tests.append('@pytest.fixture')
@@ -1962,6 +2275,11 @@ def generate_unit_tests_v3(cobol_ast: CobolAST, class_name: str) -> str:
     tests.append('        assert hasattr(processor, "logger")')
     tests.append('        assert processor.logger is not None')
     tests.append('')
+    tests.append('    def test_has_file_manager(self, processor):')
+    tests.append('        """Verify FileManager is initialized."""')
+    tests.append('        assert hasattr(processor, "file_manager")')
+    tests.append('        assert isinstance(processor.file_manager, FileManager)')
+    tests.append('')
     tests.append('    def test_has_config(self, processor):')
     tests.append('        """Verify config dataclass is initialized."""')
     tests.append('        assert hasattr(processor, "config")')
@@ -1970,37 +2288,60 @@ def generate_unit_tests_v3(cobol_ast: CobolAST, class_name: str) -> str:
     tests.append('    def test_version_exists(self, processor):')
     tests.append('        """Verify VERSION class variable exists."""')
     tests.append('        assert hasattr(processor, "VERSION")')
-    tests.append('        assert processor.VERSION == "3.0.0"')
+    tests.append('        assert processor.VERSION == "4.4.0"')
     tests.append('')
     
-    # Test flag variables are booleans
-    flag_vars = [v for v in cobol_ast.variables if is_flag_variable(v.name, v.value)]
-    if flag_vars:
+    # Test 88-level conditions
+    if cobol_ast.conditions_88:
         tests.append('')
-        tests.append(f'class Test{class_name}Flags:')
-        tests.append('    """Test boolean flags are properly typed."""')
+        tests.append(f'class Test{class_name}Conditions88:')
+        tests.append('    """Test 88-level condition properties."""')
         tests.append('')
-        for var in flag_vars[:3]:
-            py_name = to_snake_case(var.name)
-            tests.append(f'    def test_{py_name}_is_boolean(self, processor):')
-            tests.append(f'        """Verify {py_name} is a boolean, not string."""')
-            tests.append(f'        assert isinstance(processor.{py_name}, bool)')
+        for cond in cobol_ast.conditions_88[:5]:
+            prop_name = to_snake_case(cond.name)
+            tests.append(f'    def test_{prop_name}_is_property(self, processor):')
+            tests.append(f'        """Verify {prop_name} is a boolean property."""')
+            tests.append(f'        assert hasattr(type(processor), "{prop_name}")')
+            tests.append(f'        assert isinstance(getattr(type(processor), "{prop_name}"), property)')
             tests.append('')
     
-    # Test decimal variables
-    decimal_vars = [v for v in cobol_ast.variables 
-                   if v.picture and ('V' in v.picture.upper() or v.picture.upper().startswith('9'))]
-    if decimal_vars:
-        tests.append('')
-        tests.append(f'class Test{class_name}Decimals:')
-        tests.append('    """Test monetary values use Decimal type."""')
-        tests.append('')
-        for var in decimal_vars[:3]:
-            py_name = to_snake_case(var.name)
-            tests.append(f'    def test_{py_name}_is_decimal(self, processor):')
-            tests.append(f'        """Verify {py_name} uses Decimal for precision."""')
-            tests.append(f'        assert isinstance(processor.{py_name}, Decimal)')
-            tests.append('')
+    # Test FileManager
+    tests.append('')
+    tests.append('class TestFileManager:')
+    tests.append('    """Test FileManager context manager."""')
+    tests.append('')
+    tests.append('    def test_file_manager_context_manager(self):')
+    tests.append('        """Verify FileManager works as context manager."""')
+    tests.append('        fm = FileManager()')
+    tests.append('        with fm:')
+    tests.append('            pass  # Should not raise')
+    tests.append('')
+    tests.append('    def test_file_manager_status(self):')
+    tests.append('        """Verify status codes work correctly."""')
+    tests.append('        fm = FileManager()')
+    tests.append('        assert fm.get_status("nonexistent") == "99"')
+    tests.append('')
+    
+    # Test Enums
+    tests.append('')
+    tests.append('class TestEnums:')
+    tests.append('    """Test business domain enums."""')
+    tests.append('')
+    tests.append('    def test_status_code_values(self):')
+    tests.append('        """Verify StatusCode enum values."""')
+    tests.append('        assert StatusCode.ACTIVE.value == "A"')
+    tests.append('        assert StatusCode.INACTIVE.value == "I"')
+    tests.append('')
+    tests.append('    def test_account_type_values(self):')
+    tests.append('        """Verify AccountType enum values."""')
+    tests.append('        assert AccountType.CHECKING.value == "CK"')
+    tests.append('        assert AccountType.SAVINGS.value == "SV"')
+    tests.append('')
+    tests.append('    def test_transaction_type_values(self):')
+    tests.append('        """Verify TransactionType enum values."""')
+    tests.append('        assert TransactionType.DEPOSIT.value == "DEP"')
+    tests.append('        assert TransactionType.WITHDRAWAL.value == "WDR"')
+    tests.append('')
     
     # Test methods
     tests.append('')
@@ -2023,17 +2364,6 @@ def generate_unit_tests_v3(cobol_ast: CobolAST, class_name: str) -> str:
     tests.append('            pytest.fail(f"run() raised {type(e).__name__}: {e}")')
     tests.append('')
     
-    # Config tests
-    tests.append('')
-    tests.append(f'class Test{class_name}Config:')
-    tests.append('    """Test configuration dataclass."""')
-    tests.append('')
-    tests.append('    def test_config_is_dataclass(self):')
-    tests.append(f'        """Verify {class_name}Config is a dataclass."""')
-    tests.append('        from dataclasses import is_dataclass')
-    tests.append(f'        assert is_dataclass({class_name}Config)')
-    tests.append('')
-    
     return '\n'.join(tests)
 
 
@@ -2049,12 +2379,13 @@ class handler(BaseHTTPRequestHandler):
         try:
             data = json.loads(body)
             cobol_code = data.get('cobolCode', '')
+            enhance = data.get('enhance', False)
             
             if not cobol_code:
                 self.send_error_response({'error': 'cobolCode is required'})
                 return
             
-            result = generate_python_code(cobol_code)
+            result = generate_python_code(cobol_code, enhance)
             self.send_json_response(result)
         
         except json.JSONDecodeError:
@@ -2065,15 +2396,17 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '3.0.0',
+            'version': '4.4.0',
             'engine': 'Python AST Native',
-            'architecture': 'Clean Architecture',
+            'architecture': 'Clean Architecture + Enterprise Patterns',
             'features': [
+                'FileManager with context managers',
+                'Business domain Enums (StatusCode, AccountType, etc.)',
+                'Dataclasses for COBOL records',
+                'Proper @property for 88-level conditions',
                 'Boolean flags (not Y/N strings)',
                 'Decimal for all monetary values',
-                'Configuration dataclass',
-                'Comprehensive pytest suite',
-                'Idiomatic Python naming'
+                'Comprehensive pytest suite'
             ],
             'syntax_guarantee': '100%'
         })
