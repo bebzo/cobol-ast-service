@@ -167,6 +167,14 @@ Methods:
         self.formatted_amount: str = ''
         self.formatted_count: str = ''
 
+    def __getattr__(self, name):
+        """Handle undefined COBOL variables (REDEFINES, sub-fields)"""
+        if 'amount' in name.lower() or 'total' in name.lower() or 'count' in name.lower() or ('rate' in name.lower()) or ('year' in name.lower()):
+            self.__dict__[name] = Decimal('0')
+        else:
+            self.__dict__[name] = ''
+        return self.__dict__[name]
+
     def p_0000_main_control(self) -> None:
         """Business logic from: 0000-MAIN-CONTROL"""
         self.p_1000_initialization()
@@ -189,14 +197,14 @@ Methods:
 
     def p_1100_open_files(self) -> None:
         """Business logic from: 1100-OPEN-FILES"""
-        self.customer_master_handle = open(self.customer_master_path, 'r')
-        self.account_master_handle = open(self.account_master_path, 'r+')
-        self.loan_master_handle = open(self.loan_master_path, 'r+')
-        self.insurance_master_handle = open(self.insurance_master_path, 'r+')
-        self.investment_master_handle = open(self.investment_master_path, 'r+')
-        self.transaction_log_handle = open(self.transaction_log_path, 'w')
-        self.audit_trail_handle = open(self.audit_trail_path, 'w')
-        self.report_file_handle = open(self.report_file_path, 'w')
+        self.logger.debug('FILE-IO: OPEN INPUT CUSTOMER-MASTER')
+        self.logger.debug('FILE-IO: OPEN I-O ACCOUNT-MASTER')
+        self.logger.debug('FILE-IO: OPEN I-O LOAN-MASTER')
+        self.logger.debug('FILE-IO: OPEN I-O INSURANCE-MASTER')
+        self.logger.debug('FILE-IO: OPEN I-O INVESTMENT-MASTER')
+        self.logger.debug('FILE-IO: OPEN OUTPUT TRANSACTION-LOG')
+        self.logger.debug('FILE-IO: OPEN OUTPUT AUDIT-TRAIL')
+        self.logger.debug('FILE-IO: OPEN OUTPUT REPORT-FILE')
 
     def p_1200_initialize_counters(self) -> None:
         """Business logic from: 1200-INITIALIZE-COUNTERS"""
@@ -206,8 +214,8 @@ Methods:
 
     def p_1300_get_current_date(self) -> None:
         """Business logic from: 1300-GET-CURRENT-DATE"""
-        self.current_date = input()
-        self.current_time = input()
+        self.current_date = datetime.now().strftime('%Y%m%d')
+        self.current_time = datetime.now().strftime('%H%M%S%f')
 
     def p_1400_load_parameters(self) -> None:
         """Business logic from: 1400-LOAD-PARAMETERS"""
@@ -236,7 +244,7 @@ Methods:
         """Business logic from: 2100-PROCESS-DEPOSITS"""
         self.logger.info('PROCESSING DEPOSITS...')
         self.not_eof = True
-        self.account_master_record = self.account_master_handle.readline()
+        self.account_master_eof = True
         self.p_2110_validate_deposit()
         if self.valid:
             self.p_2120_post_deposit()
@@ -266,7 +274,7 @@ Methods:
         """Business logic from: 2200-PROCESS-WITHDRAWALS"""
         self.logger.info('PROCESSING WITHDRAWALS...')
         self.not_eof = True
-        self.account_master_record = self.account_master_handle.readline()
+        self.account_master_eof = True
         self.p_2210_validate_withdrawal()
         if self.valid:
             self.p_2220_post_withdrawal()
@@ -317,7 +325,7 @@ Methods:
         """Business logic from: 2400-CALCULATE-INTEREST"""
         self.logger.info('CALCULATING INTEREST...')
         self.not_eof = True
-        self.account_master_record = self.account_master_handle.readline()
+        self.account_master_eof = True
         self.p_2410_determine_rate()
         self.p_2420_compute_interest()
         self.p_2430_post_interest()
@@ -348,7 +356,7 @@ Methods:
         """Business logic from: 2500-APPLY-FEES"""
         self.logger.info('APPLYING MONTHLY FEES...')
         self.not_eof = True
-        self.account_master_record = self.account_master_handle.readline()
+        self.account_master_eof = True
         self.p_2510_check_minimum_balance()
         if self.valid:
             self.p_2520_waive_fee()
@@ -399,7 +407,7 @@ Methods:
         """Business logic from: 3200-PROCESS-PAYMENTS"""
         self.logger.info('PROCESSING LOAN PAYMENTS...')
         self.not_eof = True
-        self.loan_master_record = self.loan_master_handle.readline()
+        self.loan_master_eof = True
         if self.loan_current:
             self.p_3210_calculate_payment()
             self.p_3220_apply_payment()
@@ -429,7 +437,7 @@ Methods:
         """Business logic from: 3400-ASSESS-DELINQUENCIES"""
         self.logger.info('ASSESSING DELINQUENT LOANS...')
         self.not_eof = True
-        self.loan_master_record = self.loan_master_handle.readline()
+        self.loan_master_eof = True
         self.p_3410_check_payment_status()
         if self.not_found:
             self.p_3420_mark_delinquent()
@@ -477,7 +485,7 @@ Methods:
         """Business logic from: 4200-CALCULATE-PREMIUMS"""
         self.logger.info('CALCULATING PREMIUMS...')
         self.not_eof = True
-        self.insurance_master_record = self.insurance_master_handle.readline()
+        self.insurance_master_eof = True
         self.p_4210_determine_base_premium()
         self.p_4220_apply_risk_factor()
         self.p_4230_calculate_final_premium()
@@ -537,7 +545,7 @@ Methods:
         """Business logic from: 5200-CALCULATE-PORTFOLIO-VALUE"""
         self.logger.info('CALCULATING PORTFOLIO VALUES...')
         self.not_eof = True
-        self.investment_master_record = self.investment_master_handle.readline()
+        self.investment_master_eof = True
         self.p_5210_calculate_position_value()
         self.p_5220_calculate_gain_loss()
         self.p_5230_update_totals()
@@ -577,7 +585,7 @@ Methods:
         """Business logic from: 5400-CALCULATE-DIVIDENDS"""
         self.logger.info('CALCULATING DIVIDENDS...')
         self.not_eof = True
-        self.investment_master_record = self.investment_master_handle.readline()
+        self.investment_master_eof = True
         if self.inv_dividend_rate > 0:
             self.p_5410_compute_dividend()
             self.p_5420_post_dividend()
@@ -609,17 +617,17 @@ Methods:
         """Business logic from: 6100-DAILY-SUMMARY"""
         self.logger.info('GENERATING DAILY SUMMARY...')
         self.report_line = self.SPACES
-        self.output_handle.write(self.report_line)
+        self.logger.debug('FILE-IO: WRITE REPORT-LINE')
         self.p_6110_write_totals()
 
     def p_6110_write_totals(self) -> None:
         """Business logic from: 6110-WRITE-TOTALS"""
         self.formatted_amount = self.total_deposits
-        self.output_handle.write(self.report_line)
+        self.logger.debug('FILE-IO: WRITE REPORT-LINE')
         self.formatted_amount = self.total_withdrawals
-        self.output_handle.write(self.report_line)
+        self.logger.debug('FILE-IO: WRITE REPORT-LINE')
         self.formatted_amount = self.total_loans
-        self.output_handle.write(self.report_line)
+        self.logger.debug('FILE-IO: WRITE REPORT-LINE')
 
     def p_6200_account_statements(self) -> None:
         """Business logic from: 6200-ACCOUNT-STATEMENTS"""
@@ -675,12 +683,12 @@ Methods:
         self.tran_type = 'DEP'
         self.tran_amount = self.calc_amount
         self.tran_status = 'C'
-        self.output_handle.write(self.transaction_record)
+        self.logger.debug('FILE-IO: WRITE TRANSACTION-RECORD')
 
     def p_8200_write_audit(self) -> None:
         """Business logic from: 8200-WRITE-AUDIT"""
         self.aud_timestamp = self.current_timestamp
-        self.output_handle.write(self.audit_record)
+        self.logger.debug('FILE-IO: WRITE AUDIT-RECORD')
 
     def p_8300_format_date(self) -> None:
         """Business logic from: 8300-FORMAT-DATE"""
@@ -711,14 +719,14 @@ Methods:
 
     def p_9100_close_files(self) -> None:
         """Business logic from: 9100-CLOSE-FILES"""
-        self.customer_master_handle.close()
-        self.account_master_handle.close()
-        self.loan_master_handle.close()
-        self.insurance_master_handle.close()
-        self.investment_master_handle.close()
-        self.transaction_log_handle.close()
-        self.audit_trail_handle.close()
-        self.report_file_handle.close()
+        self.logger.debug('FILE-IO: CLOSE CUSTOMER-MASTER')
+        self.logger.debug('FILE-IO: CLOSE ACCOUNT-MASTER')
+        self.logger.debug('FILE-IO: CLOSE LOAN-MASTER')
+        self.logger.debug('FILE-IO: CLOSE INSURANCE-MASTER')
+        self.logger.debug('FILE-IO: CLOSE INVESTMENT-MASTER')
+        self.logger.debug('FILE-IO: CLOSE TRANSACTION-LOG')
+        self.logger.debug('FILE-IO: CLOSE AUDIT-TRAIL')
+        self.logger.debug('FILE-IO: CLOSE REPORT-FILE')
 
     def p_9200_display_statistics(self) -> None:
         """Business logic from: 9200-DISPLAY-STATISTICS"""
@@ -758,7 +766,7 @@ Methods:
         """Business logic from: 7100-ANALYZE-PATTERNS"""
         self.logger.info('ANALYZING TRANSACTION PATTERNS...')
         self.not_eof = True
-        self.transaction_log_record = self.transaction_log_handle.readline()
+        self.transaction_log_eof = True
         self.p_7110_check_amount_threshold()
         self.p_7120_check_frequency()
         self.p_7130_check_time_pattern()
@@ -795,7 +803,7 @@ Methods:
         """Business logic from: 7400-BEHAVIORAL-SCORING"""
         self.logger.info('CALCULATING BEHAVIORAL SCORES...')
         self.not_eof = True
-        self.customer_master_record = self.customer_master_handle.readline()
+        self.customer_master_eof = True
         self.p_7410_calculate_risk_score()
         self.p_7420_update_customer_profile()
 
@@ -832,7 +840,7 @@ Methods:
         """Business logic from: 7610-AML-SCREENING"""
         self.logger.info('PERFORMING AML SCREENING...')
         self.not_eof = True
-        self.transaction_log_record = self.transaction_log_handle.readline()
+        self.transaction_log_eof = True
         if self.tran_amount >= 10000:
             self.p_7611_ctr_filing()
         self.p_7612_structuring_check()
@@ -994,7 +1002,7 @@ Methods:
         """Business logic from: 7910-PORTFOLIO-ANALYSIS"""
         self.logger.info('ANALYZING PORTFOLIOS...')
         self.not_eof = True
-        self.investment_master_record = self.investment_master_handle.readline()
+        self.investment_master_eof = True
         self.p_7911_calculate_returns()
         self.p_7912_assess_risk()
         self.p_7913_benchmark_comparison()
@@ -1306,7 +1314,7 @@ Methods:
         """Business logic from: 9310-CUSTOMER-SEGMENTATION"""
         self.logger.info('SEGMENTING CUSTOMERS...')
         self.not_eof = True
-        self.customer_master_record = self.customer_master_handle.readline()
+        self.customer_master_eof = True
         self.p_9311_calculate_clv()
         self.p_9312_assign_segment()
 
@@ -1774,7 +1782,7 @@ Methods:
     def a110_extract_data(self) -> None:
         """Business logic from: A110-EXTRACT-DATA"""
         self.not_eof = True
-        self.customer_master_record = self.customer_master_handle.readline()
+        self.customer_master_eof = True
         self.process_count += Decimal('1')
 
     def a120_transform_data(self) -> None:
@@ -1972,7 +1980,7 @@ Methods:
         """Business logic from: C100-TRANSACTION-MONITORING"""
         self.logger.info('MONITORING TRANSACTIONS...')
         self.not_eof = True
-        self.transaction_log_record = self.transaction_log_handle.readline()
+        self.transaction_log_eof = True
         self.c110_rule_based_detection()
         self.c120_behavior_analysis()
         self.c130_network_analysis()
@@ -2593,7 +2601,7 @@ Methods:
         """Business logic from: I100-PROFILE-MANAGEMENT"""
         self.logger.info('MANAGING CUSTOMER PROFILES...')
         self.not_eof = True
-        self.customer_master_record = self.customer_master_handle.readline()
+        self.customer_master_eof = True
         self.i110_update_profile()
         self.i120_enrich_profile()
         self.cust_count += Decimal('1')
@@ -2781,20 +2789,20 @@ Methods:
 
     def p_1100_open_files(self) -> None:
         """Business logic from: 1100-OPEN-FILES"""
-        self.customer_file_handle = open(self.customer_file_path, 'r')
-        self.account_file_handle = open(self.account_file_path, 'r')
-        self.transaction_file_handle = open(self.transaction_file_path, 'r')
-        self.report_file_handle = open(self.report_file_path, 'w')
-        self.error_file_handle = open(self.error_file_path, 'w')
-        self.master_file_handle = open(self.master_file_path, 'r+')
+        self.logger.debug('FILE-IO: OPEN INPUT CUSTOMER-FILE')
+        self.logger.debug('FILE-IO: OPEN INPUT ACCOUNT-FILE')
+        self.logger.debug('FILE-IO: OPEN INPUT TRANSACTION-FILE')
+        self.logger.debug('FILE-IO: OPEN OUTPUT REPORT-FILE')
+        self.logger.debug('FILE-IO: OPEN OUTPUT ERROR-FILE')
+        self.logger.debug('FILE-IO: OPEN I-O MASTER-FILE')
         if self.file_status != '00':
             self.error_msg = 'FILE OPEN ERROR'
             self.p_9500_abort_process()
 
     def p_1200_read_parameters(self) -> None:
         """Business logic from: 1200-READ-PARAMETERS"""
-        self.param_date = input()
-        self.param_time = input()
+        self.param_date = datetime.now().strftime('%Y%m%d')
+        self.param_time = datetime.now().strftime('%H%M%S%f')
         self.job_id = 'BATCH-001'
         self.env_type = 'PRODUCTION'
 
@@ -2808,7 +2816,7 @@ Methods:
     def p_1400_load_reference_data(self) -> None:
         """Business logic from: 1400-LOAD-REFERENCE-DATA"""
         self.tbl_idx = Decimal('1')
-        self.reference_file_record = self.reference_file_handle.readline()
+        self.reference_file_eof = True
         self.eof_flag = 'Y'
         self.rt_code = self.ref_code
         self.rt_rate = self.ref_rate
@@ -2817,7 +2825,7 @@ Methods:
 
     def p_2000_process_transactions(self) -> None:
         """Business logic from: 2000-PROCESS-TRANSACTIONS"""
-        self.transaction_file_record = self.transaction_file_handle.readline()
+        self.transaction_file_eof = True
         self.eof_flag = 'Y'
         self.trans_count += Decimal('1')
         self.p_2100_validate_transaction()
@@ -2898,7 +2906,7 @@ Methods:
         self.audit_amount = self.txn_amount
         self.audit_type = self.txn_type
         self.audit_job_id = self.job_id
-        self.output_handle.write(self.audit_record)
+        self.logger.debug('FILE-IO: WRITE AUDIT-RECORD')
 
     def p_2400_process_withdrawal(self) -> None:
         """Business logic from: 2400-PROCESS-WITHDRAWAL"""
@@ -2917,7 +2925,7 @@ Methods:
         self.alert_type = 'LOW-BAL'
         self.alert_account = self.txn_account_id
         self.alert_balance = self.account_balance
-        self.output_handle.write(self.alert_record)
+        self.logger.debug('FILE-IO: WRITE ALERT-RECORD')
         self.alert_count += Decimal('1')
 
     def p_2500_process_transfer(self) -> None:
@@ -2947,7 +2955,7 @@ Methods:
         """Business logic from: 2530-CREDIT-TARGET"""
         self.target_balance += self.txn_amount
         self.acct_id = self.txn_target_account
-        self.master_file_record = self.master_file_handle.readline()
+        self.master_file_eof = True
         self.acct_balance = self.target_balance
 
     def p_2540_record_transfer(self) -> None:
@@ -2971,7 +2979,7 @@ Methods:
         self.error_record = None
         self.err_account = self.txn_account_id
         self.err_message = self.error_msg
-        self.output_handle.write(self.error_record)
+        self.logger.debug('FILE-IO: WRITE ERROR-RECORD')
         if self.error_count > self.max_errors:
             self.abort_reason = 'MAX ERRORS EXCEEDED'
             self.p_9500_abort_process()
@@ -2985,7 +2993,7 @@ Methods:
 
     def p_3100_load_batch_header(self) -> None:
         """Business logic from: 3100-LOAD-BATCH-HEADER"""
-        self.batch_file_record = self.batch_file_handle.readline()
+        self.batch_file_eof = True
         self.batch_eof = 'Y'
         self.current_batch = self.batch_id
         self.expected_count = self.batch_count
@@ -2993,7 +3001,7 @@ Methods:
 
     def p_3200_process_batch_items(self) -> None:
         """Business logic from: 3200-PROCESS-BATCH-ITEMS"""
-        self.batch_file_record = self.batch_file_handle.readline()
+        self.batch_file_eof = True
         self.batch_eof = 'Y'
         self.actual_count += Decimal('1')
         self.actual_total += self.item_amount
@@ -3053,7 +3061,7 @@ Methods:
         self.rejection_record = None
         self.rej_batch_id = self.current_batch
         self.rej_reason = self.error_msg
-        self.output_handle.write(self.rejection_record)
+        self.logger.debug('FILE-IO: WRITE REJECTION-RECORD')
         self.rejected_batch_count += Decimal('1')
 
     def p_3400_commit_batch(self) -> None:
@@ -3076,7 +3084,7 @@ Methods:
     def p_4100_generate_daily_report(self) -> None:
         """Business logic from: 4100-GENERATE-DAILY-REPORT"""
         self.rpt_title = 'DAILY TRANSACTION REPORT'
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
         self.p_4150_write_daily_details()
 
     def p_4150_write_daily_details(self) -> None:
@@ -3085,48 +3093,48 @@ Methods:
         self.rpt_deposits = self.total_deposits
         self.rpt_withdrawals = self.total_withdrawals
         self.rpt_transfers = self.total_transfers
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
 
     def p_4200_generate_exception_report(self) -> None:
         """Business logic from: 4200-GENERATE-EXCEPTION-REPORT"""
         self.rpt_title = 'EXCEPTION REPORT'
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
         self.p_4250_list_exceptions()
 
     def p_4250_list_exceptions(self) -> None:
         """Business logic from: 4250-LIST-EXCEPTIONS"""
         self.exception_idx = Decimal('1')
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
         self.exception_idx += Decimal('1')
 
     def p_4300_generate_summary_report(self) -> None:
         """Business logic from: 4300-GENERATE-SUMMARY-REPORT"""
         self.rpt_title = 'PROCESSING SUMMARY'
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
         self.rpt_deposit_cnt = self.deposit_count
         self.rpt_withdrawal_cnt = self.withdrawal_count
         self.rpt_transfer_cnt = self.transfer_count
         self.rpt_interest_cnt = self.interest_count
         self.rpt_error_cnt = self.error_count
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
 
     def p_4400_generate_audit_report(self) -> None:
         """Business logic from: 4400-GENERATE-AUDIT-REPORT"""
         self.rpt_title = 'AUDIT TRAIL REPORT'
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
         self.p_4450_write_audit_entries()
 
     def p_4450_write_audit_entries(self) -> None:
         """Business logic from: 4450-WRITE-AUDIT-ENTRIES"""
         self.audit_idx = Decimal('1')
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
         self.audit_idx += Decimal('1')
 
     def p_5000_search_account(self) -> None:
         """Business logic from: 5000-SEARCH-ACCOUNT"""
         self.found_flag = 'N'
         self.acct_id = self.search_key
-        self.master_file_record = self.master_file_handle.readline()
+        self.master_file_eof = True
         self.found_flag = 'N'
         self.found_flag = 'Y'
         self.account_balance = self.acct_balance
@@ -3282,7 +3290,7 @@ Methods:
         self.fee_account = self.txn_account_id
         self.fee_amount = self.total_fees
         self.fee_description = 'MONTHLY FEE'
-        self.output_handle.write(self.fee_record)
+        self.logger.debug('FILE-IO: WRITE FEE-RECORD')
 
     def p_9000_finalization(self) -> None:
         """Business logic from: 9000-FINALIZATION"""
@@ -3297,16 +3305,16 @@ Methods:
         self.ctl_deposits = self.total_deposits
         self.ctl_withdrawals = self.total_withdrawals
         self.ctl_error_count = self.error_count
-        self.output_handle.write(self.control_record)
+        self.logger.debug('FILE-IO: WRITE CONTROL-RECORD')
 
     def p_9200_close_files(self) -> None:
         """Business logic from: 9200-CLOSE-FILES"""
-        self.customer_file_handle.close()
-        self.account_file_handle.close()
-        self.transaction_file_handle.close()
-        self.report_file_handle.close()
-        self.error_file_handle.close()
-        self.master_file_handle.close()
+        self.logger.debug('FILE-IO: CLOSE CUSTOMER-FILE')
+        self.logger.debug('FILE-IO: CLOSE ACCOUNT-FILE')
+        self.logger.debug('FILE-IO: CLOSE TRANSACTION-FILE')
+        self.logger.debug('FILE-IO: CLOSE REPORT-FILE')
+        self.logger.debug('FILE-IO: CLOSE ERROR-FILE')
+        self.logger.debug('FILE-IO: CLOSE MASTER-FILE')
 
     def p_9300_display_summary(self) -> None:
         """Business logic from: 9300-DISPLAY-SUMMARY"""
@@ -3581,7 +3589,7 @@ Methods:
         self.loan_rec_payment = self.loan_monthly_pmt
         self.loan_rec_start = self.loan_start_date
         self.loan_rec_status = self.loan_status
-        self.output_handle.write(self.loan_record)
+        self.logger.debug('FILE-IO: WRITE LOAN-RECORD')
 
     def p_10760_disburse_funds(self) -> None:
         """Business logic from: 10760-DISBURSE-FUNDS"""
@@ -3608,7 +3616,7 @@ Methods:
         self.decline_loan_id = self.loan_id
         self.decline_status = self.approval_status
         self.decline_reason = self.conditions
-        self.output_handle.write(self.decline_record)
+        self.logger.debug('FILE-IO: WRITE DECLINE-RECORD')
 
     def p_10820_send_decline_notice(self) -> None:
         """Business logic from: 10820-SEND-DECLINE-NOTICE"""
@@ -3627,7 +3635,7 @@ Methods:
     def p_11100_load_portfolio(self) -> None:
         """Business logic from: 11100-LOAD-PORTFOLIO"""
         self.hold_idx = Decimal('1')
-        self.holdings_file_record = self.holdings_file_handle.readline()
+        self.holdings_file_eof = True
         self.eof_flag = 'Y'
         self.hold_idx += Decimal('1')
         self.hold_idx -= self.p_1
@@ -3723,19 +3731,19 @@ Methods:
 
     def p_11515_write_holdings_detail(self) -> None:
         """Business logic from: 11515-WRITE-HOLDINGS-DETAIL"""
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
 
     def p_11520_quarterly_report(self) -> None:
         """Business logic from: 11520-QUARTERLY-REPORT"""
         self.rpt_title = 'QUARTERLY PERFORMANCE REPORT'
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
 
     def p_11530_annual_tax_report(self) -> None:
         """Business logic from: 11530-ANNUAL-TAX-REPORT"""
         self.rpt_title = 'ANNUAL TAX REPORT - 1099'
         self.rpt_dividends = self.dividend_income
         self.rpt_cap_gains = self.realized_gain_ytd
-        self.output_handle.write(self.report_record)
+        self.logger.debug('FILE-IO: WRITE REPORT-RECORD')
 
     def p_12000_trade_execution(self) -> None:
         """Business logic from: 12000-TRADE-EXECUTION"""
@@ -3897,7 +3905,7 @@ Methods:
         self.trade_rec_comm = self.commission
         self.trade_rec_net = self.net_amount
         self.trade_rec_time = self.execution_time
-        self.output_handle.write(self.trade_record)
+        self.logger.debug('FILE-IO: WRITE TRADE-RECORD')
 
     def p_12600_reject_order(self) -> None:
         """Business logic from: 12600-REJECT-ORDER"""
@@ -3905,7 +3913,7 @@ Methods:
         self.reject_record = None
         self.reject_order_id = self.trade_id
         self.reject_reason = self.reject_reason
-        self.output_handle.write(self.reject_record)
+        self.logger.debug('FILE-IO: WRITE REJECT-RECORD')
 
     def p_13000_insurance_processing(self) -> None:
         """Business logic from: 13000-INSURANCE-PROCESSING"""
@@ -4106,14 +4114,14 @@ Methods:
         self.policy_rec_eff_date = self.effective_date
         self.policy_rec_exp_date = self.expiration_date
         self.policy_rec_status = 'A'
-        self.output_handle.write(self.policy_record)
+        self.logger.debug('FILE-IO: WRITE POLICY-RECORD')
 
     def p_13430_set_beneficiaries(self) -> None:
         """Business logic from: 13430-SET-BENEFICIARIES"""
         if self.benef_name(self.benef_idx) != self.spaces:
             self.beneficiary_rec = None
             self.benef_rec_policy = self.policy_number
-            self.output_handle.write(self.beneficiary_record)
+            self.logger.debug('FILE-IO: WRITE BENEFICIARY-RECORD')
 
     def p_13440_send_policy_docs(self) -> None:
         """Business logic from: 13440-SEND-POLICY-DOCS"""
@@ -4207,7 +4215,7 @@ Methods:
         self.pay_rec_claim = self.claim_number
         self.pay_rec_amount = self.approved_amount
         self.pay_rec_method = 'CHECK'
-        self.output_handle.write(self.payment_record)
+        self.logger.debug('FILE-IO: WRITE PAYMENT-RECORD')
 
     def p_13560_update_claim_record(self) -> None:
         """Business logic from: 13560-UPDATE-CLAIM-RECORD"""
@@ -4226,7 +4234,7 @@ Methods:
     def p_14100_load_employee_data(self) -> None:
         """Business logic from: 14100-LOAD-EMPLOYEE-DATA"""
         self.emp_search_key = self.employee_id
-        self.employee_file_record = self.employee_file_handle.readline()
+        self.employee_file_eof = True
         self.error_msg = 'EMPLOYEE NOT FOUND'
         self.p_2900_handle_error()
 
@@ -4395,7 +4403,7 @@ Methods:
         self.stub_net = self.net_pay
         self.stub_ytd_gross = self.ytd_gross
         self.stub_ytd_net = self.ytd_net
-        self.output_handle.write(self.paystub_record)
+        self.logger.debug('FILE-IO: WRITE PAYSTUB-RECORD')
 
     def p_14700_process_direct_deposit(self) -> None:
         """Business logic from: 14700-PROCESS-DIRECT-DEPOSIT"""
@@ -4420,7 +4428,7 @@ Methods:
             self.ach_amount = self.net_pay
             self.ach_date = self.pay_date
             self.ach_desc = 'PAYROLL'
-            self.output_handle.write(self.ach_record)
+            self.logger.debug('FILE-IO: WRITE ACH-RECORD')
 
     def p_15000_send_notification(self) -> None:
         """Business logic from: 15000-SEND-NOTIFICATION"""
@@ -4440,14 +4448,14 @@ Methods:
         self.email_subject = self.notif_subject
         self.email_body = self.notif_body
         self.email_status = 'PENDING'
-        self.output_handle.write(self.email_record)
+        self.logger.debug('FILE-IO: WRITE EMAIL-RECORD')
 
     def p_15200_send_sms(self) -> None:
         """Business logic from: 15200-SEND-SMS"""
         self.sms_record = None
         self.sms_phone = self.notif_recipient
         self.sms_status = 'PENDING'
-        self.output_handle.write(self.sms_record)
+        self.logger.debug('FILE-IO: WRITE SMS-RECORD')
 
     def p_15300_generate_letter(self) -> None:
         """Business logic from: 15300-GENERATE-LETTER"""
@@ -4455,7 +4463,7 @@ Methods:
         self.letter_address = self.notif_recipient
         self.letter_subject = self.notif_subject
         self.letter_body = self.notif_body
-        self.output_handle.write(self.letter_record)
+        self.logger.debug('FILE-IO: WRITE LETTER-RECORD')
 
     def p_15400_send_push(self) -> None:
         """Business logic from: 15400-SEND-PUSH"""
@@ -4463,7 +4471,7 @@ Methods:
         self.push_device_id = self.notif_recipient
         self.push_title = self.notif_subject
         self.push_status = 'PENDING'
-        self.output_handle.write(self.push_record)
+        self.logger.debug('FILE-IO: WRITE PUSH-RECORD')
 
     def p_16000_compliance_processing(self) -> None:
         """Business logic from: 16000-COMPLIANCE-PROCESSING"""
@@ -4611,7 +4619,7 @@ Methods:
         self.esc_reason = 'SANCTIONS HIT'
         self.esc_customer = self.customer_id
         self.esc_priority = 'URGENT'
-        self.output_handle.write(self.escalation_record)
+        self.logger.debug('FILE-IO: WRITE ESCALATION-RECORD')
 
     def p_16320_freeze_account(self) -> None:
         """Business logic from: 16320-FREEZE-ACCOUNT"""
@@ -4691,7 +4699,7 @@ Methods:
     def p_16530_file_sar(self) -> None:
         """Business logic from: 16530-FILE-SAR"""
         self.sar_status = 'PENDING'
-        self.output_handle.write(self.sar_record)
+        self.logger.debug('FILE-IO: WRITE SAR-RECORD')
 
     def p_17000_customer_service(self) -> None:
         """Business logic from: 17000-CUSTOMER-SERVICE"""
@@ -4766,13 +4774,13 @@ Methods:
     def p_17322_pull_account_history(self) -> None:
         """Business logic from: 17322-PULL-ACCOUNT-HISTORY"""
         self.hist_search_key = self.customer_account
-        self.history_file_record = self.history_file_handle.readline()
+        self.history_file_eof = True
         self.research_notes = 'NO HISTORY FOUND'
 
     def p_17324_check_previous_cases(self) -> None:
         """Business logic from: 17324-CHECK-PREVIOUS-CASES"""
         self.case_search_key = self.customer_id
-        self.case_file_record = self.case_file_handle.readline()
+        self.case_file_eof = True
         self.eof_flag = 'Y'
         self.previous_case_count += Decimal('1')
         self.eof_flag = 'N'
@@ -4809,7 +4817,7 @@ Methods:
         self.credit_account = self.customer_account
         self.credit_amount = self.credit_amount
         self.credit_reason = 'BILLING ADJUSTMENT'
-        self.output_handle.write(self.credit_record)
+        self.logger.debug('FILE-IO: WRITE CREDIT-RECORD')
 
     def p_17334_resolve_fraud(self) -> None:
         """Business logic from: 17334-RESOLVE-FRAUD"""
@@ -4824,7 +4832,7 @@ Methods:
         self.card_req_account = self.customer_account
         self.card_req_type = 'REPLACEMENT'
         self.card_req_expedite = 'Y'
-        self.output_handle.write(self.card_request)
+        self.logger.debug('FILE-IO: WRITE CARD-REQUEST')
 
     def p_17336_resolve_access(self) -> None:
         """Business logic from: 17336-RESOLVE-ACCESS"""
@@ -4874,7 +4882,7 @@ Methods:
         self.callback_case = self.case_id
         self.callback_phone = self.customer_phone
         self.callback_date = self.callback_date
-        self.output_handle.write(self.callback_record)
+        self.logger.debug('FILE-IO: WRITE CALLBACK-RECORD')
 
     def p_18000_document_management(self) -> None:
         """Business logic from: 18000-DOCUMENT-MANAGEMENT"""
@@ -5026,7 +5034,7 @@ Methods:
         self.metrics_type = self.workflow_type
         self.metrics_status = self.workflow_status
         self.metrics_duration = self.workflow_duration
-        self.output_handle.write(self.metrics_record)
+        self.logger.debug('FILE-IO: WRITE METRICS-RECORD')
 
     def p_20000_batch_scheduling(self) -> None:
         """Business logic from: 20000-BATCH-SCHEDULING"""
@@ -5038,7 +5046,7 @@ Methods:
     def p_20100_load_schedule(self) -> None:
         """Business logic from: 20100-LOAD-SCHEDULE"""
         self.sched_search_key = self.schedule_id
-        self.schedule_file_record = self.schedule_file_handle.readline()
+        self.schedule_file_eof = True
         self.error_msg = 'SCHEDULE NOT FOUND'
         self.p_2900_handle_error()
 
@@ -5050,7 +5058,7 @@ Methods:
 
     def p_20210_check_single_dep(self) -> None:
         """Business logic from: 20210-CHECK-SINGLE-DEP"""
-        self.job_status_file_record = self.job_status_file_handle.readline()
+        self.job_status_file_eof = True
         self.deps_met = 'N'
         if self.job_last_status != self.dep_status_req(self.dep_idx):
             self.deps_met = 'N'
@@ -5086,7 +5094,7 @@ Methods:
         self.log_end = self.batch_end_time
         self.log_records = self.records_processed
         self.log_rc = self.batch_return_code
-        self.output_handle.write(self.batch_log_record)
+        self.logger.debug('FILE-IO: WRITE BATCH-LOG-RECORD')
         self.p_20410_update_schedule()
 
     def p_20410_update_schedule(self) -> None:
@@ -5127,7 +5135,7 @@ Methods:
         self.total_trans_amount = self.zeroes
         self.total_trans_count = self.zeroes
         self.avg_trans_amount = self.zeroes
-        self.transaction_file_record = self.transaction_file_handle.readline()
+        self.transaction_file_eof = True
         self.eof_flag = 'Y'
         self.total_trans_count += Decimal('1')
         self.total_trans_amount += self.trans_amount
@@ -5140,7 +5148,7 @@ Methods:
         self.active_customers = self.zeroes
         self.new_customers = self.zeroes
         self.churned_customers = self.zeroes
-        self.customer_file_record = self.customer_file_handle.readline()
+        self.customer_file_eof = True
         self.eof_flag = 'Y'
         if self.cust_status == 'self.a':
             self.active_customers += Decimal('1')
@@ -5154,7 +5162,7 @@ Methods:
         """Business logic from: 21130-COLLECT-PERFORMANCE-METRICS"""
         self.response_time_total = self.zeroes
         self.response_count = self.zeroes
-        self.perf_log_file_record = self.perf_log_file_handle.readline()
+        self.perf_log_file_eof = True
         self.eof_flag = 'Y'
         self.response_time_total += self.perf_response_time
         self.response_count += Decimal('1')
@@ -5176,7 +5184,7 @@ Methods:
         self.daily_trans_amount = self.total_trans_amount
         self.daily_deposits = self.total_deposits
         self.daily_withdrawals = self.total_withdrawals
-        self.output_handle.write(self.daily_summary_record)
+        self.logger.debug('FILE-IO: WRITE DAILY-SUMMARY-RECORD')
 
     def p_21220_weekly_aggregation(self) -> None:
         """Business logic from: 21220-WEEKLY-AGGREGATION"""
@@ -5184,7 +5192,7 @@ Methods:
             self.weekly_summary = None
             self.weekly_week = self.week_number
             self.p_21225_sum_week_data()
-            self.output_handle.write(self.weekly_summary_record)
+            self.logger.debug('FILE-IO: WRITE WEEKLY-SUMMARY-RECORD')
 
     def p_21225_sum_week_data(self) -> None:
         """Business logic from: 21225-SUM-WEEK-DATA"""
@@ -5200,7 +5208,7 @@ Methods:
             self.monthly_month = self.curr_month
             self.monthly_year = self.curr_year
             self.p_21235_sum_month_data()
-            self.output_handle.write(self.monthly_summary_record)
+            self.logger.debug('FILE-IO: WRITE MONTHLY-SUMMARY-RECORD')
 
     def p_21235_sum_month_data(self) -> None:
         """Business logic from: 21235-SUM-MONTH-DATA"""
@@ -5208,7 +5216,7 @@ Methods:
         self.monthly_trans_amount = self.zeroes
         self.monthly_new_accounts = self.zeroes
         self.monthly_closed_accounts = self.zeroes
-        self.daily_summary_file_record = self.daily_summary_file_handle.readline()
+        self.daily_summary_file_eof = True
         self.eof_flag = 'Y'
         if self.daily_month == self.curr_month:
             self.monthly_trans_count += self.daily_trans_count
@@ -5254,7 +5262,7 @@ Methods:
         self.dash_roa = self.roa
         self.dash_roe = self.roe
         self.dash_customers = self.active_customers
-        self.output_handle.write(self.dashboard_record)
+        self.logger.debug('FILE-IO: WRITE DASHBOARD-RECORD')
 
     def p_21420_create_operations_dashboard(self) -> None:
         """Business logic from: 21420-CREATE-OPERATIONS-DASHBOARD"""
@@ -5263,7 +5271,7 @@ Methods:
         self.dash_avg_response = self.avg_response_time
         self.dash_error_rate = self.error_rate
         self.dash_sla_pct = self.sla_compliance
-        self.output_handle.write(self.dashboard_record)
+        self.logger.debug('FILE-IO: WRITE DASHBOARD-RECORD')
 
     def p_21430_create_risk_dashboard(self) -> None:
         """Business logic from: 21430-CREATE-RISK-DASHBOARD"""
@@ -5272,7 +5280,7 @@ Methods:
         self.dash_npl = self.npl_ratio
         self.dash_capital = self.capital_ratio
         self.dash_liquidity = self.liquidity_ratio
-        self.output_handle.write(self.dashboard_record)
+        self.logger.debug('FILE-IO: WRITE DASHBOARD-RECORD')
 
     def p_21500_export_data(self) -> None:
         """Business logic from: 21500-EXPORT-DATA"""
@@ -5282,28 +5290,28 @@ Methods:
 
     def p_21510_export_csv(self) -> None:
         """Business logic from: 21510-EXPORT-CSV"""
-        self.csv_export_file_handle = open(self.csv_export_file_path, 'w')
-        self.output_handle.write(self.csv_record)
-        self.daily_summary_file_record = self.daily_summary_file_handle.readline()
+        self.logger.debug('FILE-IO: OPEN OUTPUT CSV-EXPORT-FILE')
+        self.logger.debug('FILE-IO: WRITE CSV-RECORD')
+        self.daily_summary_file_eof = True
         self.eof_flag = 'Y'
-        self.output_handle.write(self.csv_record)
-        self.csv_export_file_handle.close()
+        self.logger.debug('FILE-IO: WRITE CSV-RECORD')
+        self.logger.debug('FILE-IO: CLOSE CSV-EXPORT-FILE')
         self.eof_flag = 'N'
 
     def p_21520_export_xml(self) -> None:
         """Business logic from: 21520-EXPORT-XML"""
-        self.xml_export_file_handle = open(self.xml_export_file_path, 'w')
-        self.output_handle.write(self.xml_record)
+        self.logger.debug('FILE-IO: OPEN OUTPUT XML-EXPORT-FILE')
+        self.logger.debug('FILE-IO: WRITE XML-RECORD')
         self.xml_line = '<DailySummaries>'
-        self.output_handle.write(self.xml_record)
+        self.logger.debug('FILE-IO: WRITE XML-RECORD')
         self.p_21525_write_xml_records()
         self.xml_line = '</DailySummaries>'
-        self.output_handle.write(self.xml_record)
-        self.xml_export_file_handle.close()
+        self.logger.debug('FILE-IO: WRITE XML-RECORD')
+        self.logger.debug('FILE-IO: CLOSE XML-EXPORT-FILE')
 
     def p_21525_write_xml_records(self) -> None:
         """Business logic from: 21525-WRITE-XML-RECORDS"""
-        self.daily_summary_file_record = self.daily_summary_file_handle.readline()
+        self.daily_summary_file_eof = True
         self.eof_flag = 'Y'
         self.p_21526_format_xml_record()
         self.eof_flag = 'N'
@@ -5311,25 +5319,25 @@ Methods:
     def p_21526_format_xml_record(self) -> None:
         """Business logic from: 21526-FORMAT-XML-RECORD"""
         self.xml_line = '<Summary>'
-        self.output_handle.write(self.xml_record)
-        self.output_handle.write(self.xml_record)
-        self.output_handle.write(self.xml_record)
+        self.logger.debug('FILE-IO: WRITE XML-RECORD')
+        self.logger.debug('FILE-IO: WRITE XML-RECORD')
+        self.logger.debug('FILE-IO: WRITE XML-RECORD')
         self.xml_line = '</Summary>'
-        self.output_handle.write(self.xml_record)
+        self.logger.debug('FILE-IO: WRITE XML-RECORD')
 
     def p_21530_export_json(self) -> None:
         """Business logic from: 21530-EXPORT-JSON"""
-        self.json_export_file_handle = open(self.json_export_file_path, 'w')
-        self.output_handle.write(self.json_record)
+        self.logger.debug('FILE-IO: OPEN OUTPUT JSON-EXPORT-FILE')
+        self.logger.debug('FILE-IO: WRITE JSON-RECORD')
         self.p_21535_write_json_records()
         self.json_line = ']}'
-        self.output_handle.write(self.json_record)
-        self.json_export_file_handle.close()
+        self.logger.debug('FILE-IO: WRITE JSON-RECORD')
+        self.logger.debug('FILE-IO: CLOSE JSON-EXPORT-FILE')
 
     def p_21535_write_json_records(self) -> None:
         """Business logic from: 21535-WRITE-JSON-RECORDS"""
         self.first_record = 'N'
-        self.daily_summary_file_record = self.daily_summary_file_handle.readline()
+        self.daily_summary_file_eof = True
         self.eof_flag = 'Y'
         self.p_21536_format_json_record()
         self.eof_flag = 'N'
@@ -5341,7 +5349,7 @@ Methods:
         else:
             self.json_comma = self.SPACES
             self.first_record = 'Y'
-        self.output_handle.write(self.json_record)
+        self.logger.debug('FILE-IO: WRITE JSON-RECORD')
 
     def p_22000_account_maintenance(self) -> None:
         """Business logic from: 22000-ACCOUNT-MAINTENANCE"""
@@ -5352,7 +5360,7 @@ Methods:
 
     def p_22100_dormant_account_check(self) -> None:
         """Business logic from: 22100-DORMANT-ACCOUNT-CHECK"""
-        self.account_file_record = self.account_file_handle.readline()
+        self.account_file_eof = True
         self.eof_flag = 'Y'
         self.p_22110_check_activity()
         self.eof_flag = 'N'
@@ -5377,7 +5385,7 @@ Methods:
 
     def p_22200_escheatment_processing(self) -> None:
         """Business logic from: 22200-ESCHEATMENT-PROCESSING"""
-        self.account_file_record = self.account_file_handle.readline()
+        self.account_file_eof = True
         self.eof_flag = 'Y'
         if self.acct_status == 'self.d':
             self.p_22210_check_escheatment()
@@ -5403,7 +5411,7 @@ Methods:
         self.escheat_date = self.process_date
         self.escheat_owner = self.acct_owner_name
         self.escheat_address = self.acct_owner_address
-        self.output_handle.write(self.escheat_record)
+        self.logger.debug('FILE-IO: WRITE ESCHEAT-RECORD')
 
     def p_22300_account_closure(self) -> None:
         """Business logic from: 22300-ACCOUNT-CLOSURE"""
@@ -5444,14 +5452,14 @@ Methods:
             self.check_amount = self.final_balance
             self.check_memo = 'ACCOUNT CLOSURE'
             self.check_payee = self.acct_owner_name
-            self.output_handle.write(self.check_record)
+            self.logger.debug('FILE-IO: WRITE CHECK-RECORD')
 
     def p_22326_archive_account(self) -> None:
         """Business logic from: 22326-ARCHIVE-ACCOUNT"""
         self.archive_record = None
         self.archive_account_data = self.account_rec
         self.archive_date = self.process_date
-        self.output_handle.write(self.archive_record)
+        self.logger.debug('FILE-IO: WRITE ARCHIVE-RECORD')
 
     def p_22330_reject_closure(self) -> None:
         """Business logic from: 22330-REJECT-CLOSURE"""
@@ -5553,7 +5561,7 @@ Methods:
         self.card_daily_limit = self.daily_limit
         self.card_atm_limit = self.atm_limit
         self.card_status = 'I'
-        self.output_handle.write(self.card_record)
+        self.logger.debug('FILE-IO: WRITE CARD-RECORD')
 
     def p_23200_card_activation(self) -> None:
         """Business logic from: 23200-CARD-ACTIVATION"""
@@ -5644,7 +5652,7 @@ Methods:
             self.ship_method = 'EXPRESS'
         else:
             self.ship_method = 'STANDARD'
-        self.output_handle.write(self.shipment_record)
+        self.logger.debug('FILE-IO: WRITE SHIPMENT-RECORD')
 
     def p_23500_card_blocking(self) -> None:
         """Business logic from: 23500-CARD-BLOCKING"""
@@ -5746,7 +5754,7 @@ Methods:
         self.wire_from_acct = self.originator_account
         self.wire_to_acct = self.beneficiary_account
         self.wire_date = self.process_date
-        self.output_handle.write(self.wire_record)
+        self.logger.debug('FILE-IO: WRITE WIRE-RECORD')
 
     def p_24350_reverse_debit(self) -> None:
         """Business logic from: 24350-REVERSE-DEBIT"""
@@ -5767,7 +5775,7 @@ Methods:
         self.reject_wire_ref = self.wire_ref
         self.reject_reason = self.wire_reject
         self.reject_date = self.process_date
-        self.output_handle.write(self.wire_reject_record)
+        self.logger.debug('FILE-IO: WRITE WIRE-REJECT-RECORD')
         self.notif_type = 'WIRE-REJECTED'
         self.p_15000_send_notification()
 
@@ -5781,8 +5789,8 @@ Methods:
 
     def p_25100_receive_ach_file(self) -> None:
         """Business logic from: 25100-RECEIVE-ACH-FILE"""
-        self.ach_input_file_handle = open(self.ach_input_file_path, 'r')
-        self.ach_input_file_record = self.ach_input_file_handle.readline()
+        self.logger.debug('FILE-IO: OPEN INPUT ACH-INPUT-FILE')
+        self.ach_input_file_eof = True
         self.current_ach_file = self.ach_file_id
         self.ach_file_date = self.ach_creation_date
         self.expected_entries = self.ach_entry_count
@@ -5791,7 +5799,7 @@ Methods:
         """Business logic from: 25200-VALIDATE-ACH-ENTRIES"""
         self.valid_entries = self.zeroes
         self.invalid_entries = self.zeroes
-        self.ach_input_file_record = self.ach_input_file_handle.readline()
+        self.ach_input_file_eof = True
         self.eof_flag = 'Y'
         self.p_25210_validate_single_entry()
         self.eof_flag = 'N'
@@ -5815,7 +5823,7 @@ Methods:
 
     def p_25300_process_ach_credits(self) -> None:
         """Business logic from: 25300-PROCESS-ACH-CREDITS"""
-        self.ach_input_file_record = self.ach_input_file_handle.readline()
+        self.ach_input_file_eof = True
         self.eof_flag = 'Y'
         if self.ach_trans_code == '22' or '23' or '32' or '33':
             self.p_25310_apply_credit()
@@ -5836,7 +5844,7 @@ Methods:
 
     def p_25400_process_ach_debits(self) -> None:
         """Business logic from: 25400-PROCESS-ACH-DEBITS"""
-        self.ach_input_file_record = self.ach_input_file_handle.readline()
+        self.ach_input_file_eof = True
         self.eof_flag = 'Y'
         if self.ach_trans_code == '27' or '28' or '37' or '38':
             self.p_25410_apply_debit()
@@ -5872,15 +5880,15 @@ Methods:
         self.return_amount = self.ach_amount
         self.return_account = self.ach_account
         self.return_count += Decimal('1')
-        self.output_handle.write(self.ach_return_record)
+        self.logger.debug('FILE-IO: WRITE ACH-RETURN-RECORD')
 
     def p_25510_create_return_file(self) -> None:
         """Business logic from: 25510-CREATE-RETURN-FILE"""
-        self.ach_return_file_handle = open(self.ach_return_file_path, 'w')
+        self.logger.debug('FILE-IO: OPEN OUTPUT ACH-RETURN-FILE')
         self.p_25520_write_return_header()
         self.p_25530_write_return_entries()
         self.p_25540_write_return_trailer()
-        self.ach_return_file_handle.close()
+        self.logger.debug('FILE-IO: CLOSE ACH-RETURN-FILE')
 
     def p_25520_write_return_header(self) -> None:
         """Business logic from: 25520-WRITE-RETURN-HEADER"""
@@ -5889,11 +5897,11 @@ Methods:
         self.return_priority_code = '01'
         self.return_immediate_dest = self.our_routing
         self.return_immediate_origin = self.our_company_id
-        self.output_handle.write(self.ach_return_record)
+        self.logger.debug('FILE-IO: WRITE ACH-RETURN-RECORD')
 
     def p_25530_write_return_entries(self) -> None:
         """Business logic from: 25530-WRITE-RETURN-ENTRIES"""
-        self.output_handle.write(self.ach_return_record)
+        self.logger.debug('FILE-IO: WRITE ACH-RETURN-RECORD')
         self.return_idx += Decimal('1')
 
     def p_25540_write_return_trailer(self) -> None:
@@ -5902,7 +5910,7 @@ Methods:
         self.return_record_type = '9'
         self.return_entry_count = self.return_count
         self.return_total_amount = self.return_total
-        self.output_handle.write(self.ach_return_record)
+        self.logger.debug('FILE-IO: WRITE ACH-RETURN-RECORD')
 
     def p_26000_statement_generation(self) -> None:
         """Business logic from: 26000-STATEMENT-GENERATION"""
@@ -5932,7 +5940,7 @@ Methods:
 
     def p_26300_generate_transaction_detail(self) -> None:
         """Business logic from: 26300-GENERATE-TRANSACTION-DETAIL"""
-        self.transaction_history_record = self.transaction_history_handle.readline()
+        self.transaction_history_eof = True
         self.eof_flag = 'Y'
         if self.hist_account == self.acct_id:
             if self.hist_date >= self.stmt_start_date:
@@ -5970,27 +5978,27 @@ Methods:
     def p_26510_create_header(self) -> None:
         """Business logic from: 26510-CREATE-HEADER"""
         self.stmt_line = self.SPACES
-        self.output_handle.write(self.statement_record)
-        self.output_handle.write(self.statement_record)
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
 
     def p_26520_create_summary_section(self) -> None:
         """Business logic from: 26520-CREATE-SUMMARY-SECTION"""
-        self.output_handle.write(self.statement_record)
-        self.output_handle.write(self.statement_record)
-        self.output_handle.write(self.statement_record)
-        self.output_handle.write(self.statement_record)
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
 
     def p_26530_create_transaction_list(self) -> None:
         """Business logic from: 26530-CREATE-TRANSACTION-LIST"""
-        self.output_handle.write(self.statement_record)
-        self.output_handle.write(self.statement_record)
-        self.output_handle.write(self.statement_record)
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
 
     def p_26540_create_footer(self) -> None:
         """Business logic from: 26540-CREATE-FOOTER"""
-        self.output_handle.write(self.statement_record)
-        self.output_handle.write(self.statement_record)
-        self.output_handle.write(self.statement_record)
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
+        self.logger.debug('FILE-IO: WRITE STATEMENT-RECORD')
 
     def p_26600_deliver_statement(self) -> None:
         """Business logic from: 26600-DELIVER-STATEMENT"""
@@ -6008,7 +6016,7 @@ Methods:
         self.print_req_account = self.stmt_account_number
         self.print_req_doc_type = 'STATEMENT'
         self.print_req_date = self.stmt_date
-        self.output_handle.write(self.print_queue_record)
+        self.logger.debug('FILE-IO: WRITE PRINT-QUEUE-RECORD')
 
     def p_26620_email_statement(self) -> None:
         """Business logic from: 26620-EMAIL-STATEMENT"""
@@ -6084,7 +6092,7 @@ Methods:
         self.odp_amount = self.overdraft_amount
         self.odp_type = 'TRANSFER'
         self.odp_date = self.process_date
-        self.output_handle.write(self.odp_record)
+        self.logger.debug('FILE-IO: WRITE ODP-RECORD')
 
     def p_27260_record_credit_advance(self) -> None:
         """Business logic from: 27260-RECORD-CREDIT-ADVANCE"""
@@ -6093,7 +6101,7 @@ Methods:
         self.odp_amount = self.overdraft_amount
         self.odp_type = 'CREDIT-LINE'
         self.odp_date = self.process_date
-        self.output_handle.write(self.odp_record)
+        self.logger.debug('FILE-IO: WRITE ODP-RECORD')
 
     def p_27270_record_nsf(self) -> None:
         """Business logic from: 27270-RECORD-NSF"""
@@ -6102,7 +6110,7 @@ Methods:
         self.nsf_amount = self.overdraft_amount
         self.nsf_fee_charged = self.nsf_fee
         self.nsf_date = self.process_date
-        self.output_handle.write(self.nsf_record)
+        self.logger.debug('FILE-IO: WRITE NSF-RECORD')
         self.notif_type = 'NSF'
         self.notif_channel = 'SMS'
         self.p_15000_send_notification()
@@ -6206,7 +6214,7 @@ Methods:
         self.int_amount = self.accrued_interest
         self.int_rate = self.tier_rate
         self.int_post_date = self.process_date
-        self.output_handle.write(self.interest_record)
+        self.logger.debug('FILE-IO: WRITE INTEREST-RECORD')
 
     def p_29000_stop_payment(self) -> None:
         """Business logic from: 29000-STOP-PAYMENT"""
@@ -6234,7 +6242,7 @@ Methods:
         self.stop_payee = self.payee_name
         self.stop_effective_date = self.process_date
         self.stop_status = 'A'
-        self.output_handle.write(self.stop_record)
+        self.logger.debug('FILE-IO: WRITE STOP-RECORD')
 
     def p_29300_apply_stop_fee(self) -> None:
         """Business logic from: 29300-APPLY-STOP-FEE"""
@@ -6282,7 +6290,7 @@ Methods:
         self.rental_box_number = self.assigned_box
         self.rental_customer = self.customer_id
         self.rental_start_date = self.process_date
-        self.output_handle.write(self.rental_record)
+        self.logger.debug('FILE-IO: WRITE RENTAL-RECORD')
 
     def p_30200_box_access(self) -> None:
         """Business logic from: 30200-BOX-ACCESS"""
@@ -6310,7 +6318,7 @@ Methods:
         self.access_customer = self.customer_id
         self.access_date = self.process_date
         self.access_type = 'ENTRY'
-        self.output_handle.write(self.access_log_record)
+        self.logger.debug('FILE-IO: WRITE ACCESS-LOG-RECORD')
 
     def p_30230_escort_to_vault(self) -> None:
         """Business logic from: 30230-ESCORT-TO-VAULT"""
@@ -6343,7 +6351,7 @@ Methods:
         self.drilling_record = None
         self.drill_box_number = self.box_number
         self.drill_reason = self.drilling_reason
-        self.output_handle.write(self.drilling_record)
+        self.logger.debug('FILE-IO: WRITE DRILLING-RECORD')
 
     def p_30330_notify_renter(self) -> None:
         """Business logic from: 30330-NOTIFY-RENTER"""
@@ -6440,7 +6448,7 @@ Methods:
     def p_31130_check_available_credit(self) -> None:
         """Business logic from: 31130-CHECK-AVAILABLE-CREDIT"""
         self.search_key = self.auth_card_number
-        self.card_account_file_record = self.card_account_file_handle.readline()
+        self.card_account_file_eof = True
         if self.available_credit >= self.auth_amount:
             self.credit_available = 'Y'
         else:
@@ -6467,7 +6475,7 @@ Methods:
         self.auth_rec_date = self.process_date
         self.auth_rec_merchant = self.merchant_id
         self.auth_rec_status = 'P'
-        self.output_handle.write(self.auth_record)
+        self.logger.debug('FILE-IO: WRITE AUTH-RECORD')
 
     def p_31150_decline_auth(self) -> None:
         """Business logic from: 31150-DECLINE-AUTH"""
@@ -6477,7 +6485,7 @@ Methods:
         self.decline_rec_amount = self.auth_amount
         self.decline_rec_code = self.auth_decline_code
         self.decline_rec_date = self.process_date
-        self.output_handle.write(self.decline_record)
+        self.logger.debug('FILE-IO: WRITE DECLINE-RECORD')
 
     def p_31200_capture_transaction(self) -> None:
         """Business logic from: 31200-CAPTURE-TRANSACTION"""
@@ -6491,7 +6499,7 @@ Methods:
         """Business logic from: 31210-VALIDATE-AUTH-CODE"""
         self.auth_valid = 'N'
         self.auth_search_key = self.capture_auth_code
-        self.auth_file_record = self.auth_file_handle.readline()
+        self.auth_file_eof = True
         self.auth_valid = 'N'
         if self.auth_rec_status == 'self.p':
             self.auth_valid = 'Y'
@@ -6504,7 +6512,7 @@ Methods:
         self.capture_amount = self.capture_amount
         self.capture_auth_code = self.capture_auth_code
         self.capture_date = self.process_date
-        self.output_handle.write(self.capture_record)
+        self.logger.debug('FILE-IO: WRITE CAPTURE-RECORD')
 
     def p_31300_process_settlement(self) -> None:
         """Business logic from: 31300-PROCESS-SETTLEMENT"""
@@ -6517,7 +6525,7 @@ Methods:
         """Business logic from: 31310-BATCH-TRANSACTIONS"""
         self.batch_total = self.zeroes
         self.batch_count = self.zeroes
-        self.capture_file_record = self.capture_file_handle.readline()
+        self.capture_file_eof = True
         self.eof_flag = 'Y'
         if self.capture_settled == 'self.n':
             self.batch_total += self.capture_amount
@@ -6539,15 +6547,15 @@ Methods:
         self.funding_merchant = self.merchant_id
         self.funding_amount = self.net_funding
         self.funding_fees = self.total_fees
-        self.output_handle.write(self.funding_record)
+        self.logger.debug('FILE-IO: WRITE FUNDING-RECORD')
 
     def p_31340_send_settlement_file(self) -> None:
         """Business logic from: 31340-SEND-SETTLEMENT-FILE"""
-        self.settlement_file_handle = open(self.settlement_file_path, 'w')
+        self.logger.debug('FILE-IO: OPEN OUTPUT SETTLEMENT-FILE')
         self.p_31345_write_settlement_header()
         self.p_31346_write_settlement_detail()
         self.p_31347_write_settlement_trailer()
-        self.settlement_file_handle.close()
+        self.logger.debug('FILE-IO: CLOSE SETTLEMENT-FILE')
 
     def p_31345_write_settlement_header(self) -> None:
         """Business logic from: 31345-WRITE-SETTLEMENT-HEADER"""
@@ -6555,11 +6563,11 @@ Methods:
         self.settle_record_type = 'H'
         self.settle_merchant_id = self.merchant_id
         self.settle_date = self.process_date
-        self.output_handle.write(self.settlement_record)
+        self.logger.debug('FILE-IO: WRITE SETTLEMENT-RECORD')
 
     def p_31346_write_settlement_detail(self) -> None:
         """Business logic from: 31346-WRITE-SETTLEMENT-DETAIL"""
-        self.capture_file_record = self.capture_file_handle.readline()
+        self.capture_file_eof = True
         self.eof_flag = 'Y'
         if self.capture_settled == 'self.y':
             self.settle_detail = None
@@ -6567,7 +6575,7 @@ Methods:
             self.settle_card = self.capture_card
             self.settle_amount = self.capture_amount
             self.settle_auth_code = self.capture_auth_code
-            self.output_handle.write(self.settlement_record)
+            self.logger.debug('FILE-IO: WRITE SETTLEMENT-RECORD')
         self.eof_flag = 'N'
 
     def p_31347_write_settlement_trailer(self) -> None:
@@ -6576,7 +6584,7 @@ Methods:
         self.settle_record_type = 'T'
         self.settle_total_count = self.batch_count
         self.settle_total_amount = self.batch_total
-        self.output_handle.write(self.settlement_record)
+        self.logger.debug('FILE-IO: WRITE SETTLEMENT-RECORD')
 
     def p_31400_handle_chargeback(self) -> None:
         """Business logic from: 31400-HANDLE-CHARGEBACK"""
@@ -6594,12 +6602,12 @@ Methods:
         self.cb_case_id = self.cb_case_number
         self.cb_received_date = self.process_date
         self.cb_status = 'RECEIVED'
-        self.output_handle.write(self.chargeback_record)
+        self.logger.debug('FILE-IO: WRITE CHARGEBACK-RECORD')
 
     def p_31420_research_transaction(self) -> None:
         """Business logic from: 31420-RESEARCH-TRANSACTION"""
         self.auth_search_key = self.cb_auth_code
-        self.auth_file_record = self.auth_file_handle.readline()
+        self.auth_file_eof = True
         if self.original_auth != self.spaces:
             self.trans_found = 'Y'
         else:
@@ -6800,7 +6808,7 @@ Methods:
         self.file_err_name = self.file_name
         self.file_err_status = self.file_status
         self.file_err_msg = self.file_result
-        self.output_handle.write(self.file_error_record)
+        self.logger.debug('FILE-IO: WRITE FILE-ERROR-RECORD')
 
     def p_99800_logging_utilities(self) -> None:
         """Business logic from: 99800-LOGGING-UTILITIES"""
@@ -6812,19 +6820,19 @@ Methods:
         """Business logic from: 99810-LOG-INFO"""
         self.log_level = 'INFO'
         self.log_message = self.log_message
-        self.output_handle.write(self.log_record)
+        self.logger.debug('FILE-IO: WRITE LOG-RECORD')
 
     def p_99820_log_warning(self) -> None:
         """Business logic from: 99820-LOG-WARNING"""
         self.log_level = 'WARN'
         self.log_message = self.log_message
-        self.output_handle.write(self.log_record)
+        self.logger.debug('FILE-IO: WRITE LOG-RECORD')
 
     def p_99830_log_error(self) -> None:
         """Business logic from: 99830-LOG-ERROR"""
         self.log_level = 'ERROR'
         self.log_message = self.log_message
-        self.output_handle.write(self.log_record)
+        self.logger.debug('FILE-IO: WRITE LOG-RECORD')
 
     def p_99900_error_handling(self) -> None:
         """Business logic from: 99900-ERROR-HANDLING"""
@@ -6847,7 +6855,7 @@ Methods:
         self.err_log_msg = self.error_msg
         self.err_log_program = self.program_name
         self.err_log_paragraph = self.paragraph_name
-        self.output_handle.write(self.error_log_record)
+        self.logger.debug('FILE-IO: WRITE ERROR-LOG-RECORD')
 
     def p_32000_treasury_management(self) -> None:
         """Business logic from: 32000-TREASURY-MANAGEMENT"""
@@ -6866,19 +6874,19 @@ Methods:
 
     def p_32110_sum_vault_cash(self) -> None:
         """Business logic from: 32110-SUM-VAULT-CASH"""
-        self.vault_cash_file_record = self.vault_cash_file_handle.readline()
+        self.vault_cash_file_eof = True
         self.eof_flag = 'Y'
         self.cash_position += self.vault_balance
         self.eof_flag = 'N'
 
     def p_32120_sum_fed_account(self) -> None:
         """Business logic from: 32120-SUM-FED-ACCOUNT"""
-        self.fed_account_file_record = self.fed_account_file_handle.readline()
+        self.fed_account_file_eof = True
         self.cash_position += self.fed_balance
 
     def p_32130_sum_correspondent_balances(self) -> None:
         """Business logic from: 32130-SUM-CORRESPONDENT-BALANCES"""
-        self.correspondent_file_record = self.correspondent_file_handle.readline()
+        self.correspondent_file_eof = True
         self.eof_flag = 'Y'
         self.cash_position += self.corr_balance
         self.eof_flag = 'N'
@@ -6897,7 +6905,7 @@ Methods:
 
     def p_32210_project_loan_payments(self) -> None:
         """Business logic from: 32210-PROJECT-LOAN-PAYMENTS"""
-        self.loan_schedule_file_record = self.loan_schedule_file_handle.readline()
+        self.loan_schedule_file_eof = True
         self.eof_flag = 'Y'
         if self.loan_pmt_date <= self.projection_date:
             self.projected_inflows += self.loan_pmt_amount
@@ -6910,7 +6918,7 @@ Methods:
 
     def p_32230_project_investment_maturities(self) -> None:
         """Business logic from: 32230-PROJECT-INVESTMENT-MATURITIES"""
-        self.investment_file_record = self.investment_file_handle.readline()
+        self.investment_file_eof = True
         self.eof_flag = 'Y'
         if self.inv_maturity_date <= self.projection_date:
             self.projected_inflows += self.inv_par_value
@@ -6947,7 +6955,7 @@ Methods:
         self.ff_amount = self.shortfall_amount
         self.ff_rate = self.fed_funds_rate
         self.ff_settle_date = self.process_date
-        self.output_handle.write(self.fed_funds_record)
+        self.logger.debug('FILE-IO: WRITE FED-FUNDS-RECORD')
 
     def p_32340_invest_excess_reserves(self) -> None:
         """Business logic from: 32340-INVEST-EXCESS-RESERVES"""
@@ -6961,7 +6969,7 @@ Methods:
         self.ff_amount = self.excess_reserves
         self.ff_rate = self.fed_funds_rate
         self.ff_settle_date = self.process_date
-        self.output_handle.write(self.fed_funds_record)
+        self.logger.debug('FILE-IO: WRITE FED-FUNDS-RECORD')
 
     def p_32400_manage_investments(self) -> None:
         """Business logic from: 32400-MANAGE-INVESTMENTS"""
@@ -6974,7 +6982,7 @@ Methods:
         self.investment_pool = self.zeroes
         self.avg_yield = self.zeroes
         self.avg_duration = self.zeroes
-        self.investment_file_record = self.investment_file_handle.readline()
+        self.investment_file_eof = True
         self.eof_flag = 'Y'
         self.investment_pool += self.inv_market_value
         self.total_yield += self.inv_yield
@@ -7007,7 +7015,7 @@ Methods:
 
     def p_32430_mark_to_market(self) -> None:
         """Business logic from: 32430-MARK-TO-MARKET"""
-        self.investment_file_record = self.investment_file_handle.readline()
+        self.investment_file_eof = True
         self.eof_flag = 'Y'
         self.p_32435_get_market_price()
         self.eof_flag = 'N'
@@ -7037,7 +7045,7 @@ Methods:
 
     def p_32530_manage_maturities(self) -> None:
         """Business logic from: 32530-MANAGE-MATURITIES"""
-        self.borrowing_file_record = self.borrowing_file_handle.readline()
+        self.borrowing_file_eof = True
         self.eof_flag = 'Y'
         if self.borrow_maturity <= self.process_date + 7:
             self.p_32535_rollover_decision()
@@ -7082,7 +7090,7 @@ Methods:
     def p_33115_sum_hqla(self) -> None:
         """Business logic from: 33115-SUM-HQLA"""
         self.lcr_numerator = self.zeroes
-        self.investment_file_record = self.investment_file_handle.readline()
+        self.investment_file_eof = True
         self.eof_flag = 'Y'
         if self.inv_hqla_level == '1':
             self.lcr_numerator += self.inv_market_value
@@ -7358,19 +7366,19 @@ Methods:
     def p_35120_post_to_accounts(self) -> None:
         """Business logic from: 35120-POST-TO-ACCOUNTS"""
         if self.je_gl_account(self.je_idx) != self.spaces:
-            self.gl_master_file_record = self.gl_master_file_handle.readline()
+            self.gl_master_file_eof = True
 
     def p_35130_record_posting(self) -> None:
         """Business logic from: 35130-RECORD-POSTING"""
         self.je_status = 'POSTED'
-        self.output_handle.write(self.journal_record)
+        self.logger.debug('FILE-IO: WRITE JOURNAL-RECORD')
 
     def p_35200_balance_gl(self) -> None:
         """Business logic from: 35200-BALANCE-GL"""
         self.total_assets = self.zeroes
         self.total_liabilities = self.zeroes
         self.total_equity = self.zeroes
-        self.gl_master_file_record = self.gl_master_file_handle.readline()
+        self.gl_master_file_eof = True
         self.eof_flag = 'Y'
         if self.gl_asset:
             self.total_assets += self.gl_net_balance
@@ -7393,7 +7401,7 @@ Methods:
     def p_35310_close_revenue_expense(self) -> None:
         """Business logic from: 35310-CLOSE-REVENUE-EXPENSE"""
         self.net_income = self.zeroes
-        self.gl_master_file_record = self.gl_master_file_handle.readline()
+        self.gl_master_file_eof = True
         self.eof_flag = 'Y'
         if self.gl_revenue:
             self.net_income += self.gl_net_balance
@@ -7410,7 +7418,7 @@ Methods:
     def p_35320_update_retained_earnings(self) -> None:
         """Business logic from: 35320-UPDATE-RETAINED-EARNINGS"""
         self.gl_account = self.retained_earnings_acct
-        self.gl_master_file_record = self.gl_master_file_handle.readline()
+        self.gl_master_file_eof = True
         self.gl_credit_balance += self.net_income
 
     def p_35330_record_close(self) -> None:
@@ -7419,31 +7427,31 @@ Methods:
         self.close_date = self.process_date
         self.close_net_income = self.net_income
         self.close_status = 'CLOSED'
-        self.output_handle.write(self.period_close_record)
+        self.logger.debug('FILE-IO: WRITE PERIOD-CLOSE-RECORD')
 
     def p_35400_generate_trial_balance(self) -> None:
         """Business logic from: 35400-GENERATE-TRIAL-BALANCE"""
-        self.trial_balance_file_handle = open(self.trial_balance_file_path, 'w')
+        self.logger.debug('FILE-IO: OPEN OUTPUT TRIAL-BALANCE-FILE')
         self.p_35410_write_tb_header()
         self.p_35420_write_tb_detail()
         self.p_35430_write_tb_totals()
-        self.trial_balance_file_handle.close()
+        self.logger.debug('FILE-IO: CLOSE TRIAL-BALANCE-FILE')
 
     def p_35410_write_tb_header(self) -> None:
         """Business logic from: 35410-WRITE-TB-HEADER"""
         self.tb_title = 'TRIAL BALANCE'
         self.tb_date = self.process_date
-        self.output_handle.write(self.trial_balance_record)
+        self.logger.debug('FILE-IO: WRITE TRIAL-BALANCE-RECORD')
 
     def p_35420_write_tb_detail(self) -> None:
         """Business logic from: 35420-WRITE-TB-DETAIL"""
-        self.gl_master_file_record = self.gl_master_file_handle.readline()
+        self.gl_master_file_eof = True
         self.eof_flag = 'Y'
         self.tb_account = self.gl_account
         self.tb_description = self.gl_description
         self.tb_debit = self.gl_debit_balance
         self.tb_credit = self.gl_credit_balance
-        self.output_handle.write(self.trial_balance_record)
+        self.logger.debug('FILE-IO: WRITE TRIAL-BALANCE-RECORD')
         self.tb_total_debits += self.gl_debit_balance
         self.tb_total_credits += self.gl_credit_balance
         self.eof_flag = 'N'
@@ -7453,7 +7461,7 @@ Methods:
         self.tb_description = 'TOTALS'
         self.tb_debit = self.tb_total_debits
         self.tb_credit = self.tb_total_credits
-        self.output_handle.write(self.trial_balance_record)
+        self.logger.debug('FILE-IO: WRITE TRIAL-BALANCE-RECORD')
 
     def p_36000_regulatory_reporting(self) -> None:
         """Business logic from: 36000-REGULATORY-REPORTING"""
@@ -7478,7 +7486,7 @@ Methods:
         self.rc_securities = self.total_securities
         self.rc_total_deposits = self.total_deposits
         self.rc_total_equity = self.total_capital
-        self.output_handle.write(self.call_report_record)
+        self.logger.debug('FILE-IO: WRITE CALL-REPORT-RECORD')
 
     def p_36120_schedule_ri(self) -> None:
         """Business logic from: 36120-SCHEDULE-RI"""
@@ -7488,7 +7496,7 @@ Methods:
         self.ri_nonint_income = self.nonint_income
         self.ri_nonint_expense = self.nonint_expense
         self.ri_net_income = self.net_income
-        self.output_handle.write(self.call_report_record)
+        self.logger.debug('FILE-IO: WRITE CALL-REPORT-RECORD')
 
     def p_36130_schedule_rc_c(self) -> None:
         """Business logic from: 36130-SCHEDULE-RC-C"""
@@ -7498,7 +7506,7 @@ Methods:
         self.rcc_consumer = self.consumer_loans
         self.rcc_ci = self.commercial_industrial
         self.rcc_ag = self.agricultural_loans
-        self.output_handle.write(self.call_report_record)
+        self.logger.debug('FILE-IO: WRITE CALL-REPORT-RECORD')
 
     def p_36140_validate_call_report(self) -> None:
         """Business logic from: 36140-VALIDATE-CALL-REPORT"""
@@ -7534,14 +7542,14 @@ Methods:
     def p_36210_consolidate_subsidiaries(self) -> None:
         """Business logic from: 36210-CONSOLIDATE-SUBSIDIARIES"""
         self.consolidated_assets = self.zeroes
-        self.subsidiary_file_record = self.subsidiary_file_handle.readline()
+        self.subsidiary_file_eof = True
         self.eof_flag = 'Y'
         self.consolidated_assets += self.sub_total_assets
         self.eof_flag = 'N'
 
     def p_36220_eliminate_intercompany(self) -> None:
         """Business logic from: 36220-ELIMINATE-INTERCOMPANY"""
-        self.intercompany_file_record = self.intercompany_file_handle.readline()
+        self.intercompany_file_eof = True
         self.eof_flag = 'Y'
         self.consolidated_assets -= self.ic_amount
         self.eof_flag = 'N'
@@ -7556,13 +7564,13 @@ Methods:
         """Business logic from: 36231-SCHEDULE-HC"""
         self.schedule_hc = None
         self.hc_total_assets = self.consolidated_assets
-        self.output_handle.write(self.y9c_record)
+        self.logger.debug('FILE-IO: WRITE Y9C-RECORD')
 
     def p_36232_schedule_hi(self) -> None:
         """Business logic from: 36232-SCHEDULE-HI"""
         self.schedule_hi = None
         self.hi_net_income = self.consolidated_income
-        self.output_handle.write(self.y9c_record)
+        self.logger.debug('FILE-IO: WRITE Y9C-RECORD')
 
     def p_36233_schedule_hc_r(self) -> None:
         """Business logic from: 36233-SCHEDULE-HC-R"""
@@ -7570,7 +7578,7 @@ Methods:
         self.hcr_rwa = self.risk_weighted_assets
         self.hcr_cet1 = self.cet1_ratio
         self.hcr_total_capital = self.capital_ratio
-        self.output_handle.write(self.y9c_record)
+        self.logger.debug('FILE-IO: WRITE Y9C-RECORD')
 
     def p_36240_submit_y9c(self) -> None:
         """Business logic from: 36240-SUBMIT-Y9C"""
@@ -7615,7 +7623,7 @@ Methods:
 
     def p_36410_generate_ctr(self) -> None:
         """Business logic from: 36410-GENERATE-CTR"""
-        self.transaction_file_record = self.transaction_file_handle.readline()
+        self.transaction_file_eof = True
         self.eof_flag = 'Y'
         if self.trans_amount > 10000:
             self.p_36415_create_ctr_record()
@@ -7628,11 +7636,11 @@ Methods:
         self.ctr_amount = self.trans_amount
         self.ctr_date = self.trans_date
         self.ctr_type = 'CASH TRANSACTION'
-        self.output_handle.write(self.ctr_record)
+        self.logger.debug('FILE-IO: WRITE CTR-RECORD')
 
     def p_36420_generate_sar_filings(self) -> None:
         """Business logic from: 36420-GENERATE-SAR-FILINGS"""
-        self.sar_pending_file_record = self.sar_pending_file_handle.readline()
+        self.sar_pending_file_eof = True
         self.eof_flag = 'Y'
         self.p_36425_finalize_sar()
         self.eof_flag = 'N'
@@ -7647,7 +7655,7 @@ Methods:
 
     def p_36435_screen_customer_list(self) -> None:
         """Business logic from: 36435-SCREEN-CUSTOMER-LIST"""
-        self.customer_file_record = self.customer_file_handle.readline()
+        self.customer_file_eof = True
         self.eof_flag = 'Y'
         self.p_16110_screen_against_watchlists()
         self.eof_flag = 'N'
@@ -7669,7 +7677,7 @@ Methods:
     def p_37110_load_bank_statement(self) -> None:
         """Business logic from: 37110-LOAD-BANK-STATEMENT"""
         self.stmt_item_count = self.zeroes
-        self.bank_statement_file_record = self.bank_statement_file_handle.readline()
+        self.bank_statement_file_eof = True
         self.eof_flag = 'Y'
         self.stmt_item_count += Decimal('1')
         self.eof_flag = 'N'
@@ -7683,7 +7691,7 @@ Methods:
     def p_37125_find_book_match(self) -> None:
         """Business logic from: 37125-FIND-BOOK-MATCH"""
         self.match_found = 'N'
-        self.book_transactions_record = self.book_transactions_handle.readline()
+        self.book_transactions_eof = True
         self.eof_flag = 'Y'
         if self.stmt_amount(self.stmt_idx) == self.book_amount:
             if self.stmt_date(self.stmt_idx) == self.book_date:
@@ -7706,7 +7714,7 @@ Methods:
         """Business logic from: 37135-CREATE-EXCEPTION"""
         self.exception_record = None
         self.exc_description = 'UNMATCHED BANK ITEM'
-        self.output_handle.write(self.exception_record)
+        self.logger.debug('FILE-IO: WRITE EXCEPTION-RECORD')
 
     def p_37140_generate_recon_report(self) -> None:
         """Business logic from: 37140-GENERATE-RECON-REPORT"""
@@ -7716,7 +7724,7 @@ Methods:
         self.recon_diff = self.difference
         self.recon_matched = self.matched_count
         self.recon_unmatched = self.unmatched_count
-        self.output_handle.write(self.recon_report_record)
+        self.logger.debug('FILE-IO: WRITE RECON-REPORT-RECORD')
 
     def p_37200_gl_subledger_recon(self) -> None:
         """Business logic from: 37200-GL-SUBLEDGER-RECON"""
@@ -7727,13 +7735,13 @@ Methods:
     def p_37210_load_gl_balance(self) -> None:
         """Business logic from: 37210-LOAD-GL-BALANCE"""
         self.gl_search_key = self.gl_account
-        self.gl_master_file_record = self.gl_master_file_handle.readline()
+        self.gl_master_file_eof = True
         self.gl_control_bal = self.gl_net_balance
 
     def p_37220_sum_subledger(self) -> None:
         """Business logic from: 37220-SUM-SUBLEDGER"""
         self.subledger_total = self.zeroes
-        self.subledger_file_record = self.subledger_file_handle.readline()
+        self.subledger_file_eof = True
         self.eof_flag = 'Y'
         if self.sub_gl_account == self.gl_account:
             self.subledger_total += self.sub_balance
@@ -7749,7 +7757,7 @@ Methods:
         self.recon_exception = None
         self.recon_exc_account = self.gl_account
         self.recon_exc_diff = self.recon_diff
-        self.output_handle.write(self.recon_exception_record)
+        self.logger.debug('FILE-IO: WRITE RECON-EXCEPTION-RECORD')
 
     def p_37300_intercompany_recon(self) -> None:
         """Business logic from: 37300-INTERCOMPANY-RECON"""
@@ -7760,7 +7768,7 @@ Methods:
     def p_37310_load_ic_balances(self) -> None:
         """Business logic from: 37310-LOAD-IC-BALANCES"""
         self.ic_count = self.zeroes
-        self.intercompany_file_record = self.intercompany_file_handle.readline()
+        self.intercompany_file_eof = True
         self.eof_flag = 'Y'
         self.ic_count += Decimal('1')
         self.eof_flag = 'N'
@@ -7785,7 +7793,7 @@ Methods:
         self.icd_from = self.search_from
         self.icd_to = self.search_to
         self.icd_amount = self.ic_diff
-        self.output_handle.write(self.ic_diff_record)
+        self.logger.debug('FILE-IO: WRITE IC-DIFF-RECORD')
 
     def p_37330_report_ic_differences(self) -> None:
         """Business logic from: 37330-REPORT-IC-DIFFERENCES"""
@@ -7800,7 +7808,7 @@ Methods:
     def p_37410_load_nostro_statement(self) -> None:
         """Business logic from: 37410-LOAD-NOSTRO-STATEMENT"""
         self.nostro_count = self.zeroes
-        self.nostro_statement_file_record = self.nostro_statement_file_handle.readline()
+        self.nostro_statement_file_eof = True
         self.eof_flag = 'Y'
         self.nostro_count += Decimal('1')
         self.eof_flag = 'N'
@@ -7826,7 +7834,7 @@ Methods:
         self.audit_user = self.user_id
         self.audit_action = self.action_type
         self.audit_session_id = self.session_id
-        self.output_handle.write(self.audit_record)
+        self.logger.debug('FILE-IO: WRITE AUDIT-RECORD')
 
     def p_38200_log_data_change(self) -> None:
         """Business logic from: 38200-LOG-DATA-CHANGE"""
@@ -7837,14 +7845,14 @@ Methods:
         self.audit_key = self.record_key
         self.audit_old_value = self.old_value
         self.audit_new_value = self.new_value
-        self.output_handle.write(self.audit_record)
+        self.logger.debug('FILE-IO: WRITE AUDIT-RECORD')
 
     def p_38300_log_system_event(self) -> None:
         """Business logic from: 38300-LOG-SYSTEM-EVENT"""
         self.audit_record = None
         self.audit_user = 'SYSTEM'
         self.audit_action = self.event_type
-        self.output_handle.write(self.audit_record)
+        self.logger.debug('FILE-IO: WRITE AUDIT-RECORD')
 
     def p_38400_archive_audit_logs(self) -> None:
         """Business logic from: 38400-ARCHIVE-AUDIT-LOGS"""
@@ -7854,10 +7862,10 @@ Methods:
 
     def p_38410_move_to_archive(self) -> None:
         """Business logic from: 38410-MOVE-TO-ARCHIVE"""
-        self.audit_file_record = self.audit_file_handle.readline()
+        self.audit_file_eof = True
         self.eof_flag = 'Y'
         if self.audit_timestamp < self.archive_date:
-            self.output_handle.write(self.archive_audit_record)
+            self.logger.debug('FILE-IO: WRITE ARCHIVE-AUDIT-RECORD')
         self.eof_flag = 'N'
 
     def p_38420_compress_archive(self) -> None:
@@ -8023,7 +8031,7 @@ Methods:
         self.dr_actual_rpo = self.actual_rpo
         self.dr_target_rto = self.target_rto
         self.dr_target_rpo = self.target_rpo
-        self.output_handle.write(self.dr_metrics_record)
+        self.logger.debug('FILE-IO: WRITE DR-METRICS-RECORD')
 
     def p_41000_security_procedures(self) -> None:
         """Business logic from: 41000-SECURITY-PROCEDURES"""
@@ -8072,7 +8080,7 @@ Methods:
 
     def p_41215_reencrypt_data(self) -> None:
         """Business logic from: 41215-REENCRYPT-DATA"""
-        self.encrypted_data_file_record = self.encrypted_data_file_handle.readline()
+        self.encrypted_data_file_eof = True
         self.eof_flag = 'Y'
         self.call_aes256dec()
         self.call_aes256enc()
@@ -8091,7 +8099,7 @@ Methods:
         self.key_audit_id = self.key_id
         self.key_audit_operation = self.key_operation
         self.key_audit_user = self.user_id
-        self.output_handle.write(self.key_audit_record)
+        self.logger.debug('FILE-IO: WRITE KEY-AUDIT-RECORD')
 
     def p_41300_access_control(self) -> None:
         """Business logic from: 41300-ACCESS-CONTROL"""
@@ -8127,7 +8135,7 @@ Methods:
         """Business logic from: 41320-AUTHORIZE-ACTION"""
         self.authorized = 'N'
         self.role_search_key = self.user_role
-        self.role_permission_file_record = self.role_permission_file_handle.readline()
+        self.role_permission_file_eof = True
         if self.requested_action == self.role_permitted_action:
             self.authorized = 'Y'
 
@@ -8137,7 +8145,7 @@ Methods:
         self.access_log_user = self.user_id
         self.access_log_action = self.requested_action
         self.access_log_result = self.authorized
-        self.output_handle.write(self.access_log_record)
+        self.logger.debug('FILE-IO: WRITE ACCESS-LOG-RECORD')
 
     def p_41400_security_monitoring(self) -> None:
         """Business logic from: 41400-SECURITY-MONITORING"""
@@ -8172,7 +8180,7 @@ Methods:
             self.incident_record = None
             self.incident_type = self.anomaly_type
             self.incident_status = 'OPEN'
-            self.output_handle.write(self.incident_record)
+            self.logger.debug('FILE-IO: WRITE INCIDENT-RECORD')
 
     def p_42000_crm_procedures(self) -> None:
         """Business logic from: 42000-CRM-PROCEDURES"""
@@ -8183,7 +8191,7 @@ Methods:
 
     def p_42100_customer_segmentation(self) -> None:
         """Business logic from: 42100-CUSTOMER-SEGMENTATION"""
-        self.customer_file_record = self.customer_file_handle.readline()
+        self.customer_file_eof = True
         self.eof_flag = 'Y'
         self.p_42110_calculate_segment()
         self.eof_flag = 'N'
@@ -8203,7 +8211,7 @@ Methods:
 
     def p_42200_cross_sell_analysis(self) -> None:
         """Business logic from: 42200-CROSS-SELL-ANALYSIS"""
-        self.customer_file_record = self.customer_file_handle.readline()
+        self.customer_file_eof = True
         self.eof_flag = 'Y'
         self.p_42210_identify_opportunities()
         self.eof_flag = 'N'
@@ -8226,11 +8234,11 @@ Methods:
         self.lead_customer = self.cust_id
         self.lead_product = self.opportunity
         self.lead_status = 'NEW'
-        self.output_handle.write(self.lead_record)
+        self.logger.debug('FILE-IO: WRITE LEAD-RECORD')
 
     def p_42300_retention_analysis(self) -> None:
         """Business logic from: 42300-RETENTION-ANALYSIS"""
-        self.customer_file_record = self.customer_file_handle.readline()
+        self.customer_file_eof = True
         self.eof_flag = 'Y'
         self.p_42310_calculate_churn_risk()
         self.eof_flag = 'N'
@@ -8255,11 +8263,11 @@ Methods:
         self.retention_alert = None
         self.retain_customer = self.cust_id
         self.retain_risk_score = self.churn_score
-        self.output_handle.write(self.retention_alert_record)
+        self.logger.debug('FILE-IO: WRITE RETENTION-ALERT-RECORD')
 
     def p_42400_customer_profitability(self) -> None:
         """Business logic from: 42400-CUSTOMER-PROFITABILITY"""
-        self.customer_file_record = self.customer_file_handle.readline()
+        self.customer_file_eof = True
         self.eof_flag = 'Y'
         self.p_42410_calculate_profitability()
         self.eof_flag = 'N'

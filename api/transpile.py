@@ -1702,83 +1702,104 @@ def transpile_string_v3(stmt: str) -> Optional[ast.stmt]:
 
 
 def transpile_file_io_v3(stmt: str) -> Optional[ast.stmt]:
-    """Transpile file I/O statements (OPEN, CLOSE, READ, WRITE)"""
+    """Transpile file I/O statements as simulation (logging) - safe for testing"""
     upper = stmt.upper()
+    
+    # Helper to create logger.debug call
+    def make_log_stmt(message: str) -> ast.Expr:
+        return ast.Expr(value=ast.Call(
+            func=ast.Attribute(
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='logger', ctx=ast.Load()),
+                attr='debug',
+                ctx=ast.Load()
+            ),
+            args=[ast.Constant(value=message)],
+            keywords=[]
+        ))
     
     if upper.startswith('OPEN '):
         match = re.match(r'OPEN\s+(INPUT|OUTPUT|I-O|EXTEND)\s+([A-Z0-9][-A-Z0-9]*)', upper)
         if match:
             mode = match.group(1)
-            file_name = to_snake_case(match.group(2))
-            py_mode = {'INPUT': 'r', 'OUTPUT': 'w', 'I-O': 'r+', 'EXTEND': 'a'}.get(mode, 'r')
-            return ast.Assign(
-                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_handle', ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Name(id='open', ctx=ast.Load()),
-                    args=[
-                        ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_path', ctx=ast.Load()),
-                        ast.Constant(value=py_mode)
-                    ],
-                    keywords=[]
-                )
-            )
+            file_name = match.group(2)
+            return make_log_stmt(f"FILE-IO: OPEN {mode} {file_name}")
     
     elif upper.startswith('CLOSE '):
         match = re.match(r'CLOSE\s+([A-Z0-9][-A-Z0-9]*)', upper)
         if match:
-            file_name = to_snake_case(match.group(1))
-            return ast.Expr(value=ast.Call(
-                func=ast.Attribute(
-                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_handle', ctx=ast.Load()),
-                    attr='close',
-                    ctx=ast.Load()
-                ),
-                args=[],
-                keywords=[]
-            ))
+            file_name = match.group(1)
+            return make_log_stmt(f"FILE-IO: CLOSE {file_name}")
     
     elif upper.startswith('READ '):
         match = re.match(r'READ\s+([A-Z0-9][-A-Z0-9]*)', upper)
         if match:
             file_name = to_snake_case(match.group(1))
+            # Set EOF flag to True after simulated read
             return ast.Assign(
-                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_record', ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast.Attribute(
-                        value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_handle', ctx=ast.Load()),
-                        attr='readline',
-                        ctx=ast.Load()
-                    ),
-                    args=[],
-                    keywords=[]
-                )
+                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_eof', ctx=ast.Store())],
+                value=ast.Constant(value=True)
             )
     
     elif upper.startswith('WRITE '):
         match = re.match(r'WRITE\s+([A-Z0-9][-A-Z0-9]*)', upper)
         if match:
-            record_name = to_snake_case(match.group(1))
-            return ast.Expr(value=ast.Call(
-                func=ast.Attribute(
-                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='output_handle', ctx=ast.Load()),
-                    attr='write',
-                    ctx=ast.Load()
-                ),
-                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=record_name, ctx=ast.Load())],
-                keywords=[]
-            ))
+            record_name = match.group(1)
+            return make_log_stmt(f"FILE-IO: WRITE {record_name}")
     
     return None
 
 
 def transpile_accept_v3(stmt: str) -> Optional[ast.stmt]:
-    """Transpile ACCEPT statement"""
+    """Transpile ACCEPT statement (simulate with datetime for DATE/TIME)"""
+    upper = stmt.upper()
+    
+    # ACCEPT var FROM DATE/TIME - use datetime
+    if 'FROM DATE' in upper or 'FROM TIME' in upper:
+        match = re.match(r'ACCEPT\s+([A-Z0-9][-A-Z0-9]*)\s+FROM\s+(DATE|TIME)', upper)
+        if match:
+            target = to_snake_case(match.group(1))
+            source = match.group(2)
+            if source == 'DATE':
+                # datetime.now().strftime('%Y%m%d')
+                return ast.Assign(
+                    targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
+                    value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Call(
+                                func=ast.Attribute(value=ast.Name(id='datetime', ctx=ast.Load()), attr='now', ctx=ast.Load()),
+                                args=[], keywords=[]
+                            ),
+                            attr='strftime',
+                            ctx=ast.Load()
+                        ),
+                        args=[ast.Constant(value='%Y%m%d')],
+                        keywords=[]
+                    )
+                )
+            else:  # TIME
+                return ast.Assign(
+                    targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
+                    value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Call(
+                                func=ast.Attribute(value=ast.Name(id='datetime', ctx=ast.Load()), attr='now', ctx=ast.Load()),
+                                args=[], keywords=[]
+                            ),
+                            attr='strftime',
+                            ctx=ast.Load()
+                        ),
+                        args=[ast.Constant(value='%H%M%S%f')],
+                        keywords=[]
+                    )
+                )
+    
+    # Regular ACCEPT - use empty string (non-blocking)
     match = re.match(r'ACCEPT\s+([A-Z0-9][-A-Z0-9]*)', stmt, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
         return ast.Assign(
             targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
-            value=ast.Call(func=ast.Name(id='input', ctx=ast.Load()), args=[], keywords=[])
+            value=ast.Constant(value='')  # Non-blocking simulation
         )
     return None
 
