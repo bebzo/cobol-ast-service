@@ -2396,24 +2396,26 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
         except ImportError:
             pass
         
-        # Pre-format fused docstrings (critical for large files)
-        python_code, preformat_count = preformat_fused_docstrings(python_code)
+        # Quick syntax fix - simplified for performance
+        try:
+            # Only attempt fixes if code doesn't compile
+            compile(python_code, '<test>', 'exec')
+            base_fixes = []
+        except SyntaxError:
+            # Simple fix: separate fused docstrings on same line
+            python_code = re.sub(r'"""([^"]{1,500})"""([A-Z])', r'"""\1"""\n        # \2', python_code)
+            python_code, base_fixes = fix_syntax_errors(python_code, max_attempts=3)
         
-        # Auto-fix any remaining syntax errors
-        python_code, base_fixes = fix_syntax_errors(python_code)
+        gemini_stats = {'syntax_fixes': base_fixes}
         
-        gemini_stats = {
-            'preformat_fixes': preformat_count,
-            'syntax_fixes_base': base_fixes
-        }
         if enhance:
             python_code, gemini_stats = enrich_with_gemini(python_code, cobol_source)
-            
-            # Pre-format and fix after Gemini
-            python_code, gemini_preformat = preformat_fused_docstrings(python_code)
-            python_code, gemini_fixes = fix_syntax_errors(python_code)
-            gemini_stats['preformat_fixes_gemini'] = gemini_preformat
-            gemini_stats['syntax_fixes_gemini'] = gemini_fixes
+            try:
+                compile(python_code, '<test>', 'exec')
+            except SyntaxError:
+                python_code = re.sub(r'"""([^"]{1,500})"""([A-Z])', r'"""\1"""\n        # \2', python_code)
+                python_code, gemini_fixes = fix_syntax_errors(python_code, max_attempts=3)
+                gemini_stats['syntax_fixes_gemini'] = gemini_fixes
         
         class_name = to_pascal_case(cobol_ast.program_id)
         test_code = generate_unit_tests_v4(cobol_ast, class_name)
