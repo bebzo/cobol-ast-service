@@ -203,28 +203,40 @@ export function parseCobolQuick(cobolCode: string): ParseResult {
 }
 
 /**
- * Validate COBOL input
+ * Validate COBOL input with clear error messages
  */
 export function validateCobolInput(code: string): { valid: boolean; reason?: string } {
   if (!code || code.trim().length < 50) {
-    return { valid: false, reason: 'Code too short - minimum 50 characters' };
+    return { valid: false, reason: '⚠️ Code trop court. Veuillez charger un fichier COBOL valide (.cbl)' };
+  }
+  
+  // Detect specific languages with clear messages
+  const languagePatterns: { pattern: RegExp; lang: string }[] = [
+    { pattern: /^from\s+\w+\s+import|^import\s+\w+|^def\s+\w+\(|^class\s+\w+.*:/m, lang: 'Python' },
+    { pattern: /^#include|^int\s+main\s*\(|^void\s+\w+\s*\(/m, lang: 'C/C++' },
+    { pattern: /^public\s+class|^private\s+class|^package\s+\w+/m, lang: 'Java' },
+    { pattern: /^function\s+\w+|^const\s+\w+\s*=|^let\s+\w+\s*=|^var\s+\w+\s*=/m, lang: 'JavaScript' },
+    { pattern: /^using\s+System|^namespace\s+\w+|^public\s+static\s+void/m, lang: 'C#' },
+    { pattern: /^require\s*\(|^module\.exports/m, lang: 'Node.js' },
+  ];
+  
+  for (const { pattern, lang } of languagePatterns) {
+    if (pattern.test(code)) {
+      return { 
+        valid: false, 
+        reason: `❌ Ce fichier contient du code ${lang}, pas du COBOL. CodeSwitch convertit uniquement COBOL → Python. Veuillez charger un fichier .cbl` 
+      };
+    }
   }
   
   const upper = code.toUpperCase();
   const hasDivision = ['IDENTIFICATION DIVISION', 'PROCEDURE DIVISION'].some(d => upper.includes(d));
   
   if (!hasDivision) {
-    return { valid: false, reason: 'No COBOL DIVISION found' };
-  }
-  
-  // Check for non-COBOL patterns
-  const nonCobolPatterns = [
-    /^import\s+\w+/m, /^from\s+\w+\s+import/m, /^#include/m,
-    /^def\s+\w+\(/m, /^class\s+\w+.*:/m, /^public\s+class/m,
-  ];
-  
-  if (nonCobolPatterns.some(p => p.test(code))) {
-    return { valid: false, reason: 'Input appears to be another language, not COBOL' };
+    return { 
+      valid: false, 
+      reason: '❌ Aucune DIVISION COBOL trouvée (IDENTIFICATION DIVISION, PROCEDURE DIVISION). Veuillez charger un fichier COBOL valide (.cbl)' 
+    };
   }
   
   return { valid: true };
