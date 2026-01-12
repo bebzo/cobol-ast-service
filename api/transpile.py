@@ -1,6 +1,13 @@
 """
-COBOL → Python Transpiler v5.5.0 (Enterprise Banking Support)
+COBOL → Python Transpiler v5.6.0 (Critical Bugfix Release)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.6.0:
+- CRITICAL FIX: <= 0 no longer generates invalid 'self.==' syntax
+- Numeric literals (0, 100, -5.5) properly preserved in conditions
+- Multi-char operators (<=, >=, !=, ==) processed atomically
+- Improved operator parsing order to prevent decomposition
+- Better handling of COBOL figurative constants (ZEROS, SPACES)
 
 Improvements in v5.5.0:
 - FUNCTION CURRENT-DATE support → datetime.now()
@@ -686,13 +693,24 @@ def extract_all_used_variables(source: str) -> Set[str]:
     Extract ALL variable names used in COBOL source code.
     Scans PROCEDURE DIVISION for variable references in statements.
     
+    v5.6.0: Now properly excludes paragraph names to avoid creating
+    method-variables like 'self.process_deposit = Decimal(0)'.
+    
     Returns a set of variable names (uppercase, with hyphens).
     """
     used_vars = set()
+    paragraph_names = set()
+    perform_targets = set()
     
     # Pattern to find COBOL identifiers (variables)
     # Matches: WS-VARIABLE, CUSTOMER-NAME, X, etc.
     var_pattern = re.compile(r'\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b', re.IGNORECASE)
+    
+    # Pattern to detect paragraph definitions (line with just a name and period)
+    para_pattern = re.compile(r'^\s*([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\.\s*$', re.IGNORECASE)
+    
+    # Pattern to detect PERFORM targets
+    perform_pattern = re.compile(r'\bPERFORM\s+([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)', re.IGNORECASE)
     
     # Reserved words to exclude
     reserved = {
@@ -719,16 +737,16 @@ def extract_all_used_variables(source: str) -> Set[str]:
         'SEQUENTIAL', 'RANDOM', 'DYNAMIC', 'RELATIVE', 'RECORD', 'BLOCK', 'CONTAINS',
         'LABEL', 'STANDARD', 'OMITTED', 'RECORDING', 'FIXED', 'VARIABLE',
         'FD', 'SD', 'COPY', 'REPLACING', 'OF', 'IN', 'REMAINDER', 'DATE', 'TIME',
-        'WITH', 'TEST', 'BEFORE', 'AFTER', 'THEN'
+        'WITH', 'TEST', 'BEFORE', 'AFTER', 'THEN', 'REWRITE'
     }
     
     lines = source.split('\n')
     in_procedure = False
     
+    # First pass: identify paragraph names and PERFORM targets
     for line in lines:
         upper = line.upper()
         
-        # Enter PROCEDURE DIVISION
         if 'PROCEDURE' in upper and 'DIVISION' in upper:
             in_procedure = True
             continue
@@ -740,14 +758,52 @@ def extract_all_used_variables(source: str) -> Set[str]:
         if len(line) > 6 and line[6] in ('*', '/'):
             continue
         
-        # Skip lines that are just paragraph names (end with . and no spaces after first word)
         stripped = line.strip()
+        
+        # Check if this is a paragraph definition
+        para_match = para_pattern.match(stripped)
+        if para_match:
+            para_name = para_match.group(1).upper()
+            if para_name not in reserved:
+                paragraph_names.add(para_name)
+        
+        # Find PERFORM targets - these are paragraph names, not variables
+        for match in perform_pattern.finditer(stripped):
+            perform_targets.add(match.group(1).upper())
+    
+    # Second pass: extract variables, excluding paragraphs
+    in_procedure = False
+    for line in lines:
+        upper = line.upper()
+        
+        if 'PROCEDURE' in upper and 'DIVISION' in upper:
+            in_procedure = True
+            continue
+        
+        if not in_procedure:
+            continue
+        
+        # Skip comments
+        if len(line) > 6 and line[6] in ('*', '/'):
+            continue
+        
+        stripped = line.strip()
+        
+        # Skip paragraph definition lines
+        if para_pattern.match(stripped):
+            continue
+        
         if stripped and not stripped.startswith('*'):
             # Find all identifiers in the line
             for match in var_pattern.finditer(stripped):
                 var_name = match.group(1).upper()
+                
                 # Filter out reserved words and single letters (loop counters)
                 if var_name not in reserved and len(var_name) > 1:
+                    # v5.6.0: Skip paragraph names and PERFORM targets
+                    if var_name in paragraph_names or var_name in perform_targets:
+                        continue
+                    
                     # Must contain hyphen OR be all uppercase with numbers
                     if '-' in var_name or (var_name.isupper() and any(c.isdigit() for c in var_name)):
                         used_vars.add(var_name)
@@ -3004,13 +3060,14 @@ def transpile_subtract_v4(stmt: str) -> Optional[ast.stmt]:
 def parse_cobol_condition(condition: str) -> ast.expr:
     """
     Parse a COBOL condition and convert it to a Python AST expression.
-    v5.5.0: Improved to handle complex conditions properly, no more 'True' fallback.
+    v5.6.0: Fixed critical bug with <= 0 generating self.== syntax errors.
     
     Handles:
     - Comparisons: X > 10, Y = 'A', Z NOT = SPACES
     - Boolean operators: AND, OR, NOT
     - 88-level conditions: EOF-REACHED, VALID-DATA
     - Complex conditions: X > 10 AND Y < 20 OR Z = 'C'
+    - Numeric literals: 0, 100, 5.5
     """
     # Clean the condition - remove COBOL comments
     cond = condition.strip()
@@ -3041,7 +3098,22 @@ def parse_cobol_condition(condition: str) -> ast.expr:
             )
         )
     
-    # Convert COBOL operators to Python
+    # v5.6.0: First, protect numeric literals by wrapping them temporarily
+    # This prevents them from being transformed into self.xxx
+    literal_map = {}
+    literal_counter = [0]
+    
+    def protect_literal(m):
+        val = m.group(0)
+        key = f'__LITERAL_{literal_counter[0]}__'
+        literal_counter[0] += 1
+        literal_map[key] = val
+        return key
+    
+    # Protect numeric literals (integers and decimals, including negative)
+    cond = re.sub(r'(?<![A-Z0-9-])(-?\d+\.?\d*)(?![A-Z0-9-])', protect_literal, cond, flags=re.IGNORECASE)
+    
+    # Convert COBOL operators to Python - CRITICAL: multi-char operators FIRST
     cond = re.sub(r'\s+NOT\s*=\s*', ' != ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+GREATER\s+THAN\s+OR\s+EQUAL\s+TO\s+', ' >= ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+LESS\s+THAN\s+OR\s+EQUAL\s+TO\s+', ' <= ', cond, flags=re.IGNORECASE)
@@ -3050,25 +3122,51 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     cond = re.sub(r'\s+EQUAL\s+TO\s+', ' == ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+NOT\s+>\s*', ' <= ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+NOT\s+<\s*', ' >= ', cond, flags=re.IGNORECASE)
-    # Handle operators - >= and <= must come before > and <
-    cond = re.sub(r'\s*>=\s*', ' >= ', cond)
-    cond = re.sub(r'\s*<=\s*', ' <= ', cond)
-    cond = re.sub(r'\s*>\s*(?!=)', ' > ', cond)  # > but not >=
-    cond = re.sub(r'\s*<\s*(?!=)', ' < ', cond)  # < but not <=
-    cond = re.sub(r'([^!=<>])\s*=\s*([^=])', r'\1 == \2', cond)
+    
+    # v5.6.0: CRITICAL FIX - Process multi-char operators as complete units
+    # Replace <= and >= BEFORE touching < and >
+    cond = re.sub(r'<=', ' __LE__ ', cond)
+    cond = re.sub(r'>=', ' __GE__ ', cond)
+    cond = re.sub(r'!=', ' __NE__ ', cond)
+    cond = re.sub(r'==', ' __EQ__ ', cond)
+    
+    # Now safe to process single char operators
+    cond = re.sub(r'(?<![_])<(?![_=])', ' __LT__ ', cond)
+    cond = re.sub(r'(?<![_])>(?![_=])', ' __GT__ ', cond)
+    
+    # Convert single = to == (but not if part of other operators)
+    cond = re.sub(r'(?<![!=<>_])=(?![=_])', ' __EQ__ ', cond)
+    
+    # Restore operators with proper spacing
+    cond = cond.replace('__LE__', '<=')
+    cond = cond.replace('__GE__', '>=')
+    cond = cond.replace('__NE__', '!=')
+    cond = cond.replace('__EQ__', '==')
+    cond = cond.replace('__LT__', '<')
+    cond = cond.replace('__GT__', '>')
+    
+    # Normalize spacing around operators
+    cond = re.sub(r'\s*(<=|>=|!=|==|<|>)\s*', r' \1 ', cond)
+    
     cond = re.sub(r'\s+AND\s+', ' and ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+OR\s+', ' or ', cond, flags=re.IGNORECASE)
     # Handle leading NOT with proper spacing
     cond = re.sub(r'^NOT\s+', 'not ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+NOT\s+', ' not ', cond, flags=re.IGNORECASE)
     
-    # Replace numeric comparisons that look like: SPACES == 0 etc.
-    cond = cond.replace('ZEROS', '0').replace('ZEROES', '0').replace('ZERO', '0')
-    cond = cond.replace('SPACES', "''").replace('SPACE', "''")
+    # Replace COBOL figurative constants
+    cond = re.sub(r'\bZEROS\b', '0', cond, flags=re.IGNORECASE)
+    cond = re.sub(r'\bZEROES\b', '0', cond, flags=re.IGNORECASE)
+    cond = re.sub(r'\bZERO\b', '0', cond, flags=re.IGNORECASE)
+    cond = re.sub(r'\bSPACES\b', "''", cond, flags=re.IGNORECASE)
+    cond = re.sub(r'\bSPACE\b', "''", cond, flags=re.IGNORECASE)
     
-    # Replace COBOL identifiers with self.xxx (but NOT content inside quotes)
+    # Replace COBOL identifiers with self.xxx (but NOT content inside quotes or literals)
     def replace_identifier(m):
         ident = m.group(0)
+        # Don't touch protected literals
+        if ident.startswith('__LITERAL_') and ident.endswith('__'):
+            return ident
         start = m.start()
         before = cond[:start]
         single_quotes = before.count("'") - before.count("\\'")
@@ -3080,7 +3178,15 @@ def parse_cobol_condition(condition: str) -> ast.expr:
             return ident.lower()
         return f'self.{to_snake_case(ident)}'
     
+    # Only replace COBOL identifiers (must have hyphen or be 2+ uppercase letters)
     cond = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+|[A-Z]{2,}[A-Z0-9]*)', replace_identifier, cond)
+    
+    # v5.6.0: Restore protected literals
+    for key, val in literal_map.items():
+        cond = cond.replace(key, val)
+    
+    # Clean up multiple spaces
+    cond = re.sub(r'\s+', ' ', cond).strip()
     
     try:
         return ast.parse(cond, mode='eval').body
@@ -3113,11 +3219,12 @@ def parse_cobol_condition(condition: str) -> ast.expr:
             else:
                 op = ast.Eq()
             
-            # Determine right side
+            # Determine right side - v5.6.0: improved numeric detection
             try:
-                if right_str.isdigit() or (right_str.startswith('-') and right_str[1:].isdigit()):
+                # Check for numeric values including decimals and negatives
+                if re.match(r'^-?\d+$', right_str):
                     right = ast.Constant(value=int(right_str))
-                elif right_str.replace('.', '').isdigit():
+                elif re.match(r'^-?\d+\.\d+$', right_str):
                     right = ast.Constant(value=float(right_str))
                 elif right_str.startswith("'") or right_str.startswith('"'):
                     right = ast.Constant(value=right_str.strip("'\""))
@@ -5031,7 +5138,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.5.0',
+            'version': '5.6.0',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
