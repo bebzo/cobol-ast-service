@@ -547,12 +547,15 @@ Methods:
                     attr='info',
                     ctx=ast.Load()
                 ),
-                args=[ast.Constant(value=f"Starting {class_name} v%s")],
-                keywords=[ast.keyword(arg=None, value=ast.Attribute(
-                    value=ast.Name(id='self', ctx=ast.Load()),
-                    attr='VERSION',
-                    ctx=ast.Load()
-                ))]
+                args=[
+                    ast.Constant(value=f"Starting {class_name} v%s"),
+                    ast.Attribute(
+                        value=ast.Name(id='self', ctx=ast.Load()),
+                        attr='VERSION',
+                        ctx=ast.Load()
+                    )
+                ],
+                keywords=[]
             )),
             *run_body
         ],
