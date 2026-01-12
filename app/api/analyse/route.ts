@@ -216,8 +216,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (outputMode === 'clean-architecture') {
       console.log(`[v16.0] Clean Architecture mode requested`);
       
-      // Call Python transpiler
-      const transpileResult = await transpileCobolViaPython(expandedCobolCode, enhancedMode);
+      // Call Python transpiler with copybooks for REPLACING support
+      const transpileResult = await transpileCobolViaPython(expandedCobolCode, enhancedMode, copybooks || {});
       
       if (!transpileResult.success) {
         return NextResponse.json(
@@ -251,8 +251,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { headers: corsHeaders });
     }
     
-    // Default: single-file mode via Python transpiler
-    let transpileResult = await transpileCobolViaPython(expandedCobolCode, false);
+    // Default: single-file mode via Python transpiler (pass copybooks for full REPLACING support)
+    let transpileResult = await transpileCobolViaPython(expandedCobolCode, false, copybooks || {});
 
     if (!transpileResult.success) {
       return NextResponse.json(
