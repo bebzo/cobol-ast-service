@@ -1,5 +1,5 @@
 """
-COBOL → Python Transpiler v5.3.0 (Robustness Update)
+COBOL → Python Transpiler v5.3.1 (String Parsing Fix)
 Uses Python's ast module for 100% syntax-valid output
 
 Improvements in v5.3.0:
@@ -2408,8 +2408,9 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
 def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile DISPLAY statement to print() with proper variable interpolation
     
-    v5.2.1: Uses print() instead of logger.info() for COBOL DISPLAY equivalence
-    Handles mixed text and variables: DISPLAY "Text: " WS-VAR
+    v5.3.1: Improved string parsing to handle apostrophes inside double-quoted strings
+    - "CALCUL D'INTERETS" now correctly parsed as single string
+    - Handles mixed text and variables: DISPLAY "Text: " WS-VAR
     """
     # Remove DISPLAY keyword and clean up
     display_content = re.sub(r'^DISPLAY\s+', '', stmt, flags=re.IGNORECASE).strip().rstrip('.')
@@ -2425,16 +2426,24 @@ def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
         remaining = remaining.strip()
         if not remaining:
             break
-            
-        # Check for quoted string
-        string_match = re.match(r'^["\']([^"\']*)["\'](.*)$', remaining)
-        if string_match:
-            text = string_match.group(1)
+        
+        # Check for double-quoted string (can contain apostrophes)
+        dq_match = re.match(r'^"([^"]*)"(.*)$', remaining)
+        if dq_match:
+            text = dq_match.group(1)
             parts.append(('text', text))
-            remaining = string_match.group(2)
+            remaining = dq_match.group(2)
             continue
         
-        # Check for variable
+        # Check for single-quoted string (can contain double quotes)
+        sq_match = re.match(r"^'([^']*)'(.*)$", remaining)
+        if sq_match:
+            text = sq_match.group(1)
+            parts.append(('text', text))
+            remaining = sq_match.group(2)
+            continue
+        
+        # Check for variable (must not be inside a string)
         var_match = re.match(r'^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)(.*)$', remaining, re.IGNORECASE)
         if var_match:
             var_name = var_match.group(1)
@@ -2442,7 +2451,7 @@ def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
             remaining = var_match.group(2)
             continue
         
-        # Skip unknown characters
+        # Skip unknown characters (spaces, commas, etc.)
         remaining = remaining[1:]
     
     if not parts:
