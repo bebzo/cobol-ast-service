@@ -430,7 +430,10 @@ def cobol_value_to_python_v3(value: Optional[str], pic: Optional[str], var_name:
     if is_flag_variable(var_name, value):
         if upper in ('Y', 'TRUE', '1'):
             return ast.Constant(value=True)
-        elif upper in ('N', 'FALSE', '0'):
+        elif upper in ('N', 'FALSE', '0', '', 'SPACES', 'SPACE'):
+            return ast.Constant(value=False)
+        else:
+            # Default to False for any other flag value
             return ast.Constant(value=False)
     
     if upper in ('ZEROS', 'ZEROES', 'ZERO'):
@@ -636,7 +639,7 @@ class FileManager:
                 self._status[name] = '10'  # COBOL end of file
                 return None
             self._status[name] = '00'
-            return line.rstrip('\\n')
+            return line.rstrip()  # Strip trailing whitespace including newlines
         except Exception as e:
             self._status[name] = '99'
             self.logger.error(f"Error reading {name}: {e}")
@@ -649,7 +652,7 @@ class FileManager:
             return False
         
         try:
-            self._files[name].write(record + '\\n')
+            self._files[name].write(record + chr(10))  # Newline character
             self._status[name] = '00'
             return True
         except Exception as e:
@@ -1677,8 +1680,23 @@ def transpile_if_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast
     condition = re.sub(r'\s+AND\s+', ' and ', condition, flags=re.IGNORECASE)
     condition = re.sub(r'\s+OR\s+', ' or ', condition, flags=re.IGNORECASE)
     
-    condition = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)', 
+    # v4.4.3: Only replace identifiers NOT inside quotes
+    # First, protect quoted strings by temporarily replacing them
+    quoted_strings = []
+    def save_quoted(m):
+        quoted_strings.append(m.group(0))
+        return f'__QUOTED_{len(quoted_strings) - 1}__'
+    
+    condition = re.sub(r"'[^']*'", save_quoted, condition)
+    condition = re.sub(r'"[^"]*"', save_quoted, condition)
+    
+    # Now replace COBOL identifiers with self.snake_case (only multi-char identifiers)
+    condition = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+|[A-Z]{2,}[A-Z0-9]*)', 
                       lambda m: f'self.{to_snake_case(m.group(1))}', condition)
+    
+    # Restore quoted strings
+    for i, qs in enumerate(quoted_strings):
+        condition = condition.replace(f'__QUOTED_{i}__', qs)
     
     try:
         test_ast = ast.parse(condition, mode='eval').body
@@ -1894,8 +1912,17 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
         if is_true_eval:
             try:
                 cond_py = cond.replace(' AND ', ' and ').replace(' OR ', ' or ')
-                cond_py = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)', 
+                # v4.4.3: Protect quoted strings from substitution
+                quoted_parts = []
+                def save_q(m):
+                    quoted_parts.append(m.group(0))
+                    return f'__Q_{len(quoted_parts) - 1}__'
+                cond_py = re.sub(r"'[^']*'", save_q, cond_py)
+                cond_py = re.sub(r'"[^"]*"', save_q, cond_py)
+                cond_py = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+|[A-Z]{2,}[A-Z0-9]*)', 
                                 lambda m: f'self.{to_snake_case(m.group(1))}', cond_py)
+                for i, qp in enumerate(quoted_parts):
+                    cond_py = cond_py.replace(f'__Q_{i}__', qp)
                 test_ast = ast.parse(cond_py, mode='eval').body
             except:
                 test_ast = ast.Constant(value=True)
