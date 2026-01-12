@@ -1,6 +1,12 @@
 """
-COBOL → Python Transpiler v5.6.0 (Critical Bugfix Release)
+COBOL → Python Transpiler v5.7.0 (User Feedback Release)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.0:
+- FIX: ACCEPT now generates input() calls instead of empty strings
+- FIX: Inline PERFORM UNTIL...END-PERFORM blocks generate while loops
+- FIX: Removed COBOL comments as Python string literals (cleaner output)
+- Better handling of block-structured COBOL statements
 
 Improvements in v5.6.0:
 - CRITICAL FIX: <= 0 no longer generates invalid 'self.==' syntax
@@ -2483,11 +2489,9 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
             i += 1
             continue
         
-        # Enhanced: Add inline comment for complex statements
-        if any(kw in upper for kw in ['COMPUTE', 'MULTIPLY', 'DIVIDE', 'ADD', 'SUBTRACT']):
-            # Add traceability comment for arithmetic operations
-            comment = ast.Expr(value=ast.Constant(value=f"# COBOL: {stmt.strip()[:60]}"))
-            result.append(comment)
+        # v5.7.0: COBOL traceability as Python comment (stored for post-processing)
+        # Note: ast module doesn't support comments, so we skip inline COBOL comments
+        # The traceability is preserved in method docstrings instead
         
         if upper.startswith('MOVE '):
             py_stmt = transpile_move_v4(stmt)
@@ -2515,9 +2519,18 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
                 result.append(py_stmt)
         
         elif upper.startswith('PERFORM '):
-            py_stmt = transpile_perform_v4(stmt)
-            if py_stmt:
-                result.append(py_stmt)
+            # v5.7.0: Check for inline PERFORM UNTIL ... END-PERFORM blocks
+            if 'UNTIL' in upper and not re.match(r'PERFORM\s+[A-Z0-9][-A-Z0-9]+\s+UNTIL', upper, re.IGNORECASE):
+                # Inline PERFORM UNTIL (no paragraph name) - needs block handling
+                py_stmt, consumed = transpile_perform_until_block_v4(statements, i)
+                if py_stmt:
+                    result.append(py_stmt)
+                i += consumed
+                continue
+            else:
+                py_stmt = transpile_perform_v4(stmt)
+                if py_stmt:
+                    result.append(py_stmt)
         
         elif upper.startswith('IF '):
             py_stmt, consumed = transpile_if_v4(statements, i)
@@ -3392,9 +3405,72 @@ def transpile_perform_v4(stmt: str) -> Optional[ast.stmt]:
     return None
 
 
+def transpile_perform_until_block_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
+    """
+    v5.7.0: Transpile inline PERFORM UNTIL ... END-PERFORM blocks.
+    
+    Handles:
+        PERFORM UNTIL EOF-REACHED
+            READ TRANSACTION-FILE
+            PROCESS-RECORD
+        END-PERFORM
+    
+    Generates:
+        while not self.eof_reached:
+            # block statements
+    """
+    stmt = statements[start_idx].strip()
+    upper = stmt.upper()
+    
+    # Extract the UNTIL condition
+    until_match = re.match(r'PERFORM\s+UNTIL\s+(.+)', upper, re.IGNORECASE)
+    if not until_match:
+        return None, 0
+    
+    until_cond = until_match.group(1).strip()
+    
+    # Parse the condition and negate it (UNTIL X means while NOT X)
+    test_ast = ast.UnaryOp(op=ast.Not(), operand=parse_cobol_condition(until_cond))
+    
+    # Collect body statements until END-PERFORM
+    # v5.7.0: Collect ALL statements in the block first, then transpile as a unit
+    block_stmts = []
+    consumed = 1
+    nesting = 1  # Track nested PERFORM blocks
+    
+    for i in range(start_idx + 1, len(statements)):
+        line = statements[i].strip()
+        line_upper = line.upper()
+        consumed += 1
+        
+        # Track nested PERFORM blocks
+        if line_upper.startswith('PERFORM ') and 'UNTIL' in line_upper:
+            nesting += 1
+        
+        if line_upper == 'END-PERFORM' or line_upper == 'END-PERFORM.':
+            nesting -= 1
+            if nesting == 0:
+                break
+        
+        block_stmts.append(line)
+    
+    # Transpile the block as a whole (allows IF/ELSE/END-IF to be processed correctly)
+    body_stmts = transpile_statements_v4(block_stmts)
+    
+    # Ensure body is not empty
+    if not body_stmts:
+        body_stmts = [ast.Pass()]
+    
+    return ast.While(
+        test=test_ast,
+        body=body_stmts,
+        orelse=[]
+    ), consumed
+
+
 def transpile_if_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
     """
-    Transpile IF statement block with improved condition parsing.
+    v5.7.0: Transpile IF statement block with proper nesting support.
     Supports nested IF, complex conditions, ELSE, and END-IF.
     """
     stmt = statements[start_idx].strip()
@@ -3409,30 +3485,47 @@ def transpile_if_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast
     # Use the centralized condition parser
     test_ast = parse_cobol_condition(condition)
     
-    body_stmts = []
-    else_stmts = []
+    # Collect body and else statements separately
+    body_lines = []
+    else_lines = []
     in_else = False
     consumed = 1
+    nesting = 1  # Track IF nesting level
     
     for i in range(start_idx + 1, len(statements)):
         line = statements[i].strip()
         line_upper = line.upper()
         consumed += 1
         
+        # Track nested IF blocks
+        if line_upper.startswith('IF '):
+            nesting += 1
+        
         if line_upper == 'END-IF' or line_upper == 'END-IF.':
-            break
-        elif line_upper == 'ELSE' or line_upper == 'ELSE.':
-            in_else = True
-            continue
-        elif line_upper.startswith('END-'):
+            nesting -= 1
+            if nesting == 0:
+                break
+            # This END-IF belongs to a nested IF, include it
+            if in_else:
+                else_lines.append(line)
+            else:
+                body_lines.append(line)
             continue
         
-        transpiled = transpile_statements_v4([line])
-        if transpiled:
-            if in_else:
-                else_stmts.extend(transpiled)
-            else:
-                body_stmts.extend(transpiled)
+        if nesting == 1 and (line_upper == 'ELSE' or line_upper == 'ELSE.'):
+            # Only top-level ELSE switches to else block
+            in_else = True
+            continue
+        
+        # Collect the line for later transpilation
+        if in_else:
+            else_lines.append(line)
+        else:
+            body_lines.append(line)
+    
+    # Transpile collected statements as blocks (preserves nested structure)
+    body_stmts = transpile_statements_v4(body_lines) if body_lines else []
+    else_stmts = transpile_statements_v4(else_lines) if else_lines else []
     
     if not body_stmts:
         body_stmts = [ast.Pass()]
@@ -3879,9 +3972,14 @@ def transpile_accept_v4(stmt: str) -> Optional[ast.stmt]:
     match = re.match(r'ACCEPT\s+([A-Z0-9][-A-Z0-9]*)', stmt, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
+        # v5.7.0: ACCEPT generates input() call instead of empty string
         return ast.Assign(
             targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
-            value=ast.Constant(value='')
+            value=ast.Call(
+                func=ast.Name(id='input', ctx=ast.Load()),
+                args=[ast.Constant(value=f'Enter {target}: ')],
+                keywords=[]
+            )
         )
     return None
 
@@ -5137,7 +5235,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.6.0',
+            'version': '5.7.0',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
