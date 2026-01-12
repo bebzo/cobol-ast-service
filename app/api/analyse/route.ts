@@ -125,12 +125,29 @@ Return the complete fixed Python code:`;
     }
     
     // Validate we got reasonable code back
-    if (response.includes('class ') && response.includes('def ')) {
+    const trimmedResponse = response.trim();
+    
+    // Strict validation to prevent Gemini corruption
+    const hasBasicStructure = trimmedResponse.includes('class ') && trimmedResponse.includes('def ');
+    const hasProperImports = trimmedResponse.includes('from decimal import') || trimmedResponse.includes('import logging');
+    const hasProperDocstring = trimmedResponse.startsWith('"""') && trimmedResponse.includes('"""', 10);
+    
+    // Check for common Gemini corruption patterns
+    const hasEnumCorruption = /class \w+\(Enum\):\s*\n\s*def __init__/.test(trimmedResponse);
+    const hasDocstringCorruption = /"""[^"]*"""[^"]*"""/.test(trimmedResponse.substring(0, 500));
+    const hasMergedMethods = /"""Documentation\."""/.test(trimmedResponse);
+    
+    // Length sanity check - Gemini output should be similar size
+    const lengthRatio = trimmedResponse.length / pythonCode.length;
+    const hasReasonableLength = lengthRatio > 0.5 && lengthRatio < 2.0;
+    
+    if (hasBasicStructure && hasProperImports && hasProperDocstring && 
+        !hasEnumCorruption && !hasDocstringCorruption && !hasMergedMethods && hasReasonableLength) {
       console.log('[Gemini] TODOs resolved successfully');
-      return response.trim();
+      return trimmedResponse;
     }
     
-    console.log('[Gemini] Response invalid, keeping original');
+    console.log('[Gemini] Response failed validation (corruption detected), keeping original');
     return pythonCode;
     
   } catch (error: any) {
