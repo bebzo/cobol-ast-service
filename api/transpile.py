@@ -1,6 +1,13 @@
 """
-COBOL → Python Transpiler v5.7.1 (READ AT END Fix)
+COBOL → Python Transpiler v5.7.3 (Postprocess Fix)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.3:
+- FIX: Removed aggressive docstring regex that corrupted code
+- FIX: Version detection regex for postprocessing
+
+Improvements in v5.7.2:
+- FIX: Added missing @google/generative-ai dependency
 
 Improvements in v5.7.1:
 - FIX: READ ... AT END now generates conditional EOF handling
