@@ -1798,7 +1798,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v4.4.3]
+Auto-transpiled from COBOL [AST Transpiler v5.7.0]
 
 Architecture:
 - FileManager with context managers for safe I/O
