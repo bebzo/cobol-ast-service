@@ -574,6 +574,8 @@ export default function Home() {
   const [filename, setFilename] = useState("");
   const [copybooks, setCopybooks] = useState<Record<string, string>>({});
   const [copybookCount, setCopybookCount] = useState(0);
+  const [requiredCopybooks, setRequiredCopybooks] = useState<string[]>([]);
+  const [missingCopybooks, setMissingCopybooks] = useState<string[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -749,10 +751,15 @@ export default function Home() {
         setFilename(file.name);
         setPythonCode("");
         setAnalysis(null);
+        
+        // Auto-detect COPY statements
+        const required = detectCopyStatements(content);
+        setRequiredCopybooks(required);
+        updateMissingCopybooks(required, copybooks);
       };
       reader.readAsText(file);
     }
-  }, []);
+  }, [detectCopyStatements, updateMissingCopybooks, copybooks]);
 
   // Handle copybook file upload (supports multiple files)
   const handleCopybookUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -774,6 +781,8 @@ export default function Home() {
         if (processed === files.length) {
           setCopybooks(newCopybooks);
           setCopybookCount(Object.keys(newCopybooks).length);
+          // Update missing copybooks list
+          updateMissingCopybooks(requiredCopybooks, newCopybooks);
         }
       };
       reader.readAsText(file);
@@ -784,6 +793,25 @@ export default function Home() {
   const clearCopybooks = useCallback(() => {
     setCopybooks({});
     setCopybookCount(0);
+    setMissingCopybooks(requiredCopybooks);
+  }, [requiredCopybooks]);
+
+  // Detect COPY statements in COBOL code
+  const detectCopyStatements = useCallback((code: string): string[] => {
+    const copyPattern = /^\s*COPY\s+([A-Z0-9][-A-Z0-9_]*)/gim;
+    const matches = code.matchAll(copyPattern);
+    const copybooks = new Set<string>();
+    for (const match of matches) {
+      copybooks.add(match[1].toUpperCase());
+    }
+    return Array.from(copybooks);
+  }, []);
+
+  // Check which copybooks are missing
+  const updateMissingCopybooks = useCallback((required: string[], loaded: Record<string, string>) => {
+    const loadedNames = Object.keys(loaded).map(n => n.toUpperCase());
+    const missing = required.filter(name => !loadedNames.includes(name.toUpperCase()));
+    setMissingCopybooks(missing);
   }, []);
 
   const handleConvert = async () => {
@@ -1340,6 +1368,24 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               <AlertTriangle className="w-5 h-5 text-red-500" />
               <span className="text-red-200">{error}</span>
               <button onClick={() => setError("")} className="ml-auto"><X className="w-4 h-4" /></button>
+            </div>
+          )}
+
+          {/* Copybook Warning */}
+          {missingCopybooks.length > 0 && (
+            <div className="bg-amber-500/20 border border-amber-500 rounded-lg p-4 flex items-center gap-3">
+              <Package className="w-5 h-5 text-amber-500" />
+              <div className="flex-1">
+                <span className="text-amber-200 font-medium">Copybooks requis : </span>
+                <span className="text-amber-300">{missingCopybooks.join(', ')}</span>
+                <span className="text-amber-200/70 text-sm ml-2">
+                  (Uploadez-les via le bouton violet ou continuez sans)
+                </span>
+              </div>
+              <label className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded cursor-pointer text-sm">
+                Ajouter
+                <input type="file" accept=".cpy,.cbl,.cob,.txt" multiple onChange={handleCopybookUpload} className="hidden" />
+              </label>
             </div>
           )}
 
