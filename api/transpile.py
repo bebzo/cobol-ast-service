@@ -2099,9 +2099,15 @@ def transpile_call_v4(stmt: str) -> Optional[ast.stmt]:
 # Gemini Enrichment (Hybrid Mode)
 # ============================================================
 
-def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 100) -> Tuple[str, Dict]:
-    """Enrich TODO methods with Gemini AI"""
-    stats = {'gemini_calls': 0, 'enriched': 0, 'failed': 0, 'total_methods': 0}
+def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 50) -> Tuple[str, Dict]:
+    """Enrich TODO methods with Gemini AI
+    
+    v4.4.2: Safe enrichment - validates each method before integration
+    - Each method is validated independently
+    - Invalid enrichments are skipped (keep original method)
+    - Final code is always syntax-valid
+    """
+    stats = {'gemini_calls': 0, 'enriched': 0, 'failed': 0, 'total_methods': 0, 'skipped_invalid': 0}
     
     try:
         import os
@@ -2201,11 +2207,25 @@ Output ONLY the method body (8-space indent), NO 'def' line:"""
                 if 'pass' not in new_method and 'return' not in new_method and 'self.' not in new_method:
                     new_method += '        pass\n'
                 
+                # v4.4.2: Strict validation before integration
                 test_code = f"class T:\n{new_method}"
-                ast.parse(test_code)
+                try:
+                    ast.parse(test_code)
+                except SyntaxError:
+                    stats['skipped_invalid'] += 1
+                    continue  # Skip invalid enrichment, keep original
                 
-                python_code = python_code.replace(method_code, new_method)
-                stats['enriched'] += 1
+                # Double-check: test full code replacement before committing
+                test_full_code = python_code.replace(method_code, new_method)
+                try:
+                    ast.parse(test_full_code)
+                    # SUCCESS: Both method and full code are valid
+                    python_code = test_full_code
+                    stats['enriched'] += 1
+                except SyntaxError:
+                    # Method looks valid but breaks context - skip it
+                    stats['skipped_invalid'] += 1
+                    continue
                 
             except Exception:
                 stats['failed'] += 1
@@ -2384,36 +2404,55 @@ def fix_syntax_errors(code: str, max_attempts: int = 10) -> Tuple[str, List[str]
 # ============================================================
 
 def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, Any]:
-    """Main entry point: COBOL source → Python code"""
+    """Main entry point: COBOL source → Python code
+    
+    v4.4.2: Safe Gemini enrichment with rollback protection
+    - Always validates syntax after each step
+    - If Gemini enrichment breaks code, returns clean AST version
+    """
     try:
         cobol_ast = parse_cobol(cobol_source)
         python_ast = generate_python_ast_v4(cobol_ast)
         python_code = ast.unparse(python_ast)
         
+        # Format with black if available
         try:
             import black
             python_code = black.format_str(python_code, mode=black.Mode())
         except ImportError:
             pass
         
-        # v4.4.1: No post-processing - AST output should be clean
-        # Verify syntax
+        # CRITICAL: Validate base AST output
         try:
             compile(python_code, '<generated>', 'exec')
             syntax_valid = True
         except SyntaxError as e:
             syntax_valid = False
-            # Log error but don't try to fix - return as-is for debugging
         
-        gemini_stats = {'syntax_valid': syntax_valid}
+        gemini_stats = {'syntax_valid': syntax_valid, 'enrichment_mode': 'ast_only'}
         
-        if enhance:
-            python_code, gemini_stats = enrich_with_gemini(python_code, cobol_source)
+        # v4.4.2: Safe Gemini enrichment with rollback
+        if enhance and syntax_valid:
+            # Save the clean AST code for rollback
+            clean_ast_code = python_code
+            
+            # Attempt Gemini enrichment
+            enriched_code, enrich_stats = enrich_with_gemini(python_code, cobol_source)
+            gemini_stats.update(enrich_stats)
+            
+            # Validate enriched code
             try:
-                compile(python_code, '<enriched>', 'exec')
+                compile(enriched_code, '<enriched>', 'exec')
+                # SUCCESS: Enrichment is valid, use it
+                python_code = enriched_code
                 gemini_stats['syntax_valid'] = True
-            except SyntaxError:
-                gemini_stats['syntax_valid'] = False
+                gemini_stats['enrichment_mode'] = 'gemini_safe'
+            except SyntaxError as e:
+                # ROLLBACK: Enrichment broke the code, keep clean AST version
+                python_code = clean_ast_code
+                gemini_stats['syntax_valid'] = True  # Original was valid
+                gemini_stats['enrichment_mode'] = 'ast_rollback'
+                gemini_stats['rollback_reason'] = f"Enrichment syntax error: {e.msg} at line {e.lineno}"
         
         class_name = to_pascal_case(cobol_ast.program_id)
         test_code = generate_unit_tests_v4(cobol_ast, class_name)
@@ -2422,7 +2461,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
             'success': True,
             'python_code': python_code,
             'unit_tests': test_code,
-            'version': '4.4.0-hybrid' if enhance else '4.4.0',
+            'version': '4.4.2-safe' if enhance else '4.4.2',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'stats': {
                 'variables': len(cobol_ast.variables),
