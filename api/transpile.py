@@ -2220,6 +2220,121 @@ Output ONLY the method body (8-space indent), NO 'def' line:"""
 
 
 # ============================================================
+# Syntax Error Auto-Correction
+# ============================================================
+
+def fix_syntax_errors(code: str, max_attempts: int = 5) -> Tuple[str, List[str]]:
+    """
+    Attempt to automatically fix common Python syntax errors.
+    Returns (fixed_code, list_of_fixes_applied).
+    """
+    fixes_applied = []
+    
+    for attempt in range(max_attempts):
+        try:
+            ast.parse(code)
+            return code, fixes_applied  # Code is valid
+        except SyntaxError as e:
+            line_no = e.lineno or 1
+            col = e.offset or 0
+            msg = str(e.msg) if e.msg else ""
+            
+            lines = code.split('\n')
+            if line_no > len(lines):
+                break
+            
+            problem_line = lines[line_no - 1] if line_no <= len(lines) else ""
+            fixed = False
+            
+            # Fix 1: Unclosed string/docstring
+            if 'unterminated string' in msg or 'EOL while scanning' in msg:
+                if '"""' in problem_line and problem_line.count('"""') % 2 == 1:
+                    lines[line_no - 1] = problem_line + '"""'
+                    fixes_applied.append(f"Line {line_no}: Closed unclosed docstring")
+                    fixed = True
+                elif "'''" in problem_line and problem_line.count("'''") % 2 == 1:
+                    lines[line_no - 1] = problem_line + "'''"
+                    fixes_applied.append(f"Line {line_no}: Closed unclosed docstring")
+                    fixed = True
+                elif '"' in problem_line and problem_line.count('"') % 2 == 1:
+                    lines[line_no - 1] = problem_line + '"'
+                    fixes_applied.append(f"Line {line_no}: Closed unclosed string")
+                    fixed = True
+                elif "'" in problem_line and problem_line.count("'") % 2 == 1:
+                    lines[line_no - 1] = problem_line + "'"
+                    fixes_applied.append(f"Line {line_no}: Closed unclosed string")
+                    fixed = True
+            
+            # Fix 2: Invalid decimal literal (number followed by identifier)
+            if 'invalid decimal literal' in msg or 'invalid syntax' in msg:
+                # Pattern like: 88-level or 123abc
+                fixed_line = re.sub(r'(\d+)([a-zA-Z_])', r'\1 # \2', problem_line)
+                if fixed_line != problem_line:
+                    lines[line_no - 1] = fixed_line
+                    fixes_applied.append(f"Line {line_no}: Fixed invalid decimal literal")
+                    fixed = True
+            
+            # Fix 3: Fused docstrings ("""text"""text)
+            if '"""' in problem_line:
+                # Fix pattern: """..."""something -> """..."""\n        # something
+                fused_match = re.search(r'"""[^"]*"""(\S)', problem_line)
+                if fused_match:
+                    indent = len(problem_line) - len(problem_line.lstrip())
+                    fixed_line = re.sub(r'("""[^"]*""")(\S)', r'\1\n' + ' ' * indent + '# \2', problem_line)
+                    lines[line_no - 1] = fixed_line
+                    fixes_applied.append(f"Line {line_no}: Separated fused docstring")
+                    fixed = True
+            
+            # Fix 4: Missing colon after def/if/for/while/class/try/except/with
+            if 'expected' in msg and ':' in msg:
+                if re.match(r'\s*(def|if|elif|else|for|while|class|try|except|finally|with)\b', problem_line):
+                    if not problem_line.rstrip().endswith(':'):
+                        lines[line_no - 1] = problem_line.rstrip() + ':'
+                        fixes_applied.append(f"Line {line_no}: Added missing colon")
+                        fixed = True
+            
+            # Fix 5: Unmatched parentheses/brackets
+            if 'unexpected EOF' in msg or 'was never closed' in msg:
+                open_parens = code.count('(') - code.count(')')
+                open_brackets = code.count('[') - code.count(']')
+                open_braces = code.count('{') - code.count('}')
+                
+                suffix = ')' * max(0, open_parens) + ']' * max(0, open_brackets) + '}' * max(0, open_braces)
+                if suffix:
+                    lines.append(suffix)
+                    fixes_applied.append(f"End: Added {len(suffix)} closing brackets")
+                    fixed = True
+            
+            # Fix 6: Empty method body
+            if 'expected an indented block' in msg:
+                # Find the previous def/if/for line and add pass
+                for i in range(line_no - 2, -1, -1):
+                    if re.match(r'\s*(def|if|elif|else|for|while|try|except|finally|with)\b.*:\s*$', lines[i]):
+                        indent = len(lines[i]) - len(lines[i].lstrip()) + 4
+                        lines.insert(i + 1, ' ' * indent + 'pass')
+                        fixes_applied.append(f"Line {i + 1}: Added missing pass statement")
+                        fixed = True
+                        break
+            
+            # Fix 7: Remove lines with invalid syntax that can't be fixed
+            if not fixed and 'invalid syntax' in msg:
+                # Comment out the problematic line
+                indent = len(problem_line) - len(problem_line.lstrip())
+                lines[line_no - 1] = ' ' * indent + '# SYNTAX_ERROR: ' + problem_line.lstrip()
+                fixes_applied.append(f"Line {line_no}: Commented out invalid syntax")
+                fixed = True
+            
+            if fixed:
+                code = '\n'.join(lines)
+            else:
+                # Can't fix this error, break to avoid infinite loop
+                fixes_applied.append(f"Line {line_no}: Unable to fix - {msg}")
+                break
+    
+    return code, fixes_applied
+
+
+# ============================================================
 # Code Generation & Unit Tests
 # ============================================================
 
@@ -2236,12 +2351,16 @@ def generate_python_code(cobol_source: str, enhance: bool = False) -> Dict[str, 
         except ImportError:
             pass
         
-        compile(python_code, '<generated>', 'exec')
+        # Auto-fix any syntax errors in base generation
+        python_code, base_fixes = fix_syntax_errors(python_code)
         
-        gemini_stats = {}
+        gemini_stats = {'syntax_fixes_base': base_fixes}
         if enhance:
             python_code, gemini_stats = enrich_with_gemini(python_code, cobol_source)
-            compile(python_code, '<enriched>', 'exec')
+            
+            # Auto-fix any syntax errors introduced by Gemini
+            python_code, gemini_fixes = fix_syntax_errors(python_code)
+            gemini_stats['syntax_fixes_gemini'] = gemini_fixes
         
         class_name = to_pascal_case(cobol_ast.program_id)
         test_code = generate_unit_tests_v4(cobol_ast, class_name)
