@@ -111,8 +111,26 @@ export async function POST(request: NextRequest) {
         detail: 'AST Transpiler v4.4 (Python)'
       });
       
-      // Call unified Python transpiler
-      const result = await transpileCobolViaPython(cobolCode, false);
+      // Call unified Python transpiler with simulated progress during wait
+      let currentProgress = 45;
+      const progressInterval = setInterval(() => {
+        if (currentProgress < 68) {
+          currentProgress += 2;
+          send('progress', { 
+            percent: currentProgress, 
+            step: 'transpile',
+            message: `⚙️ Transpiling... ${Math.round((currentProgress - 45) / 23 * 100)}% complete`,
+            detail: `Processing ${totalLines.toLocaleString()} lines`
+          });
+        }
+      }, 500); // Update every 500ms
+      
+      let result;
+      try {
+        result = await transpileCobolViaPython(cobolCode, false);
+      } finally {
+        clearInterval(progressInterval);
+      }
       
       if (!result.success) {
         send('error', { message: result.error || 'Transpilation failed' });
