@@ -122,8 +122,10 @@ async function resolveTodosWithGemini(pythonCode: string, cobolCode: string): Pr
     return pythonCode;
   }
   
-  // Check if there are TODOs to resolve
-  const todoCount = (pythonCode.match(/# TODO/g) || []).length;
+  // Check if there are TODOs to resolve (both # TODO and logger.debug('TODO: patterns)
+  const todoComments = (pythonCode.match(/# TODO/g) || []).length;
+  const todoLogs = (pythonCode.match(/\.debug\(['"]TODO:/g) || []).length;
+  const todoCount = todoComments + todoLogs;
   if (todoCount === 0) {
     return pythonCode;
   }
@@ -137,31 +139,39 @@ async function resolveTodosWithGemini(pythonCode: string, cobolCode: string): Pr
       generationConfig: { maxOutputTokens: 65536 }
     });
     
-    // Timeout: 20s for Gemini call (leave margin for Edge 30s limit)
+    // Timeout: 50s for Gemini call (maxDuration is 60s)
     const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('Gemini timeout')), 20000)
+      setTimeout(() => reject(new Error('Gemini timeout')), 50000)
     );
     
-    const prompt = `You are a COBOL-to-Python migration expert. The following Python code was auto-transpiled from COBOL but has some TODO comments that need to be resolved.
+    const prompt = `You are a COBOL-to-Python migration expert. The following Python code was auto-transpiled from COBOL but has TODO markers that need implementation.
 
-ORIGINAL COBOL CODE:
+ORIGINAL COBOL CODE (first 15000 chars):
 \`\`\`cobol
-${cobolCode.substring(0, 8000)}
+${cobolCode.substring(0, 15000)}
 \`\`\`
 
-TRANSPILED PYTHON CODE WITH TODOs:
+TRANSPILED PYTHON WITH TODOs:
 \`\`\`python
-${pythonCode}
+${pythonCode.substring(0, 60000)}
 \`\`\`
+
+TODO MARKERS TO FIX:
+- Lines with: self.logger.debug('TODO: ...')
+- Lines with: # TODO ...
 
 INSTRUCTIONS:
-1. Find all lines with "# TODO" comments
-2. Replace the TODO with actual working Python code based on the COBOL logic
-3. Keep ALL existing code that works correctly
-4. Only modify lines with TODOs
-5. Preserve the exact class structure and method names
-6. Use Decimal for all numeric operations
-7. Return ONLY the complete Python code, no explanations
+1. Find ALL lines containing 'TODO:' (in logger.debug or comments)
+2. Replace each TODO with ACTUAL working Python code implementing the COBOL logic
+3. For COMPUTE statements: implement the math using Decimal operations
+4. For MOVE statements: implement proper assignments
+5. For FILE operations: use Python file I/O or add pass with a comment
+6. Keep ALL existing working code unchanged
+7. Preserve exact class/method names
+8. Use Decimal('...') for all monetary values
+9. Return ONLY the complete Python code, no explanations
+
+CRITICAL: Replace logger.debug('TODO: X') with actual implementation of X.
 
 Return the complete fixed Python code:`;
     
