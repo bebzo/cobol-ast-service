@@ -2574,7 +2574,15 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
             if py_stmt:
                 result.append(py_stmt)
         
-        elif upper.startswith(('OPEN ', 'CLOSE ', 'READ ', 'WRITE ')):
+        elif upper.startswith('READ '):
+            # v5.7.0: Check for READ ... AT END ... END-READ block
+            py_stmts, consumed = transpile_read_block_v4(statements, i)
+            if py_stmts:
+                result.extend(py_stmts)
+            i += consumed
+            continue
+        
+        elif upper.startswith(('OPEN ', 'CLOSE ', 'WRITE ')):
             py_stmt = transpile_file_io_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
@@ -3535,6 +3543,117 @@ def transpile_if_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast
         body=body_stmts,
         orelse=else_stmts if else_stmts else []
     ), consumed
+
+
+def transpile_read_block_v4(statements: List[str], start_idx: int) -> Tuple[List[ast.stmt], int]:
+    """
+    v5.7.0: Transpile READ ... AT END ... END-READ blocks.
+    
+    Handles:
+        READ FILE-NAME
+            AT END MOVE 'Y' TO EOF-FLAG
+        END-READ
+    
+    Generates:
+        _record = self.file_manager.read_record('file_name')
+        if _record is None:
+            self.eof_flag = 'Y'
+        else:
+            self.file_name_record = _record
+    """
+    stmt = statements[start_idx].strip()
+    upper = stmt.upper()
+    
+    # Extract file name
+    match = re.match(r'READ\s+([A-Z0-9][-A-Z0-9]*)', upper)
+    if not match:
+        return [], 1
+    
+    file_name = to_snake_case(match.group(1))
+    
+    # Check if this is a simple READ (no AT END block)
+    # Look ahead for AT END or END-READ
+    has_at_end = False
+    at_end_stmts = []
+    consumed = 1
+    
+    for j in range(start_idx + 1, len(statements)):
+        line = statements[j].strip()
+        line_upper = line.upper()
+        
+        if line_upper.startswith('AT END') or line_upper == 'AT END':
+            has_at_end = True
+            # Extract inline statement if present (e.g., "AT END MOVE 'Y' TO EOF-FLAG")
+            at_end_match = re.match(r'AT\s+END\s+(.+)', line, re.IGNORECASE)
+            if at_end_match:
+                at_end_stmts.append(at_end_match.group(1).strip())
+            consumed += 1
+        elif has_at_end and (line_upper.startswith('END-READ') or line_upper == 'END-READ.'):
+            consumed += 1
+            break
+        elif has_at_end and not line_upper.startswith('END-READ'):
+            # Collect AT END block statements
+            if line_upper and not line_upper.startswith('NOT '):
+                at_end_stmts.append(line)
+            consumed += 1
+        elif line_upper.startswith('END-READ') or line_upper == 'END-READ.':
+            consumed += 1
+            break
+        elif not line_upper:
+            consumed += 1
+        else:
+            # No AT END found, simple READ
+            break
+    
+    # Generate the read call: _record = self.file_manager.read_record('file_name')
+    read_call = ast.Assign(
+        targets=[ast.Name(id='_record', ctx=ast.Store())],
+        value=ast.Call(
+            func=ast.Attribute(
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='file_manager', ctx=ast.Load()),
+                attr='read_record', ctx=ast.Load()
+            ),
+            args=[ast.Constant(value=file_name)],
+            keywords=[]
+        )
+    )
+    
+    if has_at_end and at_end_stmts:
+        # Transpile AT END statements
+        at_end_body = transpile_statements_v4(at_end_stmts)
+        if not at_end_body:
+            at_end_body = [ast.Pass()]
+        
+        # Generate: if _record is None: <at_end_block> else: self.file_record = _record
+        if_stmt = ast.If(
+            test=ast.Compare(
+                left=ast.Name(id='_record', ctx=ast.Load()),
+                ops=[ast.Is()],
+                comparators=[ast.Constant(value=None)]
+            ),
+            body=at_end_body,
+            orelse=[
+                ast.Assign(
+                    targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_record', ctx=ast.Store())],
+                    value=ast.Name(id='_record', ctx=ast.Load())
+                )
+            ]
+        )
+        return [read_call, if_stmt], consumed
+    else:
+        # Simple READ without AT END - just assign to record
+        simple_assign = ast.Assign(
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_record', ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='file_manager', ctx=ast.Load()),
+                    attr='read_record', ctx=ast.Load()
+                ),
+                args=[ast.Constant(value=file_name)],
+                keywords=[]
+            )
+        )
+        return [simple_assign], consumed
 
 
 def transpile_set_v4(stmt: str) -> Optional[ast.stmt]:
