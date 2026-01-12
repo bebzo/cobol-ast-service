@@ -2223,7 +2223,74 @@ Output ONLY the method body (8-space indent), NO 'def' line:"""
 # Syntax Error Auto-Correction
 # ============================================================
 
-def fix_syntax_errors(code: str, max_attempts: int = 5) -> Tuple[str, List[str]]:
+def preformat_fused_docstrings(code: str) -> Tuple[str, int]:
+    """
+    Pre-process code to separate ALL fused docstrings.
+    Pattern: '''text'''next or \"\"\"text\"\"\"next -> separated with newlines
+    Returns (fixed_code, number_of_fixes)
+    """
+    fixes = 0
+    
+    # Split on triple quotes and rebuild with proper spacing
+    # Pattern 1: """...""" followed immediately by non-whitespace
+    pattern1 = re.compile(r'("""[^"]*?""")([^\s\n"])')
+    while pattern1.search(code):
+        code = pattern1.sub(r'\1\n        \2', code)
+        fixes += 1
+    
+    # Pattern 2: '''...''' followed immediately by non-whitespace  
+    pattern2 = re.compile(r"('''[^']*?''')([^\s\n'])")
+    while pattern2.search(code):
+        code = pattern2.sub(r"\1\n        \2", code)
+        fixes += 1
+    
+    # Pattern 3: Multiple """...""" on same line (common in AST output)
+    # Split lines that have multiple docstrings
+    lines = code.split('\n')
+    new_lines = []
+    for line in lines:
+        # Count docstrings in line
+        docstring_count = line.count('"""') // 2  # Each docstring has 2 sets of """
+        if docstring_count > 1:
+            # Split this line into multiple lines
+            indent = len(line) - len(line.lstrip())
+            indent_str = ' ' * indent
+            
+            # Use regex to find all docstrings and split
+            parts = re.split(r'("""[^"]*?""")', line)
+            for part in parts:
+                stripped = part.strip()
+                if stripped:
+                    if stripped.startswith('"""'):
+                        new_lines.append(indent_str + stripped)
+                    else:
+                        new_lines.append(indent_str + stripped)
+            fixes += docstring_count - 1
+        else:
+            new_lines.append(line)
+    
+    code = '\n'.join(new_lines)
+    
+    # Pattern 4: Docstring immediately followed by "Documentation."
+    # This is the specific pattern causing issues
+    pattern4 = re.compile(r'"""([^"]+)"""(Documentation\.)')
+    while pattern4.search(code):
+        code = pattern4.sub(r'"""\1"""\n        # \2', code)
+        fixes += 1
+    
+    # Pattern 5: Docstring followed by another docstring on same logical block
+    # """text1"""text2"""text3""" -> split properly
+    pattern5 = re.compile(r'"""([^"]{1,200})"""([A-Z])')
+    while pattern5.search(code):
+        code = pattern5.sub(r'"""\1"""\n        # \2', code)
+        fixes += 1
+        if fixes > 1000:  # Safety limit
+            break
+    
+    return code, fixes
+
+
+def fix_syntax_errors(code: str, max_attempts: int = 10) -> Tuple[str, List[str]]:
     """
     Attempt to automatically fix common Python syntax errors.
     Returns (fixed_code, list_of_fixes_applied).
