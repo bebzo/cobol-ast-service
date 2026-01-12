@@ -101,21 +101,31 @@ def check_syntax(code):
 
 // Run tests using Pyodide
 async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
-  // Try server-side pytest first (real execution)
+  // v8.4: Try server-side pytest first with strict 8s timeout
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s max
+    
     const response = await fetch('https://codeswitch-v8rr.onrender.com/api/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: pythonCode, tests: testCode })
+      body: JSON.stringify({ code: pythonCode, tests: testCode }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
+    
     if (response.ok) {
       const result = await response.json();
       if (result.total > 0) {
         return result;
       }
     }
-  } catch (e) {
-    console.log('Server-side tests failed, falling back to Pyodide');
+  } catch (e: any) {
+    if (e.name === 'AbortError') {
+      console.log('Server tests timed out (8s), using Pyodide');
+    } else {
+      console.log('Server-side tests failed, falling back to Pyodide');
+    }
   }
   
   // Fallback to Pyodide
