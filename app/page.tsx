@@ -1082,12 +1082,12 @@ export default function Home() {
       setAnalyzedCobolCode(cobolCode);
 
       // Auto-run tests (same for normal and multi-analysis - run real tests)
-      // v7.41: Run tests in background, don't block UI
-      setAnalysisProgress(100);
-      setAnalysisStatus("✅ Complete - Running tests...");
+      // v8.3: Progress stays at 90% during test execution, 100% when complete
+      setAnalysisProgress(90);
+      setAnalysisStatus("🧪 Running validation tests...");
       setIsLoading(false); // Stop loading indicator immediately
       
-      // Run tests asynchronously (non-blocking)
+      // Run tests asynchronously (non-blocking) but update progress when done
       (async () => {
         try {
           setTestResults(prev => ({...prev, running: true}));
@@ -1102,9 +1102,15 @@ export default function Home() {
           
           const results = await Promise.race([testPromise, timeoutPromise]);
           setTestResults({...results, running: false});
+          // v8.3: Now set 100% after tests complete
+          setAnalysisProgress(100);
+          setAnalysisStatus("✅ Complete");
         } catch (e) {
           console.error('Auto-test error:', e);
           setTestResults({running: false, total: 0, passed: 0, failed: 0, details: [{name: 'skipped', status: 'error', error: 'Tests skipped (timeout or error)'}]});
+          // Still complete even if tests fail
+          setAnalysisProgress(100);
+          setAnalysisStatus("✅ Complete (tests skipped)");
         }
       })();
 
@@ -1152,10 +1158,8 @@ export default function Home() {
         setError("An unknown error occurred");
       }
     } finally {
-      // v8.2: No interval to clear - using SSE
-      setAnalysisProgress(100);
+      // v8.3: Don't force 100% here - tests will set it when done
       setAbortController(null);
-      setAnalysisStatus("✅ Complete");
       setIsLoading(false);
     }
   };
@@ -2741,7 +2745,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
       {/* Footer */}
       <footer className="bg-slate-800/50 border-t border-slate-700 px-6 py-4">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between text-sm text-slate-400">
-          <span>CodeSwitch Pro v7.40 - Gemini Voice Assistant AI</span>
+          <span>CodeSwitch Pro v8.3 - Gemini Voice Assistant AI</span>
           <span>Hackathon Gemini 3</span>
         </div>
       </footer>
