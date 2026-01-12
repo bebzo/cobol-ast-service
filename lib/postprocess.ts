@@ -11,9 +11,9 @@ function fixCorruptedDocstrings(code: string): string {
   // v5.7.2: Fixed version detection to match "[AST Transpiler v5.x]" format
   if (/\[AST Transpiler v[4-9]/.test(code) || /Transpiler v[4-9]\./.test(code) || code.includes('[v4.') || code.includes('[v5.') || code.includes('[v6.') || code.includes('[v7.') || code.includes('[v8.')) return code;
   
-  // Fix docstrings that contain 'def ' - these are corrupted
-  // Pattern: """...def ...  → """Documentation."""
-  code = code.replace(/"""[^"]*\bdef\s+\w+[^"]*"""/g, '"""Documentation."""');
+  // v5.7.3: REMOVED aggressive regex that corrupted v5+ code
+  // The regex was: /"""[^"]*\bdef\s+\w+[^"]*"""/g → '"""Documentation."""'
+  // This caused valid docstrings to be replaced with "Documentation."
   
   // Fix docstrings that don't close properly before next def
   const lines = code.split('\n');
