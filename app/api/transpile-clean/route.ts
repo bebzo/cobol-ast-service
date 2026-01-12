@@ -1,15 +1,9 @@
 /**
  * Clean Architecture Transpiler API
- * 
- * Transpiles COBOL to Python with Clean Architecture structure:
- * - domain/ (services, entities)
- * - app/ (orchestrator)
- * - infra/ (repositories)
- * - tests/ (pytest fixtures)
+ * Uses unified Python transpiler (api/transpile.py) as source of truth
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { parseCobolWithANTLR } from '@/lib/cobol-antlr-parser';
-import { transpileToCleanArchitecture } from '@/lib/cobol-transpiler';
+import { transpileCobolViaPython, parseCobolQuick } from '@/lib/transpiler-client';
 
 export const runtime = 'nodejs';
 
@@ -26,7 +20,7 @@ export async function OPTIONS() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const cobolCode = body.cobolCode || body.cobolSource; // Support both formats
+    const cobolCode = body.cobolCode || body.cobolSource;
 
     if (!cobolCode) {
       return NextResponse.json(
@@ -35,22 +29,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse COBOL source
-    const ast = parseCobolWithANTLR(cobolCode);
+    // Parse for metadata
+    const parsed = parseCobolQuick(cobolCode);
     
-    // Transpile to Clean Architecture
-    const result = transpileToCleanArchitecture(ast, cobolCode);
+    // Transpile via unified Python API
+    const result = await transpileCobolViaPython(cobolCode, false);
     
-    // Convert Map to Object for JSON serialization
-    const filesObject: Record<string, string> = {};
-    for (const [path, content] of result.files) {
-      filesObject[path] = content;
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || 'Transpilation failed' },
+        { status: 500, headers: corsHeaders }
+      );
     }
 
+    // Format as Clean Architecture structure
+    const className = parsed.programId.replace(/-/g, '_');
+    const files: Record<string, string> = {
+      [`domain/${className.toLowerCase()}_service.py`]: result.python_code,
+      [`tests/test_${className.toLowerCase()}.py`]: result.unit_tests,
+    };
+
     return NextResponse.json({
-      files: filesObject,
+      files,
       stats: result.stats,
-      programId: ast.programId
+      programId: parsed.programId,
+      version: result.version
     }, { headers: corsHeaders });
 
   } catch (error: any) {

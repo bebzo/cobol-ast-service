@@ -1,5 +1,6 @@
 /**
  * Jobs API - Async Transpilation for Large COBOL Files
+ * Uses unified Python transpiler (api/transpile.py)
  * 
  * POST /api/jobs - Create new transpilation job
  * GET /api/jobs - List user's jobs
@@ -17,8 +18,7 @@ import {
   getQueueStats
 } from '@/lib/job-queue';
 import { logAudit } from '@/lib/audit-logger';
-import { parseCobolWithANTLR } from '@/lib/cobol-antlr-parser';
-import { transpileCobol } from '@/lib/cobol-transpiler';
+import { parseCobolQuick, transpileCobolViaPython } from '@/lib/transpiler-client';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -38,7 +38,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { cobol_code, file_name, webhook_url, webhook_secret } = body;
     
-    // Get user info from headers (in production: from auth session)
     const userId = request.headers.get('x-user-id') || 'anonymous';
     const userEmail = request.headers.get('x-user-email') || 'anonymous@demo.com';
     
@@ -53,8 +52,7 @@ export async function POST(request: NextRequest) {
     // For small files (< 5000 lines), process immediately
     if (lines < 5000) {
       const startTime = Date.now();
-      const ast = parseCobolWithANTLR(cobol_code);
-      const result = transpileCobol(ast, cobol_code);
+      const result = await transpileCobolViaPython(cobol_code);
       
       logAudit({
         action: 'TRANSPILE',
@@ -63,13 +61,13 @@ export async function POST(request: NextRequest) {
         userRole: 'developer',
         resource: file_name || 'inline_code',
         details: { lines, immediate: true },
-        success: true
+        success: result.success
       });
       
       return NextResponse.json({
         mode: 'immediate',
-        success: true,
-        pythonCode: result.pythonCode,
+        success: result.success,
+        pythonCode: result.python_code,
         stats: {
           ...result.stats,
           processingTimeMs: Date.now() - startTime
@@ -98,7 +96,7 @@ export async function POST(request: NextRequest) {
       success: true
     });
     
-    // Start async processing (in production: use worker queue)
+    // Start async processing
     processJobAsync(job.id);
     
     return NextResponse.json({
@@ -130,7 +128,6 @@ export async function GET(request: NextRequest) {
   const jobId = searchParams.get('id');
   const userId = request.headers.get('x-user-id') || 'anonymous';
   
-  // Get specific job
   if (jobId) {
     const job = getJob(jobId);
     
@@ -156,13 +153,11 @@ export async function GET(request: NextRequest) {
         processingTimeMs: job.processingTimeMs,
         errors: job.errors,
         warnings: job.warnings,
-        // Only include code if completed
         pythonCode: job.status === 'completed' ? job.pythonCode : undefined
       }
     }, { headers: corsHeaders });
   }
   
-  // List user's jobs
   const jobs = getUserJobs(userId);
   const stats = getQueueStats();
   
@@ -208,14 +203,13 @@ export async function DELETE(request: NextRequest) {
 }
 
 /**
- * Async job processor (simulated - in production use worker)
+ * Async job processor - uses unified Python transpiler
  */
 async function processJobAsync(jobId: string) {
   const job = getJob(jobId);
   if (!job) return;
   
   try {
-    // Simulate chunked processing
     const lines = job.cobolCode.split('\n');
     const chunkSize = 5000;
     let allPythonCode = '';
@@ -225,15 +219,14 @@ async function processJobAsync(jobId: string) {
       const end = Math.min(start + chunkSize, lines.length);
       const chunk = lines.slice(start, end).join('\n');
       
-      // Process chunk
-      const ast = parseCobolWithANTLR(chunk);
-      const result = transpileCobol(ast, chunk);
+      // Process chunk via unified Python API
+      const result = await transpileCobolViaPython(chunk);
       
       if (i === 0) {
-        allPythonCode = result.pythonCode;
+        allPythonCode = result.python_code;
       } else {
         // Merge methods from subsequent chunks
-        const methodsMatch = result.pythonCode.match(/def \w+\(self\)[\s\S]*?(?=\n    def |\nif __name__|$)/g);
+        const methodsMatch = result.python_code.match(/def \w+\(self\)[\s\S]*?(?=\n    def |\nif __name__|$)/g);
         if (methodsMatch) {
           allPythonCode = allPythonCode.replace(
             /\nif __name__/,
@@ -249,7 +242,6 @@ async function processJobAsync(jobId: string) {
         processedLines: end
       });
       
-      // Small delay to simulate processing
       await new Promise(r => setTimeout(r, 100));
     }
     

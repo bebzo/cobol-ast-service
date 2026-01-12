@@ -1,20 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { parseCobolWithANTLR, CobolFullAST } from '@/lib/cobol-antlr-parser';
-import { transpileCobol } from '@/lib/cobol-transpiler';
-
 /**
- * CodeSwitch AST API v1.0 - Chunked Processing
- * 
- * Handles large COBOL files by processing in chunks.
- * Supports files > 250kLOC via pagination.
- * 
- * Usage:
- *   POST /api/ast
- *   Body: { cobol_code: string, chunk_index?: number, chunk_size?: number }
- * 
- *   - chunk_size: lines per chunk (default: 5000)
- *   - chunk_index: 0-based chunk number (default: 0)
+ * AST Analysis API - Unified Version
+ * Uses transpiler-client.ts for parsing, Python API for transpilation
  */
+import { NextRequest, NextResponse } from 'next/server';
+import { parseCobolQuick, transpileCobolViaPython } from '@/lib/transpiler-client';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,7 +20,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const cobol_code = body.cobolCode || body.cobol_code; // Support both formats
+    const cobol_code = body.cobolCode || body.cobol_code;
     const { chunk_index = 0, chunk_size = 5000, full_parse = false } = body;
     
     if (!cobol_code) {
@@ -53,17 +42,17 @@ export async function POST(request: NextRequest) {
     const totalLines = lines.length;
     const totalChunks = Math.ceil(totalLines / chunk_size);
     
-    // Full parse mode - process everything (for smaller files)
+    // Full parse mode - process everything
     if (full_parse || totalLines <= chunk_size) {
-      const ast = parseCobolWithANTLR(cobol_code);
-      const pythonResult = transpileCobol(ast, cobol_code);
+      const ast = parseCobolQuick(cobol_code);
+      const pythonResult = await transpileCobolViaPython(cobol_code);
       
       return NextResponse.json({
         success: true,
         mode: 'full',
         stats: {
           total_lines: totalLines,
-          python_lines: pythonResult.pythonCode.split('\n').length,
+          python_lines: pythonResult.python_code.split('\n').length,
           paragraphs: ast.paragraphs.length,
           variables: ast.workingStorageVariables.length,
           processing_time_ms: Date.now() - startTime
@@ -74,15 +63,13 @@ export async function POST(request: NextRequest) {
           paragraphs: ast.paragraphs.map(p => ({
             name: p.name,
             line_start: p.lineStart,
-            line_end: p.lineEnd,
-            complexity: p.complexity
+            line_end: p.lineEnd
           })),
-          variables_count: ast.workingStorageVariables.length,
-          copybooks: ast.copyStatements || []
+          variables_count: ast.workingStorageVariables.length
         },
-        python_code: pythonResult.pythonCode,
+        python_code: pythonResult.python_code,
         metadata: {
-          transpiler_version: '1.0.0',
+          transpiler_version: pythonResult.version,
           chunk_mode: false
         }
       }, { headers: corsHeaders });
@@ -100,21 +87,19 @@ export async function POST(request: NextRequest) {
       }, { status: 400, headers: corsHeaders });
     }
     
-    // Extract chunk with context (include headers for first chunk)
+    // Extract chunk with context
     let chunkCode: string;
     if (chunk_index === 0) {
-      // First chunk includes everything up to chunkEnd
       chunkCode = lines.slice(0, chunkEnd).join('\n');
     } else {
-      // Subsequent chunks need PROCEDURE DIVISION header for context
-      const headerLines = lines.slice(0, 50).join('\n'); // First 50 lines for context
+      const headerLines = lines.slice(0, 50).join('\n');
       const chunkLines = lines.slice(chunkStart, chunkEnd).join('\n');
       chunkCode = headerLines + '\n       PROCEDURE DIVISION.\n' + chunkLines;
     }
     
     // Parse and transpile chunk
-    const ast = parseCobolWithANTLR(chunkCode);
-    const pythonResult = transpileCobol(ast, chunkCode);
+    const ast = parseCobolQuick(chunkCode);
+    const pythonResult = await transpileCobolViaPython(chunkCode);
     
     return NextResponse.json({
       success: true,
@@ -135,12 +120,12 @@ export async function POST(request: NextRequest) {
       stats: {
         paragraphs_in_chunk: ast.paragraphs.length,
         variables_in_chunk: ast.workingStorageVariables.length,
-        python_lines: pythonResult.pythonCode.split('\n').length,
+        python_lines: pythonResult.python_code.split('\n').length,
         processing_time_ms: Date.now() - startTime
       },
-      python_code: pythonResult.pythonCode,
+      python_code: pythonResult.python_code,
       metadata: {
-        transpiler_version: '1.0.0',
+        transpiler_version: pythonResult.version,
         chunk_mode: true,
         warning: chunk_index > 0 ? 'Chunk includes header context - merge carefully' : undefined
       }
@@ -158,31 +143,19 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   return NextResponse.json({
-    name: 'CodeSwitch AST API',
-    version: '1.0.0',
-    description: 'Chunked COBOL → Python transpilation for large files',
+    name: 'CodeSwitch AST API (Unified)',
+    version: '4.4.0',
+    description: 'COBOL → Python transpilation via unified Python API',
     endpoints: {
       'POST /api/ast': {
         description: 'Transpile COBOL to Python with optional chunking',
         body: {
-          cobol_code: 'string (required) - COBOL source code',
-          chunk_index: 'number (optional) - 0-based chunk index for large files',
-          chunk_size: 'number (optional) - lines per chunk (default: 5000)',
-          full_parse: 'boolean (optional) - force full parsing'
-        },
-        response: {
-          success: 'boolean',
-          mode: '"full" | "chunked"',
-          python_code: 'string',
-          stats: 'object',
-          pagination: 'object (if chunked)'
+          cobol_code: 'string (required)',
+          chunk_index: 'number (optional)',
+          chunk_size: 'number (optional, default: 5000)',
+          full_parse: 'boolean (optional)'
         }
       }
-    },
-    limits: {
-      max_chunk_size: 10000,
-      recommended_chunk_size: 5000,
-      timeout_seconds: 120
     }
   }, { headers: corsHeaders });
 }

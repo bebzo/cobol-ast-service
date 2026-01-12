@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseCobolWithANTLR } from '@/lib/cobol-antlr-parser';
-import { transpileCobol as transpileAdvanced, transpileToCleanArchitecture } from '@/lib/cobol-transpiler';
+import { transpileCobolViaPython, parseCobolQuick, validateCobolInput } from '@/lib/transpiler-client';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Node.js runtime (Edge not compatible with complex modules)
@@ -10,8 +9,8 @@ export const maxDuration = 60; // 60s timeout for Pro plan
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 /**
- * CodeSwitch API v15.0 - TypeScript AST Transpiler + Clean Architecture
- * 100% serverless compatible - no Python dependency
+ * CodeSwitch API v16.0 - Unified Python Transpiler Client
+ * Uses Python engine as single source of truth via transpiler-client
  */
 
 const corsHeaders = {
@@ -20,70 +19,6 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Cache-Control': 'no-cache, no-store, must-revalidate',
 };
-
-// Validate COBOL input
-function isValidCobolCode(code: string): { valid: boolean; reason?: string } {
-  if (!code || code.trim().length < 50) {
-    return { valid: false, reason: 'Code too short - minimum 50 characters required' };
-  }
-  
-  const upper = code.toUpperCase();
-  
-  const cobolDivisions = ['IDENTIFICATION DIVISION', 'ENVIRONMENT DIVISION', 'DATA DIVISION', 'PROCEDURE DIVISION'];
-  const hasDivision = cobolDivisions.some(div => upper.includes(div));
-  
-  const cobolKeywords = [
-    'WORKING-STORAGE', 'PROGRAM-ID', 'PIC ', 'PICTURE',
-    'MOVE ', 'PERFORM ', 'IF ', 'END-IF', 'EVALUATE',
-    'COMPUTE ', 'ADD ', 'SUBTRACT ', 'MULTIPLY ', 'DIVIDE ',
-    'OPEN ', 'CLOSE ', 'READ ', 'WRITE ', 'CALL ', 'GOBACK'
-  ];
-  const keywordCount = cobolKeywords.filter(kw => upper.includes(kw)).length;
-  
-  if (nonCobolPatterns.some(pattern => pattern.test(code))) {
-    return { valid: false, reason: 'Input appears to be another programming language, not COBOL' };
-  }
-  
-  if (!hasDivision && keywordCount < 3) {
-    return { valid: false, reason: 'No COBOL structure detected' };
-  }
-  
-  return { valid: true };
-}
-
-const nonCobolPatterns = [
-  /^import\s+\w+/m, /^from\s+\w+\s+import/m, /^#include\s*[<"]/m,
-  /^def\s+\w+\s*\(/m, /^class\s+\w+.*:/m, /^public\s+class/m,
-];
-
-// Unified AST Transpiler - uses advanced parser for all modes
-function transpileCobolUnified(cobolSource: string): { success: boolean; python_code: string; stats: any; error?: string } {
-  try {
-    const ast = parseCobolWithANTLR(cobolSource);
-    const result = transpileAdvanced(ast, cobolSource);
-    
-    return {
-      success: true,
-      python_code: result.pythonCode,
-      stats: {
-        variables: ast.workingStorageVariables.length,
-        paragraphs: ast.paragraphs.length,
-        program_id: ast.programId,
-        methods_transpiled: result.stats.methodsTranspiled,
-        statements_transpiled: result.stats.statementsTranspiled,
-        average_confidence: result.stats.averageConfidence,
-        fallback_count: result.stats.fallbackCount
-      }
-    };
-  } catch (e: any) {
-    return {
-      success: false,
-      python_code: '',
-      stats: {},
-      error: e.message
-    };
-  }
-}
 
 // Expand COPYBOOK references
 function expandCopybooks(cobolCode: string, copybooks: Record<string, string>): string {
@@ -244,8 +179,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Step 1: Expand COPYBOOK references if provided
     const expandedCobolCode = expandCopybooks(cobolCode, copybooks || {});
     
-    // Validate COBOL (use expanded code)
-    const validation = isValidCobolCode(expandedCobolCode);
+    // Validate COBOL (use unified validator)
+    const validation = validateCobolInput(expandedCobolCode);
     if (!validation.valid) {
       return NextResponse.json(
         { error: `Invalid COBOL code: ${validation.reason}` },
@@ -254,75 +189,77 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const totalLines = cobolCode.split('\n').length;
+    console.log(`[v16.0] Processing ${totalLines} lines via Python transpiler`);
     
-    // Clean Architecture mode - returns multiple files
+    // Quick parse for UI feedback while Python processes
+    const quickParse = parseCobolQuick(expandedCobolCode);
+    
+    // Clean Architecture mode - call Python backend
     if (outputMode === 'clean-architecture') {
-      console.log(`[v15.0] Processing ${totalLines} lines with Clean Architecture transpiler`);
+      console.log(`[v16.0] Clean Architecture mode requested`);
       
-      try {
-        const ast = parseCobolWithANTLR(expandedCobolCode);
-        const result = transpileToCleanArchitecture(ast, cobolCode);
-        
-        // Convert Map to Object for JSON
-        const filesObject: Record<string, string> = {};
-        for (const [path, content] of result.files) {
-          filesObject[path] = content;
-        }
-        
-        const processingTime = Date.now() - startTime;
-        
-        return NextResponse.json({
-          success: true,
-          outputMode: 'clean-architecture',
-          programId: ast.programId,
-          files: filesObject,
-          stats: {
-            ...result.stats,
-            totalFiles: result.files.size,
-            processingTimeMs: processingTime
-          },
-          security_warnings: generateSecurityWarnings(cobolCode)
-        }, { headers: corsHeaders });
-        
-      } catch (e: any) {
-        console.error('Clean Architecture transpilation failed:', e);
+      // Call Python transpiler
+      const transpileResult = await transpileCobolViaPython(expandedCobolCode, enhancedMode);
+      
+      if (!transpileResult.success) {
         return NextResponse.json(
-          { error: `Clean Architecture transpilation failed: ${e.message}` },
+          { error: transpileResult.error || 'Transpilation failed' },
           { status: 500, headers: corsHeaders }
         );
       }
+      
+      const processingTime = Date.now() - startTime;
+      
+      // Generate clean architecture file structure
+      const programId = quickParse.programId;
+      const className = programId.replace(/-/g, '_').replace(/^\d/, 'P') + 'Processor';
+      
+      const filesObject: Record<string, string> = {
+        [`src/${className.toLowerCase()}/main.py`]: transpileResult.python_code,
+        [`tests/test_${className.toLowerCase()}.py`]: transpileResult.unit_tests,
+      };
+      
+      return NextResponse.json({
+        success: true,
+        outputMode: 'clean-architecture',
+        programId: programId,
+        files: filesObject,
+        stats: {
+          ...transpileResult.stats,
+          totalFiles: Object.keys(filesObject).length,
+          processingTimeMs: processingTime
+        },
+        security_warnings: generateSecurityWarnings(cobolCode)
+      }, { headers: corsHeaders });
     }
     
-    // Default: single-file mode with full AST parser
-    console.log(`[v15.0] Processing ${totalLines} lines with TypeScript AST transpiler`);
+    // Default: single-file mode via Python transpiler
+    let transpileResult = await transpileCobolViaPython(expandedCobolCode, false);
 
-    // Call unified AST transpiler (same engine as Clean Architecture) - use expanded code
-    let pythonResult = transpileCobolUnified(expandedCobolCode);
-
-    if (!pythonResult.success) {
+    if (!transpileResult.success) {
       return NextResponse.json(
-        { error: pythonResult.error || 'Transpilation failed' },
+        { error: transpileResult.error || 'Transpilation failed' },
         { status: 500, headers: corsHeaders }
       );
     }
 
     // Step 2: Resolve TODOs with Gemini if enhancedMode is enabled
     if (enhancedMode) {
-      console.log('[v15.0] Enhanced mode enabled - resolving TODOs with Gemini...');
-      const resolvedCode = await resolveTodosWithGemini(pythonResult.python_code, expandedCobolCode);
-      pythonResult = {
-        ...pythonResult,
-        python_code: resolvedCode
+      console.log('[v16.0] Enhanced mode enabled - resolving TODOs with Gemini...');
+      const resolvedCode = await resolveTodosWithGemini(transpileResult.python_code, expandedCobolCode);
+      transpileResult = {
+        ...transpileResult,
+        python_code: resolvedCode,
+        pythonCode: resolvedCode
       };
     }
 
-    // Extract program ID from COBOL
-    const programMatch = cobolCode.match(/PROGRAM-ID\.\s+(\w+)/i);
-    const programId = programMatch ? programMatch[1].replace('.', '') : 'PROGRAM';
+    // Extract program ID from quick parse
+    const programId = quickParse.programId;
     const className = programId.replace(/-/g, '_').replace(/^\d/, 'P') + 'Processor';
 
     // Build response
-    const pythonLines = pythonResult.python_code.split('\n').length;
+    const pythonLines = transpileResult.python_code.split('\n').length;
     const processingTime = Date.now() - startTime;
     
     // Generate architecture diagram
@@ -339,7 +276,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       Config[Configuration]
       Methods[Business Logic]
     end
-    COBOL ==>|AST Transpiler v3.0| Python
+    COBOL ==>|Python Transpiler v4.4| Python
     Main --> Config
     Main --> Methods`;
 
@@ -351,46 +288,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Improvements
     const improvements = [
-      `${pythonResult.stats?.paragraphs || 0} methods transpiled`,
+      `${transpileResult.stats?.paragraphs || quickParse.paragraphs.length} methods transpiled`,
       '100% syntax-valid Python code guaranteed',
       'Clean Architecture with dataclasses',
       'Boolean flags (not Y/N strings)',
       'Decimal for all monetary values',
-      'Zero external API calls - instant processing'
+      'Unified Python transpiler engine'
     ];
 
     // Security analysis
     const securityWarnings = generateSecurityWarnings(cobolCode);
 
-    // Generate unit tests
-    const methodMatches = [...pythonResult.python_code.matchAll(/def (p_\d+_\w+)\(self\)/g)];
-    const testMethods = methodMatches.slice(0, 20).map(m => m[1]);
-    const generatedTests = `"""Auto-generated unit tests for ${className}"""
+    // Generate unit tests (use what Python returned or generate stubs)
+    const generatedTests = transpileResult.unit_tests || `"""Auto-generated unit tests for ${className}"""
 import pytest
 from decimal import Decimal
-
-# Import the transpiled module
-# from ${className.toLowerCase().replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase()} import ${className}
 
 class Test${className}:
     """Test suite for ${className}"""
     
     def setup_method(self):
         """Setup test fixtures"""
-        # self.system = ${className}()
         pass
     
-${testMethods.map(m => `    def test_${m}(self):
-        """Test ${m.replace(/_/g, ' ')}"""
-        # TODO: Implement test logic
-        # result = self.system.${m}()
-        # assert result is not None
-        pass
-`).join('\n')}
     def test_initialization(self):
         """Test system initialization"""
-        # system = ${className}()
-        # assert system is not None
         pass
     
     def test_decimal_precision(self):
@@ -402,11 +324,11 @@ ${testMethods.map(m => `    def test_${m}(self):
 `;
 
     // Generate config with extracted rates
-    const rateMatches = [...pythonResult.python_code.matchAll(/(\w+_rate):\s*Decimal\(['"]([\d.]+)['"]\)/g)];
-    const feeMatches = [...pythonResult.python_code.matchAll(/(\w+_fee):\s*Decimal\(['"]([\d.]+)['"]\)/g)];
+    const rateMatches = [...transpileResult.python_code.matchAll(/(\w+_rate):\s*Decimal\(['"]([\d.]+)['"]\)/g)];
+    const feeMatches = [...transpileResult.python_code.matchAll(/(\w+_fee):\s*Decimal\(['"]([\d.]+)['"]\)/g)];
     const configData = {
-      transpiler: 'TypeScript AST v3.0',
-      ai_calls: 0,
+      transpiler: 'Python v4.4.0',
+      ai_calls: transpileResult.stats?.gemini_calls || 0,
       syntax_valid: true,
       rates: Object.fromEntries(rateMatches.slice(0, 15).map(m => [m[1], parseFloat(m[2])])),
       fees: Object.fromEntries(feeMatches.slice(0, 10).map(m => [m[1], parseFloat(m[2])])),
@@ -453,21 +375,17 @@ ${testMethods.map(m => `    def test_${m}(self):
     if (totalLines > 1000) confidenceScore += 2; // More code = more context
     confidenceScore = Math.min(99, confidenceScore);
 
-    // Build modules list
-    const modules: any[] = [];
-    const paragraphMatches = [...cobolCode.matchAll(/^\s{6,8}([A-Z0-9][-A-Z0-9]+)\.\s*$/gm)];
-    for (const match of paragraphMatches.slice(0, 50)) {
-      modules.push({
-        name: match[1],
-        type: 'PARAGRAPH',
-        complexity: 'MEDIUM'
-      });
-    }
+    // Build modules list from quick parse
+    const modules = quickParse.paragraphs.slice(0, 50).map(p => ({
+      name: p.name,
+      type: 'PARAGRAPH',
+      complexity: 'MEDIUM'
+    }));
 
     return NextResponse.json({
       // Core output
-      python_code: pythonResult.python_code,
-      pythonCode: pythonResult.python_code,
+      python_code: transpileResult.python_code,
+      pythonCode: transpileResult.python_code,
       unit_tests: generatedTests,
       tests: generatedTests,
       config_json: JSON.stringify(configData, null, 2),
@@ -483,7 +401,7 @@ ${testMethods.map(m => `    def test_${m}(self):
       code_valid: true,
       
       // Summary
-      summary: `${totalLines} COBOL lines → ${pythonLines} Python lines (AST Transpiler v3.0, 0 AI calls, 100% syntax valid)`,
+      summary: `${totalLines} COBOL lines → ${pythonLines} Python lines (Python Transpiler v4.4, unified engine)`,
       
       // Analysis tabs
       issues,
@@ -497,7 +415,7 @@ ${testMethods.map(m => `    def test_${m}(self):
         domain: detectedDomain,
         detected_year: detectedYear,
         is_obsolete: detectedYear === 'Legacy' || (parseInt(detectedYear) < 2000),
-        regulatory_context: `${detectedDomain} system modernization via AST transpilation`
+        regulatory_context: `${detectedDomain} system modernization via Python transpiler`
       },
       
       // Migration score (calculated)
@@ -519,20 +437,20 @@ ${testMethods.map(m => `    def test_${m}(self):
       // Metadata
       filename: filename || `${programId}.cbl`,
       category: 'Enterprise',
-      version: '3.0.0',
-      architecture: 'Clean Architecture',
+      version: transpileResult.version || '4.4.0',
+      architecture: transpileResult.architecture || 'Clean Architecture',
       
       // Stats from transpiler
-      transpiler_stats: pythonResult.stats || {
-        variables: 0,
-        paragraphs: 0,
+      transpiler_stats: transpileResult.stats || {
+        variables: quickParse.workingStorageVariables.length,
+        paragraphs: quickParse.paragraphs.length,
         program_id: programId
       }
       
     }, { headers: corsHeaders });
 
   } catch (error: any) {
-    console.error('[v14.0] Error:', error);
+    console.error('[v16.0] Error:', error);
     return NextResponse.json(
       { error: error.message || 'Analysis failed' },
       { status: 500, headers: corsHeaders }
