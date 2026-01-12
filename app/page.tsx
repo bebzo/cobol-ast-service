@@ -99,36 +99,9 @@ def check_syntax(code):
   }
 }
 
-// Run tests using Pyodide
+// Run tests using Pyodide (v8.4: removed dead Render server call)
 async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
-  // v8.4: Try server-side pytest first with strict 8s timeout
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s max
-    
-    const response = await fetch('https://codeswitch-v8rr.onrender.com/api/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: pythonCode, tests: testCode }),
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    
-    if (response.ok) {
-      const result = await response.json();
-      if (result.total > 0) {
-        return result;
-      }
-    }
-  } catch (e: any) {
-    if (e.name === 'AbortError') {
-      console.log('Server tests timed out (8s), using Pyodide');
-    } else {
-      console.log('Server-side tests failed, falling back to Pyodide');
-    }
-  }
-  
-  // Fallback to Pyodide
+  // Use Pyodide for real Python execution
   try {
     const pyodide = await getPyodide();
     if (!pyodide) return { total: 0, passed: 0, failed: 0, details: [{name: 'pyodide', status: 'error', error: 'Pyodide not available'}] };
