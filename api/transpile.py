@@ -3885,12 +3885,26 @@ def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
             remaining = sq_match.group(2)
             continue
         
-        # Check for variable (must not be inside a string)
-        var_match = re.match(r'^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)(.*)$', remaining, re.IGNORECASE)
+        # Check for variable with optional array subscript: VAR or VAR(INDEX)
+        # v5.7.13: Handle COBOL array subscripts in DISPLAY statements
+        var_match = re.match(r'^([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)(?:\s*\(\s*([A-Z0-9][A-Z0-9-]*)\s*\))?(.*)$', remaining, re.IGNORECASE)
         if var_match:
             var_name = var_match.group(1)
-            parts.append(('var', to_snake_case(var_name)))
-            remaining = var_match.group(2)
+            subscript = var_match.group(2)  # Index variable or None
+            if subscript:
+                # Array subscript: VAR(INDEX) -> self.var[int(self.idx) - 1]
+                py_var = to_snake_case(var_name)
+                if subscript.isdigit():
+                    # Numeric index: VAR(1) -> self.var[0]
+                    py_idx = int(subscript) - 1
+                    parts.append(('subscript', f'{py_var}[{py_idx}]'))
+                else:
+                    # Variable index: VAR(IDX) -> self.var[int(self.idx) - 1]
+                    py_idx = to_snake_case(subscript)
+                    parts.append(('subscript', f'{py_var}[int(self.{py_idx}) - 1]'))
+            else:
+                parts.append(('var', to_snake_case(var_name)))
+            remaining = var_match.group(3)
             continue
         
         # Skip unknown characters (spaces, commas, etc.)
@@ -3913,6 +3927,41 @@ def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
     for part_type, part_value in parts:
         if part_type == 'text':
             fstring_parts.append(ast.Constant(value=part_value))
+        elif part_type == 'subscript':
+            # v5.7.13: Array subscript - parse and build proper AST
+            # part_value is like "var[int(self.idx) - 1]" or "var[0]"
+            subscript_match = re.match(r'(\w+)\[(.+)\]', part_value)
+            if subscript_match:
+                var_name = subscript_match.group(1)
+                idx_expr = subscript_match.group(2)
+                # Build the subscript AST
+                try:
+                    idx_ast = ast.parse(idx_expr, mode='eval').body
+                    subscript_ast = ast.Subscript(
+                        value=ast.Attribute(
+                            value=ast.Name(id='self', ctx=ast.Load()),
+                            attr=var_name,
+                            ctx=ast.Load()
+                        ),
+                        slice=idx_ast,
+                        ctx=ast.Load()
+                    )
+                    fstring_parts.append(ast.FormattedValue(
+                        value=subscript_ast,
+                        conversion=-1,
+                        format_spec=None
+                    ))
+                except:
+                    # Fallback to simple variable
+                    fstring_parts.append(ast.FormattedValue(
+                        value=ast.Attribute(
+                            value=ast.Name(id='self', ctx=ast.Load()),
+                            attr=var_name,
+                            ctx=ast.Load()
+                        ),
+                        conversion=-1,
+                        format_spec=None
+                    ))
         else:
             # Variable reference
             fstring_parts.append(ast.FormattedValue(
@@ -3954,13 +4003,35 @@ def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
         auto_round_monetary = is_monetary_variable(target_cobol)
         should_round = is_rounded or auto_round_monetary
         
+        # v5.7.13: Convert COBOL array subscripts VAR(INDEX) to Python self.var[int(self.idx) - 1]
+        # Must do this BEFORE simple variable conversion to avoid self.var(self.idx) syntax
+        def convert_subscript_in_expr(m):
+            var_name = to_snake_case(m.group(1))
+            index_expr = m.group(2).strip()
+            if index_expr.isdigit():
+                # Numeric index: VAR(1) -> self.var[0]
+                py_idx = int(index_expr) - 1
+                return f'self.{var_name}[{py_idx}]'
+            else:
+                # Variable index: VAR(IDX) -> self.var[int(self.idx) - 1]
+                py_idx = to_snake_case(index_expr)
+                return f'self.{var_name}[int(self.{py_idx}) - 1]'
+        
+        expr_str = re.sub(
+            r'\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*([A-Z0-9][A-Z0-9-]*)\s*\)(?!\s*:)',
+            convert_subscript_in_expr,
+            expr_str,
+            flags=re.IGNORECASE
+        )
+        
         # Convert COBOL variable names to Python (self.var_name)
         expr_str = re.sub(r'\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b', 
                          lambda m: f'self.{to_snake_case(m.group(1))}', expr_str)
         
         # Convert literal numbers to Decimal for precision
-        expr_str = re.sub(r'\b(\d+\.\d+)\b', r"Decimal('\1')", expr_str)
-        expr_str = re.sub(r'(?<!\.)\b(\d+)\b(?!\.)', r"Decimal('\1')", expr_str)
+        # v5.7.13: Exclude numbers that are array indices (preceded by '[')
+        expr_str = re.sub(r'(?<!\[)\b(\d+\.\d+)\b', r"Decimal('\1')", expr_str)
+        expr_str = re.sub(r'(?<!\[)(?<!\.)\b(\d+)\b(?![.\]])', r"Decimal('\1')", expr_str)
         
         try:
             expr_ast = ast.parse(expr_str, mode='eval').body
@@ -6673,7 +6744,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.12-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.12-golden' if enhance else '5.7.12',
+            'version': '5.7.13-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.13-golden' if enhance else '5.7.13',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -7275,7 +7346,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.12',
+            'version': '5.7.13',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
