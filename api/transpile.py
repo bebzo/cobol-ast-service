@@ -3240,12 +3240,40 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
         stmt_clean = stmt_clean.split('*>')[0].strip()
     
     # Extract source and targets from MOVE ... TO ...
-    move_match = re.match(r'MOVE\s+(.+?)\s+TO\s+(.+)', stmt_clean, re.IGNORECASE)
-    if not move_match:
-        return None
-    
-    source_str = move_match.group(1).strip()
-    targets_str = move_match.group(2).strip()
+    # v5.7.7: Handle strings containing "TO" by finding the LAST standalone TO
+    # First, check if source is a quoted string
+    quoted_match = re.match(r'MOVE\s+("[^"]*"|\'[^\']*\')\s+TO\s+(.+)', stmt_clean, re.IGNORECASE)
+    if quoted_match:
+        source_str = quoted_match.group(1).strip()
+        targets_str = quoted_match.group(2).strip()
+    else:
+        # For non-quoted sources, use the standard regex
+        # But ensure we match the LAST "TO" that's followed by a valid identifier
+        # Find all " TO " occurrences and use the last one that precedes a variable name
+        to_positions = [m.start() for m in re.finditer(r'\s+TO\s+', stmt_clean, re.IGNORECASE)]
+        
+        if not to_positions:
+            return None
+        
+        # Try from the last TO position backwards to find valid parse
+        source_str = None
+        targets_str = None
+        for pos in reversed(to_positions):
+            potential_targets = stmt_clean[pos:].strip()
+            potential_targets = re.sub(r'^\s*TO\s+', '', potential_targets, flags=re.IGNORECASE)
+            # Check if this starts with a valid variable name
+            if re.match(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*', potential_targets, re.IGNORECASE):
+                source_str = stmt_clean[5:pos].strip()  # Skip "MOVE "
+                targets_str = potential_targets
+                break
+        
+        if not source_str or not targets_str:
+            # Fallback to original regex
+            move_match = re.match(r'MOVE\s+(.+?)\s+TO\s+(.+)', stmt_clean, re.IGNORECASE)
+            if not move_match:
+                return None
+            source_str = move_match.group(1).strip()
+            targets_str = move_match.group(2).strip()
     
     # Parse all target variables (handle substring notation)
     # First try to match substring patterns, then regular variables
@@ -6126,7 +6154,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.2.0-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.2.0-golden' if enhance else '5.2.0',
+            'version': '5.7.7-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.7-golden' if enhance else '5.7.7',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
