@@ -2227,7 +2227,7 @@ def generate_config_dataclass(config_vars: List[CobolVariable], class_name: str)
         fields.append(ast.AnnAssign(
             target=ast.Name(id=py_name, ctx=ast.Store()),
             annotation=ast.Name(id=py_type, ctx=ast.Load()),
-            value=cobol_value_to_python_v3(var.value, var.picture, var.name),
+            value=cobol_value_to_python_v3(var.value, var.picture, var.name, var.conditions_88),
             simple=1
         ))
     
@@ -2332,7 +2332,7 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
             py_value = cobol_value_to_python_v3(var.value, var.picture, var.name, var.conditions_88)
         else:
             py_type, _ = pic_to_python_type(var.picture, var.value)
-            py_value = cobol_value_to_python_v3(var.value, var.picture, var.name)
+            py_value = cobol_value_to_python_v3(var.value, var.picture, var.name, var.conditions_88)
         
         init_body.append(ast.AnnAssign(
             target=ast.Attribute(
