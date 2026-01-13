@@ -172,10 +172,129 @@ export async function POST(request: NextRequest) {
         detail: 'Checking for vulnerabilities'
       });
       
+      // Comprehensive security analysis
       const securityWarnings: any[] = [];
       const lower = cobolCode.toLowerCase();
-      if (lower.includes('password')) securityWarnings.push({ title: 'Hardcoded credentials', severity: 'CRITICAL' });
-      if (lower.includes('exec sql') && !lower.includes('prepare')) securityWarnings.push({ title: 'SQL injection risk', severity: 'HIGH' });
+      const upper = cobolCode.toUpperCase();
+      const lines = cobolCode.split('\n');
+      
+      const findLine = (pattern: string) => {
+        const idx = lines.findIndex(l => l.toLowerCase().includes(pattern.toLowerCase()));
+        return idx >= 0 ? idx + 1 : 0;
+      };
+      const countOccurrences = (pattern: string) => (lower.match(new RegExp(pattern, 'gi')) || []).length;
+      
+      // CRITICAL: Hardcoded Credentials
+      const credentialPatterns = ['password', 'pwd', 'passwd', 'secret', 'api-key', 'apikey'];
+      for (const pattern of credentialPatterns) {
+        if (lower.includes(pattern)) {
+          securityWarnings.push({ 
+            title: 'Hardcoded Credentials Detected', 
+            severity: 'CRITICAL', 
+            cvss_score: 9.1,
+            location: `Line ${findLine(pattern)}`,
+            description: `Sensitive credential field "${pattern}" found. Store credentials in environment variables or secret managers.`,
+            fix: 'Use environment variables, AWS Secrets Manager, or HashiCorp Vault.',
+            cwe: 'CWE-798'
+          });
+          break;
+        }
+      }
+      
+      // CRITICAL: SQL Injection
+      if (lower.includes('exec sql') && !lower.includes('prepare')) {
+        securityWarnings.push({ 
+          title: 'SQL Injection Vulnerability', 
+          severity: 'CRITICAL', 
+          cvss_score: 9.8,
+          location: `Line ${findLine('exec sql')}`,
+          description: 'Embedded SQL without PREPARE/EXECUTE pattern. Use parameterized queries.',
+          fix: 'Use PREPARE statement with parameter markers.',
+          cwe: 'CWE-89'
+        });
+      }
+      
+      // HIGH: PII Data
+      const piiPatterns = ['ssn', 'social-security', 'tax-id', 'date-of-birth'];
+      const foundPii = piiPatterns.filter(p => lower.includes(p));
+      if (foundPii.length > 0) {
+        securityWarnings.push({ 
+          title: 'PII Data Detected', 
+          severity: 'HIGH', 
+          cvss_score: 7.5,
+          description: `Found PII fields: ${foundPii.join(', ')}. Implement field-level encryption.`,
+          fix: 'Encrypt PII with AES-256-GCM. Implement data masking.',
+          cwe: 'CWE-312'
+        });
+      }
+      
+      // HIGH: CICS without security
+      if (upper.includes('EXEC CICS') && !upper.includes('VERIFY') && !upper.includes('SIGNON')) {
+        securityWarnings.push({ 
+          title: 'CICS Transaction Without Security', 
+          severity: 'HIGH', 
+          cvss_score: 7.5,
+          description: 'CICS transactions should implement RACF/ACF2 security verification.',
+          fix: 'Add EXEC CICS VERIFY PASSWORD or RACF integration.',
+          cwe: 'CWE-862'
+        });
+      }
+      
+      // MEDIUM: Missing input validation
+      const inputCount = countOccurrences('accept') + countOccurrences('read ');
+      const validationCount = countOccurrences('validate') + countOccurrences('verify');
+      if (inputCount > 0 && validationCount < inputCount / 2) {
+        securityWarnings.push({ 
+          title: 'Insufficient Input Validation', 
+          severity: 'MEDIUM', 
+          cvss_score: 6.1,
+          description: `Found ${inputCount} input operations but only ${validationCount} validation checks.`,
+          fix: 'Validate all inputs: check data type, length, format, and range.',
+          cwe: 'CWE-20'
+        });
+      }
+      
+      // MEDIUM: Missing overflow handling
+      if ((upper.includes('COMPUTE') || upper.includes('ADD')) && !upper.includes('ON SIZE ERROR')) {
+        securityWarnings.push({ 
+          title: 'Missing Numeric Overflow Handling', 
+          severity: 'MEDIUM', 
+          cvss_score: 5.5,
+          description: 'Arithmetic operations without ON SIZE ERROR can cause silent truncation.',
+          fix: 'Add ON SIZE ERROR clause to all arithmetic operations.',
+          cwe: 'CWE-190'
+        });
+      }
+      
+      // LOW: GO TO complexity
+      const gotoCount = countOccurrences('go to');
+      if (gotoCount > 3) {
+        securityWarnings.push({ 
+          title: 'Complex Control Flow (GO TO)', 
+          severity: 'LOW', 
+          cvss_score: 2.5,
+          description: `${gotoCount} GO TO statements create spaghetti code difficult to audit.`,
+          fix: 'Refactor to use structured PERFORM statements.',
+          cwe: 'CWE-1120'
+        });
+      }
+      
+      // Calculate security score
+      const criticalCount = securityWarnings.filter(w => w.severity === 'CRITICAL').length;
+      const highCount = securityWarnings.filter(w => w.severity === 'HIGH').length;
+      const mediumCount = securityWarnings.filter(w => w.severity === 'MEDIUM').length;
+      const lowCount = securityWarnings.filter(w => w.severity === 'LOW').length;
+      const securityScore = Math.max(0, 100 - (criticalCount * 25) - (highCount * 15) - (mediumCount * 5) - (lowCount * 2));
+      const securityGrade = securityScore >= 90 ? 'A' : securityScore >= 80 ? 'B' : securityScore >= 70 ? 'C' : securityScore >= 60 ? 'D' : 'F';
+      
+      // Add summary as first item
+      securityWarnings.unshift({
+        title: `Security Score: ${securityScore}/100 (Grade ${securityGrade})`,
+        severity: 'INFO',
+        cvss_score: 0,
+        description: `Found ${criticalCount} Critical, ${highCount} High, ${mediumCount} Medium, ${lowCount} Low issues.`,
+        summary: { critical: criticalCount, high: highCount, medium: mediumCount, low: lowCount, score: securityScore, grade: securityGrade }
+      });
       
       // Step 8: Finalization (95-100%)
       send('progress', { 
@@ -270,6 +389,12 @@ export async function POST(request: NextRequest) {
           estimated_effort: `${Math.max(1, Math.round(totalLines / 500))} person-days`,
           risk_level: 'LOW'
         },
+        next_steps: [
+          'Review generated Python code for business logic accuracy',
+          'Run unit tests to validate transpilation',
+          'Address security findings in order of severity',
+          'Deploy to staging environment for integration testing'
+        ],
         filename: filename || `${quickParse.programId}.cbl`,
         transpiler_stats: result.stats,
         transpiler_version: result.version
