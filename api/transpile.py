@@ -1,6 +1,11 @@
 """
-COBOL → Python Transpiler v5.7.10 (Inline Statements Support)
+COBOL → Python Transpiler v5.7.11 (Type-Safe 88-Levels)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.11:
+- FIX: 88-level properties now use parent variable's actual type (PIC-based)
+- FIX: String parents (PIC X) compare with strings, not Decimal
+- FIX: Bool parents (Y/N flags) compare with True/False, not 'Y'/'N'
 
 Improvements in v5.7.10:
 - FIX: Inline statements (PROCEDURE DIVISION without named paragraphs) now transpiled
@@ -1988,10 +1993,32 @@ def generate_record_dataclass(record_name: str, fields: List[CobolVariable]) -> 
     return '\n'.join(lines)
 
 
-def generate_88_level_properties(conditions: List[Cobol88Condition]) -> str:
-    """Generate @property decorators for 88-level conditions"""
+def generate_88_level_properties(conditions: List[Cobol88Condition], variables: Optional[List[CobolVariable]] = None) -> str:
+    """Generate @property decorators for 88-level conditions
+    
+    v5.7.11: Now takes variables list to determine parent variable type.
+    This ensures proper type matching (string parent uses string comparison, etc.)
+    """
     if not conditions:
         return ''
+    
+    # v5.7.11: Build a map of variable names to their types
+    parent_types: Dict[str, str] = {}  # 'numeric', 'string', 'bool'
+    if variables:
+        for var in variables:
+            var_name = to_snake_case(var.name)
+            # First check if it's a bool (Y/N flag)
+            if is_flag_variable(var.name, var.value, var.conditions_88):
+                parent_types[var_name] = 'bool'
+            elif var.picture:  # Note: attribute is 'picture', not 'pic'
+                pic_upper = var.picture.upper()
+                # PIC 9 = numeric, PIC X/A = string
+                if 'X' in pic_upper or 'A' in pic_upper:
+                    parent_types[var_name] = 'string'
+                elif '9' in pic_upper:
+                    parent_types[var_name] = 'numeric'
+                else:
+                    parent_types[var_name] = 'string'  # default to string
     
     lines = []
     lines.append('')
@@ -2008,6 +2035,9 @@ def generate_88_level_properties(conditions: List[Cobol88Condition]) -> str:
         by_parent[parent].append(cond)
     
     for parent, conds in by_parent.items():
+        # v5.7.11: Determine parent type from PIC, not from value
+        parent_type = parent_types.get(parent, None)
+        
         for cond in conds:
             prop_name = to_snake_case(cond.name)
             values = cond.values
@@ -2019,12 +2049,26 @@ def generate_88_level_properties(conditions: List[Cobol88Condition]) -> str:
             lines.append(f'        """88-level condition: {cond.name} (parent: {parent})"""')
             
             if values:
-                # v5.7.9: Check if values are numeric and format appropriately
-                value_checks = ' or '.join([
-                    f'self.{parent} == {format_88_value_for_comparison(v, is_numeric_88_value(v))}' 
-                    for v in values
-                ])
-                lines.append(f'        return {value_checks}')
+                # v5.7.11: Use parent type to determine comparison format
+                value_checks = []
+                for v in values:
+                    clean_v = v.strip().strip("'\"")
+                    if parent_type == 'bool':
+                        # Bool parent: Y/TRUE/1 = True, N/FALSE/0 = False
+                        bool_val = clean_v.upper() in ('Y', 'TRUE', '1')
+                        value_checks.append(f"self.{parent} == {bool_val}")
+                    elif parent_type == 'string':
+                        # String parent: always use string comparison
+                        value_checks.append(f"self.{parent} == {repr(clean_v)}")
+                    elif parent_type == 'numeric':
+                        # Numeric parent: use Decimal
+                        value_checks.append(f"self.{parent} == Decimal('{clean_v}')")
+                    else:
+                        # Unknown: fallback to value-based detection (legacy behavior)
+                        is_numeric = is_numeric_88_value(v)
+                        value_checks.append(f'self.{parent} == {format_88_value_for_comparison(v, is_numeric)}')
+                
+                lines.append(f'        return {" or ".join(value_checks)}')
             else:
                 lines.append(f'        return bool(self.{parent})')
             
@@ -2034,9 +2078,18 @@ def generate_88_level_properties(conditions: List[Cobol88Condition]) -> str:
             lines.append(f'    def {prop_name}(self, value: bool) -> None:')
             lines.append(f'        """Set {parent} to first condition value when True"""')
             if values:
-                first_value = values[0]
-                is_numeric = is_numeric_88_value(first_value)
-                formatted_assign = format_88_value_for_comparison(first_value, is_numeric)
+                first_value = values[0].strip().strip("'\"")
+                if parent_type == 'bool':
+                    # Bool parent: set True/False directly
+                    bool_val = first_value.upper() in ('Y', 'TRUE', '1')
+                    formatted_assign = str(bool_val)
+                elif parent_type == 'string':
+                    formatted_assign = repr(first_value)
+                elif parent_type == 'numeric':
+                    formatted_assign = f"Decimal('{first_value}')"
+                else:
+                    is_numeric = is_numeric_88_value(values[0])
+                    formatted_assign = format_88_value_for_comparison(values[0], is_numeric)
                 lines.append(f'        if value:')
                 lines.append(f'            self.{parent} = {formatted_assign}')
             else:
@@ -2154,7 +2207,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.10]
+Auto-transpiled from COBOL [AST Transpiler v5.7.11]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -2319,32 +2372,60 @@ Methods:
     
     # Add 88-level properties as code
     if cobol_ast.conditions_88:
-        prop_code = generate_88_level_properties(cobol_ast.conditions_88)
-        if prop_code.strip():
-            # Parse and add each property
-            # We need to add these as method definitions
-            for cond in cobol_ast.conditions_88:
-                prop_name = to_snake_case(cond.name)
-                parent = to_snake_case(cond.parent_var)
-                values = cond.values
+        # v5.7.11: Build parent type map from PIC clauses
+        parent_types: Dict[str, str] = {}  # 'numeric', 'string', 'bool'
+        for var in cobol_ast.variables:
+            var_name = to_snake_case(var.name)
+            # First check if it's a bool (Y/N flag)
+            if is_flag_variable(var.name, var.value, var.conditions_88):
+                parent_types[var_name] = 'bool'
+            elif var.picture:
+                pic_upper = var.picture.upper()
+                if 'X' in pic_upper or 'A' in pic_upper:
+                    parent_types[var_name] = 'string'
+                elif '9' in pic_upper:
+                    parent_types[var_name] = 'numeric'
+                else:
+                    parent_types[var_name] = 'string'
+        
+        for cond in cobol_ast.conditions_88:
+            prop_name = to_snake_case(cond.name)
+            parent = to_snake_case(cond.parent_var)
+            values = cond.values
+            
+            # v5.7.11: Get parent type from map
+            parent_type = parent_types.get(parent, None)
+            
+            # Create getter - v5.7.11: Use parent type for comparison
+            if values:
+                first_val = values[0]
+                clean_val = first_val.strip().strip("'\"")
                 
-                # Create getter - v5.7.9: Use proper type for comparison
-                if values:
-                    first_val = values[0]
+                # v5.7.11: Format based on parent type, not value content
+                if parent_type == 'bool':
+                    bool_val = clean_val.upper() in ('Y', 'TRUE', '1')
+                    value_check = f'self.{parent} == {bool_val}'
+                elif parent_type == 'string':
+                    value_check = f'self.{parent} == {repr(clean_val)}'
+                elif parent_type == 'numeric':
+                    value_check = f"self.{parent} == Decimal('{clean_val}')"
+                else:
+                    # Fallback: use value-based detection
                     is_numeric = is_numeric_88_value(first_val)
                     formatted_val = format_88_value_for_comparison(first_val, is_numeric)
                     value_check = f'self.{parent} == {formatted_val}'
-                    getter_body = [ast.Return(value=ast.parse(value_check, mode='eval').body)]
-                else:
-                    getter_body = [ast.Return(value=ast.Call(
-                        func=ast.Name(id='bool', ctx=ast.Load()),
-                        args=[ast.Attribute(
-                            value=ast.Name(id='self', ctx=ast.Load()),
-                            attr=parent,
-                            ctx=ast.Load()
-                        )],
-                        keywords=[]
-                    ))]
+                
+                getter_body = [ast.Return(value=ast.parse(value_check, mode='eval').body)]
+            else:
+                getter_body = [ast.Return(value=ast.Call(
+                    func=ast.Name(id='bool', ctx=ast.Load()),
+                    args=[ast.Attribute(
+                        value=ast.Name(id='self', ctx=ast.Load()),
+                        attr=parent,
+                        ctx=ast.Load()
+                    )],
+                    keywords=[]
+                ))]
                 
                 # Sanitize condition name for docstring
                 safe_cond_name = cond.name.replace('"', "'").replace('\n', ' ')
@@ -2371,21 +2452,35 @@ Methods:
                 )
                 class_body.append(getter)
                 
-                # Create setter - v5.7.9: Use proper type for assignment
+                # Create setter - v5.7.11: Use parent type for assignment
                 if values:
                     first_val = values[0]
-                    is_numeric = is_numeric_88_value(first_val)
-                    if is_numeric:
-                        # Use Decimal for numeric values
-                        clean_val = first_val.strip().strip("'\"")
+                    clean_val = first_val.strip().strip("'\"")
+                    
+                    # v5.7.11: Use parent type for assignment value
+                    if parent_type == 'bool':
+                        bool_val = clean_val.upper() in ('Y', 'TRUE', '1')
+                        assign_value = ast.Constant(value=bool_val)
+                    elif parent_type == 'string':
+                        assign_value = ast.Constant(value=clean_val)
+                    elif parent_type == 'numeric':
                         assign_value = ast.Call(
                             func=ast.Name(id='Decimal', ctx=ast.Load()),
                             args=[ast.Constant(value=clean_val)],
                             keywords=[]
                         )
                     else:
-                        # Use string for non-numeric values
-                        assign_value = ast.Constant(value=first_val.strip().strip("'\""))
+                        # Fallback: use value-based detection
+                        is_numeric = is_numeric_88_value(first_val)
+                        if is_numeric:
+                            assign_value = ast.Call(
+                                func=ast.Name(id='Decimal', ctx=ast.Load()),
+                                args=[ast.Constant(value=clean_val)],
+                                keywords=[]
+                            )
+                        else:
+                            assign_value = ast.Constant(value=clean_val)
+                    
                     setter_body = [
                         ast.If(
                             test=ast.Name(id='value', ctx=ast.Load()),
