@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "echo 'Starting build...' && npm list --depth=0 && next build",
+    "build": "next build",
     "start": "next start",
     "test": "npx tsx tests/e2e.test.ts",
     "test:e2e": "npx tsx tests/e2e.test.ts"
