@@ -411,7 +411,10 @@ export async function POST(request: NextRequest) {
       send('complete', fullResult);
       
     } catch (error: any) {
-      send('error', { message: error.message || 'Analysis failed' });
+      const message = error.name === 'AbortError' 
+        ? 'Timeout: Le fichier est trop volumineux. Essayez avec un fichier plus petit ou réessayez.'
+        : error.message || 'Analysis failed';
+      send('error', { message });
     } finally {
       close();
     }
