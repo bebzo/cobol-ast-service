@@ -1,6 +1,11 @@
 """
-COBOL → Python Transpiler v5.7.6 (LINKAGE SECTION Fix)
+COBOL → Python Transpiler v5.7.7 (DECLARATIVES Entry Point Fix)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.7:
+- FIX: DECLARATIVES section no longer becomes entry point
+- FIX: run() now calls main paragraph (e.g., 000-MAIN) instead of declaratives()
+- FIX: Correctly identifies and skips error-handler sections
 
 Improvements in v5.7.6:
 - FIX: LINKAGE SECTION now parsed separately from WORKING-STORAGE
@@ -2411,8 +2416,50 @@ def __getattr__(self, name):
             )
         ))
     
+    # v5.7.6: Find the main entry point, skipping DECLARATIVES sections
+    # DECLARATIVES contain error handlers and should NOT be called as entry point
+    # The real entry point is the first paragraph AFTER DECLARATIVES (e.g., 000-MAIN)
+    entry_paragraph = None
     if cobol_ast.paragraphs:
-        first_method = to_snake_case(cobol_ast.paragraphs[0].name)
+        # Keywords that indicate DECLARATIVES or related sections
+        declaratives_keywords = ('DECLARATIVES', 'END-DECLARATIVES', 'SECTION', 'USE', 'ERROR', 'EXCEPTION')
+        declaratives_section_names = set()
+        
+        # First pass: identify all DECLARATIVES-related paragraphs
+        in_declaratives = False
+        for para in cobol_ast.paragraphs:
+            upper_name = para.name.upper()
+            if 'DECLARATIVES' in upper_name:
+                in_declaratives = True
+                declaratives_section_names.add(upper_name)
+                continue
+            if in_declaratives:
+                # Check if we've exited DECLARATIVES (a main-style paragraph)
+                if any(kw in upper_name for kw in ('MAIN', '000-', '0000-', 'INIT')):
+                    in_declaratives = False
+                else:
+                    # Still in DECLARATIVES - add to excluded set
+                    declaratives_section_names.add(upper_name)
+        
+        # Second pass: find the first non-DECLARATIVES paragraph
+        for para in cobol_ast.paragraphs:
+            if para.name.upper() not in declaratives_section_names:
+                entry_paragraph = para
+                break
+        
+        # Fallback: if no valid entry found, try to find MAIN or 000-MAIN explicitly
+        if not entry_paragraph:
+            for para in cobol_ast.paragraphs:
+                if 'MAIN' in para.name.upper() or para.name.upper().startswith(('000-', '0000-')):
+                    entry_paragraph = para
+                    break
+        
+        # Last resort: use first paragraph
+        if not entry_paragraph and cobol_ast.paragraphs:
+            entry_paragraph = cobol_ast.paragraphs[0]
+    
+    if entry_paragraph:
+        first_method = to_snake_case(entry_paragraph.name)
         run_body.append(ast.Expr(value=ast.Call(
             func=ast.Attribute(
                 value=ast.Name(id='self', ctx=ast.Load()),
@@ -6445,7 +6492,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.5',
+            'version': '5.7.7',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
