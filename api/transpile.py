@@ -2673,8 +2673,15 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
                 result.append(py_stmt)
         
         elif upper.startswith('PERFORM '):
+            # v5.7.6: Check VARYING first (before UNTIL check, since PERFORM VARYING also has UNTIL)
+            if 'VARYING' in upper:
+                py_stmt, consumed = transpile_perform_varying_v4(statements, i)
+                if py_stmt:
+                    result.append(py_stmt)
+                i += consumed
+                continue
             # v5.7.0: Check for inline PERFORM UNTIL ... END-PERFORM blocks
-            if 'UNTIL' in upper and not re.match(r'PERFORM\s+[A-Z0-9][-A-Z0-9]+\s+UNTIL', upper, re.IGNORECASE):
+            elif 'UNTIL' in upper and not re.match(r'PERFORM\s+[A-Z0-9][-A-Z0-9]+\s+UNTIL', upper, re.IGNORECASE):
                 # Inline PERFORM UNTIL (no paragraph name) - needs block handling
                 py_stmt, consumed = transpile_perform_until_block_v4(statements, i)
                 if py_stmt:
