@@ -890,8 +890,8 @@ export default function Home() {
               const eventData = JSON.parse(line.slice(6));
               
               if (eventData.percent !== undefined) {
-                // Progress event
-                setAnalysisProgress(eventData.percent);
+                // Progress event - cap at 100%
+                setAnalysisProgress(Math.min(100, eventData.percent));
                 setAnalysisStatus(eventData.message || 'Processing...');
               }
               
@@ -1516,7 +1516,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 }`}
               >
                 {isLoading ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" />Analyzing... {Math.round(analysisProgress)}%</>
+                  <><Loader2 className="w-5 h-5 animate-spin" />Analyzing... {Math.min(100, Math.round(analysisProgress))}%</>
                 ) : (
                   <><Play className="w-5 h-5" />Refactor with Gemini</>
                 )}
@@ -1537,12 +1537,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
             <div className="bg-slate-800 rounded-lg p-4 border border-indigo-500/30">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-slate-300">🔄 {analysisStatus}</span>
-                <span className="text-sm font-mono text-indigo-400">{Math.round(analysisProgress)}%</span>
+                <span className="text-sm font-mono text-indigo-400">{Math.min(100, Math.round(analysisProgress))}%</span>
               </div>
               <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-200"
-                  style={{ width: `${analysisProgress}%` }}
+                  style={{ width: `${Math.min(100, analysisProgress)}%` }}
                 />
               </div>
               <p className="text-xs text-slate-400 mt-2 animate-pulse">{analysisStatus}</p>

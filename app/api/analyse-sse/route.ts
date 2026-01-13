@@ -114,12 +114,13 @@ export async function POST(request: NextRequest) {
       // Call unified Python transpiler with simulated progress during wait
       let currentProgress = 45;
       const progressInterval = setInterval(() => {
-        if (currentProgress < 68) {
+        if (currentProgress < 65) {
           currentProgress += 2;
+          const transpilePercent = Math.min(100, Math.round((currentProgress - 45) / 20 * 100));
           send('progress', { 
-            percent: currentProgress, 
+            percent: Math.min(currentProgress, 65), 
             step: 'transpile',
-            message: `⚙️ Transpiling... ${Math.round((currentProgress - 45) / 23 * 100)}% complete`,
+            message: `⚙️ Transpiling... ${transpilePercent}% complete`,
             detail: `Processing ${totalLines.toLocaleString()} lines`
           });
         }
@@ -187,12 +188,61 @@ export async function POST(request: NextRequest) {
       const processingTime = Date.now() - startTime;
       const className = quickParse.programId.replace(/-/g, '_') + 'Processor';
       
+      // Build config data from Python code analysis
+      const pythonCode = result.python_code;
+      const upperCobol = cobolCode.toUpperCase();
+      
+      // Extract rates, fees, etc. from transpiled Python
+      const rateMatches = [...pythonCode.matchAll(/(\w+_rate):\s*Decimal\(['"]([\d.]+)['"]\)/g)];
+      const feeMatches = [...pythonCode.matchAll(/(\w+_fee):\s*Decimal\(['"]([\d.]+)['"]\)/g)];
+      
+      // Extract COBOL VALUE clauses
+      const cobolConstants: Record<string, number> = {};
+      const valueMatches = cobolCode.matchAll(/(\d{2})\s+(\w[\w-]*)\s+PIC\s+[9SV()\d]+\s+VALUE\s+([+-]?[\d.]+)/gi);
+      for (const m of valueMatches) {
+        const name = m[2].replace(/-/g, '_').toLowerCase();
+        const value = parseFloat(m[3]);
+        if (!isNaN(value)) cobolConstants[name] = value;
+      }
+      
+      const configData = {
+        _meta: {
+          generated_at: new Date().toISOString(),
+          transpiler_version: result.version || 'v5.7.5',
+          source_lines: totalLines,
+          python_lines: pythonLines
+        },
+        business_parameters: {
+          rates: Object.fromEntries([
+            ...rateMatches.slice(0, 10).map(m => [m[1], parseFloat(m[2])]),
+            ...Object.entries(cobolConstants).filter(([k]) => k.includes('rate'))
+          ]),
+          fees: Object.fromEntries([
+            ...feeMatches.slice(0, 10).map(m => [m[1], parseFloat(m[2])]),
+            ...Object.entries(cobolConstants).filter(([k]) => k.includes('fee'))
+          ]),
+          constants: Object.fromEntries(
+            Object.entries(cobolConstants).filter(([k]) => !k.includes('rate') && !k.includes('fee')).slice(0, 15)
+          )
+        },
+        detected_features: {
+          uses_decimal: pythonCode.includes('Decimal'),
+          uses_datetime: pythonCode.includes('datetime'),
+          uses_dataclass: pythonCode.includes('@dataclass'),
+          has_db_integration: upperCobol.includes('EXEC SQL'),
+          has_cics: upperCobol.includes('EXEC CICS'),
+          has_file_io: upperCobol.includes('READ ') || upperCobol.includes('WRITE ')
+        }
+      };
+      
       // Build full response
       const fullResult = {
         python_code: result.python_code,
         pythonCode: result.python_code,
         unit_tests: result.unit_tests,
         tests: result.unit_tests,
+        config_json: JSON.stringify(configData, null, 2),
+        config: configData,
         cobol_lines: totalLines,
         python_lines: pythonLines,
         confidence: 100, // AST transpiler = 100% syntax valid
@@ -214,7 +264,12 @@ export async function POST(request: NextRequest) {
     COBOL[${quickParse.programId}] ==>|AST v4.4| Python[${className}]`,
         modules: quickParse.paragraphs.slice(0, 50).map(p => ({ name: p.name, type: 'PARAGRAPH' })),
         business_context: { domain: 'Enterprise', detected_year: 'Legacy' },
-        migration_score: { complexity: totalLines > 5000 ? 'HIGH' : 'MEDIUM', confidence: 100 },
+        migration_score: { 
+          complexity: totalLines > 5000 ? 'HIGH' : 'MEDIUM', 
+          confidence: 100,
+          estimated_effort: `${Math.max(1, Math.round(totalLines / 500))} person-days`,
+          risk_level: 'LOW'
+        },
         filename: filename || `${quickParse.programId}.cbl`,
         transpiler_stats: result.stats,
         transpiler_version: result.version
