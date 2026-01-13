@@ -774,55 +774,16 @@ class Test${className}:
         )
       },
       
-      // File Configuration
-      files: files.length > 0 ? Object.fromEntries(files.map(f => {
-        const [k, v] = f.split(': ');
-        return [k, v?.replace(/"/g, '') || ''];
-      })) : {
-        _note: 'No file definitions found in source'
-      },
-      
-      // Runtime Settings
-      settings: {
-        decimal_precision: 2,
-        rounding_mode: 'HALF_EVEN',
-        currency: 'USD',
-        locale: 'en_US',
-        date_format: 'YYYY-MM-DD',
-        timezone: 'UTC',
-        null_handling: 'COALESCE_ZERO',
-        string_padding: 'SPACE'
-      },
-      
-      // Feature Flags
-      features: dataTypes,
-      
-      // Logging Configuration
-      logging: {
-        level: 'INFO',
-        format: 'json',
-        include_timestamp: true,
-        mask_pii: true,
-        audit_trail: true
-      },
-      
-      // Database (if SQL detected)
-      ...(upperCobol.includes('EXEC SQL') ? {
-        database: {
-          connection_pool_size: 10,
-          query_timeout_ms: 30000,
-          retry_attempts: 3,
-          use_prepared_statements: true
-        }
+      // File Definitions (extracted from SELECT...ASSIGN)
+      ...(files.length > 0 ? {
+        files: Object.fromEntries(files.map(f => {
+          const [k, v] = f.split(': ');
+          return [k, v?.replace(/"/g, '') || ''];
+        }))
       } : {}),
       
-      // Validation Rules
-      validation: {
-        strict_mode: true,
-        validate_on_init: true,
-        max_string_length: 255,
-        allow_negative_amounts: false
-      }
+      // Detected Features (from actual code analysis)
+      detected_features: dataTypes
     };
     
     // Note: Empty business_parameters sections indicate no extractable values from source code
