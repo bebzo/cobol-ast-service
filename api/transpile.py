@@ -1,6 +1,13 @@
 """
-COBOL → Python Transpiler v5.7.5 (Multi-State Flag Fix)
+COBOL → Python Transpiler v5.7.6 (LINKAGE SECTION Fix)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.6:
+- FIX: LINKAGE SECTION now parsed separately from WORKING-STORAGE
+- FIX: LINKAGE variables excluded from paragraph detection (LS-VAR. no longer creates method)
+- FIX: run() method now accepts LINKAGE parameters (PROCEDURE DIVISION USING support)
+- FIX: Bool flags without initial value now correctly default to False (not '')
+- FIX: Safeguard ensures bool-typed vars always get bool values
 
 Improvements in v5.7.5:
 - FIX: Multi-state flags (validation_flag, security_flag) now correctly typed as str
@@ -527,6 +534,67 @@ class CobolAST:
     sql_commands: List[SQLCommand] = field(default_factory=list)
     has_cics: bool = False
     has_sql: bool = False
+    linkage_variables: List[CobolVariable] = field(default_factory=list)  # v5.7.6: LINKAGE SECTION params
+
+
+def parse_linkage_section(source: str) -> List[CobolVariable]:
+    """v5.7.6: Parse LINKAGE SECTION to extract parameter variables.
+    
+    These are passed via PROCEDURE DIVISION USING and should NOT be
+    treated as paragraphs or instance variables - they are method parameters.
+    """
+    linkage_vars = []
+    lines = source.split('\n')
+    in_linkage = False
+    current_group = None
+    
+    for i, line in enumerate(lines):
+        upper = line.upper()
+        
+        if 'LINKAGE' in upper and 'SECTION' in upper:
+            in_linkage = True
+            continue
+        
+        if in_linkage and ('PROCEDURE' in upper or 'WORKING-STORAGE' in upper):
+            break
+        
+        if not in_linkage:
+            continue
+        
+        # Skip comments
+        if len(line) > 6 and line[6] in ('*', '/'):
+            continue
+        
+        # Match variable definition
+        var_match = re.match(r'^\s*(\d{1,2})\s+([A-Z][A-Z0-9][-A-Z0-9_]*)', line, re.IGNORECASE)
+        if not var_match:
+            continue
+        
+        level = int(var_match.group(1))
+        name = var_match.group(2).replace('.', '')
+        
+        if name.upper() == 'FILLER':
+            continue
+        
+        # Track group hierarchy for 01 levels
+        if level == 1:
+            current_group = name if 'PIC' not in line.upper() else None
+        
+        # Extract PIC
+        pic_match = re.search(r'PIC(?:TURE)?\s+(?:IS\s+)?([SX9AV0-9()+-.,ZB*$]+)', line, re.IGNORECASE)
+        picture = pic_match.group(1).rstrip('.') if pic_match else None
+        
+        var = CobolVariable(
+            level=level,
+            name=name,
+            picture=picture,
+            value=None,
+            line=i + 1,
+            parent_group=current_group if level > 1 else None
+        )
+        linkage_vars.append(var)
+    
+    return linkage_vars
 
 
 def parse_cobol(source: str) -> CobolAST:
@@ -540,11 +608,17 @@ def parse_cobol(source: str) -> CobolAST:
     # Parse variables with 88-level conditions
     variables, conditions_88 = parse_variables_with_88(source)
     
+    # v5.7.6: Parse LINKAGE SECTION separately
+    linkage_variables = parse_linkage_section(source)
+    
     # Parse file descriptors
     file_descriptors = parse_file_descriptors(source)
     
-    # Parse paragraphs
-    paragraphs = parse_paragraphs(lines)
+    # v5.7.6: Get LINKAGE names to exclude from paragraph detection
+    linkage_names = {v.name.upper() for v in linkage_variables}
+    
+    # Parse paragraphs (excluding LINKAGE names)
+    paragraphs = parse_paragraphs(lines, linkage_names)
     
     # Group variables into records
     record_groups = group_into_records(variables)
@@ -555,7 +629,8 @@ def parse_cobol(source: str) -> CobolAST:
         paragraphs=paragraphs,
         conditions_88=conditions_88,
         file_descriptors=file_descriptors,
-        record_groups=record_groups
+        record_groups=record_groups,
+        linkage_variables=linkage_variables  # v5.7.6
     )
 
 
@@ -871,15 +946,19 @@ def is_monetary_variable(var_name: str) -> bool:
     return any(kw in lower for kw in monetary_keywords)
 
 
-def parse_paragraphs(lines: List[str]) -> List[CobolParagraph]:
+def parse_paragraphs(lines: List[str], linkage_names: Optional[set] = None) -> List[CobolParagraph]:
     """Extract PROCEDURE DIVISION paragraphs with continuation line support
     
     v5.2.1: Properly joins COBOL continuation lines (lines starting with spaces
     that continue the previous statement)
+    
+    v5.7.6: Excludes LINKAGE SECTION variable names from paragraph detection.
+    PROCEDURE DIVISION USING LS-VAR. should NOT create a paragraph named LS-VAR.
     """
     paragraphs = []
     in_procedure = False
     current_para = None
+    linkage_names = linkage_names or set()
     
     reserved = {
         'MOVE', 'IF', 'ELSE', 'END-IF', 'PERFORM', 'COMPUTE', 'ADD', 'SUBTRACT',
@@ -908,7 +987,8 @@ def parse_paragraphs(lines: List[str]) -> List[CobolParagraph]:
         para_match = re.match(r'^\s*([A-Z0-9][-A-Z0-9_]*)\s*\.\s*$', line, re.IGNORECASE)
         if para_match:
             name = para_match.group(1).upper()
-            if name not in reserved and not name.startswith('END-'):
+            # v5.7.6: Also exclude LINKAGE SECTION variable names
+            if name not in reserved and not name.startswith('END-') and name not in linkage_names:
                 if current_para:
                     current_para.line_end = i
                     paragraphs.append(current_para)
@@ -1041,19 +1121,36 @@ def count_pic_digits(pic_part: str) -> int:
 def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[List] = None) -> bool:
     """Check if variable is a Y/N flag that should become bool.
     
-    Multi-state flags (with >2 88-level conditions like Y/N/P/F) return False
-    because they need str type, not bool.
+    v5.7.6: Improved logic:
+    - If 88-level conditions use non-Y/N values (like 'P', 'F'), it's a multi-state str
+    - Only true Y/N or TRUE/FALSE values become bool
+    - Multi-state flags (with >2 88-level conditions) return False
     """
     # Multi-state check: if more than 2 conditions, it's not a simple bool
     if conditions_88 and len(conditions_88) > 2:
         return False
     
-    upper_name = name.upper()
-    flag_keywords = ['FLAG', 'EOF', 'ERROR', 'VALID', 'FOUND', 'APPROVED', 'ACTIVE', 'DONE']
-    if any(kw in upper_name for kw in flag_keywords):
-        return True
+    # v5.7.6: If 88-level conditions exist, check their values
+    # Only Y/N, TRUE/FALSE, 0/1 are valid bool values
+    if conditions_88 and len(conditions_88) > 0:
+        bool_values = {'Y', 'N', 'TRUE', 'FALSE', '0', '1'}
+        for cond in conditions_88:
+            if hasattr(cond, 'values') and cond.values:
+                for val in cond.values:
+                    if val.upper() not in bool_values:
+                        # Non-boolean value like 'P', 'F', 'H', 'L' - use str
+                        return False
+    
+    # Only return True for explicit Y/N values
     if value and value.upper() in ('Y', 'N', 'TRUE', 'FALSE'):
         return True
+    
+    # For flag-named variables without value/conditions, check name keywords
+    upper_name = name.upper()
+    flag_keywords = ['EOF-FLAG', 'END-OF-FILE']  # v5.7.6: Narrowed to specific patterns
+    if any(kw in upper_name for kw in flag_keywords):
+        return True
+    
     return False
 
 
@@ -1940,7 +2037,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.5]
+Auto-transpiled from COBOL [AST Transpiler v5.7.6]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -2262,7 +2359,7 @@ def __getattr__(self, name):
         method = generate_method_from_paragraph_v4(para)
         class_body.append(method)
     
-    # Run method
+    # v5.7.6: Run method with LINKAGE SECTION parameters
     run_body = []
     run_body.append(ast.Expr(value=ast.Constant(value="Main entry point - executes primary workflow")))
     run_body.append(ast.Expr(value=ast.Call(
@@ -2286,6 +2383,34 @@ def __getattr__(self, name):
         keywords=[]
     )))
     
+    # v5.7.6: Build LINKAGE parameters for run() method
+    linkage_args = [ast.arg(arg='self')]
+    linkage_defaults = []
+    
+    # Get level-01 LINKAGE variables (main parameter groups)
+    linkage_01_vars = [v for v in cobol_ast.linkage_variables if v.level == 1]
+    
+    for link_var in linkage_01_vars:
+        param_name = to_snake_case(link_var.name)
+        linkage_args.append(ast.arg(arg=param_name, annotation=ast.Constant(value='Optional[Dict[str, Any]]')))
+        linkage_defaults.append(ast.Constant(value=None))
+        
+        # Store parameter in self for access by other methods
+        run_body.append(ast.Assign(
+            targets=[ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr=param_name,
+                ctx=ast.Store()
+            )],
+            value=ast.BoolOp(
+                op=ast.Or(),
+                values=[
+                    ast.Name(id=param_name, ctx=ast.Load()),
+                    ast.Dict(keys=[], values=[])
+                ]
+            )
+        ))
+    
     if cobol_ast.paragraphs:
         first_method = to_snake_case(cobol_ast.paragraphs[0].name)
         run_body.append(ast.Expr(value=ast.Call(
@@ -2304,12 +2429,12 @@ def __getattr__(self, name):
         name='run',
         args=ast.arguments(
             posonlyargs=[],
-            args=[ast.arg(arg='self')],
+            args=linkage_args,
             vararg=None,
             kwonlyargs=[],
             kw_defaults=[],
             kwarg=None,
-            defaults=[]
+            defaults=linkage_defaults
         ),
         body=run_body,
         decorator_list=[],
@@ -2452,7 +2577,14 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
         
         if is_flag_variable(var.name, var.value, var.conditions_88):
             py_type = 'bool'
-            py_value = cobol_value_to_python_v3(var.value, var.picture, var.name, var.conditions_88)
+            # v5.7.6: Ensure bool flags always get bool values (not '' or Decimal)
+            if var.value is None:
+                py_value = ast.Constant(value=False)
+            else:
+                py_value = cobol_value_to_python_v3(var.value, var.picture, var.name, var.conditions_88)
+                # Safeguard: if cobol_value_to_python_v3 didn't return a bool constant, force False
+                if not isinstance(py_value, ast.Constant) or not isinstance(py_value.value, bool):
+                    py_value = ast.Constant(value=False)
         else:
             py_type, _ = pic_to_python_type(var.picture, var.value)
             py_value = cobol_value_to_python_v3(var.value, var.picture, var.name, var.conditions_88)
