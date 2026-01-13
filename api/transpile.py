@@ -5,6 +5,10 @@ Uses Python's ast module for 100% syntax-valid output
 Improvements in v5.7.5:
 - FIX: Multi-state flags (validation_flag, security_flag) now correctly typed as str
 - FIX: is_flag_variable checks 88-level condition count (>2 = multi-state = str)
+- NEW: SEARCH/SEARCH ALL statement support (table lookup with AT END)
+- NEW: INSPECT TALLYING/REPLACING support (string counting and replacement)
+- NEW: SORT statement support (ascending/descending with key)
+- NEW: UNSTRING statement support (string splitting with delimiter)
 
 Improvements in v5.7.3:
 - FIX: Removed aggressive docstring regex that corrupted code
@@ -2621,6 +2625,29 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
             if py_stmt:
                 result.append(py_stmt)
         
+        # v5.7.5: New COBOL statement support
+        elif upper.startswith('SEARCH '):
+            py_stmt, consumed = transpile_search_v4(statements, i)
+            if py_stmt:
+                result.append(py_stmt)
+            i += consumed
+            continue
+        
+        elif upper.startswith('INSPECT '):
+            py_stmt = transpile_inspect_v4(stmt)
+            if py_stmt:
+                result.append(py_stmt)
+        
+        elif upper.startswith('SORT '):
+            py_stmt = transpile_sort_v4(stmt)
+            if py_stmt:
+                result.append(py_stmt)
+        
+        elif upper.startswith('UNSTRING '):
+            py_stmt = transpile_unstring_v4(stmt)
+            if py_stmt:
+                result.append(py_stmt)
+        
         elif upper in ('CONTINUE', 'CONTINUE.', 'NEXT SENTENCE', 'NEXT SENTENCE.'):
             result.append(ast.Pass())
         
@@ -4154,6 +4181,378 @@ def transpile_call_v4(stmt: str) -> Optional[ast.stmt]:
                               attr=f'call_{program}', ctx=ast.Load()),
             args=call_args, keywords=[]
         ))
+    return None
+
+
+# ============================================================
+# v5.7.5: Additional COBOL Statement Transpilers
+# ============================================================
+
+def transpile_search_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
+    """
+    Transpile SEARCH/SEARCH ALL statement to Python.
+    
+    COBOL:
+        SEARCH WS-TABLE
+            AT END MOVE 'N' TO WS-FOUND
+            WHEN WS-ITEM(WS-IDX) = WS-KEY
+                MOVE 'Y' TO WS-FOUND
+        END-SEARCH
+    
+    Python:
+        found = False
+        for idx, item in enumerate(self.ws_table):
+            if item == self.ws_key:
+                self.ws_found = 'Y'
+                found = True
+                break
+        if not found:
+            self.ws_found = 'N'
+    """
+    stmt = statements[start_idx].strip()
+    upper = stmt.upper()
+    
+    # Match SEARCH table-name
+    match = re.match(r'SEARCH\s+(?:ALL\s+)?([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)', upper, re.IGNORECASE)
+    if not match:
+        return None, 1
+    
+    table_name = to_snake_case(match.group(1))
+    is_search_all = 'SEARCH ALL' in upper
+    
+    # Collect statements until END-SEARCH
+    at_end_stmts = []
+    when_conditions = []
+    current_when = None
+    i = start_idx + 1
+    
+    while i < len(statements):
+        line = statements[i].strip().upper()
+        if line.startswith('END-SEARCH') or line == 'END-SEARCH.':
+            break
+        elif line.startswith('AT END'):
+            # Collect AT END statements
+            at_end_code = statements[i].strip()
+            at_end_match = re.search(r'AT END\s+(.+)', at_end_code, re.IGNORECASE)
+            if at_end_match:
+                at_end_stmts.append(at_end_match.group(1))
+        elif line.startswith('WHEN '):
+            when_match = re.match(r'WHEN\s+(.+)', statements[i].strip(), re.IGNORECASE)
+            if when_match:
+                current_when = {'condition': when_match.group(1), 'stmts': []}
+                when_conditions.append(current_when)
+        elif current_when is not None:
+            current_when['stmts'].append(statements[i].strip())
+        i += 1
+    
+    consumed = i - start_idx + 1
+    
+    # Generate Python for loop with condition checks
+    # For SEARCH ALL, we use binary search concept but simplify to linear for compatibility
+    loop_body = []
+    
+    for when in when_conditions:
+        # Parse condition
+        cond_expr = parse_cobol_condition(when['condition'])
+        when_body = transpile_statements_v4(when['stmts']) if when['stmts'] else [ast.Pass()]
+        when_body.append(ast.Assign(
+            targets=[ast.Name(id='_search_found', ctx=ast.Store())],
+            value=ast.Constant(value=True)
+        ))
+        when_body.append(ast.Break())
+        
+        loop_body.append(ast.If(test=cond_expr, body=when_body, orelse=[]))
+    
+    if not loop_body:
+        loop_body = [ast.Pass()]
+    
+    # Create the for loop
+    for_loop = ast.For(
+        target=ast.Tuple(elts=[
+            ast.Name(id='_idx', ctx=ast.Store()),
+            ast.Name(id='_item', ctx=ast.Store())
+        ], ctx=ast.Store()),
+        iter=ast.Call(
+            func=ast.Name(id='enumerate', ctx=ast.Load()),
+            args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), 
+                               attr=table_name, ctx=ast.Load())],
+            keywords=[]
+        ),
+        body=loop_body,
+        orelse=[]
+    )
+    
+    # Wrap in try block with AT END handling
+    result_stmts = [
+        ast.Assign(
+            targets=[ast.Name(id='_search_found', ctx=ast.Store())],
+            value=ast.Constant(value=False)
+        ),
+        for_loop
+    ]
+    
+    # Add AT END handling
+    if at_end_stmts:
+        at_end_body = transpile_statements_v4(at_end_stmts)
+        result_stmts.append(ast.If(
+            test=ast.UnaryOp(op=ast.Not(), operand=ast.Name(id='_search_found', ctx=ast.Load())),
+            body=at_end_body if at_end_body else [ast.Pass()],
+            orelse=[]
+        ))
+    
+    # Return as a block (first statement, others added separately)
+    if len(result_stmts) == 1:
+        return result_stmts[0], consumed
+    else:
+        # Wrap in a dummy if True to keep as single statement
+        return ast.If(
+            test=ast.Constant(value=True),
+            body=result_stmts,
+            orelse=[]
+        ), consumed
+
+
+def transpile_inspect_v4(stmt: str) -> Optional[ast.stmt]:
+    """
+    Transpile INSPECT statement to Python.
+    
+    COBOL:
+        INSPECT WS-STRING TALLYING WS-COUNT FOR ALL 'A'
+        INSPECT WS-STRING REPLACING ALL 'X' BY 'Y'
+        INSPECT WS-STRING REPLACING LEADING SPACES BY ZEROS
+    
+    Python:
+        self.ws_count = self.ws_string.count('A')
+        self.ws_string = self.ws_string.replace('X', 'Y')
+        self.ws_string = self.ws_string.lstrip().zfill(len(self.ws_string))
+    """
+    upper = stmt.upper()
+    
+    # INSPECT var TALLYING counter FOR ALL 'char'
+    tally_match = re.match(
+        r'INSPECT\s+([A-Z][A-Z0-9-]*)\s+TALLYING\s+([A-Z][A-Z0-9-]*)\s+FOR\s+(?:ALL|CHARACTERS)\s+["\']?([^"\']+)["\']?',
+        stmt, re.IGNORECASE
+    )
+    if tally_match:
+        source_var = to_snake_case(tally_match.group(1))
+        counter_var = to_snake_case(tally_match.group(2))
+        search_char = tally_match.group(3).strip().strip("'\"")
+        
+        return ast.Assign(
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                  attr=counter_var, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                       attr=source_var, ctx=ast.Load()),
+                    attr='count', ctx=ast.Load()
+                ),
+                args=[ast.Constant(value=search_char)],
+                keywords=[]
+            )
+        )
+    
+    # INSPECT var REPLACING ALL 'x' BY 'y'
+    replace_match = re.match(
+        r'INSPECT\s+([A-Z][A-Z0-9-]*)\s+REPLACING\s+(?:ALL|FIRST)?\s*["\']?([^"\']+)["\']?\s+BY\s+["\']?([^"\']+)["\']?',
+        stmt, re.IGNORECASE
+    )
+    if replace_match:
+        target_var = to_snake_case(replace_match.group(1))
+        old_val = replace_match.group(2).strip().strip("'\"")
+        new_val = replace_match.group(3).strip().strip("'\"")
+        
+        # Handle SPACES -> '' and ZEROS -> '0'
+        if old_val.upper() in ('SPACES', 'SPACE'):
+            old_val = ' '
+        if new_val.upper() in ('ZEROS', 'ZEROES', 'ZERO'):
+            new_val = '0'
+        if old_val.upper() in ('ZEROS', 'ZEROES', 'ZERO'):
+            old_val = '0'
+        if new_val.upper() in ('SPACES', 'SPACE'):
+            new_val = ' '
+        
+        return ast.Assign(
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                  attr=target_var, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                       attr=target_var, ctx=ast.Load()),
+                    attr='replace', ctx=ast.Load()
+                ),
+                args=[ast.Constant(value=old_val), ast.Constant(value=new_val)],
+                keywords=[]
+            )
+        )
+    
+    # INSPECT var REPLACING LEADING SPACES BY ZEROS (left pad with zeros)
+    leading_match = re.match(
+        r'INSPECT\s+([A-Z][A-Z0-9-]*)\s+REPLACING\s+LEADING\s+SPACES\s+BY\s+ZEROS',
+        stmt, re.IGNORECASE
+    )
+    if leading_match:
+        target_var = to_snake_case(leading_match.group(1))
+        # self.var = self.var.lstrip().zfill(len(self.var))
+        return ast.Assign(
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                  attr=target_var, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                               attr=target_var, ctx=ast.Load()),
+                            attr='lstrip', ctx=ast.Load()
+                        ),
+                        args=[], keywords=[]
+                    ),
+                    attr='zfill', ctx=ast.Load()
+                ),
+                args=[ast.Call(
+                    func=ast.Name(id='len', ctx=ast.Load()),
+                    args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                       attr=target_var, ctx=ast.Load())],
+                    keywords=[]
+                )],
+                keywords=[]
+            )
+        )
+    
+    return None
+
+
+def transpile_sort_v4(stmt: str) -> Optional[ast.stmt]:
+    """
+    Transpile SORT statement to Python.
+    
+    COBOL:
+        SORT SORT-FILE ON ASCENDING KEY SORT-KEY
+            USING INPUT-FILE
+            GIVING OUTPUT-FILE
+    
+    Python (simplified):
+        self.output_file = sorted(self.input_file, key=lambda x: x.sort_key)
+    """
+    upper = stmt.upper()
+    
+    # Basic SORT pattern
+    sort_match = re.match(
+        r'SORT\s+([A-Z][A-Z0-9-]*)\s+ON\s+(ASCENDING|DESCENDING)\s+KEY\s+([A-Z][A-Z0-9-]*)',
+        stmt, re.IGNORECASE
+    )
+    if sort_match:
+        sort_file = to_snake_case(sort_match.group(1))
+        direction = sort_match.group(2).upper()
+        sort_key = to_snake_case(sort_match.group(3))
+        
+        reverse = direction == 'DESCENDING'
+        
+        # Extract USING and GIVING if present
+        using_match = re.search(r'USING\s+([A-Z][A-Z0-9-]*)', stmt, re.IGNORECASE)
+        giving_match = re.search(r'GIVING\s+([A-Z][A-Z0-9-]*)', stmt, re.IGNORECASE)
+        
+        source = to_snake_case(using_match.group(1)) if using_match else sort_file
+        target = to_snake_case(giving_match.group(1)) if giving_match else sort_file
+        
+        # self.target = sorted(self.source, key=lambda x: x.sort_key, reverse=False)
+        return ast.Assign(
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                  attr=target, ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Name(id='sorted', ctx=ast.Load()),
+                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                   attr=source, ctx=ast.Load())],
+                keywords=[
+                    ast.keyword(
+                        arg='key',
+                        value=ast.Lambda(
+                            args=ast.arguments(
+                                posonlyargs=[], args=[ast.arg(arg='x')],
+                                vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]
+                            ),
+                            body=ast.Attribute(value=ast.Name(id='x', ctx=ast.Load()),
+                                              attr=sort_key, ctx=ast.Load())
+                        )
+                    ),
+                    ast.keyword(arg='reverse', value=ast.Constant(value=reverse))
+                ]
+            )
+        )
+    
+    return None
+
+
+def transpile_unstring_v4(stmt: str) -> Optional[ast.stmt]:
+    """
+    Transpile UNSTRING statement to Python.
+    
+    COBOL:
+        UNSTRING WS-INPUT DELIMITED BY ',' INTO WS-FIELD1 WS-FIELD2 WS-FIELD3
+    
+    Python:
+        _parts = self.ws_input.split(',')
+        self.ws_field1 = _parts[0] if len(_parts) > 0 else ''
+        self.ws_field2 = _parts[1] if len(_parts) > 1 else ''
+        ...
+    """
+    # UNSTRING source DELIMITED BY delim INTO targets
+    match = re.match(
+        r'UNSTRING\s+([A-Z][A-Z0-9-]*)\s+DELIMITED\s+BY\s+["\']?([^"\']+)["\']?\s+INTO\s+(.+)',
+        stmt, re.IGNORECASE
+    )
+    if match:
+        source_var = to_snake_case(match.group(1))
+        delimiter = match.group(2).strip().strip("'\"")
+        targets_str = match.group(3)
+        
+        # Handle special delimiters
+        if delimiter.upper() in ('SPACES', 'SPACE'):
+            delimiter = ' '
+        
+        # Parse target variables
+        targets = re.findall(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*', targets_str, re.IGNORECASE)
+        
+        # Generate: _parts = self.source.split(delim)
+        stmts = [
+            ast.Assign(
+                targets=[ast.Name(id='_parts', ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                           attr=source_var, ctx=ast.Load()),
+                        attr='split', ctx=ast.Load()
+                    ),
+                    args=[ast.Constant(value=delimiter)],
+                    keywords=[]
+                )
+            )
+        ]
+        
+        # Generate assignments for each target
+        for idx, target in enumerate(targets):
+            target_var = to_snake_case(target)
+            stmts.append(ast.Assign(
+                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                      attr=target_var, ctx=ast.Store())],
+                value=ast.IfExp(
+                    test=ast.Compare(
+                        left=ast.Call(func=ast.Name(id='len', ctx=ast.Load()),
+                                     args=[ast.Name(id='_parts', ctx=ast.Load())], keywords=[]),
+                        ops=[ast.Gt()],
+                        comparators=[ast.Constant(value=idx)]
+                    ),
+                    body=ast.Subscript(value=ast.Name(id='_parts', ctx=ast.Load()),
+                                      slice=ast.Constant(value=idx), ctx=ast.Load()),
+                    orelse=ast.Constant(value='')
+                )
+            ))
+        
+        # Wrap multiple statements in if True block
+        if len(stmts) > 1:
+            return ast.If(test=ast.Constant(value=True), body=stmts, orelse=[])
+        return stmts[0] if stmts else None
+    
     return None
 
 
