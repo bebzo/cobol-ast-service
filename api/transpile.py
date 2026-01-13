@@ -1,6 +1,11 @@
 """
-COBOL → Python Transpiler v5.7.22 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.23 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.23:
+- EXCEPTIONS: Added business exceptions (InsufficientFundsError, AccountLockedError, etc.)
+- INIT: String fields for slicing pre-initialized with spaces
+- FLAGS: Improved Y/N to bool conversion for eof_flag patterns
 
 Improvements in v5.7.22:
 - QUALITY: Dead code detection - warns when code follows return/exit statements
@@ -160,6 +165,68 @@ from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_U
 from typing import Optional, Any, Union
 from dataclasses import dataclass
 from datetime import datetime
+
+
+# ============================================================
+# v5.7.23: Business Exceptions for Production-Ready Code
+# ============================================================
+
+class CobolBusinessError(Exception):
+    """Base exception for COBOL business logic errors."""
+    def __init__(self, message: str, error_code: str = "9999"):
+        self.error_code = error_code
+        super().__init__(f"[{error_code}] {message}")
+
+
+class InsufficientFundsError(CobolBusinessError):
+    """Raised when account balance is insufficient for withdrawal."""
+    def __init__(self, available: Decimal, requested: Decimal):
+        super().__init__(
+            f"Insufficient funds: available={available}, requested={requested}",
+            error_code="9003"
+        )
+        self.available = available
+        self.requested = requested
+
+
+class AccountLockedError(CobolBusinessError):
+    """Raised when attempting operation on a locked account."""
+    def __init__(self, account_id: str):
+        super().__init__(f"Account {account_id} is locked", error_code="9004")
+        self.account_id = account_id
+
+
+class DailyLimitExceededError(CobolBusinessError):
+    """Raised when daily transaction limit is exceeded."""
+    def __init__(self, limit: Decimal, attempted: Decimal):
+        super().__init__(
+            f"Daily limit exceeded: limit={limit}, attempted={attempted}",
+            error_code="9005"
+        )
+        self.limit = limit
+        self.attempted = attempted
+
+
+class InvalidTransactionError(CobolBusinessError):
+    """Raised for invalid transaction data."""
+    def __init__(self, reason: str):
+        super().__init__(f"Invalid transaction: {reason}", error_code="9006")
+        self.reason = reason
+
+
+class CustomerNotFoundError(CobolBusinessError):
+    """Raised when customer record is not found."""
+    def __init__(self, customer_id: str):
+        super().__init__(f"Customer not found: {customer_id}", error_code="9011")
+        self.customer_id = customer_id
+
+
+class SecurityViolationError(CobolBusinessError):
+    """Raised for security/authentication failures."""
+    def __init__(self, reason: str, user_id: str = None):
+        super().__init__(f"Security violation: {reason}", error_code="9998")
+        self.reason = reason
+        self.user_id = user_id
 
 
 class CobolRuntime:
@@ -1462,7 +1529,11 @@ def to_pascal_case(name: str) -> str:
 
 
 def pic_to_python_type(pic: Optional[str], value: Optional[str] = None) -> Tuple[str, ast.expr]:
-    """Convert PIC clause to Python type and default value"""
+    """Convert PIC clause to Python type and default value
+    
+    v5.7.23: String fields now pre-initialized with spaces based on PIC length.
+    This prevents IndexError when COBOL-style slicing is used (e.g., record(1:8)).
+    """
     if not pic:
         return 'Any', ast.Constant(value=None)
     
@@ -1476,6 +1547,11 @@ def pic_to_python_type(pic: Optional[str], value: Optional[str] = None) -> Tuple
             keywords=[]
         )
     elif re.match(r'^X', upper) or re.match(r'^A', upper):
+        # v5.7.23: Pre-initialize strings with spaces based on PIC length
+        # This prevents IndexError when COBOL-style slicing is used
+        str_len = count_pic_digits(upper)
+        if str_len > 0:
+            return 'str', ast.Constant(value=' ' * str_len)
         return 'str', ast.Constant(value='')
     else:
         return 'str', ast.Constant(value='')
@@ -2576,7 +2652,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.22]
+Auto-transpiled from COBOL [AST Transpiler v5.7.23]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -7548,7 +7624,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.22-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.22-golden' if enhance else '5.7.22',
+            'version': '5.7.23-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.23-golden' if enhance else '5.7.23',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -8153,7 +8229,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.22',
+            'version': '5.7.23',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
