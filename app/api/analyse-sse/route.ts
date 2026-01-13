@@ -11,7 +11,7 @@ import { parseCobolQuick, transpileCobolViaPython, validateCobolInput } from '@/
  */
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300; // 5 min for large COBOL files
 
 function createSSEStream() {
   const encoder = new TextEncoder();

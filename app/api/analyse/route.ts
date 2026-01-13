@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Node.js runtime (Edge not compatible with complex modules)
 export const runtime = 'nodejs';
-export const maxDuration = 60; // 60s timeout for Pro plan
+export const maxDuration = 300; // 5 min for large COBOL files
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
