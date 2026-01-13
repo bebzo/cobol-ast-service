@@ -1,5 +1,5 @@
 """UltimateBankingSystem - Clean Architecture Python Code with Supabase Backend
-Auto-transpiled from COBOL [AST Transpiler v5.7.15-SUPABASE]
+Auto-transpiled from COBOL [AST Transpiler v5.7.16-SUPABASE]
 
 Architecture:
 - SupabaseIndexedFileManager for VSAM INDEXED file simulation
@@ -10,7 +10,7 @@ Architecture:
 - Decimal for all monetary values
 - CobolRuntime ACTIVELY USED for all financial calculations
 
-Fixes Applied (v5.7.15-SUPABASE):
+Fixes Applied (v5.7.16-SUPABASE):
 - CobolRuntime now used in all COMPUTE statements
 - ROUND_HALF_EVEN (banker's rounding) enforced
 - eof_flag correctly uses boolean True/False
@@ -938,7 +938,7 @@ class UltimateBankingSystem:
     Methods:
         run(): Main entry point
     """
-    VERSION: ClassVar[str] = '5.7.15-SUPABASE'
+    VERSION: ClassVar[str] = '5.7.16-SUPABASE'
     SPACES: ClassVar[str] = ' ' * 256
     LOW_VALUES: ClassVar[str] = '\x00' * 256
     HIGH_VALUES: ClassVar[str] = '\xff' * 256
@@ -2062,7 +2062,7 @@ if __name__ == '__main__':
     )
     
     print("=" * 60)
-    print("UltimateBankingSystem v5.7.15-SUPABASE")
+    print("UltimateBankingSystem v5.7.16-SUPABASE")
     print("COBOL-to-Python Transpilation with Supabase Backend")
     print("=" * 60)
     
