@@ -111,20 +111,31 @@ export async function POST(request: NextRequest) {
         detail: 'AST Transpiler v4.4 (Python)'
       });
       
-      // Call unified Python transpiler with simulated progress during wait
+      // Call unified Python transpiler with detailed progress during wait
       let currentProgress = 45;
+      let progressPhase = 0;
+      const transpilePhases = [
+        { msg: '⚙️ Parsing AST nodes...', detail: 'Building syntax tree' },
+        { msg: '⚙️ Analyzing PROCEDURE DIVISION...', detail: 'Mapping paragraphs' },
+        { msg: '⚙️ Converting WORKING-STORAGE...', detail: 'Transforming variables' },
+        { msg: '⚙️ Generating Python classes...', detail: 'Creating dataclasses' },
+        { msg: '⚙️ Transpiling business logic...', detail: 'Converting statements' },
+        { msg: '⚙️ Optimizing generated code...', detail: 'Applying patterns' },
+        { msg: '⚙️ Validating Python syntax...', detail: 'Checking output' }
+      ];
       const progressInterval = setInterval(() => {
-        if (currentProgress < 65) {
-          currentProgress += 2;
-          const transpilePercent = Math.min(100, Math.round((currentProgress - 45) / 20 * 100));
+        if (currentProgress < 68) {
+          currentProgress += 1;
+          const phase = transpilePhases[progressPhase % transpilePhases.length];
+          if (currentProgress % 3 === 0) progressPhase++;
           send('progress', { 
-            percent: Math.min(currentProgress, 65), 
+            percent: Math.min(currentProgress, 68), 
             step: 'transpile',
-            message: `⚙️ Transpiling... ${transpilePercent}% complete`,
-            detail: `Processing ${totalLines.toLocaleString()} lines`
+            message: phase.msg,
+            detail: `${phase.detail} (${totalLines.toLocaleString()} lines)`
           });
         }
-      }, 500); // Update every 500ms
+      }, 400); // Update every 400ms for smoother feel
       
       let result;
       try {
@@ -296,16 +307,23 @@ export async function POST(request: NextRequest) {
         summary: { critical: criticalCount, high: highCount, medium: mediumCount, low: lowCount, score: securityScore, grade: securityGrade }
       });
       
-      // Step 8: Finalization (95-100%)
+      // Step 8: Building response (95-100%)
       send('progress', { 
-        percent: 98, 
+        percent: 96, 
         step: 'finalize',
-        message: '✨ Finalizing output...',
-        detail: 'Preparing response'
+        message: '📦 Building analysis report...',
+        detail: 'Aggregating results'
       });
       
       const processingTime = Date.now() - startTime;
       const className = quickParse.programId.replace(/-/g, '_') + 'Processor';
+      
+      send('progress', { 
+        percent: 97, 
+        step: 'finalize',
+        message: '📊 Extracting configuration...',
+        detail: 'Parsing business parameters'
+      });
       
       // Build config data from Python code analysis
       const pythonCode = result.python_code || '';
@@ -353,6 +371,20 @@ export async function POST(request: NextRequest) {
           has_file_io: upperCobol.includes('READ ') || upperCobol.includes('WRITE ')
         }
       };
+      
+      send('progress', { 
+        percent: 98, 
+        step: 'finalize',
+        message: '🔧 Generating unit tests...',
+        detail: `${result.stats?.paragraphs || 0} test cases`
+      });
+      
+      send('progress', { 
+        percent: 99, 
+        step: 'finalize',
+        message: '📋 Preparing final output...',
+        detail: `${pythonLines.toLocaleString()} lines ready`
+      });
       
       // Build full response
       const fullResult = {
