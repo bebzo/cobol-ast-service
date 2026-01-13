@@ -9,6 +9,7 @@ Improvements in v5.7.5:
 - NEW: INSPECT TALLYING/REPLACING support (string counting and replacement)
 - NEW: SORT statement support (ascending/descending with key)
 - NEW: UNSTRING statement support (string splitting with delimiter)
+- NEW: REDEFINES support (alternate views of same data via @property)
 
 Improvements in v5.7.3:
 - FIX: Removed aggressive docstring regex that corrupted code
@@ -488,6 +489,7 @@ class CobolVariable:
     line: int = 0
     parent_group: Optional[str] = None
     conditions_88: List[Cobol88Condition] = field(default_factory=list)
+    redefines: Optional[str] = None  # v5.7.5: REDEFINES target variable
 
 
 @dataclass
@@ -616,6 +618,12 @@ def parse_variables_with_88(source: str) -> Tuple[List[CobolVariable], List[Cobo
         pic_match = re.search(r'PIC(?:TURE)?\s+(?:IS\s+)?([SX9AV0-9()+-.,ZB*$]+)', line, re.IGNORECASE)
         picture = pic_match.group(1).rstrip('.') if pic_match else None
         
+        # v5.7.5: Extract REDEFINES
+        redefines_target = None
+        redefines_match = re.search(r'REDEFINES\s+([A-Z][A-Z0-9-]*)', line, re.IGNORECASE)
+        if redefines_match:
+            redefines_target = redefines_match.group(1)
+        
         # Extract VALUE
         value = None
         value_match = re.search(
@@ -641,7 +649,8 @@ def parse_variables_with_88(source: str) -> Tuple[List[CobolVariable], List[Cobo
             picture=picture,
             value=value,
             line=i + 1,
-            parent_group=current_group if level > 1 else None
+            parent_group=current_group if level > 1 else None,
+            redefines=redefines_target
         )
         variables.append(var)
         last_variable = var
@@ -1817,6 +1826,106 @@ def generate_88_level_properties(conditions: List[Cobol88Condition]) -> str:
     return '\n'.join(lines)
 
 
+def generate_redefines_properties(variables: List[CobolVariable]) -> List[ast.FunctionDef]:
+    """Generate @property decorators for REDEFINES variables.
+    
+    v5.7.5: REDEFINES allows same memory to be viewed differently.
+    
+    COBOL:
+        01 WS-DATE-NUM    PIC 9(8).
+        01 WS-DATE-STR REDEFINES WS-DATE-NUM PIC X(8).
+    
+    Python:
+        @property
+        def ws_date_str(self) -> str:
+            return str(self.ws_date_num)
+    """
+    properties = []
+    
+    for var in variables:
+        if not var.redefines:
+            continue
+        
+        prop_name = to_snake_case(var.name)
+        target_name = to_snake_case(var.redefines)
+        
+        # Determine conversion based on PIC
+        if var.picture:
+            upper_pic = var.picture.upper()
+            if 'X' in upper_pic or 'A' in upper_pic:
+                # String view
+                return_type = 'str'
+                convert_expr = ast.Call(
+                    func=ast.Name(id='str', ctx=ast.Load()),
+                    args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                       attr=target_name, ctx=ast.Load())],
+                    keywords=[]
+                )
+            elif '9' in upper_pic or 'S' in upper_pic:
+                # Numeric view
+                return_type = 'Decimal'
+                convert_expr = ast.Call(
+                    func=ast.Name(id='Decimal', ctx=ast.Load()),
+                    args=[ast.Call(
+                        func=ast.Name(id='str', ctx=ast.Load()),
+                        args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                           attr=target_name, ctx=ast.Load())],
+                        keywords=[]
+                    )],
+                    keywords=[]
+                )
+            else:
+                return_type = 'Any'
+                convert_expr = ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                            attr=target_name, ctx=ast.Load())
+        else:
+            # Group item - return as-is
+            return_type = 'Any'
+            convert_expr = ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                        attr=target_name, ctx=ast.Load())
+        
+        # Create getter property
+        getter = ast.FunctionDef(
+            name=prop_name,
+            args=ast.arguments(posonlyargs=[], args=[ast.arg(arg='self')],
+                              vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]),
+            body=[
+                ast.Expr(value=ast.Constant(value=f"REDEFINES {var.redefines} - alternate view of same data")),
+                ast.Return(value=convert_expr)
+            ],
+            decorator_list=[ast.Name(id='property', ctx=ast.Load())],
+            returns=ast.Name(id=return_type, ctx=ast.Load()),
+            lineno=0, col_offset=0
+        )
+        properties.append(getter)
+        
+        # Create setter
+        setter = ast.FunctionDef(
+            name=prop_name,
+            args=ast.arguments(
+                posonlyargs=[], 
+                args=[ast.arg(arg='self'), ast.arg(arg='value')],
+                vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]
+            ),
+            body=[
+                ast.Assign(
+                    targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                          attr=target_name, ctx=ast.Store())],
+                    value=ast.Name(id='value', ctx=ast.Load())
+                )
+            ],
+            decorator_list=[ast.Attribute(
+                value=ast.Name(id=prop_name, ctx=ast.Load()),
+                attr='setter', ctx=ast.Load()
+            )],
+            returns=None,
+            lineno=0, col_offset=0
+        )
+        properties.append(setter)
+    
+    return properties
+
+
 def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     """Generate Python AST with Clean Architecture v4.4 patterns"""
     class_name = to_pascal_case(cobol_ast.program_id)
@@ -2086,6 +2195,11 @@ Methods:
                     returns=None
                 )
                 class_body.append(setter)
+    
+    # v5.7.5: Add REDEFINES properties
+    redefines_props = generate_redefines_properties(cobol_ast.variables)
+    for prop in redefines_props:
+        class_body.append(prop)
     
     # __getattr__ for dynamic COBOL variables - with warning for undeclared vars
     getattr_code = '''
