@@ -164,6 +164,33 @@ For large-scale migrations (1M+ lines), we offer:
 
 ## 📄 API Reference
 
+### GET /api/transpile
+
+Returns transpiler version and supported features.
+
+### POST /api/transpile
+
+Pure AST-based transpilation (v5.7.24):
+
+```bash
+curl -X POST https://cobol-ast-service.vercel.app/api/transpile \
+  -H "Content-Type: application/json" \
+  -d '{"cobolCode": "...", "enhance": true}'
+```
+
+**Environment Variables:**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ALLOW_STUBS` | `false` | Allow stub functions (set `true` for dev) |
+
+**Business Exceptions:**
+- `InsufficientFundsError` (9003)
+- `AccountLockedError` (9004)
+- `DailyLimitExceededError` (9005)
+- `InvalidTransactionError` (9006)
+- `CustomerNotFoundError` (9007)
+- `SecurityViolationError` (9008)
+
 ### POST /api/analyse
 
 ```bash
