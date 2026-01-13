@@ -1,6 +1,17 @@
 """
-COBOL → Python Transpiler v5.7.7 (DECLARATIVES Entry Point Fix)
+COBOL → Python Transpiler v5.7.9 (Type Consistency & INITIALIZE Fix)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.9:
+- FIX: 88-level conditions now use proper type (Decimal vs str) for comparisons
+- FIX: INITIALIZE generates proper reset instead of None assignment
+- FIX: Removes redundant trailing 'pass' statements in methods
+- NEW: _initialize_field() helper for proper COBOL INITIALIZE support
+
+Improvements in v5.7.8:
+- FIX: 88-level property names excluded from __init__ (prevents attribute/property conflict)
+- FIX: Array access syntax VAR(IDX) generates var[idx] not var(idx)
+- FIX: CALL stubs auto-generated for external program calls
 
 Improvements in v5.7.7:
 - FIX: DECLARATIVES section no longer becomes entry point
@@ -1130,6 +1141,34 @@ def count_pic_digits(pic_part: str) -> int:
     return count
 
 
+def is_numeric_88_value(value: str) -> bool:
+    """Check if 88-level value is numeric (should use Decimal for comparison).
+    
+    v5.7.9: Fix type consistency - numeric values like '0', '1' should compare
+    with Decimal, not string, when parent is numeric.
+    """
+    if not value:
+        return False
+    # Strip quotes if present
+    clean = value.strip().strip("'\"")
+    # Check if it's purely numeric (possibly with sign or decimal)
+    return bool(re.match(r'^[+-]?\d+\.?\d*$', clean))
+
+
+def format_88_value_for_comparison(value: str, is_numeric: bool) -> str:
+    """Format 88-level value for Python comparison.
+    
+    v5.7.9: Returns proper Python expression string.
+    - Numeric values: Decimal('1')
+    - String values: '1' or 'Y'
+    """
+    clean = value.strip().strip("'\"")
+    if is_numeric:
+        return f"Decimal('{clean}')"
+    else:
+        return repr(clean)
+
+
 def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[List] = None) -> bool:
     """Check if variable is a Y/N flag that should become bool.
     
@@ -1961,8 +2000,11 @@ def generate_88_level_properties(conditions: List[Cobol88Condition]) -> str:
             lines.append(f'        """88-level condition: {cond.name} (parent: {parent})"""')
             
             if values:
-                # Check if parent equals any of the values
-                value_checks = ' or '.join([f'self.{parent} == {repr(v)}' for v in values])
+                # v5.7.9: Check if values are numeric and format appropriately
+                value_checks = ' or '.join([
+                    f'self.{parent} == {format_88_value_for_comparison(v, is_numeric_88_value(v))}' 
+                    for v in values
+                ])
                 lines.append(f'        return {value_checks}')
             else:
                 lines.append(f'        return bool(self.{parent})')
@@ -1974,8 +2016,10 @@ def generate_88_level_properties(conditions: List[Cobol88Condition]) -> str:
             lines.append(f'        """Set {parent} to first condition value when True"""')
             if values:
                 first_value = values[0]
+                is_numeric = is_numeric_88_value(first_value)
+                formatted_assign = format_88_value_for_comparison(first_value, is_numeric)
                 lines.append(f'        if value:')
-                lines.append(f'            self.{parent} = {repr(first_value)}')
+                lines.append(f'            self.{parent} = {formatted_assign}')
             else:
                 lines.append(f'        self.{parent} = value')
     
@@ -2265,9 +2309,12 @@ Methods:
                 parent = to_snake_case(cond.parent_var)
                 values = cond.values
                 
-                # Create getter
+                # Create getter - v5.7.9: Use proper type for comparison
                 if values:
-                    value_check = f'self.{parent} == {repr(values[0])}'
+                    first_val = values[0]
+                    is_numeric = is_numeric_88_value(first_val)
+                    formatted_val = format_88_value_for_comparison(first_val, is_numeric)
+                    value_check = f'self.{parent} == {formatted_val}'
                     getter_body = [ast.Return(value=ast.parse(value_check, mode='eval').body)]
                 else:
                     getter_body = [ast.Return(value=ast.Call(
@@ -2305,8 +2352,21 @@ Methods:
                 )
                 class_body.append(getter)
                 
-                # Create setter
+                # Create setter - v5.7.9: Use proper type for assignment
                 if values:
+                    first_val = values[0]
+                    is_numeric = is_numeric_88_value(first_val)
+                    if is_numeric:
+                        # Use Decimal for numeric values
+                        clean_val = first_val.strip().strip("'\"")
+                        assign_value = ast.Call(
+                            func=ast.Name(id='Decimal', ctx=ast.Load()),
+                            args=[ast.Constant(value=clean_val)],
+                            keywords=[]
+                        )
+                    else:
+                        # Use string for non-numeric values
+                        assign_value = ast.Constant(value=first_val.strip().strip("'\""))
                     setter_body = [
                         ast.If(
                             test=ast.Name(id='value', ctx=ast.Load()),
@@ -2316,7 +2376,7 @@ Methods:
                                     attr=parent,
                                     ctx=ast.Store()
                                 )],
-                                value=ast.Constant(value=values[0])
+                                value=assign_value
                             )],
                             orelse=[]
                         )
@@ -2410,6 +2470,40 @@ def __getattr__(self, name):
 '''
     getattr_ast = ast.parse(getattr_code).body[0]
     class_body.append(getattr_ast)
+    
+    # v5.7.9: Add _initialize_field helper for INITIALIZE statement
+    init_field_code = '''
+def _initialize_field(self, field_name: str) -> None:
+    """Reset a field to its COBOL default value.
+    
+    v5.7.9: INITIALIZE support - resets fields properly instead of setting None.
+    - Numeric fields (Decimal) -> Decimal('0')
+    - String fields -> ''
+    - Boolean fields -> False
+    """
+    if hasattr(self, field_name):
+        current = getattr(self, field_name)
+        if isinstance(current, Decimal):
+            setattr(self, field_name, Decimal('0'))
+        elif isinstance(current, bool):
+            setattr(self, field_name, False)
+        elif isinstance(current, str):
+            setattr(self, field_name, '')
+        elif isinstance(current, (list, dict)):
+            # For group items/arrays, reinitialize
+            if isinstance(current, list):
+                setattr(self, field_name, [])
+            else:
+                setattr(self, field_name, {})
+        else:
+            # Default to Decimal for unknown numeric types
+            setattr(self, field_name, Decimal('0'))
+    else:
+        # Field doesn't exist - create with default Decimal
+        setattr(self, field_name, Decimal('0'))
+'''
+    init_field_ast = ast.parse(init_field_code).body[0]
+    class_body.append(init_field_ast)
     
     # v5.7.7: Build set of attribute names to avoid method/attribute conflicts
     # Paragraphs like "WS-SECURITY-FLAG." should NOT become methods if they're variables
@@ -2839,6 +2933,11 @@ def generate_method_from_paragraph_v4(para: CobolParagraph) -> ast.FunctionDef:
     
     if not method_body:
         method_body = [ast.Pass()]
+    else:
+        # v5.7.9: Remove redundant trailing pass statements
+        # Keep pass only if it's the only statement
+        while len(method_body) > 1 and isinstance(method_body[-1], ast.Pass):
+            method_body.pop()
     
     # Enhanced traceability docstring
     docstring = f"""Business logic from COBOL paragraph: {para.name}
@@ -4555,14 +4654,28 @@ def transpile_set_v4(stmt: str) -> Optional[ast.stmt]:
 
 
 def transpile_initialize_v4(stmt: str) -> Optional[ast.stmt]:
-    """Transpile INITIALIZE statement"""
+    """Transpile INITIALIZE statement.
+    
+    v5.7.9: INITIALIZE should reset fields to default values, not None.
+    - Numeric fields (PIC 9) -> Decimal('0')
+    - Alphanumeric fields (PIC X/A) -> '' (empty string)
+    
+    Since we may not know the type at transpile time, we generate a call to
+    _initialize_field() which handles the reset appropriately.
+    """
     match = re.match(r'INITIALIZE\s+([A-Z0-9][-A-Z0-9]*)', stmt, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
-        return ast.Assign(
-            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
-            value=ast.Constant(value=None)
-        )
+        # v5.7.9: Generate call to _initialize_field helper
+        return ast.Expr(value=ast.Call(
+            func=ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr='_initialize_field',
+                ctx=ast.Load()
+            ),
+            args=[ast.Constant(value=target)],
+            keywords=[]
+        ))
     return None
 
 
@@ -6444,7 +6557,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.7-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.7-golden' if enhance else '5.7.7',
+            'version': '5.7.9-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.9-golden' if enhance else '5.7.9',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -7046,7 +7159,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.7',
+            'version': '5.7.9',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
