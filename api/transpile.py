@@ -1,10 +1,10 @@
 """
-COBOL → Python Transpiler v5.7.4 (Multi-State Flag Fix)
+COBOL → Python Transpiler v5.7.5 (Multi-State Flag Fix)
 Uses Python's ast module for 100% syntax-valid output
 
-Improvements in v5.7.4:
-- FIX: Multi-state flags (>2 values via 88-levels) now stay as str, not bool
-- FIX: validation_flag, security_flag correctly typed when using Y/N/P/F values
+Improvements in v5.7.5:
+- FIX: Multi-state flags (validation_flag, security_flag) now correctly typed as str
+- FIX: is_flag_variable checks 88-level condition count (>2 = multi-state = str)
 
 Improvements in v5.7.3:
 - FIX: Removed aggressive docstring regex that corrupted code
@@ -1023,33 +1023,24 @@ def count_pic_digits(pic_part: str) -> int:
 def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[List] = None) -> bool:
     """Check if variable is a Y/N flag that should become bool.
     
-    v5.7.4: If variable has 88-level conditions with more than 2 values,
-    it's a multi-state flag (like SECURITY-FLAG with P/F/E/S values)
-    and should stay as str, not bool.
+    Multi-state flags (with >2 88-level conditions like Y/N/P/F) return False
+    because they need str type, not bool.
     """
-    # If we have 88-level conditions, check if it's truly binary
+    # Multi-state check: if more than 2 conditions, it's not a simple bool
     if conditions_88 and len(conditions_88) > 2:
-        # More than 2 states = not a boolean flag
         return False
     
     upper_name = name.upper()
     flag_keywords = ['FLAG', 'EOF', 'ERROR', 'VALID', 'FOUND', 'APPROVED', 'ACTIVE', 'DONE']
     if any(kw in upper_name for kw in flag_keywords):
-        # If we have exactly 2 conditions, it's binary (bool)
-        # If we have 88-levels but > 2, handled above
-        # If no 88-levels, assume binary for these keywords
         return True
     if value and value.upper() in ('Y', 'N', 'TRUE', 'FALSE'):
         return True
     return False
 
 
-def cobol_value_to_python_v3(value: Optional[str], pic: Optional[str], var_name: str, 
-                              conditions_88: Optional[List] = None) -> ast.expr:
-    """Convert COBOL VALUE to Python AST (v3: bools for flags)
-    
-    v5.7.4: Added conditions_88 parameter for multi-state flag detection.
-    """
+def cobol_value_to_python_v3(value: Optional[str], pic: Optional[str], var_name: str, conditions_88: Optional[List] = None) -> ast.expr:
+    """Convert COBOL VALUE to Python AST (v3: bools for flags, v5: multi-state check)"""
     if value is None:
         _, default = pic_to_python_type(pic, None)
         return default
@@ -1831,7 +1822,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.4]
+Auto-transpiled from COBOL [AST Transpiler v5.7.5]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -4785,7 +4776,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.4-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.4-golden' if enhance else '5.7.4',
+            'version': '5.2.0-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.2.0-golden' if enhance else '5.2.0',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -5387,7 +5378,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.4',
+            'version': '5.7.0',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
