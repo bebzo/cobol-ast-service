@@ -1,6 +1,11 @@
 """
-COBOL → Python Transpiler v5.7.17 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.18 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.18:
+- CRITICAL FIX: SEARCH WHEN conditions now use _item from enumerate loop
+- Previously: self.table[int(self.idx) - 1] == key (WRONG - used original index var)
+- Now: _item == self.key (CORRECT - uses enumerate loop variable)
 
 Improvements in v5.7.17:
 - CRITICAL FIX: Paragraph names excluded from used_variables (no more method-variables)
@@ -5709,9 +5714,59 @@ def transpile_call_v4(stmt: str) -> Optional[ast.stmt]:
 # v5.7.5: Additional COBOL Statement Transpilers
 # ============================================================
 
+def transform_search_condition(condition: str, table_name: str) -> str:
+    """
+    Transform SEARCH WHEN condition to use _item instead of table subscript references.
+    
+    v5.7.18: Fix SEARCH bug where WHEN conditions used self.table[int(self.idx)-1]
+             instead of _item from the enumerate loop.
+    
+    COBOL: WS-RATE-ENTRY(RATE-IDX) = WS-KEY
+    Should become: _item == self.ws_key (using _item from enumerate)
+    
+    Strategy: Replace TABLE(INDEX) patterns with a marker ZSEARCHITEMZ that will
+              be converted to _item in the AST (marker must be valid COBOL identifier).
+    """
+    # Replace references to table(index) or element(index) with special marker
+    # Match patterns like: WS-TABLE(WS-IDX), RATE-ENTRY(RATE-IDX), etc.
+    def replace_table_ref(m):
+        # Return special marker that will become _item
+        # ZSEARCHITEMZ is used because it's a valid COBOL identifier (no underscores)
+        return 'ZSEARCHITEMZ'
+    
+    # Match VARNAME(INDEXVAR) pattern - subscripted variable access
+    pattern = r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\)'
+    result = re.sub(pattern, replace_table_ref, condition, flags=re.IGNORECASE)
+    
+    return result
+
+
+def fix_search_item_in_ast(node: ast.AST) -> ast.AST:
+    """
+    Walk AST and replace self.zsearchitemz with _item.
+    
+    This fixes the SEARCH condition to use the enumerate loop variable.
+    ZSEARCHITEMZ is the marker placed by transform_search_condition.
+    """
+    class SearchItemFixer(ast.NodeTransformer):
+        def visit_Attribute(self, node):
+            # Check if it's self.zsearchitemz (the marker)
+            if (isinstance(node.value, ast.Name) and 
+                node.value.id == 'self' and 
+                node.attr == 'zsearchitemz'):
+                # Replace with just _item
+                return ast.Name(id='_item', ctx=node.ctx)
+            return self.generic_visit(node)
+    
+    return SearchItemFixer().visit(node)
+
+
 def transpile_search_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
     """
     Transpile SEARCH/SEARCH ALL statement to Python.
+    
+    v5.7.18: Fixed bug where WHEN conditions incorrectly used self.table[int(self.idx)-1]
+             instead of _item from enumerate loop.
     
     COBOL:
         SEARCH WS-TABLE
@@ -5722,8 +5777,8 @@ def transpile_search_v4(statements: List[str], start_idx: int) -> Tuple[Optional
     
     Python:
         found = False
-        for idx, item in enumerate(self.ws_table):
-            if item == self.ws_key:
+        for _idx, _item in enumerate(self.ws_table):
+            if _item == self.ws_key:
                 self.ws_found = 'Y'
                 found = True
                 break
@@ -5773,8 +5828,13 @@ def transpile_search_v4(statements: List[str], start_idx: int) -> Tuple[Optional
     loop_body = []
     
     for when in when_conditions:
+        # v5.7.18: Transform condition to use _item instead of table subscripts
+        transformed_cond = transform_search_condition(when['condition'], table_name)
         # Parse condition
-        cond_expr = parse_cobol_condition(when['condition'])
+        cond_expr = parse_cobol_condition(transformed_cond)
+        # Fix any self._search_item_ references to use _item
+        cond_expr = fix_search_item_in_ast(cond_expr)
+        
         when_body = transpile_statements_v4(when['stmts']) if when['stmts'] else [ast.Pass()]
         when_body.append(ast.Assign(
             targets=[ast.Name(id='_search_found', ctx=ast.Store())],
