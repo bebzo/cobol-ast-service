@@ -905,23 +905,21 @@ class UltimateBankingSystemConfig:
     effective_rate: Decimal = Decimal('0.00000000')
     tax_rate: Decimal = Decimal('0.196')
     
-    # OCCURS 5 TIMES - Rate table properly initialized
+    # OCCURS 5 TIMES - Rate table aligned with COBOL source
     rate_table: List[RateEntry] = field(default_factory=lambda: [
-        RateEntry('CK', Decimal('0.002500'), Decimal('0.000500')),
-        RateEntry('SV', Decimal('0.015000'), Decimal('0.002500')),
-        RateEntry('MM', Decimal('0.025000'), Decimal('0.005000')),
-        RateEntry('CD', Decimal('0.035000'), Decimal('0.007500')),
-        RateEntry('LN', Decimal('0.065000'), Decimal('0.000000')),
+        RateEntry('CK', Decimal('0.002500'), Decimal('0.000000')),  # Checking 0.25%
+        RateEntry('SV', Decimal('0.015000'), Decimal('0.000000')),  # Savings 1.50%
+        RateEntry('MM', Decimal('0.020000'), Decimal('0.000000')),  # Money Market 2.00%
+        RateEntry('CD', Decimal('0.030000'), Decimal('0.000000')),  # Certificate 3.00%
+        RateEntry('IR', Decimal('0.025000'), Decimal('0.000000')),  # IRA 2.50%
     ])
     
-    # OCCURS 10 TIMES - Fee table properly initialized
+    # OCCURS 3 TIMES - Fee table aligned with COBOL source (lines 274-287)
     fee_table: List[FeeEntry] = field(default_factory=lambda: [
-        FeeEntry('OVD', Decimal('0.025'), Decimal('25.00'), Decimal('100.00')),
-        FeeEntry('WIR', Decimal('0.015'), Decimal('15.00'), Decimal('75.00')),
-        FeeEntry('ATM', Decimal('0.000'), Decimal('2.50'), Decimal('2.50')),
-        FeeEntry('MNT', Decimal('0.000'), Decimal('10.00'), Decimal('10.00')),
-        FeeEntry('CHK', Decimal('0.000'), Decimal('0.50'), Decimal('0.50')),
-    ] + [FeeEntry() for _ in range(5)])
+        FeeEntry('WDR', Decimal('0.010'), Decimal('5.00'), Decimal('500000.00')),   # Withdrawal 1% min 5€
+        FeeEntry('TRF', Decimal('0.015'), Decimal('10.00'), Decimal('100000.00')),  # Transfer 1.5% min 10€
+        FeeEntry('PAY', Decimal('0.005'), Decimal('2.50'), Decimal('250000.00')),   # Payment 0.5% min 2.50€
+    ])
 
 
 # ============================================================================
@@ -940,7 +938,7 @@ class UltimateBankingSystem:
     Methods:
         run(): Main entry point
     """
-    VERSION: ClassVar[str] = '5.7.14-SUPABASE'
+    VERSION: ClassVar[str] = '5.7.15-SUPABASE'
     SPACES: ClassVar[str] = ' ' * 256
     LOW_VALUES: ClassVar[str] = '\x00' * 256
     HIGH_VALUES: ClassVar[str] = '\xff' * 256
@@ -1750,6 +1748,65 @@ class UltimateBankingSystem:
         """Business logic from COBOL paragraph: 630-GENERATE-RISK-REPORT"""
         self.report_title = 'RISK ASSESSMENT REPORT'
         self.logger.info(f'GENERATING: {self.report_title}')
+        self.p_631_analyze_risks()
+    
+    def p_631_analyze_risks(self) -> None:
+        """Business logic from COBOL paragraph: 631-ANALYZE-RISKS"""
+        self.eof_flag = False
+        self.index = Decimal('1')
+        self.file_manager.start_key('customer_master_file', '', op='>=')
+        
+        while not (self.index > Decimal('100') or self.end_of_file):
+            record = self.file_manager.read_next('customer_master_file')
+            if record is None:
+                self.eof_flag = True
+            else:
+                self._load_customer_fields(record)
+                self.p_632_calculate_risk_score()
+                if self.cm_risk_score > self.risk_threshold:
+                    self.p_633_flag_high_risk()
+            self.index += Decimal('1')
+    
+    def p_632_calculate_risk_score(self) -> None:
+        """Business logic from COBOL paragraph: 632-CALCULATE-RISK-SCORE
+        
+        COBOL source lines 941-958
+        """
+        self.cm_risk_score = Decimal('50')  # Base score
+        
+        # High balance = higher risk
+        if self.cm_account_balance > Decimal('1000000'):
+            self.cm_risk_score += Decimal('20')
+        
+        # Suspicious activity flag
+        if self.suspicious_activity:
+            self.cm_risk_score += Decimal('30')
+        
+        # Determine risk level
+        if self.cm_risk_score > Decimal('75'):
+            self.cm_risk_level = 'H'  # High
+        elif self.cm_risk_score > Decimal('50'):
+            self.cm_risk_level = 'M'  # Medium
+        else:
+            self.cm_risk_level = 'L'  # Low
+    
+    def p_633_flag_high_risk(self) -> None:
+        """Business logic from COBOL paragraph: 633-FLAG-HIGH-RISK"""
+        self.cm_risk_level = 'C'  # Critical
+        updated_record = self._store_customer_fields()
+        self.file_manager.rewrite_record('customer_master_file', updated_record)
+        self.log_risk_event()
+    
+    def log_risk_event(self) -> None:
+        """Log risk event to audit trail"""
+        audit = AuditRecord(
+            audit_date=self.current_date[:8],
+            audit_time=self.current_time[:6],
+            user_id=self.ls_user_id,
+            action='RISK',
+            details=f'Level: {self.cm_risk_level} Score: {self.cm_risk_score}'
+        )
+        self.file_manager.write_record('audit_trail_file', audit)
 
     def p_640_generate_audit_report(self) -> None:
         """Business logic from COBOL paragraph: 640-GENERATE-AUDIT-REPORT"""
@@ -1869,14 +1926,26 @@ class UltimateBankingSystem:
         self.file_manager.write_record('audit_trail_file', audit)
 
     def calculate_fraud_score(self) -> None:
-        """Calculate fraud score based on transaction patterns"""
+        """Calculate fraud score based on transaction patterns
+        
+        COBOL source lines 1087-1097:
+        - TRANS-AMOUNT > 100000 → +30 pts
+        - TRANS-CHANNEL = 'O' AND > 50000 → +25 pts
+        - WS-INDEX > 10 → +20 pts (frequency check)
+        """
         self.fraud_score = Decimal('0')
         
+        # Rule 1: Large transaction
         if self.trans_amount > Decimal('100000'):
             self.fraud_score += Decimal('30')
-            
+        
+        # Rule 2: Online channel with significant amount
         if self.trans_channel == 'O' and self.trans_amount > Decimal('50000'):
             self.fraud_score += Decimal('25')
+        
+        # Rule 3: High frequency (WS-INDEX > 10)
+        if self.index > Decimal('10'):
+            self.fraud_score += Decimal('20')
 
     # ========== MAIN ENTRY POINT ==========
 
