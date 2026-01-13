@@ -4647,13 +4647,18 @@ def parse_cobol_condition(condition: str) -> ast.expr:
             else:
                 op = ast.Eq()
             
-            # Determine right side - v5.6.0: improved numeric detection
+            # Determine right side - v5.7.16: use Decimal for decimals (not float)
             try:
                 # Check for numeric values including decimals and negatives
                 if re.match(r'^-?\d+$', right_str):
                     right = ast.Constant(value=int(right_str))
                 elif re.match(r'^-?\d+\.\d+$', right_str):
-                    right = ast.Constant(value=float(right_str))
+                    # v5.7.16: Generate Decimal('value') instead of float for financial precision
+                    right = ast.Call(
+                        func=ast.Name(id='Decimal', ctx=ast.Load()),
+                        args=[ast.Constant(value=right_str)],
+                        keywords=[]
+                    )
                 elif right_str.startswith("'") or right_str.startswith('"'):
                     right = ast.Constant(value=right_str.strip("'\""))
                 elif right_str.startswith('self.'):
@@ -4993,33 +4998,44 @@ def transpile_read_block_v4(statements: List[str], start_idx: int) -> Tuple[List
     file_name = to_snake_case(match.group(1))
     
     # Check if this is a simple READ (no AT END block)
-    # Look ahead for AT END or END-READ
+    # Look ahead for AT END, NOT AT END, or END-READ
     has_at_end = False
+    has_not_at_end = False
     at_end_stmts = []
+    not_at_end_stmts = []
     consumed = 1
+    current_block = None  # 'at_end' or 'not_at_end'
     
     for j in range(start_idx + 1, len(statements)):
         line = statements[j].strip()
         line_upper = line.upper()
         
-        if line_upper.startswith('AT END') or line_upper == 'AT END':
+        if line_upper.startswith('NOT AT END') or line_upper == 'NOT AT END':
+            has_not_at_end = True
+            current_block = 'not_at_end'
+            # Extract inline statement if present
+            not_at_end_match = re.match(r'NOT\s+AT\s+END\s+(.+)', line, re.IGNORECASE)
+            if not_at_end_match:
+                not_at_end_stmts.append(not_at_end_match.group(1).strip())
+            consumed += 1
+        elif line_upper.startswith('AT END') or line_upper == 'AT END':
             has_at_end = True
+            current_block = 'at_end'
             # Extract inline statement if present (e.g., "AT END MOVE 'Y' TO EOF-FLAG")
             at_end_match = re.match(r'AT\s+END\s+(.+)', line, re.IGNORECASE)
             if at_end_match:
                 at_end_stmts.append(at_end_match.group(1).strip())
             consumed += 1
-        elif has_at_end and (line_upper.startswith('END-READ') or line_upper == 'END-READ.'):
-            consumed += 1
-            break
-        elif has_at_end and not line_upper.startswith('END-READ'):
-            # Collect AT END block statements
-            if line_upper and not line_upper.startswith('NOT '):
-                at_end_stmts.append(line)
-            consumed += 1
         elif line_upper.startswith('END-READ') or line_upper == 'END-READ.':
             consumed += 1
             break
+        elif (has_at_end or has_not_at_end) and line_upper:
+            # Collect statements for current block
+            if current_block == 'at_end':
+                at_end_stmts.append(line)
+            elif current_block == 'not_at_end':
+                not_at_end_stmts.append(line)
+            consumed += 1
         elif not line_upper:
             consumed += 1
         else:
@@ -5039,13 +5055,34 @@ def transpile_read_block_v4(statements: List[str], start_idx: int) -> Tuple[List
         )
     )
     
-    if has_at_end and at_end_stmts:
-        # Transpile AT END statements
-        at_end_body = transpile_statements_v4(at_end_stmts)
+    if has_at_end or has_not_at_end:
+        # Transpile AT END statements (executed when EOF)
+        at_end_body = []
+        if at_end_stmts:
+            at_end_body = transpile_statements_v4(at_end_stmts)
         if not at_end_body:
-            at_end_body = [ast.Pass()]
+            at_end_body = [ast.Expr(value=ast.Call(
+                func=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='__setattr__', ctx=ast.Load()),
+                args=[ast.Constant(value='eof_flag'), ast.Constant(value=True)],
+                keywords=[]
+            ))]
         
-        # Generate: if _record is None: <at_end_block> else: self.file_record = _record
+        # Transpile NOT AT END statements (executed when record found)
+        not_at_end_body = []
+        if not_at_end_stmts:
+            not_at_end_body = transpile_statements_v4(not_at_end_stmts)
+        
+        # Build else block: assign record + NOT AT END logic
+        else_block = [
+            ast.Assign(
+                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_record', ctx=ast.Store())],
+                value=ast.Name(id='_record', ctx=ast.Load())
+            )
+        ]
+        if not_at_end_body:
+            else_block.extend(not_at_end_body)
+        
+        # Generate: if _record is None: <at_end_block> else: <assign + not_at_end_block>
         if_stmt = ast.If(
             test=ast.Compare(
                 left=ast.Name(id='_record', ctx=ast.Load()),
@@ -5053,12 +5090,7 @@ def transpile_read_block_v4(statements: List[str], start_idx: int) -> Tuple[List
                 comparators=[ast.Constant(value=None)]
             ),
             body=at_end_body,
-            orelse=[
-                ast.Assign(
-                    targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_record', ctx=ast.Store())],
-                    value=ast.Name(id='_record', ctx=ast.Load())
-                )
-            ]
+            orelse=else_block
         )
         return [read_call, if_stmt], consumed
     else:
