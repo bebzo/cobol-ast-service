@@ -1,5 +1,5 @@
 """UltimateBankingSystem - Clean Architecture Python Code with Supabase Backend
-Auto-transpiled from COBOL [AST Transpiler v5.7.14-SUPABASE]
+Auto-transpiled from COBOL [AST Transpiler v5.7.15-SUPABASE]
 
 Architecture:
 - SupabaseIndexedFileManager for VSAM INDEXED file simulation
@@ -10,7 +10,7 @@ Architecture:
 - Decimal for all monetary values
 - CobolRuntime ACTIVELY USED for all financial calculations
 
-Fixes Applied (v5.7.14-SUPABASE):
+Fixes Applied (v5.7.15-SUPABASE):
 - CobolRuntime now used in all COMPUTE statements
 - ROUND_HALF_EVEN (banker's rounding) enforced
 - eof_flag correctly uses boolean True/False
