@@ -5010,10 +5010,16 @@ def transpile_if_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast
 def transpile_read_block_v4(statements: List[str], start_idx: int) -> Tuple[List[ast.stmt], int]:
     """
     v5.7.0: Transpile READ ... AT END ... END-READ blocks.
+    v5.7.17: Also handles INVALID KEY / NOT INVALID KEY for indexed file reads.
     
     Handles:
         READ FILE-NAME
             AT END MOVE 'Y' TO EOF-FLAG
+        END-READ
+        
+        READ FILE-NAME KEY IS KEY-FIELD
+            INVALID KEY DISPLAY 'NOT FOUND'
+            NOT INVALID KEY DISPLAY RECORD-DATA
         END-READ
     
     Generates:
@@ -5034,19 +5040,39 @@ def transpile_read_block_v4(statements: List[str], start_idx: int) -> Tuple[List
     file_name = to_snake_case(match.group(1))
     
     # Check if this is a simple READ (no AT END block)
-    # Look ahead for AT END, NOT AT END, or END-READ
+    # Look ahead for AT END, NOT AT END, INVALID KEY, NOT INVALID KEY, or END-READ
     has_at_end = False
     has_not_at_end = False
+    has_invalid_key = False
+    has_not_invalid_key = False
     at_end_stmts = []
     not_at_end_stmts = []
+    invalid_key_stmts = []
+    not_invalid_key_stmts = []
     consumed = 1
-    current_block = None  # 'at_end' or 'not_at_end'
+    current_block = None  # 'at_end', 'not_at_end', 'invalid_key', 'not_invalid_key'
     
     for j in range(start_idx + 1, len(statements)):
         line = statements[j].strip()
         line_upper = line.upper()
         
-        if line_upper.startswith('NOT AT END') or line_upper == 'NOT AT END':
+        # v5.7.17: Handle NOT INVALID KEY (must check before INVALID KEY)
+        if line_upper.startswith('NOT INVALID KEY') or line_upper == 'NOT INVALID KEY':
+            has_not_invalid_key = True
+            current_block = 'not_invalid_key'
+            not_inv_match = re.match(r'NOT\s+INVALID\s+KEY\s+(.+)', line, re.IGNORECASE)
+            if not_inv_match:
+                not_invalid_key_stmts.append(not_inv_match.group(1).strip())
+            consumed += 1
+        # v5.7.17: Handle INVALID KEY
+        elif line_upper.startswith('INVALID KEY') or line_upper == 'INVALID KEY':
+            has_invalid_key = True
+            current_block = 'invalid_key'
+            inv_match = re.match(r'INVALID\s+KEY\s+(.+)', line, re.IGNORECASE)
+            if inv_match:
+                invalid_key_stmts.append(inv_match.group(1).strip())
+            consumed += 1
+        elif line_upper.startswith('NOT AT END') or line_upper == 'NOT AT END':
             has_not_at_end = True
             current_block = 'not_at_end'
             # Extract inline statement if present
@@ -5065,12 +5091,16 @@ def transpile_read_block_v4(statements: List[str], start_idx: int) -> Tuple[List
         elif line_upper.startswith('END-READ') or line_upper == 'END-READ.':
             consumed += 1
             break
-        elif (has_at_end or has_not_at_end) and line_upper:
+        elif (has_at_end or has_not_at_end or has_invalid_key or has_not_invalid_key) and line_upper:
             # Collect statements for current block
             if current_block == 'at_end':
                 at_end_stmts.append(line)
             elif current_block == 'not_at_end':
                 not_at_end_stmts.append(line)
+            elif current_block == 'invalid_key':
+                invalid_key_stmts.append(line)
+            elif current_block == 'not_invalid_key':
+                not_invalid_key_stmts.append(line)
             consumed += 1
         elif not line_upper:
             consumed += 1
@@ -5091,41 +5121,46 @@ def transpile_read_block_v4(statements: List[str], start_idx: int) -> Tuple[List
         )
     )
     
-    if has_at_end or has_not_at_end:
-        # Transpile AT END statements (executed when EOF)
-        at_end_body = []
+    # v5.7.17: Handle AT END or INVALID KEY (same logic, different semantics)
+    if has_at_end or has_not_at_end or has_invalid_key or has_not_invalid_key:
+        # Transpile AT END / INVALID KEY statements (executed when EOF or key not found)
+        error_body = []
         if at_end_stmts:
-            at_end_body = transpile_statements_v4(at_end_stmts)
-        if not at_end_body:
-            at_end_body = [ast.Expr(value=ast.Call(
+            error_body = transpile_statements_v4(at_end_stmts)
+        elif invalid_key_stmts:
+            error_body = transpile_statements_v4(invalid_key_stmts)
+        if not error_body:
+            error_body = [ast.Expr(value=ast.Call(
                 func=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='__setattr__', ctx=ast.Load()),
                 args=[ast.Constant(value='eof_flag'), ast.Constant(value=True)],
                 keywords=[]
             ))]
         
-        # Transpile NOT AT END statements (executed when record found)
-        not_at_end_body = []
+        # Transpile NOT AT END / NOT INVALID KEY statements (executed when record found)
+        success_body = []
         if not_at_end_stmts:
-            not_at_end_body = transpile_statements_v4(not_at_end_stmts)
+            success_body = transpile_statements_v4(not_at_end_stmts)
+        elif not_invalid_key_stmts:
+            success_body = transpile_statements_v4(not_invalid_key_stmts)
         
-        # Build else block: assign record + NOT AT END logic
+        # Build else block: assign record + success logic
         else_block = [
             ast.Assign(
                 targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=f'{file_name}_record', ctx=ast.Store())],
                 value=ast.Name(id='_record', ctx=ast.Load())
             )
         ]
-        if not_at_end_body:
-            else_block.extend(not_at_end_body)
+        if success_body:
+            else_block.extend(success_body)
         
-        # Generate: if _record is None: <at_end_block> else: <assign + not_at_end_block>
+        # Generate: if _record is None: <error_block> else: <assign + success_block>
         if_stmt = ast.If(
             test=ast.Compare(
                 left=ast.Name(id='_record', ctx=ast.Load()),
                 ops=[ast.Is()],
                 comparators=[ast.Constant(value=None)]
             ),
-            body=at_end_body,
+            body=error_body,
             orelse=else_block
         )
         return [read_call, if_stmt], consumed
