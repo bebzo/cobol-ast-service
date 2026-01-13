@@ -1,5 +1,5 @@
 """
-COBOL → Python Transpiler v5.7.14 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.16 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
 
 Improvements in v5.7.14:
@@ -7031,7 +7031,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.14-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.14-golden' if enhance else '5.7.14',
+            'version': '5.7.16-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.16-golden' if enhance else '5.7.16',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -7635,7 +7635,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.14',
+            'version': '5.7.16',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
