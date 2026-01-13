@@ -1284,7 +1284,10 @@ class UltimateBankingSystem:
 
     def p_120_initialize_security(self) -> None:
         """Business logic from COBOL paragraph: 120-INITIALIZE-SECURITY"""
-        self.encryption_key = 'SECRET_KEY_1234567890ABCDEF'
+        # SECURITY FIX: Use environment variable instead of hardcoded key
+        self.encryption_key = os.getenv('BANKING_ENCRYPTION_KEY', '')
+        if not self.encryption_key:
+            self.logger.warning('BANKING_ENCRYPTION_KEY not set - encryption disabled')
         self.call_gensession(self.session_token)
         self.auth_level = Decimal('2')
 
@@ -2059,7 +2062,7 @@ if __name__ == '__main__':
     )
     
     print("=" * 60)
-    print("UltimateBankingSystem v5.7.14-SUPABASE")
+    print("UltimateBankingSystem v5.7.15-SUPABASE")
     print("COBOL-to-Python Transpilation with Supabase Backend")
     print("=" * 60)
     
