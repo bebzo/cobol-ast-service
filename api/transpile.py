@@ -1,9 +1,10 @@
 """
-COBOL → Python Transpiler v5.7.11 (Type-Safe 88-Levels)
+COBOL → Python Transpiler v5.7.12 (Type-Safe 88-Levels)
 Uses Python's ast module for 100% syntax-valid output
 
-Improvements in v5.7.11:
-- FIX: 88-level properties now use parent variable's actual type (PIC-based)
+Improvements in v5.7.12:
+- CRITICAL FIX: 88-level properties now actually generated (was broken - stuck in else block)
+- FIX: 88-level properties use parent variable's actual type (PIC-based)
 - FIX: String parents (PIC X) compare with strings, not Decimal
 - FIX: Bool parents (Y/N flags) compare with True/False, not 'Y'/'N'
 
@@ -1168,7 +1169,7 @@ def count_pic_digits(pic_part: str) -> int:
 def is_numeric_88_value(value: str) -> bool:
     """Check if 88-level value is numeric (should use Decimal for comparison).
     
-    v5.7.9: Fix type consistency - numeric values like '0', '1' should compare
+    v5.7.12: Fix type consistency - numeric values like '0', '1' should compare
     with Decimal, not string, when parent is numeric.
     """
     if not value:
@@ -1182,7 +1183,7 @@ def is_numeric_88_value(value: str) -> bool:
 def format_88_value_for_comparison(value: str, is_numeric: bool) -> str:
     """Format 88-level value for Python comparison.
     
-    v5.7.9: Returns proper Python expression string.
+    v5.7.12: Returns proper Python expression string.
     - Numeric values: Decimal('1')
     - String values: '1' or 'Y'
     """
@@ -1996,13 +1997,13 @@ def generate_record_dataclass(record_name: str, fields: List[CobolVariable]) -> 
 def generate_88_level_properties(conditions: List[Cobol88Condition], variables: Optional[List[CobolVariable]] = None) -> str:
     """Generate @property decorators for 88-level conditions
     
-    v5.7.11: Now takes variables list to determine parent variable type.
+    v5.7.12: Now takes variables list to determine parent variable type.
     This ensures proper type matching (string parent uses string comparison, etc.)
     """
     if not conditions:
         return ''
     
-    # v5.7.11: Build a map of variable names to their types
+    # v5.7.12: Build a map of variable names to their types
     parent_types: Dict[str, str] = {}  # 'numeric', 'string', 'bool'
     if variables:
         for var in variables:
@@ -2035,7 +2036,7 @@ def generate_88_level_properties(conditions: List[Cobol88Condition], variables: 
         by_parent[parent].append(cond)
     
     for parent, conds in by_parent.items():
-        # v5.7.11: Determine parent type from PIC, not from value
+        # v5.7.12: Determine parent type from PIC, not from value
         parent_type = parent_types.get(parent, None)
         
         for cond in conds:
@@ -2049,7 +2050,7 @@ def generate_88_level_properties(conditions: List[Cobol88Condition], variables: 
             lines.append(f'        """88-level condition: {cond.name} (parent: {parent})"""')
             
             if values:
-                # v5.7.11: Use parent type to determine comparison format
+                # v5.7.12: Use parent type to determine comparison format
                 value_checks = []
                 for v in values:
                     clean_v = v.strip().strip("'\"")
@@ -2207,7 +2208,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.11]
+Auto-transpiled from COBOL [AST Transpiler v5.7.12]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -2372,7 +2373,7 @@ Methods:
     
     # Add 88-level properties as code
     if cobol_ast.conditions_88:
-        # v5.7.11: Build parent type map from PIC clauses
+        # v5.7.12: Build parent type map from PIC clauses
         parent_types: Dict[str, str] = {}  # 'numeric', 'string', 'bool'
         for var in cobol_ast.variables:
             var_name = to_snake_case(var.name)
@@ -2393,15 +2394,15 @@ Methods:
             parent = to_snake_case(cond.parent_var)
             values = cond.values
             
-            # v5.7.11: Get parent type from map
+            # v5.7.12: Get parent type from map
             parent_type = parent_types.get(parent, None)
             
-            # Create getter - v5.7.11: Use parent type for comparison
+            # Create getter - v5.7.12: Use parent type for comparison
             if values:
                 first_val = values[0]
                 clean_val = first_val.strip().strip("'\"")
                 
-                # v5.7.11: Format based on parent type, not value content
+                # v5.7.12: Format based on parent type, not value content
                 if parent_type == 'bool':
                     bool_val = clean_val.upper() in ('Y', 'TRUE', '1')
                     value_check = f'self.{parent} == {bool_val}'
@@ -2453,12 +2454,12 @@ Methods:
             )
             class_body.append(getter)
             
-            # Create setter - v5.7.11: Use parent type for assignment
+            # Create setter - v5.7.12: Use parent type for assignment
             if values:
                 first_val = values[0]
                 clean_val = first_val.strip().strip("'\"")
                 
-                # v5.7.11: Use parent type for assignment value
+                # v5.7.12: Use parent type for assignment value
                 if parent_type == 'bool':
                     bool_val = clean_val.upper() in ('Y', 'TRUE', '1')
                     assign_value = ast.Constant(value=bool_val)
@@ -2586,12 +2587,12 @@ def __getattr__(self, name):
     getattr_ast = ast.parse(getattr_code).body[0]
     class_body.append(getattr_ast)
     
-    # v5.7.9: Add _initialize_field helper for INITIALIZE statement
+    # v5.7.12: Add _initialize_field helper for INITIALIZE statement
     init_field_code = '''
 def _initialize_field(self, field_name: str) -> None:
     """Reset a field to its COBOL default value.
     
-    v5.7.9: INITIALIZE support - resets fields properly instead of setting None.
+    v5.7.12: INITIALIZE support - resets fields properly instead of setting None.
     - Numeric fields (Decimal) -> Decimal('0')
     - String fields -> ''
     - Boolean fields -> False
@@ -3049,7 +3050,7 @@ def generate_method_from_paragraph_v4(para: CobolParagraph) -> ast.FunctionDef:
     if not method_body:
         method_body = [ast.Pass()]
     else:
-        # v5.7.9: Remove redundant trailing pass statements
+        # v5.7.12: Remove redundant trailing pass statements
         # Keep pass only if it's the only statement
         while len(method_body) > 1 and isinstance(method_body[-1], ast.Pass):
             method_body.pop()
@@ -4771,7 +4772,7 @@ def transpile_set_v4(stmt: str) -> Optional[ast.stmt]:
 def transpile_initialize_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile INITIALIZE statement.
     
-    v5.7.9: INITIALIZE should reset fields to default values, not None.
+    v5.7.12: INITIALIZE should reset fields to default values, not None.
     - Numeric fields (PIC 9) -> Decimal('0')
     - Alphanumeric fields (PIC X/A) -> '' (empty string)
     
@@ -4781,7 +4782,7 @@ def transpile_initialize_v4(stmt: str) -> Optional[ast.stmt]:
     match = re.match(r'INITIALIZE\s+([A-Z0-9][-A-Z0-9]*)', stmt, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
-        # v5.7.9: Generate call to _initialize_field helper
+        # v5.7.12: Generate call to _initialize_field helper
         return ast.Expr(value=ast.Call(
             func=ast.Attribute(
                 value=ast.Name(id='self', ctx=ast.Load()),
@@ -6672,7 +6673,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.9-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.9-golden' if enhance else '5.7.9',
+            'version': '5.7.12-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.12-golden' if enhance else '5.7.12',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -7274,7 +7275,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.9',
+            'version': '5.7.12',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
