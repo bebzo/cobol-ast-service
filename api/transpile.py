@@ -2426,108 +2426,109 @@ Methods:
                     )],
                     keywords=[]
                 ))]
+            
+            # v5.7.12: FIX - Create getter OUTSIDE of if/else block (was incorrectly inside else)
+            # Sanitize condition name for docstring
+            safe_cond_name = cond.name.replace('"', "'").replace('\n', ' ')
+            safe_parent = parent.replace('"', "'").replace('\n', ' ')
+            docstring_text = f"COBOL 88-level condition: {safe_cond_name}\n\nParent variable: {safe_parent}"
+            
+            getter = ast.FunctionDef(
+                name=prop_name,
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=[ast.arg(arg='self')],
+                    vararg=None,
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    kwarg=None,
+                    defaults=[]
+                ),
+                body=[
+                    ast.Expr(value=ast.Constant(value=docstring_text)),
+                    *getter_body
+                ],
+                decorator_list=[ast.Name(id='property', ctx=ast.Load())],
+                returns=ast.Name(id='bool', ctx=ast.Load())
+            )
+            class_body.append(getter)
+            
+            # Create setter - v5.7.11: Use parent type for assignment
+            if values:
+                first_val = values[0]
+                clean_val = first_val.strip().strip("'\"")
                 
-                # Sanitize condition name for docstring
-                safe_cond_name = cond.name.replace('"', "'").replace('\n', ' ')
-                safe_parent = parent.replace('"', "'").replace('\n', ' ')
-                docstring_text = f"COBOL 88-level condition: {safe_cond_name}\n\nParent variable: {safe_parent}"
-                
-                getter = ast.FunctionDef(
-                    name=prop_name,
-                    args=ast.arguments(
-                        posonlyargs=[],
-                        args=[ast.arg(arg='self')],
-                        vararg=None,
-                        kwonlyargs=[],
-                        kw_defaults=[],
-                        kwarg=None,
-                        defaults=[]
-                    ),
-                    body=[
-                        ast.Expr(value=ast.Constant(value=docstring_text)),
-                        *getter_body
-                    ],
-                    decorator_list=[ast.Name(id='property', ctx=ast.Load())],
-                    returns=ast.Name(id='bool', ctx=ast.Load())
-                )
-                class_body.append(getter)
-                
-                # Create setter - v5.7.11: Use parent type for assignment
-                if values:
-                    first_val = values[0]
-                    clean_val = first_val.strip().strip("'\"")
-                    
-                    # v5.7.11: Use parent type for assignment value
-                    if parent_type == 'bool':
-                        bool_val = clean_val.upper() in ('Y', 'TRUE', '1')
-                        assign_value = ast.Constant(value=bool_val)
-                    elif parent_type == 'string':
-                        assign_value = ast.Constant(value=clean_val)
-                    elif parent_type == 'numeric':
+                # v5.7.11: Use parent type for assignment value
+                if parent_type == 'bool':
+                    bool_val = clean_val.upper() in ('Y', 'TRUE', '1')
+                    assign_value = ast.Constant(value=bool_val)
+                elif parent_type == 'string':
+                    assign_value = ast.Constant(value=clean_val)
+                elif parent_type == 'numeric':
+                    assign_value = ast.Call(
+                        func=ast.Name(id='Decimal', ctx=ast.Load()),
+                        args=[ast.Constant(value=clean_val)],
+                        keywords=[]
+                    )
+                else:
+                    # Fallback: use value-based detection
+                    is_numeric = is_numeric_88_value(first_val)
+                    if is_numeric:
                         assign_value = ast.Call(
                             func=ast.Name(id='Decimal', ctx=ast.Load()),
                             args=[ast.Constant(value=clean_val)],
                             keywords=[]
                         )
                     else:
-                        # Fallback: use value-based detection
-                        is_numeric = is_numeric_88_value(first_val)
-                        if is_numeric:
-                            assign_value = ast.Call(
-                                func=ast.Name(id='Decimal', ctx=ast.Load()),
-                                args=[ast.Constant(value=clean_val)],
-                                keywords=[]
-                            )
-                        else:
-                            assign_value = ast.Constant(value=clean_val)
-                    
-                    setter_body = [
-                        ast.If(
-                            test=ast.Name(id='value', ctx=ast.Load()),
-                            body=[ast.Assign(
-                                targets=[ast.Attribute(
-                                    value=ast.Name(id='self', ctx=ast.Load()),
-                                    attr=parent,
-                                    ctx=ast.Store()
-                                )],
-                                value=assign_value
-                            )],
-                            orelse=[]
-                        )
-                    ]
-                else:
-                    setter_body = [ast.Assign(
-                        targets=[ast.Attribute(
-                            value=ast.Name(id='self', ctx=ast.Load()),
-                            attr=parent,
-                            ctx=ast.Store()
-                        )],
-                        value=ast.Name(id='value', ctx=ast.Load())
-                    )]
+                        assign_value = ast.Constant(value=clean_val)
                 
-                setter = ast.FunctionDef(
-                    name=prop_name,
-                    args=ast.arguments(
-                        posonlyargs=[],
-                        args=[
-                            ast.arg(arg='self'),
-                            ast.arg(arg='value', annotation=ast.Name(id='bool', ctx=ast.Load()))
-                        ],
-                        vararg=None,
-                        kwonlyargs=[],
-                        kw_defaults=[],
-                        kwarg=None,
-                        defaults=[]
-                    ),
-                    body=setter_body,
-                    decorator_list=[ast.Attribute(
-                        value=ast.Name(id=prop_name, ctx=ast.Load()),
-                        attr='setter',
-                        ctx=ast.Load()
+                setter_body = [
+                    ast.If(
+                        test=ast.Name(id='value', ctx=ast.Load()),
+                        body=[ast.Assign(
+                            targets=[ast.Attribute(
+                                value=ast.Name(id='self', ctx=ast.Load()),
+                                attr=parent,
+                                ctx=ast.Store()
+                            )],
+                            value=assign_value
+                        )],
+                        orelse=[]
+                    )
+                ]
+            else:
+                setter_body = [ast.Assign(
+                    targets=[ast.Attribute(
+                        value=ast.Name(id='self', ctx=ast.Load()),
+                        attr=parent,
+                        ctx=ast.Store()
                     )],
-                    returns=None
-                )
-                class_body.append(setter)
+                    value=ast.Name(id='value', ctx=ast.Load())
+                )]
+            
+            setter = ast.FunctionDef(
+                name=prop_name,
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=[
+                        ast.arg(arg='self'),
+                        ast.arg(arg='value', annotation=ast.Name(id='bool', ctx=ast.Load()))
+                    ],
+                    vararg=None,
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    kwarg=None,
+                    defaults=[]
+                ),
+                body=setter_body,
+                decorator_list=[ast.Attribute(
+                    value=ast.Name(id=prop_name, ctx=ast.Load()),
+                    attr='setter',
+                    ctx=ast.Load()
+                )],
+                returns=None
+            )
+            class_body.append(setter)
     
     # v5.7.5: Add REDEFINES properties
     redefines_props = generate_redefines_properties(cobol_ast.variables)
