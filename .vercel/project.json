@@ -1,1 +1,16 @@
-{"projectId":"prj_bTosbnookLujLC1oYE9fCrmcThau","orgId":"team_V69g0AvsfH9SDCXDEwK6amhz","projectName":"cobol-ast-service"}
+{
+  "projectId": "prj_bTosbnookLujLC1oYE9fCrmcThau",
+  "orgId": "team_V69g0AvsfH9SDCXDEwK6amhz",
+  "projectName": "cobol-ast-service",
+  "settings": {
+    "createdAt": 1767998373289,
+    "framework": "nextjs",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "20.x"
+  }
+}
