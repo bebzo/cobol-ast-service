@@ -1536,20 +1536,27 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
             </div>
           </div>
 
-          {/* Progress Bar during analysis */}
-          {isLoading && (
+          {/* Progress Bar during analysis - hide at 100% to avoid "stuck" feeling */}
+          {isLoading && analysisProgress < 100 && (
             <div className="bg-slate-800 rounded-lg p-4 border border-indigo-500/30">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-slate-300">🔄 {analysisStatus}</span>
-                <span className="text-sm font-mono text-indigo-400">{Math.min(100, Math.round(analysisProgress))}%</span>
+                <span className="text-sm font-mono text-indigo-400">{Math.round(analysisProgress)}%</span>
               </div>
               <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-200"
-                  style={{ width: `${Math.min(100, analysisProgress)}%` }}
+                  style={{ width: `${analysisProgress}%` }}
                 />
               </div>
               <p className="text-xs text-slate-400 mt-2 animate-pulse">{analysisStatus}</p>
+            </div>
+          )}
+          {/* Show brief "finalizing" message at 100% */}
+          {isLoading && analysisProgress >= 100 && (
+            <div className="bg-slate-800 rounded-lg p-3 border border-green-500/30 flex items-center gap-3">
+              <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-green-300">Finalizing results...</span>
             </div>
           )}
 
