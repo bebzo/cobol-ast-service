@@ -1,6 +1,10 @@
 """
-COBOL → Python Transpiler v5.7.9 (Type Consistency & INITIALIZE Fix)
+COBOL → Python Transpiler v5.7.10 (Inline Statements Support)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.10:
+- FIX: Inline statements (PROCEDURE DIVISION without named paragraphs) now transpiled
+- NEW: Synthetic _MAIN_ paragraph captures inline statements for run() method
 
 Improvements in v5.7.9:
 - FIX: 88-level conditions now use proper type (Decimal vs str) for comparisons
@@ -1019,6 +1023,17 @@ def parse_paragraphs(lines: List[str], linkage_names: Optional[set] = None) -> L
                     statements=[]
                 )
                 continue
+        
+        # v5.7.10: If we have statements before any named paragraph, create synthetic _MAIN_
+        if not current_para and upper:
+            first_word = upper.split()[0].rstrip('.') if upper.split() else ''
+            if first_word in statement_starters:
+                current_para = CobolParagraph(
+                    name='_MAIN_',
+                    line_start=i,
+                    line_end=i,
+                    statements=[]
+                )
         
         if current_para and upper:
             # Check if this is a continuation line (starts with operators or doesn't start with keyword)
@@ -2139,7 +2154,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.9]
+Auto-transpiled from COBOL [AST Transpiler v5.7.10]
 
 Architecture:
 - FileManager with context managers for safe I/O
