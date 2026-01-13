@@ -970,11 +970,15 @@ def parse_paragraphs(lines: List[str], linkage_names: Optional[set] = None) -> L
     
     v5.7.6: Excludes LINKAGE SECTION variable names from paragraph detection.
     PROCEDURE DIVISION USING LS-VAR. should NOT create a paragraph named LS-VAR.
+    
+    v5.7.10: Creates synthetic _MAIN_ paragraph for inline statements that appear
+    directly after PROCEDURE DIVISION without a named paragraph.
     """
     paragraphs = []
     in_procedure = False
     current_para = None
     linkage_names = linkage_names or set()
+    has_inline_before_first_para = False
     
     reserved = {
         'MOVE', 'IF', 'ELSE', 'END-IF', 'PERFORM', 'COMPUTE', 'ADD', 'SUBTRACT',
