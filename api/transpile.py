@@ -1,6 +1,13 @@
 """
-COBOL → Python Transpiler v5.7.18 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.19 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.19:
+- DECLARATIVES: Error handlers now generated as _error_handler_* methods
+- CALL stubs: Enhanced with named USING parameters and logging
+- POINTER: USAGE POINTER variables detected and initialized to None
+- BASED: BASED ON variables linked via SET ADDRESS OF transpilation
+- SET: Extended to support SET ADDRESS OF for pointer operations
 
 Improvements in v5.7.18:
 - CRITICAL FIX: SEARCH WHEN conditions now use _item from enumerate loop
@@ -792,6 +799,8 @@ class CobolVariable:
     conditions_88: List[Cobol88Condition] = field(default_factory=list)
     redefines: Optional[str] = None  # v5.7.5: REDEFINES target variable
     occurs: Optional[int] = None  # v5.7.17: OCCURS count for table variables
+    is_pointer: bool = False  # v5.7.19: USAGE POINTER variable
+    based_on: Optional[str] = None  # v5.7.19: BASED ON pointer-var
 
 
 @dataclass
@@ -1000,6 +1009,15 @@ def parse_variables_with_88(source: str) -> Tuple[List[CobolVariable], List[Cobo
         if occurs_match:
             occurs_count = int(occurs_match.group(1))
         
+        # v5.7.19: Detect USAGE POINTER
+        is_pointer = bool(re.search(r'USAGE\s+(?:IS\s+)?POINTER|POINTER\s+$', line, re.IGNORECASE))
+        
+        # v5.7.19: Detect BASED ON (MicroFocus extension)
+        based_on = None
+        based_match = re.search(r'BASED\s+(?:ON\s+)?([A-Z][A-Z0-9-]*)', line, re.IGNORECASE)
+        if based_match:
+            based_on = based_match.group(1)
+        
         # Extract VALUE
         value = None
         value_match = re.search(
@@ -1027,7 +1045,9 @@ def parse_variables_with_88(source: str) -> Tuple[List[CobolVariable], List[Cobo
             line=i + 1,
             parent_group=current_group if level > 1 else None,
             redefines=redefines_target,
-            occurs=occurs_count  # v5.7.17: OCCURS table support
+            occurs=occurs_count,  # v5.7.17: OCCURS table support
+            is_pointer=is_pointer,  # v5.7.19: POINTER support
+            based_on=based_on  # v5.7.19: BASED support
         )
         variables.append(var)
         last_variable = var
@@ -2902,8 +2922,9 @@ def _initialize_field(self, field_name: str) -> None:
     # Add common instance attribute names
     attribute_names.update(['logger', 'file_manager', 'config', 'version'])
     
-    # v5.7.7: Identify DECLARATIVES sections to exclude from method generation
+    # v5.7.19: Identify DECLARATIVES sections and generate error handlers
     declaratives_section_names = set()
+    declaratives_paragraphs = []  # Store DECLARATIVES paragraphs for handler generation
     if cobol_ast.paragraphs:
         in_declaratives = False
         for para in cobol_ast.paragraphs:
@@ -2917,14 +2938,15 @@ def _initialize_field(self, field_name: str) -> None:
                 if any(kw in upper_name for kw in ('MAIN', '000-', '0000-', 'INIT')):
                     in_declaratives = False
                 else:
-                    # Still in DECLARATIVES - add to excluded set
+                    # Still in DECLARATIVES - collect for handler generation
                     declaratives_section_names.add(upper_name)
+                    declaratives_paragraphs.append(para)
     
     # Generate service methods from paragraphs (excluding DECLARATIVES and variable name conflicts)
     for para in cobol_ast.paragraphs:
         method_name = to_snake_case(para.name)
         upper_name = para.name.upper()
-        # v5.7.7: Skip DECLARATIVES-related paragraphs
+        # v5.7.7: Skip DECLARATIVES-related paragraphs (handled separately)
         if upper_name in declaratives_section_names:
             continue
         # v5.7.7: Skip paragraphs that would conflict with attribute names
@@ -2932,6 +2954,60 @@ def _initialize_field(self, field_name: str) -> None:
             continue
         method = generate_method_from_paragraph_v4(para)
         class_body.append(method)
+    
+    # v5.7.19: Generate error handler methods from DECLARATIVES sections
+    for decl_para in declaratives_paragraphs:
+        handler_name = f'_error_handler_{to_snake_case(decl_para.name)}'
+        # Extract file name from USE AFTER statement if present
+        file_name = None
+        for stmt in decl_para.statements:
+            use_match = re.match(
+                r'USE\s+AFTER\s+(?:STANDARD\s+)?(?:ERROR|EXCEPTION)\s+(?:PROCEDURE\s+)?ON\s+([A-Z][A-Z0-9-]*)',
+                stmt.upper()
+            )
+            if use_match:
+                file_name = to_snake_case(use_match.group(1))
+                break
+        
+        # Generate handler body - transpile the statements
+        handler_body = transpile_statements_v4(decl_para.statements)
+        if not handler_body:
+            handler_body = [ast.Pass()]
+        
+        # Add logging at start
+        log_stmt = ast.Expr(value=ast.Call(
+            func=ast.Attribute(
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                   attr='logger', ctx=ast.Load()),
+                attr='error', ctx=ast.Load()
+            ),
+            args=[ast.Constant(value=f"File error handler triggered: {decl_para.name}")],
+            keywords=[]
+        ))
+        handler_body.insert(0, log_stmt)
+        
+        # Create the error handler method
+        docstring = f"Error handler from DECLARATIVES section: {decl_para.name}"
+        if file_name:
+            docstring += f"\nHandles errors for file: {file_name}"
+        
+        handler_method = ast.FunctionDef(
+            name=handler_name,
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[
+                    ast.arg(arg='self'),
+                    ast.arg(arg='file_name', annotation=ast.Constant(value='str')),
+                    ast.arg(arg='error', annotation=ast.Constant(value='Exception'))
+                ],
+                vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None,
+                defaults=[ast.Constant(value=None)]
+            ),
+            body=[ast.Expr(value=ast.Constant(value=docstring))] + handler_body,
+            decorator_list=[],
+            returns=None
+        )
+        class_body.append(handler_method)
     
     # v5.7.6: Run method with LINKAGE SECTION parameters
     run_body = []
@@ -3058,33 +3134,74 @@ def _initialize_field(self, field_name: str) -> None:
     )
     class_body.append(run_method)
     
-    # v5.7.8: Generate stub methods for CALL statements (external programs)
-    # Extract CALL targets from procedure division
-    call_targets = set()
+    # v5.7.19: Enhanced stub methods for CALL statements with USING params
+    # Extract CALL targets and their USING parameters from procedure division
+    call_targets_with_params = {}  # {target: set of param lists}
     for para in cobol_ast.paragraphs:
         for stmt in para.statements:
-            call_match = re.match(r'CALL\s+["\']?([A-Z0-9][-A-Z0-9]*)["\']?', stmt.upper())
+            call_match = re.match(
+                r'CALL\s+["\']?([A-Z0-9][-A-Z0-9]*)["\']?(?:\s+USING\s+(.+))?',
+                stmt.upper()
+            )
             if call_match:
-                call_targets.add(call_match.group(1))
+                target = call_match.group(1)
+                using_clause = call_match.group(2) or ''
+                params = re.findall(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*', using_clause)
+                param_names = tuple(to_snake_case(p) for p in params)
+                if target not in call_targets_with_params:
+                    call_targets_with_params[target] = set()
+                call_targets_with_params[target].add(param_names)
     
-    for target in sorted(call_targets):
+    for target in sorted(call_targets_with_params.keys()):
         method_name = f'call_{to_snake_case(target)}'
-        # Generate stub method with *args to accept any parameters
+        # Get the most common param list (or longest if tie)
+        param_sets = call_targets_with_params[target]
+        best_params = max(param_sets, key=len) if param_sets else ()
+        
+        # Build argument list with named params
+        args_list = [ast.arg(arg='self')]
+        defaults = []
+        for param in best_params:
+            args_list.append(ast.arg(arg=param))
+            defaults.append(ast.Constant(value=None))
+        
+        # Generate stub body with logging and TODO
+        stub_body = [
+            ast.Expr(value=ast.Constant(
+                value=f"External CALL stub for '{target}'.\n\n"
+                      f"TODO: Implement integration with external program '{target}'.\n"
+                      f"This method is called from transpiled COBOL CALL statements.\n\n"
+                      f"Parameters:\n" + 
+                      '\n'.join(f"    {p}: Passed from COBOL USING clause" for p in best_params) if best_params else "    None"
+            )),
+            # Log warning about stub call
+            ast.Expr(value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(
+                        value=ast.Name(id='self', ctx=ast.Load()),
+                        attr='logger', ctx=ast.Load()
+                    ),
+                    attr='warning', ctx=ast.Load()
+                ),
+                args=[ast.Constant(value=f"STUB: External program '{target}' not implemented")],
+                keywords=[]
+            )),
+            # Return None (external call stub)
+            ast.Return(value=ast.Constant(value=None))
+        ]
+        
         stub_method = ast.FunctionDef(
             name=method_name,
             args=ast.arguments(
                 posonlyargs=[],
-                args=[ast.arg(arg='self')],
-                vararg=ast.arg(arg='args'),  # Accept any arguments
+                args=args_list,
+                vararg=None,
                 kwonlyargs=[],
                 kw_defaults=[],
-                kwarg=None,
-                defaults=[]
+                kwarg=ast.arg(arg='kwargs'),  # Accept extra kwargs for flexibility
+                defaults=defaults
             ),
-            body=[
-                ast.Expr(value=ast.Constant(value=f"Stub for external CALL '{target}'. Implement as needed.")),
-                ast.Pass()
-            ],
+            body=stub_body,
             decorator_list=[],
             returns=None
         )
@@ -3228,7 +3345,46 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
         if py_name in property_names:
             continue
         
+        # v5.7.19: Handle POINTER variables BEFORE level-1 check (POINTERs have no PIC)
+        if var.is_pointer:
+            py_type = 'Any'  # Pointer can point to any type
+            py_value = ast.Constant(value=None)
+            init_body.append(ast.AnnAssign(
+                target=ast.Attribute(
+                    value=ast.Name(id='self', ctx=ast.Load()),
+                    attr=py_name,
+                    ctx=ast.Store()
+                ),
+                annotation=ast.Name(id=py_type, ctx=ast.Load()),
+                value=py_value,
+                simple=0
+            ))
+            declared_vars.add(py_name)
+            continue
+        
         if var.level == 1 and not var.picture:
+            continue
+        
+        # v5.7.19: Handle BASED variables - reference to pointed memory
+        if var.based_on:
+            py_type = 'Any'  # BASED can be any structure
+            # Initialize as None; actual value comes from SET ADDRESS OF
+            py_value = ast.Constant(value=None)
+            init_body.append(ast.AnnAssign(
+                target=ast.Attribute(
+                    value=ast.Name(id='self', ctx=ast.Load()),
+                    attr=py_name,
+                    ctx=ast.Store()
+                ),
+                annotation=ast.Name(id=py_type, ctx=ast.Load()),
+                value=py_value,
+                simple=0
+            ))
+            declared_vars.add(py_name)
+            # Add comment about BASED relationship
+            init_body.append(ast.Expr(value=ast.Constant(
+                value=f"# {py_name} is BASED ON {to_snake_case(var.based_on)} - use SET ADDRESS OF to link"
+            )))
             continue
         
         # v5.7.17: Handle OCCURS tables as lists
@@ -5187,13 +5343,51 @@ def transpile_read_block_v4(statements: List[str], start_idx: int) -> Tuple[List
 
 
 def transpile_set_v4(stmt: str) -> Optional[ast.stmt]:
-    """Transpile SET statement"""
+    """Transpile SET statement.
+    
+    v5.7.19: Added support for SET ADDRESS OF (POINTER/BASED)
+    """
     upper = stmt.upper()
     
+    # SET condition TO TRUE/FALSE
     match = re.match(r'SET\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+(TRUE|FALSE)', upper, re.IGNORECASE)
     if match:
         target = to_snake_case(match.group(1))
         value = match.group(2).upper() == 'TRUE'
+        return ast.Assign(
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
+            value=ast.Constant(value=value)
+        )
+    
+    # v5.7.19: SET ADDRESS OF based-var TO pointer-var
+    # This links a BASED variable to a POINTER
+    addr_match = re.match(r'SET\s+ADDRESS\s+OF\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
+    if addr_match:
+        based_var = to_snake_case(addr_match.group(1))
+        pointer_var = to_snake_case(addr_match.group(2))
+        # In Python, this is just an assignment - the BASED variable references the POINTER's target
+        return ast.Assign(
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=based_var, ctx=ast.Store())],
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=pointer_var, ctx=ast.Load())
+        )
+    
+    # v5.7.19: SET pointer-var TO ADDRESS OF variable
+    # This assigns the address (reference) of a variable to a pointer
+    ptr_match = re.match(r'SET\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+ADDRESS\s+OF\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
+    if ptr_match:
+        pointer_var = to_snake_case(ptr_match.group(1))
+        target_var = to_snake_case(ptr_match.group(2))
+        # In Python, pointers are just references to objects
+        return ast.Assign(
+            targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=pointer_var, ctx=ast.Store())],
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target_var, ctx=ast.Load())
+        )
+    
+    # SET index TO value (for table indexes)
+    idx_match = re.match(r'SET\s+([A-Z0-9][-A-Z0-9]*)\s+TO\s+(\d+)', upper, re.IGNORECASE)
+    if idx_match:
+        target = to_snake_case(idx_match.group(1))
+        value = int(idx_match.group(2))
         return ast.Assign(
             targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store())],
             value=ast.Constant(value=value)
