@@ -162,18 +162,154 @@ function generateSecurityWarnings(cobolCode: string): any[] {
   const warnings: any[] = [];
   const lines = cobolCode.split('\n');
   const lower = cobolCode.toLowerCase();
-  const findLine = (pattern: string) => lines.findIndex(l => l.toLowerCase().includes(pattern)) + 1;
+  const upper = cobolCode.toUpperCase();
+  const findLine = (pattern: string) => lines.findIndex(l => l.toLowerCase().includes(pattern.toLowerCase())) + 1;
+  const findVulnerableCode = (pattern: string) => {
+    const idx = lines.findIndex(l => l.toLowerCase().includes(pattern.toLowerCase()));
+    return idx >= 0 ? lines.slice(Math.max(0, idx - 1), idx + 2).join('\n').trim() : undefined;
+  };
 
-  if (lower.includes('password') || lower.includes('pwd')) {
-    warnings.push({ title: 'Hardcoded credentials', severity: 'CRITICAL', cvss_score: 9.1, location: `Line ${findLine('password') || findLine('pwd')}`, description: 'Sensitive credentials in source', fix: 'Use environment variables' });
+  // CRITICAL: Hardcoded credentials
+  if (lower.includes('password') || lower.includes('pwd') || lower.includes('secret-key')) {
+    warnings.push({ 
+      title: 'Hardcoded Credentials Detected', 
+      severity: 'CRITICAL', 
+      cvss_score: 9.1, 
+      location: `Line ${findLine('password') || findLine('pwd') || findLine('secret')}`, 
+      description: 'Sensitive credentials are embedded directly in source code, violating CWE-798. This exposes secrets in version control and compiled binaries.',
+      vulnerable_code: findVulnerableCode('password') || findVulnerableCode('pwd'),
+      fix: 'Use environment variables or a secrets manager (AWS Secrets Manager, HashiCorp Vault). Never commit credentials to source control.',
+      cwe: 'CWE-798',
+      owasp: 'A07:2021 - Identification and Authentication Failures'
+    });
   }
+
+  // CRITICAL: SQL Injection
   if (lower.includes('exec sql') && !lower.includes('prepare')) {
-    warnings.push({ title: 'SQL injection risk', severity: 'HIGH', cvss_score: 8.6, location: `Line ${findLine('exec sql')}`, description: 'Dynamic SQL without parameterization', fix: 'Use parameterized queries' });
+    warnings.push({ 
+      title: 'SQL Injection Vulnerability', 
+      severity: 'CRITICAL', 
+      cvss_score: 9.8, 
+      location: `Line ${findLine('exec sql')}`, 
+      description: 'Dynamic SQL without parameterization allows attackers to inject malicious SQL commands (CWE-89).',
+      vulnerable_code: findVulnerableCode('exec sql'),
+      fix: 'Use parameterized queries with PREPARE/EXECUTE statements. Never concatenate user input into SQL strings.',
+      cwe: 'CWE-89',
+      owasp: 'A03:2021 - Injection'
+    });
   }
-  if (lower.includes('ssn') || lower.includes('social-security')) {
-    warnings.push({ title: 'PII data exposure', severity: 'MEDIUM', cvss_score: 5.3, location: `Line ${findLine('ssn') || findLine('social-security')}`, description: 'SSN stored in plain text', fix: 'Encrypt at rest and in transit' });
+
+  // HIGH: PII Data Exposure
+  if (lower.includes('ssn') || lower.includes('social-security') || lower.includes('tax-id')) {
+    warnings.push({ 
+      title: 'PII Data Exposure Risk', 
+      severity: 'HIGH', 
+      cvss_score: 7.5, 
+      location: `Line ${findLine('ssn') || findLine('social-security') || findLine('tax-id')}`, 
+      description: 'Personal Identifiable Information (SSN/Tax ID) stored without encryption violates GDPR, CCPA, and PCI-DSS requirements.',
+      vulnerable_code: findVulnerableCode('ssn') || findVulnerableCode('social-security'),
+      fix: 'Encrypt PII at rest using AES-256. Implement field-level encryption and data masking for display.',
+      cwe: 'CWE-312',
+      owasp: 'A02:2021 - Cryptographic Failures'
+    });
   }
-  
+
+  // HIGH: Credit Card Data
+  if (lower.includes('card-number') || lower.includes('credit-card') || lower.includes('account-number')) {
+    warnings.push({ 
+      title: 'Payment Card Data Handling', 
+      severity: 'HIGH', 
+      cvss_score: 8.2, 
+      location: `Line ${findLine('card-number') || findLine('credit-card') || findLine('account-number')}`, 
+      description: 'Payment card data must comply with PCI-DSS. Storing full card numbers in application code violates PCI Requirement 3.',
+      vulnerable_code: findVulnerableCode('card-number') || findVulnerableCode('account-number'),
+      fix: 'Use tokenization for card data. Store only last 4 digits for display. Use a PCI-compliant payment processor.',
+      cwe: 'CWE-311',
+      owasp: 'A02:2021 - Cryptographic Failures'
+    });
+  }
+
+  // MEDIUM: Hardcoded IPs/URLs
+  const ipMatch = cobolCode.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/);
+  if (ipMatch || lower.includes('http://') || lower.includes('https://')) {
+    warnings.push({ 
+      title: 'Hardcoded Network Configuration', 
+      severity: 'MEDIUM', 
+      cvss_score: 5.3, 
+      location: `Line ${findLine(ipMatch?.[0] || 'http')}`, 
+      description: 'Hardcoded IP addresses or URLs reduce flexibility and may expose internal infrastructure details.',
+      vulnerable_code: findVulnerableCode(ipMatch?.[0] || 'http'),
+      fix: 'Use configuration files or environment variables for network endpoints. Implement service discovery for microservices.',
+      cwe: 'CWE-547'
+    });
+  }
+
+  // MEDIUM: Insufficient Input Validation
+  if ((upper.includes('ACCEPT') || upper.includes('READ')) && !upper.includes('VALIDATE') && !upper.includes('CHECK')) {
+    warnings.push({ 
+      title: 'Missing Input Validation', 
+      severity: 'MEDIUM', 
+      cvss_score: 6.1, 
+      location: `Line ${findLine('ACCEPT') || findLine('READ')}`, 
+      description: 'User input is read without explicit validation, potentially allowing malformed or malicious data.',
+      fix: 'Implement input validation for all user inputs: check data types, lengths, and formats. Use allowlists where possible.',
+      cwe: 'CWE-20',
+      owasp: 'A03:2021 - Injection'
+    });
+  }
+
+  // MEDIUM: Debug/Trace Code
+  if (lower.includes('display') && (lower.includes('debug') || lower.includes('trace') || lower.includes('dump'))) {
+    warnings.push({ 
+      title: 'Debug Code in Production', 
+      severity: 'MEDIUM', 
+      cvss_score: 4.3, 
+      location: `Line ${findLine('debug') || findLine('trace')}`, 
+      description: 'Debug or trace statements may expose sensitive information in production logs.',
+      vulnerable_code: findVulnerableCode('debug') || findVulnerableCode('trace'),
+      fix: 'Remove debug statements before production deployment. Use conditional compilation or logging levels.',
+      cwe: 'CWE-215'
+    });
+  }
+
+  // LOW: Obsolete Cryptography
+  if (lower.includes('des') || lower.includes('md5') || lower.includes('sha1')) {
+    warnings.push({ 
+      title: 'Weak Cryptographic Algorithm', 
+      severity: 'MEDIUM', 
+      cvss_score: 5.9, 
+      location: `Line ${findLine('des') || findLine('md5') || findLine('sha1')}`, 
+      description: 'DES, MD5, and SHA1 are cryptographically broken. They should not be used for security purposes.',
+      fix: 'Upgrade to AES-256 for encryption and SHA-256/SHA-3 for hashing. Use bcrypt or Argon2 for password hashing.',
+      cwe: 'CWE-327',
+      owasp: 'A02:2021 - Cryptographic Failures'
+    });
+  }
+
+  // LOW: File Operations
+  if (upper.includes('OPEN') && (upper.includes('OUTPUT') || upper.includes('I-O'))) {
+    warnings.push({ 
+      title: 'File System Access', 
+      severity: 'LOW', 
+      cvss_score: 3.7, 
+      location: `Line ${findLine('OPEN')}`, 
+      description: 'File operations should be reviewed for proper access controls and path validation.',
+      fix: 'Validate file paths to prevent path traversal. Implement proper file permissions and error handling.',
+      cwe: 'CWE-22'
+    });
+  }
+
+  // If no issues found, add a positive note
+  if (warnings.length === 0) {
+    warnings.push({ 
+      title: 'No Critical Security Issues Detected', 
+      severity: 'INFO', 
+      cvss_score: 0, 
+      description: 'Automated scan found no obvious security vulnerabilities. Manual security review still recommended.',
+      fix: 'Consider a manual security audit and penetration testing before production deployment.'
+    });
+  }
+
   return warnings;
 }
 
