@@ -3091,13 +3091,15 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
 def parse_cobol_substring(expr: str) -> ast.expr:
     """
     Parse COBOL substring notation and convert to Python slice.
-    v5.5.0: Handles VAR(start:length) -> var[start-1:start-1+length]
+    v5.7.7: Enhanced to handle both numeric and variable indices
     
     Examples:
-        WS-DESC(1:16)  -> self.ws_desc[0:16]
-        WS-TEXT(5:10)  -> self.ws_text[4:14]
+        WS-DESC(1:16)           -> self.ws_desc[0:16]
+        WS-TEXT(5:10)           -> self.ws_text[4:14]
+        WS-DATA(WS-IDX:1)       -> self.ws_data[int(self.idx)-1:int(self.idx)-1+1]
+        WS-CARD(WS-LUHN-IDX:1)  -> self.ws_card[int(self.luhn_idx)-1:int(self.luhn_idx)]
     """
-    # Pattern for COBOL substring: VAR(start:length)
+    # Pattern 1: VAR(numeric_start:numeric_length) - most common
     match = re.match(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*(\d+)\s*:\s*(\d+)\s*\)', expr, re.IGNORECASE)
     if match:
         var_name = to_snake_case(match.group(1))
@@ -3109,6 +3111,79 @@ def parse_cobol_substring(expr: str) -> ast.expr:
         return ast.Subscript(
             value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=var_name, ctx=ast.Load()),
             slice=ast.Slice(lower=ast.Constant(value=py_start), upper=ast.Constant(value=py_end), step=None),
+            ctx=ast.Load()
+        )
+    
+    # Pattern 2: VAR(variable_start:numeric_length) - variable index with fixed length
+    match = re.match(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*:\s*(\d+)\s*\)', expr, re.IGNORECASE)
+    if match:
+        var_name = to_snake_case(match.group(1))
+        idx_var = to_snake_case(match.group(2))
+        length = int(match.group(3))
+        
+        # Generate: self.var[int(self.idx)-1 : int(self.idx)-1+length]
+        # Simplified: self.var[int(self.idx)-1 : int(self.idx)-1+length]
+        idx_expr = ast.BinOp(
+            left=ast.Call(
+                func=ast.Name(id='int', ctx=ast.Load()),
+                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=idx_var, ctx=ast.Load())],
+                keywords=[]
+            ),
+            op=ast.Sub(),
+            right=ast.Constant(value=1)
+        )
+        end_expr = ast.BinOp(
+            left=ast.Call(
+                func=ast.Name(id='int', ctx=ast.Load()),
+                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=idx_var, ctx=ast.Load())],
+                keywords=[]
+            ),
+            op=ast.Add(),
+            right=ast.Constant(value=length - 1)
+        )
+        return ast.Subscript(
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=var_name, ctx=ast.Load()),
+            slice=ast.Slice(lower=idx_expr, upper=end_expr, step=None),
+            ctx=ast.Load()
+        )
+    
+    # Pattern 3: VAR(variable_start:variable_length) - both variable
+    match = re.match(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*:\s*([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\)', expr, re.IGNORECASE)
+    if match:
+        var_name = to_snake_case(match.group(1))
+        idx_var = to_snake_case(match.group(2))
+        len_var = to_snake_case(match.group(3))
+        
+        # Generate: self.var[int(self.idx)-1 : int(self.idx)-1+int(self.len)]
+        idx_expr = ast.BinOp(
+            left=ast.Call(
+                func=ast.Name(id='int', ctx=ast.Load()),
+                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=idx_var, ctx=ast.Load())],
+                keywords=[]
+            ),
+            op=ast.Sub(),
+            right=ast.Constant(value=1)
+        )
+        end_expr = ast.BinOp(
+            left=ast.BinOp(
+                left=ast.Call(
+                    func=ast.Name(id='int', ctx=ast.Load()),
+                    args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=idx_var, ctx=ast.Load())],
+                    keywords=[]
+                ),
+                op=ast.Sub(),
+                right=ast.Constant(value=1)
+            ),
+            op=ast.Add(),
+            right=ast.Call(
+                func=ast.Name(id='int', ctx=ast.Load()),
+                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=len_var, ctx=ast.Load())],
+                keywords=[]
+            )
+        )
+        return ast.Subscript(
+            value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=var_name, ctx=ast.Load()),
+            slice=ast.Slice(lower=idx_expr, upper=end_expr, step=None),
             ctx=ast.Load()
         )
     
@@ -3280,13 +3355,16 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
     target_names = []
     remaining = targets_str
     
-    # Match VAR(n:m) patterns first
+    # Match VAR(n:m) patterns first - v5.7.7: Also match variable indices
+    # Pattern: VAR(numeric_or_var : numeric_or_var)
+    substr_pattern = r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*(?:\d+|[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*:\s*(?:\d+|[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\)'
+    
     while remaining:
         remaining = remaining.strip()
         if not remaining:
             break
         
-        substr_match = re.match(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*\d+\s*:\s*\d+\s*\)', remaining, re.IGNORECASE)
+        substr_match = re.match(substr_pattern, remaining, re.IGNORECASE)
         if substr_match:
             target_names.append(substr_match.group(0))
             remaining = remaining[len(substr_match.group(0)):]
