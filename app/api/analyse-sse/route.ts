@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
       const lines = cobolCode.split('\n');
       
       const findLine = (pattern: string) => {
-        const idx = lines.findIndex(l => l.toLowerCase().includes(pattern.toLowerCase()));
+        const idx = lines.findIndex((l: string) => l.toLowerCase().includes(pattern.toLowerCase()));
         return idx >= 0 ? idx + 1 : 0;
       };
       const countOccurrences = (pattern: string) => (lower.match(new RegExp(pattern, 'gi')) || []).length;
