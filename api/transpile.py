@@ -1036,7 +1036,14 @@ def parse_paragraphs(lines: List[str], linkage_names: Optional[set] = None) -> L
 # ============================================================
 
 def to_snake_case(name: str) -> str:
-    """Convert COBOL-STYLE-NAME to python_style_name"""
+    """Convert COBOL-STYLE-NAME to python_style_name
+    
+    v5.7.7: Strip any substring notation before converting
+    """
+    # v5.7.7: If name contains parentheses (substring notation), extract just the variable name
+    if '(' in name:
+        name = name.split('(')[0]
+    
     result = name.lower().replace('-', '_').replace('.', '')
     if result.startswith('ws_'):
         result = result[3:]
