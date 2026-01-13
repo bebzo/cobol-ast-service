@@ -1,5 +1,5 @@
 """
-COBOL → Python Transpiler v5.7.19 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.20 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
 
 Improvements in v5.7.19:
@@ -1263,6 +1263,68 @@ def is_monetary_variable(var_name: str) -> bool:
     return any(kw in lower for kw in monetary_keywords)
 
 
+def split_multi_statements(line: str, starters: set) -> List[str]:
+    """v5.7.20: Split multiple COBOL statements on a single line.
+    
+    COBOL allows multiple statements on one line without separator.
+    Example: 'SET RATE-INDEX TO 1 SEARCH WS-RATE-ENTRY'
+    Should become: ['SET RATE-INDEX TO 1', 'SEARCH WS-RATE-ENTRY']
+    
+    This fixes the bug where SEARCH blocks were not detected because
+    they appeared after SET on the same line.
+    """
+    if not line:
+        return [line] if line else []
+    
+    words = line.split()
+    if len(words) <= 1:
+        return [line]
+    
+    # Find positions where a new statement starts
+    result = []
+    current_start = 0
+    word_positions = []
+    
+    # Build word position map
+    pos = 0
+    for word in words:
+        idx = line.find(word, pos)
+        word_positions.append((idx, word))
+        pos = idx + len(word)
+    
+    # Find statement boundaries
+    for i, (pos, word) in enumerate(word_positions):
+        upper_word = word.upper().rstrip('.')
+        # Check if this word starts a new statement (but not the first word)
+        if i > 0 and upper_word in starters:
+            # Don't split on WHEN/ELSE inside EVALUATE, or AT/END inside SEARCH/READ
+            prev_stmt = line[current_start:pos].strip()
+            upper_prev = prev_stmt.upper()
+            
+            # Skip splitting if this is part of a block structure
+            if upper_word in ('WHEN', 'ELSE') and ('EVALUATE' in upper_prev or 'SEARCH' in upper_prev):
+                continue
+            if upper_word in ('AT', 'END') and ('SEARCH' in upper_prev or 'READ' in upper_prev):
+                continue
+            if upper_word == 'NOT' and 'READ' in upper_prev:
+                continue
+            if upper_word == 'INVALID' and 'READ' in upper_prev:
+                continue
+                
+            # This is a new statement - save previous
+            stmt = line[current_start:pos].strip()
+            if stmt:
+                result.append(stmt)
+            current_start = pos
+    
+    # Add final statement
+    stmt = line[current_start:].strip()
+    if stmt:
+        result.append(stmt)
+    
+    return result if result else [line]
+
+
 def parse_paragraphs(lines: List[str], linkage_names: Optional[set] = None) -> List[CobolParagraph]:
     """Extract PROCEDURE DIVISION paragraphs with continuation line support
     
@@ -1286,7 +1348,10 @@ def parse_paragraphs(lines: List[str], linkage_names: Optional[set] = None) -> L
         'MULTIPLY', 'DIVIDE', 'DISPLAY', 'ACCEPT', 'READ', 'WRITE', 'OPEN', 'CLOSE',
         'CALL', 'STOP', 'GOBACK', 'EXIT', 'EVALUATE', 'WHEN', 'END-EVALUATE',
         'END-PERFORM', 'END-COMPUTE', 'END-READ', 'END-WRITE', 'INITIALIZE', 'SET',
-        'STRING', 'UNSTRING', 'INSPECT', 'CONTINUE', 'NEXT', 'GO', 'COPY'
+        'STRING', 'UNSTRING', 'INSPECT', 'CONTINUE', 'NEXT', 'GO', 'COPY',
+        # v5.7.20: Added missing statement starters
+        'SEARCH', 'SORT', 'START', 'DELETE', 'REWRITE', 'RELEASE', 'RETURN',
+        'END-SEARCH', 'END-STRING', 'END-UNSTRING', 'END-CALL'
     }
     
     # COBOL keywords that start a statement (not continuation)
@@ -1349,7 +1414,9 @@ def parse_paragraphs(lines: List[str], linkage_names: Optional[set] = None) -> L
                 # Join with previous statement
                 current_para.statements[-1] = current_para.statements[-1].rstrip() + ' ' + line.strip()
             else:
-                current_para.statements.append(line.strip())
+                # v5.7.20: Split multi-statements on a single line
+                split_stmts = split_multi_statements(line.strip(), statement_starters)
+                current_para.statements.extend(split_stmts)
     
     if current_para:
         current_para.line_end = len(lines)
@@ -5991,9 +6058,11 @@ def transpile_search_v4(statements: List[str], start_idx: int) -> Tuple[Optional
     is_search_all = 'SEARCH ALL' in upper
     
     # Collect statements until END-SEARCH
+    # v5.7.20: Fixed AT END collection when it's on its own line
     at_end_stmts = []
     when_conditions = []
     current_when = None
+    in_at_end = False  # v5.7.20: Track if we're collecting AT END statements
     i = start_idx + 1
     
     while i < len(statements):
@@ -6001,16 +6070,24 @@ def transpile_search_v4(statements: List[str], start_idx: int) -> Tuple[Optional
         if line.startswith('END-SEARCH') or line == 'END-SEARCH.':
             break
         elif line.startswith('AT END'):
-            # Collect AT END statements
+            # v5.7.20: AT END can be on its own line or with a statement
             at_end_code = statements[i].strip()
             at_end_match = re.search(r'AT END\s+(.+)', at_end_code, re.IGNORECASE)
             if at_end_match:
                 at_end_stmts.append(at_end_match.group(1))
+            else:
+                # AT END is alone, collect subsequent statements
+                in_at_end = True
+            current_when = None  # Reset WHEN context
         elif line.startswith('WHEN '):
+            in_at_end = False  # Stop collecting AT END
             when_match = re.match(r'WHEN\s+(.+)', statements[i].strip(), re.IGNORECASE)
             if when_match:
                 current_when = {'condition': when_match.group(1), 'stmts': []}
                 when_conditions.append(current_when)
+        elif in_at_end:
+            # v5.7.20: Collect statements after AT END
+            at_end_stmts.append(statements[i].strip())
         elif current_when is not None:
             current_when['stmts'].append(statements[i].strip())
         i += 1
