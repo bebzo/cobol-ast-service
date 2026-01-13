@@ -67,9 +67,9 @@ export async function transpileCobolViaPython(
     // Always use the production domain for internal calls
     const baseUrl = 'https://cobol-ast-service.vercel.app';
     
-    // Add timeout via AbortController (180s max for large files)
+    // Add timeout via AbortController (280s max for large files)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 180000);
+    const timeoutId = setTimeout(() => controller.abort(), 280000);
     
     const response = await fetch(`${baseUrl}/api/transpile`, {
       method: 'POST',

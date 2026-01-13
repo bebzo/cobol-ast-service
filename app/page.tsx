@@ -884,9 +884,10 @@ export default function Home() {
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
         
+        let currentEventType = '';
         for (const line of lines) {
           if (line.startsWith('event: ')) {
-            const eventType = line.slice(7);
+            currentEventType = line.slice(7).trim();
             continue;
           }
           if (line.startsWith('data: ')) {
@@ -899,13 +900,14 @@ export default function Home() {
                 setAnalysisStatus(eventData.message || 'Processing...');
               }
               
-              if (eventData.python_code) {
+              // Check for complete event by type OR by presence of python_code
+              if (currentEventType === 'complete' || eventData.python_code !== undefined) {
                 // Complete event - store data
                 data = eventData;
               }
               
-              if (eventData.message && !eventData.percent && !eventData.python_code) {
-                // Error event from API - propagate it properly
+              // Check for error event
+              if (currentEventType === 'error' || (eventData.message && !eventData.percent && eventData.python_code === undefined)) {
                 throw new Error(eventData.message);
               }
             } catch (e) {
