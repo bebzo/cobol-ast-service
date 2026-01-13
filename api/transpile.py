@@ -1,6 +1,12 @@
 """
-COBOL → Python Transpiler v5.7.20 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.21 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.21:
+- SECURITY: CALL stubs now raise NotImplementedError by default (set ALLOW_STUBS=true to allow)
+- FIX: Improved stub generation with production-safe defaults
+- DOC: Added PRODUCTION READINESS CHECKLIST in generated code header
+- DOC: Added THREAD SAFETY WARNING for concurrent usage
 
 Improvements in v5.7.19:
 - DECLARATIVES: Error handlers now generated as _error_handler_* methods
@@ -2566,7 +2572,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.17]
+Auto-transpiled from COBOL [AST Transpiler v5.7.21]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -2575,6 +2581,19 @@ Architecture:
 - Proper @property for 88-level conditions
 - Boolean flags (not Y/N strings)
 - Decimal for all monetary values
+
+⚠️ THREAD SAFETY WARNING ⚠️
+This code preserves COBOL's single-threaded execution model.
+For production use with concurrent requests:
+- Wrap in process-per-request architecture, OR
+- Refactor to use thread-safe repositories
+
+📋 PRODUCTION READINESS CHECKLIST:
+☐ Implement external CALLs (set ALLOW_STUBS=true only for development)
+☐ Add unit tests for critical paths (deposits, withdrawals, transfers)
+☐ Configure production FileManager paths
+☐ Review thread-safety for concurrent usage
+☐ Set up monitoring for ls_return_code errors
 """
     )))
     
@@ -2608,6 +2627,7 @@ Architecture:
             ast.alias(name='contextmanager')
         ], level=0),
         ast.Import(names=[ast.alias(name='logging')]),
+        ast.Import(names=[ast.alias(name='os')]),  # v5.7.21: For ALLOW_STUBS env var
     ]
     body.extend(imports)
     
@@ -3232,29 +3252,58 @@ def _initialize_field(self, field_name: str) -> None:
             args_list.append(ast.arg(arg=param))
             defaults.append(ast.Constant(value=None))
         
-        # Generate stub body with logging and TODO
+        # v5.7.21: Generate stub body with NotImplementedError (production-safe)
+        # Uses ALLOW_STUBS environment variable for flexibility
         stub_body = [
             ast.Expr(value=ast.Constant(
                 value=f"External CALL stub for '{target}'.\n\n"
-                      f"TODO: Implement integration with external program '{target}'.\n"
-                      f"This method is called from transpiled COBOL CALL statements.\n\n"
+                      f"CRITICAL: This stub must be implemented before production deployment.\n"
+                      f"Set environment variable ALLOW_STUBS=true to run with stubs (dev only).\n\n"
                       f"Parameters:\n" + 
                       '\n'.join(f"    {p}: Passed from COBOL USING clause" for p in best_params) if best_params else "    None"
             )),
-            # Log warning about stub call
-            ast.Expr(value=ast.Call(
-                func=ast.Attribute(
-                    value=ast.Attribute(
-                        value=ast.Name(id='self', ctx=ast.Load()),
-                        attr='logger', ctx=ast.Load()
+            # v5.7.21: Check ALLOW_STUBS env var - if not set, raise NotImplementedError
+            ast.If(
+                test=ast.Compare(
+                    left=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(id='os', ctx=ast.Load()),
+                            attr='getenv', ctx=ast.Load()
+                        ),
+                        args=[ast.Constant(value='ALLOW_STUBS'), ast.Constant(value='')],
+                        keywords=[]
                     ),
-                    attr='warning', ctx=ast.Load()
+                    ops=[ast.NotEq()],
+                    comparators=[ast.Constant(value='true')]
                 ),
-                args=[ast.Constant(value=f"STUB: External program '{target}' not implemented")],
-                keywords=[]
-            )),
-            # Return None (external call stub)
-            ast.Return(value=ast.Constant(value=None))
+                body=[
+                    ast.Raise(
+                        exc=ast.Call(
+                            func=ast.Name(id='NotImplementedError', ctx=ast.Load()),
+                            args=[ast.Constant(value=f"CRITICAL: External program '{target}' not implemented. "
+                                                     f"Implement before production or set ALLOW_STUBS=true")],
+                            keywords=[]
+                        ),
+                        cause=None
+                    )
+                ],
+                orelse=[
+                    # Log warning if stubs are allowed
+                    ast.Expr(value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Attribute(
+                                value=ast.Name(id='self', ctx=ast.Load()),
+                                attr='logger', ctx=ast.Load()
+                            ),
+                            attr='warning', ctx=ast.Load()
+                        ),
+                        args=[ast.Constant(value=f"STUB: External program '{target}' not implemented (ALLOW_STUBS=true)")],
+                        keywords=[]
+                    )),
+                    # Return None only when stubs are explicitly allowed
+                    ast.Return(value=ast.Constant(value=None))
+                ]
+            )
         ]
         
         stub_method = ast.FunctionDef(
@@ -7454,7 +7503,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.17-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.17-golden' if enhance else '5.7.17',
+            'version': '5.7.21-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.21-golden' if enhance else '5.7.21',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -8058,7 +8107,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.17',
+            'version': '5.7.21',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
