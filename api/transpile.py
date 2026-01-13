@@ -3213,7 +3213,8 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
     
     for var in variables:
         name_upper = var.name.upper()
-        if any(kw in name_upper for kw in config_keywords):
+        # v5.7.17: OCCURS tables should always be in __init__, not config
+        if not var.occurs and any(kw in name_upper for kw in config_keywords):
             continue
         
         py_name = to_snake_case(var.name)
@@ -7024,6 +7025,16 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         # This prevents method names like "process_deposit" from being declared as variables
         paragraph_names_set = {to_snake_case(p.name) for p in cobol_ast.paragraphs}
         paragraph_names_upper = {p.name.upper() for p in cobol_ast.paragraphs}
+        
+        # v5.7.17: Also extract base names without numeric prefix (e.g., 100-PROCESS -> PROCESS)
+        numeric_prefix_pattern = re.compile(r'^\d{2,4}-(.+)$')
+        for p in cobol_ast.paragraphs:
+            match = numeric_prefix_pattern.match(p.name.upper())
+            if match:
+                base_name = match.group(1)
+                paragraph_names_upper.add(base_name)
+                paragraph_names_set.add(to_snake_case(base_name))
+        
         cobol_ast.used_variables = {
             v for v in cobol_ast.used_variables 
             if to_snake_case(v) not in paragraph_names_set 
