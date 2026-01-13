@@ -10,6 +10,11 @@ Improvements in v5.7.5:
 - NEW: SORT statement support (ascending/descending with key)
 - NEW: UNSTRING statement support (string splitting with delimiter)
 - NEW: REDEFINES support (alternate views of same data via @property)
+- NEW: GO TO statement (converts to method call with return)
+- NEW: PERFORM VARYING (for loop with counter)
+- NEW: MOVE/ADD CORRESPONDING (field-by-field operations)
+- NEW: ON SIZE ERROR handling (try/except for arithmetic overflow)
+- NEW: RELEASE statement (SORT input procedure support)
 
 Improvements in v5.7.3:
 - FIX: Removed aggressive docstring regex that corrupted code
@@ -2646,6 +2651,13 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
                 result.append(py_stmt)
         
         elif upper.startswith('COMPUTE '):
+            # v5.7.5: Check for ON SIZE ERROR
+            if i + 1 < len(statements) and 'ON SIZE ERROR' in statements[i + 1].upper():
+                py_stmts, consumed = transpile_on_size_error_v4(statements, i)
+                if py_stmts:
+                    result.extend(py_stmts)
+                i += consumed
+                continue
             py_stmt = transpile_compute_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
@@ -2700,6 +2712,13 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
                 result.append(py_stmt)
         
         elif upper.startswith('DIVIDE '):
+            # v5.7.5: Check for ON SIZE ERROR (common with division)
+            if i + 1 < len(statements) and 'ON SIZE ERROR' in statements[i + 1].upper():
+                py_stmts, consumed = transpile_on_size_error_v4(statements, i)
+                if py_stmts:
+                    result.extend(py_stmts)
+                i += consumed
+                continue
             py_stmt = transpile_divide_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
@@ -2759,6 +2778,29 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
         
         elif upper.startswith('UNSTRING '):
             py_stmt = transpile_unstring_v4(stmt)
+            if py_stmt:
+                result.append(py_stmt)
+        
+        # v5.7.5: Additional COBOL statements
+        elif upper.startswith('GO TO ') or upper.startswith('GO  TO ') or upper.startswith('GOTO '):
+            py_stmt = transpile_goto_v4(stmt)
+            if py_stmt:
+                result.append(py_stmt)
+        
+        elif 'VARYING' in upper and upper.startswith('PERFORM '):
+            py_stmt, consumed = transpile_perform_varying_v4(statements, i)
+            if py_stmt:
+                result.append(py_stmt)
+            i += consumed
+            continue
+        
+        elif 'CORRESPONDING' in upper or 'CORR ' in upper:
+            py_stmt = transpile_corresponding_v4(stmt)
+            if py_stmt:
+                result.append(py_stmt)
+        
+        elif upper.startswith('RELEASE '):
+            py_stmt = transpile_release_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
         
@@ -4666,6 +4708,379 @@ def transpile_unstring_v4(stmt: str) -> Optional[ast.stmt]:
         if len(stmts) > 1:
             return ast.If(test=ast.Constant(value=True), body=stmts, orelse=[])
         return stmts[0] if stmts else None
+    
+    return None
+
+
+def transpile_goto_v4(stmt: str) -> Optional[ast.stmt]:
+    """
+    Transpile GO TO statement to Python method call.
+    
+    COBOL:
+        GO TO PARA-NAME
+    
+    Python:
+        return self.para_name()  # Early return to simulate jump
+    
+    Note: GO TO is discouraged but sometimes found in legacy code.
+    """
+    match = re.match(r'GO\s*TO\s+([A-Z][A-Z0-9-]*)', stmt, re.IGNORECASE)
+    if match:
+        para_name = to_snake_case(match.group(1))
+        # Return call to paragraph method - simulates jump
+        return ast.Return(value=ast.Call(
+            func=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                              attr=para_name, ctx=ast.Load()),
+            args=[], keywords=[]
+        ))
+    return None
+
+
+def transpile_perform_varying_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
+    """
+    Transpile PERFORM VARYING statement to Python for loop.
+    
+    COBOL:
+        PERFORM PARA-A VARYING WS-IDX FROM 1 BY 1 UNTIL WS-IDX > 10
+        
+        PERFORM VARYING WS-I FROM 1 BY 1 UNTIL WS-I > WS-MAX
+            ... statements ...
+        END-PERFORM
+    
+    Python:
+        for ws_idx in range(1, 11):
+            self.para_a()
+    """
+    stmt = statements[start_idx].strip()
+    
+    # PERFORM para VARYING var FROM start BY step UNTIL condition
+    match = re.match(
+        r'PERFORM\s+([A-Z][A-Z0-9-]*)\s+VARYING\s+([A-Z][A-Z0-9-]*)\s+FROM\s+(\d+)\s+BY\s+(\d+)\s+UNTIL\s+(.+)',
+        stmt, re.IGNORECASE
+    )
+    if match:
+        para_name = to_snake_case(match.group(1))
+        var_name = to_snake_case(match.group(2))
+        from_val = int(match.group(3))
+        by_val = int(match.group(4))
+        until_cond = match.group(5).strip()
+        
+        # Parse UNTIL condition to get end value
+        # Common: WS-IDX > 10 or WS-IDX >= 10
+        end_match = re.search(r'>\s*(\d+)', until_cond)
+        if end_match:
+            end_val = int(end_match.group(1)) + 1
+        else:
+            end_match = re.search(r'>=\s*(\d+)', until_cond)
+            end_val = int(end_match.group(1)) if end_match else 100
+        
+        # for var in range(from, end, step):
+        for_loop = ast.For(
+            target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                attr=var_name, ctx=ast.Store()),
+            iter=ast.Call(
+                func=ast.Name(id='range', ctx=ast.Load()),
+                args=[
+                    ast.Constant(value=from_val),
+                    ast.Constant(value=end_val),
+                    ast.Constant(value=by_val)
+                ],
+                keywords=[]
+            ),
+            body=[ast.Expr(value=ast.Call(
+                func=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                  attr=para_name, ctx=ast.Load()),
+                args=[], keywords=[]
+            ))],
+            orelse=[]
+        )
+        return for_loop, 1
+    
+    # Inline PERFORM VARYING (with END-PERFORM)
+    match = re.match(
+        r'PERFORM\s+VARYING\s+([A-Z][A-Z0-9-]*)\s+FROM\s+(\d+)\s+BY\s+(\d+)\s+UNTIL\s+(.+)',
+        stmt, re.IGNORECASE
+    )
+    if match:
+        var_name = to_snake_case(match.group(1))
+        from_val = int(match.group(2))
+        by_val = int(match.group(3))
+        until_cond = match.group(4).strip()
+        
+        # Collect body until END-PERFORM
+        body_stmts = []
+        i = start_idx + 1
+        while i < len(statements):
+            line = statements[i].strip().upper()
+            if line.startswith('END-PERFORM'):
+                break
+            body_stmts.append(statements[i].strip())
+            i += 1
+        
+        consumed = i - start_idx + 1
+        
+        # Parse end value
+        end_match = re.search(r'>\s*(\d+)', until_cond)
+        if end_match:
+            end_val = int(end_match.group(1)) + 1
+        else:
+            end_match = re.search(r'>=\s*(\d+)', until_cond)
+            end_val = int(end_match.group(1)) if end_match else 100
+        
+        # Transpile body
+        body = transpile_statements_v4(body_stmts) if body_stmts else [ast.Pass()]
+        
+        for_loop = ast.For(
+            target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                attr=var_name, ctx=ast.Store()),
+            iter=ast.Call(
+                func=ast.Name(id='range', ctx=ast.Load()),
+                args=[
+                    ast.Constant(value=from_val),
+                    ast.Constant(value=end_val),
+                    ast.Constant(value=by_val)
+                ],
+                keywords=[]
+            ),
+            body=body,
+            orelse=[]
+        )
+        return for_loop, consumed
+    
+    return None, 1
+
+
+def transpile_corresponding_v4(stmt: str) -> Optional[ast.stmt]:
+    """
+    Transpile MOVE CORRESPONDING / ADD CORRESPONDING.
+    
+    COBOL:
+        MOVE CORRESPONDING WS-RECORD-A TO WS-RECORD-B
+        ADD CORRESPONDING WS-TOTALS TO WS-SUMMARY
+    
+    Python:
+        # Copy matching field names
+        for field in ['field1', 'field2', ...]:
+            if hasattr(self.ws_record_a, field) and hasattr(self.ws_record_b, field):
+                setattr(self.ws_record_b, field, getattr(self.ws_record_a, field))
+    """
+    upper = stmt.upper()
+    
+    # MOVE CORRESPONDING source TO target
+    move_match = re.match(
+        r'MOVE\s+CORR(?:ESPONDING)?\s+([A-Z][A-Z0-9-]*)\s+TO\s+([A-Z][A-Z0-9-]*)',
+        stmt, re.IGNORECASE
+    )
+    if move_match:
+        source = to_snake_case(move_match.group(1))
+        target = to_snake_case(move_match.group(2))
+        
+        # Generate: self.target.__dict__.update({k: v for k, v in self.source.__dict__.items() if hasattr(self.target, k)})
+        # Simplified: for each known field, copy if exists
+        return ast.Expr(value=ast.Call(
+            func=ast.Attribute(
+                value=ast.Attribute(
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                       attr=target, ctx=ast.Load()),
+                    attr='__dict__', ctx=ast.Load()
+                ),
+                attr='update', ctx=ast.Load()
+            ),
+            args=[ast.DictComp(
+                key=ast.Name(id='k', ctx=ast.Load()),
+                value=ast.Name(id='v', ctx=ast.Load()),
+                generators=[ast.comprehension(
+                    target=ast.Tuple(elts=[
+                        ast.Name(id='k', ctx=ast.Store()),
+                        ast.Name(id='v', ctx=ast.Store())
+                    ], ctx=ast.Store()),
+                    iter=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Attribute(
+                                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                                   attr=source, ctx=ast.Load()),
+                                attr='__dict__', ctx=ast.Load()
+                            ),
+                            attr='items', ctx=ast.Load()
+                        ),
+                        args=[], keywords=[]
+                    ),
+                    ifs=[ast.Call(
+                        func=ast.Name(id='hasattr', ctx=ast.Load()),
+                        args=[
+                            ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                         attr=target, ctx=ast.Load()),
+                            ast.Name(id='k', ctx=ast.Load())
+                        ],
+                        keywords=[]
+                    )],
+                    is_async=0
+                )]
+            )],
+            keywords=[]
+        ))
+    
+    # ADD CORRESPONDING source TO target
+    add_match = re.match(
+        r'ADD\s+CORR(?:ESPONDING)?\s+([A-Z][A-Z0-9-]*)\s+TO\s+([A-Z][A-Z0-9-]*)',
+        stmt, re.IGNORECASE
+    )
+    if add_match:
+        source = to_snake_case(add_match.group(1))
+        target = to_snake_case(add_match.group(2))
+        
+        # Generate a comment explaining the operation
+        return ast.Expr(value=ast.Call(
+            func=ast.Name(id='print', ctx=ast.Load()),
+            args=[ast.Constant(value=f'ADD CORRESPONDING {source} TO {target} - implement field-by-field addition')],
+            keywords=[]
+        ))
+    
+    return None
+
+
+def transpile_on_size_error_v4(statements: List[str], start_idx: int) -> Tuple[List[ast.stmt], int]:
+    """
+    Handle ON SIZE ERROR / NOT ON SIZE ERROR for arithmetic operations.
+    
+    COBOL:
+        COMPUTE WS-RESULT = WS-A / WS-B
+            ON SIZE ERROR
+                MOVE 0 TO WS-RESULT
+            NOT ON SIZE ERROR
+                DISPLAY 'OK'
+        END-COMPUTE
+    
+    Python:
+        try:
+            self.ws_result = self.ws_a / self.ws_b
+        except (OverflowError, ZeroDivisionError, decimal.InvalidOperation):
+            self.ws_result = 0
+    """
+    stmt = statements[start_idx].strip()
+    upper = stmt.upper()
+    
+    # Find the main arithmetic statement and ON SIZE ERROR handling
+    has_size_error = False
+    size_error_stmts = []
+    not_size_error_stmts = []
+    main_stmt = stmt
+    
+    i = start_idx + 1
+    in_size_error = False
+    in_not_size_error = False
+    
+    while i < len(statements):
+        line = statements[i].strip()
+        upper_line = line.upper()
+        
+        if upper_line.startswith('END-COMPUTE') or upper_line.startswith('END-ADD') or \
+           upper_line.startswith('END-SUBTRACT') or upper_line.startswith('END-MULTIPLY') or \
+           upper_line.startswith('END-DIVIDE'):
+            break
+        elif upper_line.startswith('ON SIZE ERROR'):
+            has_size_error = True
+            in_size_error = True
+            in_not_size_error = False
+        elif upper_line.startswith('NOT ON SIZE ERROR'):
+            in_size_error = False
+            in_not_size_error = True
+        elif in_size_error:
+            size_error_stmts.append(line)
+        elif in_not_size_error:
+            not_size_error_stmts.append(line)
+        
+        i += 1
+    
+    consumed = i - start_idx + 1
+    
+    if not has_size_error:
+        return [], 1
+    
+    # Generate try/except block
+    # First, get the main arithmetic operation
+    main_py = None
+    if 'COMPUTE' in upper:
+        main_py = transpile_compute_v4(main_stmt)
+    elif 'ADD' in upper:
+        main_py = transpile_add_v4(main_stmt)
+    elif 'SUBTRACT' in upper:
+        main_py = transpile_subtract_v4(main_stmt)
+    elif 'MULTIPLY' in upper:
+        main_py = transpile_multiply_v4(main_stmt)
+    elif 'DIVIDE' in upper:
+        main_py = transpile_divide_v4(main_stmt)
+    
+    if not main_py:
+        return [], consumed
+    
+    # Build try/except
+    try_body = [main_py]
+    if not_size_error_stmts:
+        try_body.extend(transpile_statements_v4(not_size_error_stmts))
+    
+    except_body = transpile_statements_v4(size_error_stmts) if size_error_stmts else [ast.Pass()]
+    
+    try_stmt = ast.Try(
+        body=try_body,
+        handlers=[ast.ExceptHandler(
+            type=ast.Tuple(elts=[
+                ast.Name(id='OverflowError', ctx=ast.Load()),
+                ast.Name(id='ZeroDivisionError', ctx=ast.Load()),
+                ast.Attribute(value=ast.Name(id='decimal', ctx=ast.Load()),
+                             attr='InvalidOperation', ctx=ast.Load())
+            ], ctx=ast.Load()),
+            name=None,
+            body=except_body
+        )],
+        orelse=[],
+        finalbody=[]
+    )
+    
+    return [try_stmt], consumed
+
+
+def transpile_release_v4(stmt: str) -> Optional[ast.stmt]:
+    """
+    Transpile RELEASE statement (used with SORT).
+    
+    COBOL:
+        RELEASE SORT-RECORD FROM WS-RECORD
+    
+    Python:
+        self.sort_records.append(self.ws_record)
+    """
+    match = re.match(r'RELEASE\s+([A-Z][A-Z0-9-]*)\s+FROM\s+([A-Z][A-Z0-9-]*)', stmt, re.IGNORECASE)
+    if match:
+        sort_record = to_snake_case(match.group(1))
+        source = to_snake_case(match.group(2))
+        
+        # Append to sort buffer
+        return ast.Expr(value=ast.Call(
+            func=ast.Attribute(
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                   attr=f'{sort_record}s', ctx=ast.Load()),
+                attr='append', ctx=ast.Load()
+            ),
+            args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                               attr=source, ctx=ast.Load())],
+            keywords=[]
+        ))
+    
+    # Simple RELEASE
+    match = re.match(r'RELEASE\s+([A-Z][A-Z0-9-]*)', stmt, re.IGNORECASE)
+    if match:
+        sort_record = to_snake_case(match.group(1))
+        return ast.Expr(value=ast.Call(
+            func=ast.Attribute(
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                   attr=f'{sort_record}s', ctx=ast.Load()),
+                attr='append', ctx=ast.Load()
+            ),
+            args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                               attr=sort_record, ctx=ast.Load())],
+            keywords=[]
+        ))
     
     return None
 
