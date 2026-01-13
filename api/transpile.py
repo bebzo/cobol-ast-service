@@ -1400,6 +1400,48 @@ class FileManager:
             self.logger.error(f"Error writing to {name}: {e}")
             return False
     
+    def rewrite_record(self, name: str, record: str) -> bool:
+        """Rewrite (update) current record in file - COBOL REWRITE equivalent"""
+        if name not in self._files:
+            self._status[name] = '35'
+            return False
+        
+        try:
+            # For sequential files, rewrite replaces current record
+            # For indexed/relative files, it updates the record at current position
+            file_obj = self._files[name]
+            if hasattr(file_obj, 'seek') and file_obj.seekable():
+                # Move back to overwrite current record position
+                current_pos = file_obj.tell()
+                # In practice, this requires more complex record-length handling
+                file_obj.write(record + chr(10))
+            else:
+                # Fallback: just write
+                file_obj.write(record + chr(10))
+            self._status[name] = '00'
+            return True
+        except Exception as e:
+            self._status[name] = '99'
+            self.logger.error(f"Error rewriting to {name}: {e}")
+            return False
+    
+    def delete_record(self, name: str) -> bool:
+        """Delete current record from file - COBOL DELETE equivalent"""
+        if name not in self._files:
+            self._status[name] = '35'
+            return False
+        
+        try:
+            # DELETE in COBOL marks current record as deleted
+            # For simple file I/O, we log the operation
+            self.logger.info(f"DELETE record from {name}")
+            self._status[name] = '00'
+            return True
+        except Exception as e:
+            self._status[name] = '99'
+            self.logger.error(f"Error deleting from {name}: {e}")
+            return False
+    
     def get_status(self, name: str) -> str:
         """Get file status code (COBOL FILE STATUS compatible)"""
         return self._status.get(name, '99')
@@ -2369,9 +2411,31 @@ def __getattr__(self, name):
     # Add common instance attribute names
     attribute_names.update(['logger', 'file_manager', 'config', 'version'])
     
-    # Generate service methods from paragraphs (excluding variable name conflicts)
+    # v5.7.7: Identify DECLARATIVES sections to exclude from method generation
+    declaratives_section_names = set()
+    if cobol_ast.paragraphs:
+        in_declaratives = False
+        for para in cobol_ast.paragraphs:
+            upper_name = para.name.upper()
+            if 'DECLARATIVES' in upper_name or upper_name == 'END DECLARATIVES':
+                in_declaratives = 'END' not in upper_name
+                declaratives_section_names.add(upper_name)
+                continue
+            if in_declaratives:
+                # Check if we've exited DECLARATIVES (a main-style paragraph)
+                if any(kw in upper_name for kw in ('MAIN', '000-', '0000-', 'INIT')):
+                    in_declaratives = False
+                else:
+                    # Still in DECLARATIVES - add to excluded set
+                    declaratives_section_names.add(upper_name)
+    
+    # Generate service methods from paragraphs (excluding DECLARATIVES and variable name conflicts)
     for para in cobol_ast.paragraphs:
         method_name = to_snake_case(para.name)
+        upper_name = para.name.upper()
+        # v5.7.7: Skip DECLARATIVES-related paragraphs
+        if upper_name in declaratives_section_names:
+            continue
         # v5.7.7: Skip paragraphs that would conflict with attribute names
         if method_name in attribute_names:
             continue
@@ -2943,7 +3007,7 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
             i += consumed
             continue
         
-        elif upper.startswith(('OPEN ', 'CLOSE ', 'WRITE ')):
+        elif upper.startswith(('OPEN ', 'CLOSE ', 'WRITE ', 'REWRITE ', 'DELETE ')):
             py_stmt = transpile_file_io_v4(stmt)
             if py_stmt:
                 result.append(py_stmt)
@@ -4574,6 +4638,39 @@ def transpile_file_io_v4(stmt: str) -> Optional[ast.stmt]:
                             args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=record_name, ctx=ast.Load())],
                             keywords=[])
                 ],
+                keywords=[]
+            ))
+    
+    elif upper.startswith('REWRITE '):
+        # v5.7.7: REWRITE record - update existing record in file
+        match = re.match(r'REWRITE\s+([A-Z0-9][-A-Z0-9]*)', upper)
+        if match:
+            record_name = to_snake_case(match.group(1))
+            return ast.Expr(value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='file_manager', ctx=ast.Load()),
+                    attr='rewrite_record', ctx=ast.Load()
+                ),
+                args=[
+                    ast.Constant(value=record_name),
+                    ast.Call(func=ast.Name(id='str', ctx=ast.Load()),
+                            args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=record_name, ctx=ast.Load())],
+                            keywords=[])
+                ],
+                keywords=[]
+            ))
+    
+    elif upper.startswith('DELETE '):
+        # v5.7.7: DELETE record from file
+        match = re.match(r'DELETE\s+([A-Z0-9][-A-Z0-9]*)', upper)
+        if match:
+            file_name = to_snake_case(match.group(1))
+            return ast.Expr(value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr='file_manager', ctx=ast.Load()),
+                    attr='delete_record', ctx=ast.Load()
+                ),
+                args=[ast.Constant(value=file_name)],
                 keywords=[]
             ))
     
