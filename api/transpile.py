@@ -5360,6 +5360,7 @@ def transpile_perform_varying_v4(statements: List[str], start_idx: int) -> Tuple
     
     COBOL:
         PERFORM PARA-A VARYING WS-IDX FROM 1 BY 1 UNTIL WS-IDX > 10
+        PERFORM PARA-A VARYING WS-IDX FROM WS-START BY WS-STEP UNTIL WS-IDX > WS-MAX
         
         PERFORM VARYING WS-I FROM 1 BY 1 UNTIL WS-I > WS-MAX
             ... statements ...
@@ -5371,26 +5372,67 @@ def transpile_perform_varying_v4(statements: List[str], start_idx: int) -> Tuple
     """
     stmt = statements[start_idx].strip()
     
-    # PERFORM para VARYING var FROM start BY step UNTIL condition
+    def parse_varying_value(val_str: str):
+        """Parse a FROM/BY value - can be numeric or variable."""
+        val_str = val_str.strip()
+        if val_str.isdigit():
+            return ast.Constant(value=int(val_str))
+        elif re.match(r'^-?\d+$', val_str):
+            return ast.Constant(value=int(val_str))
+        else:
+            # It's a variable
+            var = to_snake_case(val_str)
+            return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                attr=var, ctx=ast.Load())
+    
+    def parse_until_end_value(until_cond: str):
+        """Parse UNTIL condition to determine end value for range().
+        Returns an AST node representing the end value."""
+        until_cond = until_cond.strip()
+        
+        # Pattern: VAR > number or VAR >= number
+        num_match = re.search(r'>\s*(\d+)', until_cond)
+        if num_match:
+            return ast.Constant(value=int(num_match.group(1)) + 1)
+        
+        num_match = re.search(r'>=\s*(\d+)', until_cond)
+        if num_match:
+            return ast.Constant(value=int(num_match.group(1)))
+        
+        # Pattern: VAR > VARIABLE or VAR >= VARIABLE
+        var_match = re.search(r'>\s*([A-Z][A-Z0-9-]*)', until_cond, re.IGNORECASE)
+        if var_match:
+            var = to_snake_case(var_match.group(1))
+            # Return self.var + 1
+            return ast.BinOp(
+                left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                  attr=var, ctx=ast.Load()),
+                op=ast.Add(),
+                right=ast.Constant(value=1)
+            )
+        
+        var_match = re.search(r'>=\s*([A-Z][A-Z0-9-]*)', until_cond, re.IGNORECASE)
+        if var_match:
+            var = to_snake_case(var_match.group(1))
+            return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                attr=var, ctx=ast.Load())
+        
+        # Default fallback
+        return ast.Constant(value=100)
+    
+    # Pattern 1: PERFORM para VARYING var FROM start BY step UNTIL condition
+    # Supports both numeric and variable values
     match = re.match(
-        r'PERFORM\s+([A-Z][A-Z0-9-]*)\s+VARYING\s+([A-Z][A-Z0-9-]*)\s+FROM\s+(\d+)\s+BY\s+(\d+)\s+UNTIL\s+(.+)',
+        r'PERFORM\s+([A-Z][A-Z0-9-]*)\s+VARYING\s+([A-Z][A-Z0-9-]*)\s+FROM\s+([A-Z0-9][A-Z0-9-]*)\s+BY\s+([A-Z0-9][A-Z0-9-]*)\s+UNTIL\s+(.+)',
         stmt, re.IGNORECASE
     )
     if match:
         para_name = to_snake_case(match.group(1))
         var_name = to_snake_case(match.group(2))
-        from_val = int(match.group(3))
-        by_val = int(match.group(4))
+        from_val = parse_varying_value(match.group(3))
+        by_val = parse_varying_value(match.group(4))
         until_cond = match.group(5).strip()
-        
-        # Parse UNTIL condition to get end value
-        # Common: WS-IDX > 10 or WS-IDX >= 10
-        end_match = re.search(r'>\s*(\d+)', until_cond)
-        if end_match:
-            end_val = int(end_match.group(1)) + 1
-        else:
-            end_match = re.search(r'>=\s*(\d+)', until_cond)
-            end_val = int(end_match.group(1)) if end_match else 100
+        end_val = parse_until_end_value(until_cond)
         
         # for var in range(from, end, step):
         for_loop = ast.For(
@@ -5398,11 +5440,7 @@ def transpile_perform_varying_v4(statements: List[str], start_idx: int) -> Tuple
                                 attr=var_name, ctx=ast.Store()),
             iter=ast.Call(
                 func=ast.Name(id='range', ctx=ast.Load()),
-                args=[
-                    ast.Constant(value=from_val),
-                    ast.Constant(value=end_val),
-                    ast.Constant(value=by_val)
-                ],
+                args=[from_val, end_val, by_val],
                 keywords=[]
             ),
             body=[ast.Expr(value=ast.Call(
@@ -5414,16 +5452,17 @@ def transpile_perform_varying_v4(statements: List[str], start_idx: int) -> Tuple
         )
         return for_loop, 1
     
-    # Inline PERFORM VARYING (with END-PERFORM)
+    # Pattern 2: Inline PERFORM VARYING (with END-PERFORM)
     match = re.match(
-        r'PERFORM\s+VARYING\s+([A-Z][A-Z0-9-]*)\s+FROM\s+(\d+)\s+BY\s+(\d+)\s+UNTIL\s+(.+)',
+        r'PERFORM\s+VARYING\s+([A-Z][A-Z0-9-]*)\s+FROM\s+([A-Z0-9][A-Z0-9-]*)\s+BY\s+([A-Z0-9][A-Z0-9-]*)\s+UNTIL\s+(.+)',
         stmt, re.IGNORECASE
     )
     if match:
         var_name = to_snake_case(match.group(1))
-        from_val = int(match.group(2))
-        by_val = int(match.group(3))
+        from_val = parse_varying_value(match.group(2))
+        by_val = parse_varying_value(match.group(3))
         until_cond = match.group(4).strip()
+        end_val = parse_until_end_value(until_cond)
         
         # Collect body until END-PERFORM
         body_stmts = []
@@ -5437,27 +5476,20 @@ def transpile_perform_varying_v4(statements: List[str], start_idx: int) -> Tuple
         
         consumed = i - start_idx + 1
         
-        # Parse end value
-        end_match = re.search(r'>\s*(\d+)', until_cond)
-        if end_match:
-            end_val = int(end_match.group(1)) + 1
-        else:
-            end_match = re.search(r'>=\s*(\d+)', until_cond)
-            end_val = int(end_match.group(1)) if end_match else 100
-        
-        # Transpile body
-        body = transpile_statements_v4(body_stmts) if body_stmts else [ast.Pass()]
+        # Transpile body - ALWAYS ensure non-empty body
+        body = []
+        if body_stmts:
+            body = transpile_statements_v4(body_stmts)
+        # Ensure body is never empty (Python syntax requirement)
+        if not body:
+            body = [ast.Pass()]
         
         for_loop = ast.For(
             target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
                                 attr=var_name, ctx=ast.Store()),
             iter=ast.Call(
                 func=ast.Name(id='range', ctx=ast.Load()),
-                args=[
-                    ast.Constant(value=from_val),
-                    ast.Constant(value=end_val),
-                    ast.Constant(value=by_val)
-                ],
+                args=[from_val, end_val, by_val],
                 keywords=[]
             ),
             body=body,
