@@ -4616,6 +4616,17 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     # Clean up multiple spaces
     cond = re.sub(r'\s+', ' ', cond).strip()
     
+    # v5.7.16: Replace decimal literals with Decimal('value') for financial precision
+    # Match standalone decimal numbers (not part of variable names)
+    def replace_decimal_literal(match):
+        num = match.group(0)
+        # Check if it's a standalone number (preceded by operator or space, not alphanumeric)
+        return f"Decimal('{num}')"
+    
+    # Replace decimal literals like 5.0, 10.00, -3.14 with Decimal('value')
+    # Negative lookahead/lookbehind to avoid matching inside identifiers
+    cond = re.sub(r'(?<![a-zA-Z0-9_])(-?\d+\.\d+)(?![a-zA-Z0-9_])', replace_decimal_literal, cond)
+    
     try:
         return ast.parse(cond, mode='eval').body
     except SyntaxError as e:
