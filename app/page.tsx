@@ -788,6 +788,8 @@ export default function Home() {
       };
       reader.readAsText(file);
     }
+    // Reset input value to allow re-uploading the same file
+    e.target.value = '';
   }, [detectCopyStatements, updateMissingCopybooks, copybooks]);
 
   // Handle copybook file upload (supports multiple files)
@@ -816,6 +818,8 @@ export default function Home() {
       };
       reader.readAsText(file);
     });
+    // Reset input value to allow re-uploading
+    e.target.value = '';
   }, [copybooks]);
 
   // Clear all copybooks
