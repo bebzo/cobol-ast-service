@@ -64,10 +64,8 @@ export async function transpileCobolViaPython(
   copybooks?: Record<string, string>
 ): Promise<TranspileResult> {
   try {
-    // Use environment-aware URL (works on Vercel and locally)
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NEXT_PUBLIC_SITE_URL || 'https://cobol-ast-service-git-main-emmanuel-beb-a-ngons-projects.vercel.app';
+    // Always use the production domain for internal calls
+    const baseUrl = 'https://cobol-ast-service.vercel.app';
     
     // Add timeout via AbortController (180s max for large files)
     const controller = new AbortController();
