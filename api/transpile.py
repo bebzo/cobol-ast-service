@@ -1,6 +1,10 @@
 """
-COBOL → Python Transpiler v5.7.21 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.22 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.22:
+- QUALITY: Dead code detection - warns when code follows return/exit statements
+- META: Added dead_code_warnings to stats output
 
 Improvements in v5.7.21:
 - SECURITY: CALL stubs now raise NotImplementedError by default (set ALLOW_STUBS=true to allow)
@@ -2572,7 +2576,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.21]
+Auto-transpiled from COBOL [AST Transpiler v5.7.22]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -7364,6 +7368,44 @@ def generate_transformation_doc(cobol_ast: 'CobolAST', patterns_found: Dict,
 
 
 # ============================================================
+# v5.7.22: Dead Code Detection
+# ============================================================
+
+def detect_dead_code(python_code: str) -> List[Dict[str, Any]]:
+    """Detect dead code after return/exit statements.
+    
+    v5.7.22: Scans generated Python code for unreachable code patterns.
+    Returns list of warnings with line numbers and code snippets.
+    """
+    warnings = []
+    lines = python_code.split('\n')
+    
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Check for return/exit statements
+        if stripped == 'return' or stripped.startswith('return '):
+            current_indent = len(line) - len(line.lstrip())
+            # Look at next non-empty lines
+            for j in range(i + 1, min(i + 10, len(lines))):
+                next_line = lines[j]
+                if next_line.strip():
+                    next_indent = len(next_line) - len(next_line.lstrip())
+                    # Dead code: same or higher indentation, not a new function/class
+                    if next_indent >= current_indent:
+                        next_stripped = next_line.strip()
+                        if not next_stripped.startswith(('def ', 'class ', '@', 'except', 'else:', 'elif ', 'finally:')):
+                            warnings.append({
+                                'line': i + 1,
+                                'type': 'dead_code_after_return',
+                                'message': f'Unreachable code after return at line {i + 1}',
+                                'code_snippet': next_stripped[:60]
+                            })
+                    break
+    
+    return warnings
+
+
+# ============================================================
 # Code Generation & Unit Tests
 # ============================================================
 
@@ -7498,12 +7540,15 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             cobol_ast, patterns_found, confidence, cobol_ast.program_id
         )
         
+        # v5.7.22: Dead code detection
+        dead_code_warnings = detect_dead_code(python_code)
+        
         return {
             'success': True,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.21-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.21-golden' if enhance else '5.7.21',
+            'version': '5.7.22-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.22-golden' if enhance else '5.7.22',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -7520,6 +7565,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
                 'has_sql': cobol_ast.has_sql,
                 'input_valid': is_valid,
                 'input_warnings': input_warnings,
+                'dead_code_warnings': dead_code_warnings,
                 **gemini_stats,
                 **confidence['coverage'],
                 **confidence['quality_factors']
@@ -8107,7 +8153,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.21',
+            'version': '5.7.22',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
