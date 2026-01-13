@@ -3079,7 +3079,15 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
             result.append(ast.Pass())
         
         elif upper.startswith('EXIT'):
-            result.append(ast.Pass())
+            # EXIT PARAGRAPH or EXIT SECTION = return from current method
+            if 'PARAGRAPH' in upper or 'SECTION' in upper:
+                result.append(ast.Return(value=None))
+            elif 'PROGRAM' in upper:
+                # EXIT PROGRAM = end of program execution
+                result.append(ast.Return(value=None))
+            else:
+                # Simple EXIT = no-op placeholder
+                result.append(ast.Pass())
         
         elif upper.startswith('END-'):
             pass
@@ -4156,15 +4164,28 @@ def transpile_perform_v4(stmt: str) -> Optional[ast.stmt]:
             args=[], keywords=[]
         ))
     
-    # 3. PERFORM para N TIMES
-    times_match = re.match(r'PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+(\d+)\s+TIMES', upper, re.IGNORECASE)
+    # 3. PERFORM para N TIMES (supports both numeric and variable count)
+    times_match = re.match(r'PERFORM\s+([A-Z0-9][-A-Z0-9]*)\s+([A-Z0-9][-A-Z0-9]*)\s+TIMES', upper, re.IGNORECASE)
     if times_match:
         target = to_snake_case(times_match.group(1))
-        times = int(times_match.group(2))
+        times_val = times_match.group(2)
+        
+        # Determine if times is numeric or variable
+        if times_val.isdigit():
+            times_expr = ast.Constant(value=int(times_val))
+        else:
+            # Variable: self.variable with int() conversion
+            times_expr = ast.Call(
+                func=ast.Name(id='int', ctx=ast.Load()),
+                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                   attr=to_snake_case(times_val), ctx=ast.Load())],
+                keywords=[]
+            )
+        
         return ast.For(
             target=ast.Name(id='_', ctx=ast.Store()),
             iter=ast.Call(func=ast.Name(id='range', ctx=ast.Load()), 
-                         args=[ast.Constant(value=times)], keywords=[]),
+                         args=[times_expr], keywords=[]),
             body=[ast.Expr(value=ast.Call(
                 func=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), 
                                   attr=target, ctx=ast.Load()),
