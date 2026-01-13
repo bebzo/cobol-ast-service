@@ -1,0 +1,14 @@
+/** @type {import("next").NextConfig} */
+const nextConfig = {
+  images: {
+    unoptimized: true,
+  },
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
+  
+  // Vercel-compatible settings
+  experimental: {
+    serverComponentsExternalPackages: ['antlr4'],
+  },
+};
+
+export default nextConfig;

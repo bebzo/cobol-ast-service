@@ -1,0 +1,1757 @@
+enere un autre cobol plus complexe toujours pour mettre à jour codewitch avec de probables bugs et ajoute les aspect sécurité et autres logique métier de pointe que tu connais
+Je vais créer un programme COBOL complexe avec des aspects avancés de sécurité, logique métier, et des patterns difficiles à transformer.
+
+cobol
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. BANQUE-SYSTEME.
+       AUTHOR. ENTERPRISE-BANK.
+       DATE-WRITTEN. 1995-06-15.
+       SECURITY. LEVEL-3 ENCRYPTED.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-390.
+       OBJECT-COMPUTER. IBM-390.
+       SPECIAL-NAMES.
+           CURRENCY SIGN IS '€'
+           DECIMAL-POINT IS COMMA.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT CLIENT-FILE ASSIGN TO DA-CLIENT
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS RANDOM
+               RECORD KEY IS CLIENT-ID
+               FILE STATUS IS WS-FILE-STATUS.
+
+           SELECT TRANSACTION-FILE ASSIGN TO DA-TRANS
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS WS-TRANS-STATUS.
+
+           SELECT AUDIT-FILE ASSIGN TO DA-AUDIT
+               ORGANIZATION IS LINE SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL.
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD CLIENT-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 200 CHARACTERS
+           DATA RECORD IS CLIENT-RECORD.
+       01 CLIENT-RECORD.
+           05 CLIENT-ID                PIC 9(10).
+           05 CLIENT-NAME              PIC X(30).
+           05 CLIENT-SURNAME           PIC X(30).
+           05 CLIENT-ACCOUNT-NUM       PIC 9(16).
+           05 CLIENT-BALANCE           PIC 9(10)V99.
+           05 CLIENT-ACCOUNT-TYPE      PIC X(2).
+               88 CHECKING-ACCOUNT     VALUE 'CK'.
+               88 SAVINGS-ACCOUNT      VALUE 'SV'.
+               88 BUSINESS-ACCOUNT     VALUE 'BU'.
+           05 CLIENT-RISK-LEVEL        PIC X.
+               88 LOW-RISK             VALUE 'L'.
+               88 MEDIUM-RISK          VALUE 'M'.
+               88 HIGH-RISK            VALUE 'H'.
+           05 CLIENT-LAST-TRANS-DATE   PIC 9(8).  *> YYYYMMDD
+           05 CLIENT-STATUS            PIC X.
+               88 ACTIVE-STATUS        VALUE 'A'.
+               88 SUSPENDED-STATUS     VALUE 'S'.
+               88 CLOSED-STATUS        VALUE 'C'.
+           05 CLIENT-PIN               PIC 9(4).
+           05 CLIENT-FRAUD-FLAG        PIC X.
+               88 FRAUD-DETECTED       VALUE 'Y'.
+               88 NO-FRAUD             VALUE 'N'.
+           05 FILLER                   PIC X(85).
+
+       FD TRANSACTION-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 150 CHARACTERS.
+       01 TRANSACTION-RECORD.
+           05 TRANS-ID                 PIC 9(12).
+           05 TRANS-ACCOUNT-NUM        PIC 9(16).
+           05 TRANS-TYPE               PIC X(3).
+               88 TRANS-DEPOSIT        VALUE 'DEP'.
+               88 TRANS-WITHDRAWAL     VALUE 'WDR'.
+               88 TRANS-TRANSFER       VALUE 'TRF'.
+               88 TRANS-FEE            VALUE 'FEE'.
+               88 TRANS-INTEREST       VALUE 'INT'.
+           05 TRANS-AMOUNT             PIC 9(8)V99.
+           05 TRANS-DATE               PIC 9(8).
+           05 TRANS-TIME               PIC 9(6).
+           05 TRANS-DESCRIPTION        PIC X(50).
+           05 TRANS-AUTH-CODE          PIC X(10).
+           05 TRANS-STATUS             PIC X.
+               88 TRANS-PENDING        VALUE 'P'.
+               88 TRANS-COMPLETED      VALUE 'C'.
+               88 TRANS-FAILED         VALUE 'F'.
+               88 TRANS-REVERSED       VALUE 'R'.
+           05 FILLER                   PIC X(35).
+
+       FD AUDIT-FILE
+           LABEL RECORDS ARE STANDARD.
+       01 AUDIT-RECORD                 PIC X(200).
+
+       WORKING-STORAGE SECTION.
+
+       01 WS-FLAGS.
+           05 WS-FILE-STATUS           PIC XX.
+               88 FILE-OK              VALUE '00'.
+               88 FILE-EOF             VALUE '10'.
+               88 FILE-NOT-FOUND       VALUE '35'.
+               88 FILE-INVALID-KEY     VALUE '23'.
+           05 WS-TRANS-STATUS          PIC XX.
+           05 WS-EOF-FLAG              PIC X VALUE 'N'.
+               88 EOF-REACHED          VALUE 'Y'.
+               88 NOT-EOF              VALUE 'N'.
+           05 WS-VALIDATION-FLAG       PIC X.
+               88 VALID-DATA           VALUE 'Y'.
+               88 INVALID-DATA         VALUE 'N'.
+           05 WS-SECURITY-FLAG         PIC X.
+               88 SECURITY-PASS        VALUE 'P'.
+               88 SECURITY-FAIL        VALUE 'F'.
+
+       01 WS-CALCULATION-FIELDS.
+           05 WS-NEW-BALANCE           PIC 9(10)V99.
+           05 WS-INTEREST-RATE         PIC 9V999 VALUE 0.025.
+           05 WS-FEE-AMOUNT            PIC 9(5)V99.
+           05 WS-DAILY-LIMIT           PIC 9(7)V99 VALUE 5000.00.
+           05 WS-MONTHLY-LIMIT         PIC 9(8)V99 VALUE 20000.00.
+           05 WS-TRANSACTION-COUNT     PIC 9(3) VALUE 0.
+           05 WS-MONTHLY-TOTAL         PIC 9(8)V99 VALUE 0.
+           05 WS-TAX-RATE              PIC 9V999 VALUE 0.196.
+           05 WS-TAX-AMOUNT            PIC 9(8)V99.
+
+       01 WS-DATE-TIME.
+           05 WS-CURRENT-DATE.
+               10 WS-YEAR              PIC 9(4).
+               10 WS-MONTH             PIC 9(2).
+               10 WS-DAY               PIC 9(2).
+           05 WS-CURRENT-TIME.
+               10 WS-HOUR              PIC 9(2).
+               10 WS-MINUTE            PIC 9(2).
+               10 WS-SECOND            PIC 9(2).
+
+       01 WS-CLIENT-DATA.
+           05 WS-INPUT-ACCOUNT         PIC 9(16).
+           05 WS-INPUT-PIN             PIC 9(4).
+           05 WS-INPUT-AMOUNT          PIC 9(8)V99.
+           05 WS-TARGET-ACCOUNT        PIC 9(16).
+           05 WS-RETRY-COUNT           PIC 9(2) VALUE 0.
+           05 WS-MAX-RETRIES           PIC 9(2) VALUE 3.
+
+       01 WS-SECURITY-FIELDS.
+           05 WS-ENCRYPTED-PIN         PIC X(16).
+           05 WS-SESSION-TOKEN         PIC X(32).
+           05 WS-AUTH-ATTEMPTS         PIC 9(2) VALUE 0.
+           05 WS-LAST-LOGIN-TIME       PIC 9(14).
+           05 WS-IP-ADDRESS            PIC X(15).
+
+       01 WS-AUDIT-DATA.
+           05 WS-AUDIT-MESSAGE         PIC X(100).
+           05 WS-AUDIT-USER            PIC X(20).
+           05 WS-AUDIT-TIMESTAMP       PIC 9(14).
+           05 WS-AUDIT-SEVERITY        PIC X.
+               88 AUDIT-INFO           VALUE 'I'.
+               88 AUDIT-WARNING        VALUE 'W'.
+               88 AUDIT-ERROR          VALUE 'E'.
+               88 AUDIT-SECURITY       VALUE 'S'.
+
+       01 WS-CONSTANTS.
+           05 WS-MAX-DAILY-WITHDRAWAL  PIC 9(7)V99 VALUE 5000.00.
+           05 WS-MIN-BALANCE           PIC 9(5)V99 VALUE 100.00.
+           05 WS-FEE-PERCENTAGE        PIC 9V999 VALUE 0.015.
+           05 WS-FIXED-FEE             PIC 9(3)V99 VALUE 5.00.
+
+       PROCEDURE DIVISION.
+       
+       MAIN-PROCEDURE.
+           PERFORM INITIALIZE-PROGRAM
+           PERFORM AUTHENTICATE-USER
+           IF SECURITY-PASS
+               PERFORM PROCESS-TRANSACTIONS
+               PERFORM CALCULATE-INTEREST
+               PERFORM APPLY-FEES
+               PERFORM GENERATE-REPORTS
+           ELSE
+               PERFORM LOG-SECURITY-VIOLATION
+           END-IF
+           PERFORM CLOSE-FILES
+           STOP RUN.
+
+       INITIALIZE-PROGRAM.
+           OPEN I-O CLIENT-FILE
+           OPEN INPUT TRANSACTION-FILE
+           OPEN OUTPUT AUDIT-FILE
+           MOVE FUNCTION CURRENT-DATE TO WS-CURRENT-DATE
+           MOVE 'SYSTEM' TO WS-AUDIT-USER
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Program started' 'I'.
+
+       AUTHENTICATE-USER.
+           DISPLAY "Enter account number: "
+           ACCEPT WS-INPUT-ACCOUNT
+           DISPLAY "Enter PIN: "
+           ACCEPT WS-INPUT-PIN
+           
+           MOVE WS-INPUT-ACCOUNT TO CLIENT-ID
+           READ CLIENT-FILE
+               KEY IS CLIENT-ID
+               INVALID KEY
+                   MOVE 'N' TO WS-VALIDATION-FLAG
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Invalid account number' 'S'
+               NOT INVALID KEY
+                   IF CLIENT-PIN = WS-INPUT-PIN
+                       IF NOT FRAUD-DETECTED
+                           IF ACTIVE-STATUS
+                               MOVE 'P' TO WS-SECURITY-FLAG
+                               ADD 1 TO WS-AUTH-ATTEMPTS
+                               PERFORM LOG-AUDIT-ENTRY
+                                   USING 'Authentication successful' 'I'
+                           ELSE
+                               MOVE 'F' TO WS-SECURITY-FLAG
+                               PERFORM LOG-AUDIT-ENTRY
+                                   USING 'Account suspended' 'S'
+                           END-IF
+                       ELSE
+                           MOVE 'F' TO WS-SECURITY-FLAG
+                           PERFORM LOG-AUDIT-ENTRY
+                               USING 'Fraud detected' 'S'
+                       END-IF
+                   ELSE
+                       ADD 1 TO WS-RETRY-COUNT
+                       IF WS-RETRY-COUNT > WS-MAX-RETRIES
+                           MOVE 'Y' TO CLIENT-FRAUD-FLAG
+                           REWRITE CLIENT-RECORD
+                           PERFORM LOG-AUDIT-ENTRY
+                               USING 'Too many PIN attempts - Fraud flagged' 'S'
+                       END-IF
+                       MOVE 'F' TO WS-SECURITY-FLAG
+                   END-IF
+           END-READ.
+
+       PROCESS-TRANSACTIONS.
+           MOVE 'N' TO WS-EOF-FLAG
+           PERFORM UNTIL EOF-REACHED
+               READ TRANSACTION-FILE
+                   AT END
+                       MOVE 'Y' TO WS-EOF-FLAG
+                   NOT AT END
+                       PERFORM VALIDATE-TRANSACTION
+                       IF VALID-DATA
+                           PERFORM EXECUTE-TRANSACTION
+                       ELSE
+                           PERFORM LOG-AUDIT-ENTRY
+                               USING 'Invalid transaction' 'W'
+                       END-IF
+               END-READ
+           END-PERFORM.
+
+       VALIDATE-TRANSACTION.
+           MOVE 'Y' TO WS-VALIDATION-FLAG
+           
+           *> Vérification du montant
+           IF TRANS-AMOUNT <= 0
+               MOVE 'N' TO WS-VALIDATION-FLAG
+           END-IF
+           
+           *> Vérification des limites
+           IF TRANS-WITHDRAWAL
+               IF TRANS-AMOUNT > WS-DAILY-LIMIT
+                   MOVE 'N' TO WS-VALIDATION-FLAG
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Daily limit exceeded' 'W'
+               END-IF
+               ADD TRANS-AMOUNT TO WS-MONTHLY-TOTAL
+               IF WS-MONTHLY-TOTAL > WS-MONTHLY-LIMIT
+                   MOVE 'N' TO WS-VALIDATION-FLAG
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Monthly limit exceeded' 'W'
+               END-IF
+           END-IF
+           
+           *> Vérification de la date
+           IF TRANS-DATE > WS-CURRENT-DATE
+               MOVE 'N' TO WS-VALIDATION-FLAG
+           END-IF.
+
+       EXECUTE-TRANSACTION.
+           EVALUATE TRUE
+               WHEN TRANS-DEPOSIT
+                   PERFORM PROCESS-DEPOSIT
+               WHEN TRANS-WITHDRAWAL
+                   PERFORM PROCESS-WITHDRAWAL
+               WHEN TRANS-TRANSFER
+                   PERFORM PROCESS-TRANSFER
+               WHEN TRANS-FEE
+                   PERFORM PROCESS-FEE
+               WHEN TRANS-INTEREST
+                   PERFORM PROCESS-INTEREST
+           END-EVALUATE
+           
+           ADD 1 TO WS-TRANSACTION-COUNT
+           PERFORM UPDATE-CLIENT-RECORD.
+
+       PROCESS-DEPOSIT.
+           COMPUTE WS-NEW-BALANCE = 
+               CLIENT-BALANCE + TRANS-AMOUNT
+           MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+           MOVE 'C' TO TRANS-STATUS
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Deposit processed successfully' 'I'.
+
+       PROCESS-WITHDRAWAL.
+           IF CLIENT-BALANCE >= TRANS-AMOUNT
+               COMPUTE WS-NEW-BALANCE = 
+                   CLIENT-BALANCE - TRANS-AMOUNT
+               IF WS-NEW-BALANCE >= WS-MIN-BALANCE
+                   MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+                   MOVE 'C' TO TRANS-STATUS
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Withdrawal processed' 'I'
+               ELSE
+                   MOVE 'F' TO TRANS-STATUS
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Minimum balance violation' 'W'
+               END-IF
+           ELSE
+               MOVE 'F' TO TRANS-STATUS
+               PERFORM LOG-AUDIT-ENTRY
+                   USING 'Insufficient funds' 'W'
+           END-IF.
+
+       PROCESS-TRANSFER.
+           MOVE TRANS-AMOUNT TO WS-INPUT-AMOUNT
+           MOVE TRANS-DESCRIPTION(1:16) TO WS-TARGET-ACCOUNT
+           
+           PERFORM DEBIT-SOURCE-ACCOUNT
+           IF TRANS-COMPLETED
+               PERFORM CREDIT-TARGET-ACCOUNT
+           END-IF.
+
+       DEBIT-SOURCE-ACCOUNT.
+           IF CLIENT-BALANCE >= TRANS-AMOUNT
+               COMPUTE WS-NEW-BALANCE = 
+                   CLIENT-BALANCE - TRANS-AMOUNT
+               MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+               MOVE 'C' TO TRANS-STATUS
+           ELSE
+               MOVE 'F' TO TRANS-STATUS
+           END-IF.
+
+       CREDIT-TARGET-ACCOUNT.
+           MOVE WS-TARGET-ACCOUNT TO CLIENT-ID
+           READ CLIENT-FILE
+               INVALID KEY
+                   MOVE 'R' TO TRANS-STATUS  *> Reverse transaction
+                   PERFORM REVERSE-TRANSACTION
+               NOT INVALID KEY
+                   COMPUTE WS-NEW-BALANCE = 
+                       CLIENT-BALANCE + TRANS-AMOUNT
+                   MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+                   REWRITE CLIENT-RECORD
+           END-READ.
+
+       REVERSE-TRANSACTION.
+           MOVE WS-INPUT-ACCOUNT TO CLIENT-ID
+           READ CLIENT-FILE
+           COMPUTE WS-NEW-BALANCE = 
+               CLIENT-BALANCE + TRANS-AMOUNT
+           MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+           REWRITE CLIENT-RECORD
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Transaction reversed' 'W'.
+
+       PROCESS-FEE.
+           COMPUTE WS-FEE-AMOUNT = 
+               TRANS-AMOUNT * WS-FEE-PERCENTAGE
+           IF WS-FEE-AMOUNT < WS-FIXED-FEE
+               MOVE WS-FIXED-FEE TO WS-FEE-AMOUNT
+           END-IF
+           
+           COMPUTE WS-NEW-BALANCE = 
+               CLIENT-BALANCE - WS-FEE-AMOUNT
+           MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Fee applied' 'I'.
+
+       PROCESS-INTEREST.
+           COMPUTE WS-NEW-BALANCE = 
+               CLIENT-BALANCE + TRANS-AMOUNT
+           MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Interest applied' 'I'.
+
+       CALCULATE-INTEREST.
+           EVALUATE TRUE
+               WHEN CHECKING-ACCOUNT
+                   COMPUTE WS-INTEREST-RATE = 0.005
+               WHEN SAVINGS-ACCOUNT
+                   COMPUTE WS-INTEREST-RATE = 0.015
+               WHEN BUSINESS-ACCOUNT
+                   COMPUTE WS-INTEREST-RATE = 0.008
+           END-EVALUATE
+           
+           IF CLIENT-BALANCE > 10000.00
+               COMPUTE WS-INTEREST-RATE = 
+                   WS-INTEREST-RATE + 0.002
+           END-IF
+           
+           COMPUTE TRANS-AMOUNT = 
+               CLIENT-BALANCE * WS-INTEREST-RATE / 365 * 30
+           
+           *> Calcul de la taxe
+           COMPUTE WS-TAX-AMOUNT = 
+               TRANS-AMOUNT * WS-TAX-RATE
+           COMPUTE TRANS-AMOUNT = 
+               TRANS-AMOUNT - WS-TAX-AMOUNT
+           
+           PERFORM PROCESS-INTEREST.
+
+       APPLY-FEES.
+           IF CLIENT-BALANCE < 500.00
+               MOVE 2.00 TO WS-FEE-AMOUNT
+               PERFORM PROCESS-FEE
+           END-IF
+           
+           IF WS-TRANSACTION-COUNT > 10
+               MOVE 0.50 TO WS-FEE-AMOUNT
+               COMPUTE WS-FEE-AMOUNT = 
+                   WS-FEE-AMOUNT * (WS-TRANSACTION-COUNT - 10)
+               PERFORM PROCESS-FEE
+           END-IF.
+
+       GENERATE-REPORTS.
+           DISPLAY "=== TRANSACTION REPORT ==="
+           DISPLAY "Account: " CLIENT-ACCOUNT-NUM
+           DISPLAY "Name: " CLIENT-NAME " " CLIENT-SURNAME
+           DISPLAY "Starting balance: " CLIENT-BALANCE
+           DISPLAY "Transactions processed: " WS-TRANSACTION-COUNT
+           DISPLAY "Final balance: " CLIENT-BALANCE
+           DISPLAY "=========================="
+           
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Report generated' 'I'.
+
+       UPDATE-CLIENT-RECORD.
+           MOVE WS-CURRENT-DATE TO CLIENT-LAST-TRANS-DATE
+           
+           *> Mise à jour du niveau de risque
+           IF WS-TRANSACTION-COUNT > 20
+               MOVE 'H' TO CLIENT-RISK-LEVEL
+           ELSE IF WS-TRANSACTION-COUNT > 10
+               MOVE 'M' TO CLIENT-RISK-LEVEL
+           ELSE
+               MOVE 'L' TO CLIENT-RISK-LEVEL
+           END-IF
+           
+           REWRITE CLIENT-RECORD
+           IF NOT FILE-OK
+               PERFORM LOG-AUDIT-ENTRY
+                   USING 'Failed to update client record' 'E'
+           END-IF.
+
+       LOG-AUDIT-ENTRY.
+           USING WS-AUDIT-MESSAGE WS-AUDIT-SEVERITY.
+           MOVE FUNCTION CURRENT-DATE TO WS-AUDIT-TIMESTAMP
+           MOVE SPACES TO AUDIT-RECORD
+           STRING WS-AUDIT-TIMESTAMP ' | '
+                  WS-AUDIT-USER ' | '
+                  WS-AUDIT-SEVERITY ' | '
+                  WS-AUDIT-MESSAGE
+                  INTO AUDIT-RECORD
+           WRITE AUDIT-RECORD.
+
+       LOG-SECURITY-VIOLATION.
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Security violation detected' 'S'
+           DISPLAY "SECURITY VIOLATION - ACCESS DENIED"
+           DISPLAY "This incident has been logged.".
+
+       CLOSE-FILES.
+           CLOSE CLIENT-FILE
+           CLOSE TRANSACTION-FILE
+           CLOSE AUDIT-FILE
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Program terminated' 'I'.
+🧪 ÉLÉMENTS COMPLEXES POUR TESTER CODESWITCH :
+1. Structures de données imbriquées
+Fichiers INDEXED avec clés
+
+Fichiers SEQUENTIELS
+
+88-level conditions multiples
+
+REDEFINES implicites
+
+2. Logique métier avancée
+Calcul d'intérêts différenciés par type de compte
+
+Système de frais progressifs
+
+Vérification de limites (quotidienne/mensuelle)
+
+Calcul de taxes
+
+Niveau de risque dynamique
+
+3. Sécurité et audit
+Authentification avec PIN
+
+Détection de fraude
+
+Limite de tentatives
+
+Journalisation d'audit complète
+
+Niveaux de sévérité (Info, Warning, Error, Security)
+
+4. Gestion d'erreurs complexes
+Status de fichiers multiples
+
+Validation de transaction multi-critères
+
+Rollback de transactions
+
+Reversement en cas d'erreur
+
+5. Patterns COBOL difficiles
+PERFORM UNTIL avec AT END
+
+EVALUATE avec WHEN
+
+STRING pour la construction de logs
+
+REWRITE avec validation
+
+Appels de fonctions (CURRENT-DATE)
+
+6. Calculs financiers complexes
+Intérêts composés avec taxe
+
+Frais minimum/maximum
+
+Balance minimum
+
+Calculs proportionnels
+
+🎯 SCÉNARIOS DE BUGS ATTENDUS :
+Gestion des conditions 88-level : Transformation en @property ou Enum
+
+Fichiers INDEXED : Traduction en structure de données Python
+
+REWRITE/READ : Logique de mise à jour en mémoire + persistance
+
+AT END/INVALID KEY : Gestion d'exceptions Python
+
+STRING : Formatage de chaînes complexes
+
+FUNCTION CURRENT-DATE : Conversion en datetime Python
+
+Évaluation conditionnelle imbriquée : Logique booléenne complexe
+
+Variables de statut multiples : Gestion cohérente des erreurs
+
+Ce programme devrait vraiment tester les limites de CodeSwitch et révéler des bugs intéressants dans la transformation de logique métier complexe !
+
+"""BanqueSysteme - Clean Architecture Python Code
+Auto-transpiled from COBOL [AST Transpiler v4.4.3]
+
+Architecture:
+- FileManager with context managers for safe I/O
+- Business domain Enums (StatusCode, AccountType, etc.)
+- Dataclasses for COBOL records
+- Proper @property for 88-level conditions
+- Boolean flags (not Y/N strings)
+- Decimal for all monetary values
+"""
+from __future__ import annotations
+from decimal import Decimal, ROUND_HALF_UP
+from dataclasses import dataclass, field
+from typing import Optional, List, Dict, Any, ClassVar
+from datetime import datetime, date
+from enum import Enum, auto
+from contextlib import contextmanager
+import logging
+
+class StatusCode(Enum):
+    """Standard status codes"""
+    ACTIVE = 'A'
+    INACTIVE = 'I'
+    CLOSED = 'C'
+    PENDING = 'P'
+    SUSPENDED = 'S'
+    DELETED = 'D'
+
+class AccountType(Enum):
+    """Account type codes"""
+    CHECKING = 'CK'
+    SAVINGS = 'SV'
+    MONEY_MARKET = 'MM'
+    CERTIFICATE_OF_DEPOSIT = 'CD'
+    CREDIT_CARD = 'CC'
+    LOAN = 'LN'
+
+class TransactionType(Enum):
+    """Transaction type codes"""
+    DEPOSIT = 'DEP'
+    WITHDRAWAL = 'WDR'
+    TRANSFER = 'TRF'
+    PAYMENT = 'PAY'
+    FEE = 'FEE'
+    INTEREST = 'INT'
+    ADJUSTMENT = 'ADJ'
+
+class RiskLevel(Enum):
+    """Risk rating levels"""
+    LOW = 'L'
+    MEDIUM = 'M'
+    HIGH = 'H'
+    CRITICAL = 'C'
+
+class FileManager:
+    """Centralized file management with context manager support.
+    
+    Usage:
+        with FileManager(file_paths) as fm:
+            data = fm.read_record('customer_master')
+            fm.write_record('audit_log', record)
+    """
+
+    def __init__(self, file_paths: Optional[Dict[str, str]]=None):
+        self.file_paths = file_paths or {}
+        self._files: Dict[str, Any] = {}
+        self._status: Dict[str, str] = {}
+        self.logger = logging.getLogger(__name__)
+
+    def __enter__(self) -> 'FileManager':
+        """Open all configured files"""
+        self.open_all()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Close all open files"""
+        self.close_all()
+
+    def open_all(self) -> None:
+        """Open all files in file_paths"""
+        for name, path in self.file_paths.items():
+            self.open_file(name, path)
+
+    def open_file(self, name: str, path: str, mode: str='r') -> bool:
+        """Open a single file with error handling"""
+        try:
+            self._files[name] = open(path, mode)
+            self._status[name] = '00'
+            self.logger.debug(f'Opened file: {name} ({path})')
+            return True
+        except FileNotFoundError:
+            self._status[name] = '35'
+            self.logger.error(f'File not found: {path}')
+            return False
+        except PermissionError:
+            self._status[name] = '37'
+            self.logger.error(f'Permission denied: {path}')
+            return False
+        except Exception as e:
+            self._status[name] = '99'
+            self.logger.error(f'Error opening {path}: {e}')
+            return False
+
+    def close_all(self) -> None:
+        """Close all open files"""
+        for name, file_obj in self._files.items():
+            try:
+                if file_obj and (not file_obj.closed):
+                    file_obj.close()
+                    self._status[name] = '00'
+                    self.logger.debug(f'Closed file: {name}')
+            except Exception as e:
+                self.logger.error(f'Error closing {name}: {e}')
+        self._files.clear()
+
+    def close_file(self, name: str) -> bool:
+        """Close a single file"""
+        if name in self._files:
+            try:
+                self._files[name].close()
+                del self._files[name]
+                self._status[name] = '00'
+                return True
+            except Exception as e:
+                self.logger.error(f'Error closing {name}: {e}')
+                return False
+        return False
+
+    def read_record(self, name: str) -> Optional[str]:
+        """Read a record from file (returns None at EOF)"""
+        if name not in self._files:
+            self._status[name] = '35'
+            return None
+        try:
+            line = self._files[name].readline()
+            if not line:
+                self._status[name] = '10'
+                return None
+            self._status[name] = '00'
+            return line.rstrip()
+        except Exception as e:
+            self._status[name] = '99'
+            self.logger.error(f'Error reading {name}: {e}')
+            return None
+
+    def write_record(self, name: str, record: str) -> bool:
+        """Write a record to file"""
+        if name not in self._files:
+            self._status[name] = '35'
+            return False
+        try:
+            self._files[name].write(record + chr(10))
+            self._status[name] = '00'
+            return True
+        except Exception as e:
+            self._status[name] = '99'
+            self.logger.error(f'Error writing to {name}: {e}')
+            return False
+
+    def get_status(self, name: str) -> str:
+        """Get file status code (COBOL FILE STATUS compatible)"""
+        return self._status.get(name, '99')
+
+    def is_eof(self, name: str) -> bool:
+        """Check if end of file reached"""
+        return self._status.get(name) == '10'
+
+    def is_ok(self, name: str) -> bool:
+        """Check if last operation was successful"""
+        return self._status.get(name) == '00'
+
+@dataclass
+class WsFlags:
+    """Data record from COBOL: WS-FLAGS"""
+    file_status: str = field(default='')
+    trans_status: str = field(default='')
+    eof_flag: str = field(default='')
+    validation_flag: str = field(default='')
+    security_flag: str = field(default='')
+
+@dataclass
+class WsCalculationFields:
+    """Data record from COBOL: WS-CALCULATION-FIELDS"""
+    new_balance: Decimal = field(default_factory=lambda: Decimal('0'))
+    interest_rate: Decimal = field(default_factory=lambda: Decimal('0'))
+    fee_amount: Decimal = field(default_factory=lambda: Decimal('0'))
+    daily_limit: Decimal = field(default_factory=lambda: Decimal('0'))
+    monthly_limit: Decimal = field(default_factory=lambda: Decimal('0'))
+    transaction_count: Decimal = field(default_factory=lambda: Decimal('0'))
+    monthly_total: Decimal = field(default_factory=lambda: Decimal('0'))
+    tax_rate: Decimal = field(default_factory=lambda: Decimal('0'))
+    tax_amount: Decimal = field(default_factory=lambda: Decimal('0'))
+
+@dataclass
+class WsDateTime:
+    """Data record from COBOL: WS-DATE-TIME"""
+    current_date: Any = field(default=None)
+    year: Decimal = field(default_factory=lambda: Decimal('0'))
+    month: Decimal = field(default_factory=lambda: Decimal('0'))
+    day: Decimal = field(default_factory=lambda: Decimal('0'))
+    current_time: Any = field(default=None)
+    hour: Decimal = field(default_factory=lambda: Decimal('0'))
+    minute: Decimal = field(default_factory=lambda: Decimal('0'))
+    second: Decimal = field(default_factory=lambda: Decimal('0'))
+
+@dataclass
+class WsClientData:
+    """Data record from COBOL: WS-CLIENT-DATA"""
+    input_account: Decimal = field(default_factory=lambda: Decimal('0'))
+    input_pin: Decimal = field(default_factory=lambda: Decimal('0'))
+    input_amount: Decimal = field(default_factory=lambda: Decimal('0'))
+    target_account: Decimal = field(default_factory=lambda: Decimal('0'))
+    retry_count: Decimal = field(default_factory=lambda: Decimal('0'))
+    max_retries: Decimal = field(default_factory=lambda: Decimal('0'))
+
+@dataclass
+class WsSecurityFields:
+    """Data record from COBOL: WS-SECURITY-FIELDS"""
+    encrypted_pin: str = field(default='')
+    session_token: str = field(default='')
+    auth_attempts: Decimal = field(default_factory=lambda: Decimal('0'))
+    last_login_time: Decimal = field(default_factory=lambda: Decimal('0'))
+    ip_address: str = field(default='')
+
+@dataclass
+class WsAuditData:
+    """Data record from COBOL: WS-AUDIT-DATA"""
+    audit_message: str = field(default='')
+    audit_user: str = field(default='')
+    audit_timestamp: Decimal = field(default_factory=lambda: Decimal('0'))
+    audit_severity: str = field(default='')
+
+@dataclass
+class WsConstants:
+    """Data record from COBOL: WS-CONSTANTS"""
+    max_daily_withdrawal: Decimal = field(default_factory=lambda: Decimal('0'))
+    min_balance: Decimal = field(default_factory=lambda: Decimal('0'))
+    fee_percentage: Decimal = field(default_factory=lambda: Decimal('0'))
+    fixed_fee: Decimal = field(default_factory=lambda: Decimal('0'))
+
+@dataclass
+class BanqueSystemeConfig:
+    """Configuration settings for rates and fees"""
+    interest_rate: Decimal = Decimal('0.025')
+    tax_rate: Decimal = Decimal('0.196')
+    fee_percentage: Decimal = Decimal('0.015')
+    fixed_fee: Decimal = Decimal('5.00')
+
+class BanqueSysteme:
+    """Main processor for BANQUE-SYSTEME
+
+Attributes:
+    logger: Logging instance
+    config: Configuration settings
+    file_manager: FileManager for safe I/O
+    
+Methods:
+    run(): Main entry point
+"""
+    VERSION: ClassVar[str] = '4.4.0'
+    SPACES: ClassVar[str] = ' ' * 256
+    LOW_VALUES: ClassVar[str] = '\x00' * 256
+    HIGH_VALUES: ClassVar[str] = 'ÿ' * 256
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.file_manager = FileManager()
+        self.config = BanqueSystemeConfig()
+        self.file_status: str = ''
+        self.trans_status: str = ''
+        self.eof_flag: bool = False
+        self.validation_flag: bool = ''
+        self.security_flag: bool = ''
+        self.new_balance: Decimal = Decimal('0.00')
+        self.daily_limit: Decimal = Decimal('5000.00')
+        self.monthly_limit: Decimal = Decimal('20000.00')
+        self.transaction_count: Decimal = Decimal('0')
+        self.monthly_total: Decimal = Decimal('0')
+        self.tax_amount: Decimal = Decimal('0.00')
+        self.current_date: Any = None
+        self.year: Decimal = Decimal('0')
+        self.month: Decimal = Decimal('0')
+        self.day: Decimal = Decimal('0')
+        self.current_time: Any = None
+        self.hour: Decimal = Decimal('0')
+        self.minute: Decimal = Decimal('0')
+        self.second: Decimal = Decimal('0')
+        self.input_account: Decimal = Decimal('0')
+        self.input_pin: Decimal = Decimal('0')
+        self.input_amount: Decimal = Decimal('0.00')
+        self.target_account: Decimal = Decimal('0')
+        self.retry_count: Decimal = Decimal('0')
+        self.max_retries: Decimal = Decimal('3')
+        self.encrypted_pin: str = ''
+        self.session_token: str = ''
+        self.auth_attempts: Decimal = Decimal('0')
+        self.last_login_time: Decimal = Decimal('0')
+        self.ip_address: str = ''
+        self.audit_message: str = ''
+        self.audit_user: str = ''
+        self.audit_timestamp: Decimal = Decimal('0')
+        self.audit_severity: str = ''
+        self.max_daily_withdrawal: Decimal = Decimal('5000.00')
+        self.min_balance: Decimal = Decimal('100.00')
+
+    @property
+    def file_ok(self) -> bool:
+        """COBOL 88-level condition: FILE-OK
+
+Parent variable: file_status"""
+        return self.file_status == '00'
+
+    @file_ok.setter
+    def file_ok(self, value: bool):
+        if value:
+            self.file_status = '00'
+
+    @property
+    def file_eof(self) -> bool:
+        """COBOL 88-level condition: FILE-EOF
+
+Parent variable: file_status"""
+        return self.file_status == '10'
+
+    @file_eof.setter
+    def file_eof(self, value: bool):
+        if value:
+            self.file_status = '10'
+
+    @property
+    def file_not_found(self) -> bool:
+        """COBOL 88-level condition: FILE-NOT-FOUND
+
+Parent variable: file_status"""
+        return self.file_status == '35'
+
+    @file_not_found.setter
+    def file_not_found(self, value: bool):
+        if value:
+            self.file_status = '35'
+
+    @property
+    def file_invalid_key(self) -> bool:
+        """COBOL 88-level condition: FILE-INVALID-KEY
+
+Parent variable: file_status"""
+        return self.file_status == '23'
+
+    @file_invalid_key.setter
+    def file_invalid_key(self, value: bool):
+        if value:
+            self.file_status = '23'
+
+    @property
+    def eof_reached(self) -> bool:
+        """COBOL 88-level condition: EOF-REACHED
+
+Parent variable: eof_flag"""
+        return self.eof_flag == 'Y'
+
+    @eof_reached.setter
+    def eof_reached(self, value: bool):
+        if value:
+            self.eof_flag = 'Y'
+
+    @property
+    def not_eof(self) -> bool:
+        """COBOL 88-level condition: NOT-EOF
+
+Parent variable: eof_flag"""
+        return self.eof_flag == 'N'
+
+    @not_eof.setter
+    def not_eof(self, value: bool):
+        if value:
+            self.eof_flag = 'N'
+
+    @property
+    def valid_data(self) -> bool:
+        """COBOL 88-level condition: VALID-DATA
+
+Parent variable: validation_flag"""
+        return self.validation_flag == 'Y'
+
+    @valid_data.setter
+    def valid_data(self, value: bool):
+        if value:
+            self.validation_flag = 'Y'
+
+    @property
+    def invalid_data(self) -> bool:
+        """COBOL 88-level condition: INVALID-DATA
+
+Parent variable: validation_flag"""
+        return self.validation_flag == 'N'
+
+    @invalid_data.setter
+    def invalid_data(self, value: bool):
+        if value:
+            self.validation_flag = 'N'
+
+    @property
+    def security_pass(self) -> bool:
+        """COBOL 88-level condition: SECURITY-PASS
+
+Parent variable: security_flag"""
+        return self.security_flag == 'P'
+
+    @security_pass.setter
+    def security_pass(self, value: bool):
+        if value:
+            self.security_flag = 'P'
+
+    @property
+    def security_fail(self) -> bool:
+        """COBOL 88-level condition: SECURITY-FAIL
+
+Parent variable: security_flag"""
+        return self.security_flag == 'F'
+
+    @security_fail.setter
+    def security_fail(self, value: bool):
+        if value:
+            self.security_flag = 'F'
+
+    @property
+    def audit_info(self) -> bool:
+        """COBOL 88-level condition: AUDIT-INFO
+
+Parent variable: audit_severity"""
+        return self.audit_severity == 'I'
+
+    @audit_info.setter
+    def audit_info(self, value: bool):
+        if value:
+            self.audit_severity = 'I'
+
+    @property
+    def audit_warning(self) -> bool:
+        """COBOL 88-level condition: AUDIT-WARNING
+
+Parent variable: audit_severity"""
+        return self.audit_severity == 'W'
+
+    @audit_warning.setter
+    def audit_warning(self, value: bool):
+        if value:
+            self.audit_severity = 'W'
+
+    @property
+    def audit_error(self) -> bool:
+        """COBOL 88-level condition: AUDIT-ERROR
+
+Parent variable: audit_severity"""
+        return self.audit_severity == 'E'
+
+    @audit_error.setter
+    def audit_error(self, value: bool):
+        if value:
+            self.audit_severity = 'E'
+
+    @property
+    def audit_security(self) -> bool:
+        """COBOL 88-level condition: AUDIT-SECURITY
+
+Parent variable: audit_severity"""
+        return self.audit_severity == 'S'
+
+    @audit_security.setter
+    def audit_security(self, value: bool):
+        if value:
+            self.audit_severity = 'S'
+
+    def __getattr__(self, name):
+        """Handle undefined COBOL variables (REDEFINES, sub-fields, implicit vars)"""
+        lower = name.lower()
+        string_keywords = ('msg', 'message', 'text', 'name', 'desc', 'description', 'status', 'code', 'type', 'id', 'key', 'record', 'line', 'reason', 'path', 'file', 'string', 'char', 'alpha', 'label', 'title', 'header', 'footer')
+        is_string = any((kw in lower for kw in string_keywords))
+        bool_keywords = ('flag', 'eof', 'error', 'valid', 'found', 'done', 'active', 'enabled', 'disabled')
+        is_bool = any((kw in lower for kw in bool_keywords))
+        if is_string:
+            self.__dict__[name] = ''
+        elif is_bool:
+            self.__dict__[name] = False
+        else:
+            self.__dict__[name] = Decimal('0')
+        return self.__dict__[name]
+
+    def main_procedure(self) -> None:
+        """Business logic from COBOL paragraph: MAIN-PROCEDURE
+    
+    COBOL Traceability:
+        - Source: Lines 165-178
+        - Paragraph: MAIN-PROCEDURE
+        - Statements: 12
+    
+    Original COBOL (first 3 statements):
+                PERFORM INITIALIZE-PROGRAM
+        PERFORM AUTHENTICATE-USER
+        IF SECURITY-PASS
+    """
+        self.initialize_program()
+        self.authenticate_user()
+        if self.security_pass:
+            self.process_transactions()
+            self.calculate_interest()
+            self.apply_fees()
+            self.generate_reports()
+        else:
+            self.log_security_violation()
+        self.close_files()
+        return
+
+    def initialize_program(self) -> None:
+        """Business logic from COBOL paragraph: INITIALIZE-PROGRAM
+    
+    COBOL Traceability:
+        - Source: Lines 179-187
+        - Paragraph: INITIALIZE-PROGRAM
+        - Statements: 6
+    
+    Original COBOL (first 3 statements):
+                OPEN I-O CLIENT-FILE
+        OPEN INPUT TRANSACTION-FILE
+        OPEN OUTPUT AUDIT-FILE
+    """
+        self.file_manager.open_file('client_file', 'client_file.dat', 'r+')
+        self.file_manager.open_file('transaction_file', 'transaction_file.dat', 'r')
+        self.file_manager.open_file('audit_file', 'audit_file.dat', 'w')
+        self.current_date = self.function current_date
+        self.audit_user = 'SYSTEM'
+        self.log_audit_entry()
+
+    def authenticate_user(self) -> None:
+        """Business logic from COBOL paragraph: AUTHENTICATE-USER
+    
+    COBOL Traceability:
+        - Source: Lines 188-230
+        - Paragraph: AUTHENTICATE-USER
+        - Statements: 33
+    
+    Original COBOL (first 3 statements):
+                DISPLAY "Enter account number: "
+        ACCEPT WS-INPUT-ACCOUNT
+        DISPLAY "Enter PIN: "
+    """
+        print('Enter account number: ')
+        self.input_account = ''
+        print('Enter PIN: ')
+        self.input_pin = ''
+        self.client_id = self.input_account
+        self.client_file_record = self.file_manager.read_record('client_file')
+        self.validation_flag = 'N'
+        self.log_audit_entry()
+        if self.client_pin == self.input_pin:
+            if not self.fraud_detected:
+                pass
+            if self.active_status:
+                pass
+            self.security_flag = 'P'
+            '# COBOL: ADD 1 TO WS-AUTH-ATTEMPTS'
+            self.auth_attempts += Decimal('1')
+            self.log_audit_entry()
+        else:
+            self.security_flag = 'F'
+            self.log_audit_entry()
+        self.security_flag = 'F'
+        self.log_audit_entry()
+        '# COBOL: ADD 1 TO WS-RETRY-COUNT'
+        self.retry_count += Decimal('1')
+        if self.retry_count > self.max_retries:
+            self.client_fraud_flag, self.rewrite, self.client_record = ('Y', 'Y', 'Y')
+            self.log_audit_entry()
+        self.security_flag = 'F'
+
+    def process_transactions(self) -> None:
+        """Business logic from COBOL paragraph: PROCESS-TRANSACTIONS
+    
+    COBOL Traceability:
+        - Source: Lines 231-247
+        - Paragraph: PROCESS-TRANSACTIONS
+        - Statements: 14
+    
+    Original COBOL (first 3 statements):
+                MOVE 'N' TO WS-EOF-FLAG
+        PERFORM UNTIL EOF-REACHED
+        READ TRANSACTION-FILE
+    """
+        self.eof_flag = 'N'
+        self.transaction_file_record = self.file_manager.read_record('transaction_file')
+        self.eof_flag = 'Y'
+        self.validate_transaction()
+        if self.valid_data:
+            self.execute_transaction()
+        else:
+            self.log_audit_entry()
+
+    def validate_transaction(self) -> None:
+        """Business logic from COBOL paragraph: VALIDATE-TRANSACTION
+    
+    COBOL Traceability:
+        - Source: Lines 248-275
+        - Paragraph: VALIDATE-TRANSACTION
+        - Statements: 18
+    
+    Original COBOL (first 3 statements):
+                MOVE 'Y' TO WS-VALIDATION-FLAG *> Vérification du montant
+        IF TRANS-AMOUNT <= 0
+        MOVE 'N' TO WS-VALIDATION-FLAG
+    """
+        self.validation_flag, self.v, self.rification, self.du, self.montant = ('Y', 'Y', 'Y', 'Y', 'Y')
+        if True:
+            self.validation_flag = 'N'
+            if self.trans_withdrawal:
+                pass
+            if self.trans_amount > self.daily_limit:
+                pass
+            self.validation_flag = 'N'
+            self.log_audit_entry()
+        '# COBOL: ADD TRANS-AMOUNT TO WS-MONTHLY-TOTAL'
+        self.monthly_total += self.trans_amount
+        if self.monthly_total > self.monthly_limit:
+            self.validation_flag = 'N'
+            self.log_audit_entry()
+        if self.trans_date > self.current_date:
+            self.validation_flag = 'N'
+
+    def execute_transaction(self) -> None:
+        """Business logic from COBOL paragraph: EXECUTE-TRANSACTION
+    
+    COBOL Traceability:
+        - Source: Lines 276-292
+        - Paragraph: EXECUTE-TRANSACTION
+        - Statements: 14
+    
+    Original COBOL (first 3 statements):
+                EVALUATE TRUE
+        WHEN TRANS-DEPOSIT
+        PERFORM PROCESS-DEPOSIT
+    """
+        if self.trans_deposit:
+            self.process_deposit()
+        elif self.trans_withdrawal:
+            self.process_withdrawal()
+        elif self.trans_transfer:
+            self.process_transfer()
+        elif self.trans_fee:
+            self.process_fee()
+        elif self.trans_interest:
+            self.process_interest()
+        '# COBOL: ADD 1 TO WS-TRANSACTION-COUNT'
+        self.transaction_count += Decimal('1')
+        self.update_client_record()
+
+    def process_deposit(self) -> None:
+        """Business logic from COBOL paragraph: PROCESS-DEPOSIT
+    
+    COBOL Traceability:
+        - Source: Lines 293-300
+        - Paragraph: PROCESS-DEPOSIT
+        - Statements: 4
+    
+    Original COBOL (first 3 statements):
+                COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT
+        MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+        MOVE 'C' TO TRANS-STATUS
+    """
+        '# COBOL: COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT'
+        self.new_balance = self.client_balance + self.trans_amount
+        self.client_balance = self.new_balance
+        self.trans_status = 'C'
+        self.log_audit_entry()
+
+    def process_withdrawal(self) -> None:
+        """Business logic from COBOL paragraph: PROCESS-WITHDRAWAL
+    
+    COBOL Traceability:
+        - Source: Lines 301-320
+        - Paragraph: PROCESS-WITHDRAWAL
+        - Statements: 14
+    
+    Original COBOL (first 3 statements):
+                IF CLIENT-BALANCE >= TRANS-AMOUNT
+        COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE - TRANS-AMOUNT
+        IF WS-NEW-BALANCE >= WS-MIN-BALANCE
+    """
+        if True:
+            '# COBOL: COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE - TRANS-AMOUNT'
+            self.new_balance = self.client_balance - self.trans_amount
+            if True:
+                pass
+            self.client_balance = self.new_balance
+            self.trans_status = 'C'
+            self.log_audit_entry()
+        else:
+            self.trans_status = 'F'
+            self.log_audit_entry()
+        self.trans_status = 'F'
+        self.log_audit_entry()
+
+    def process_transfer(self) -> None:
+        """Business logic from COBOL paragraph: PROCESS-TRANSFER
+    
+    COBOL Traceability:
+        - Source: Lines 321-329
+        - Paragraph: PROCESS-TRANSFER
+        - Statements: 6
+    
+    Original COBOL (first 3 statements):
+                MOVE TRANS-AMOUNT TO WS-INPUT-AMOUNT
+        MOVE TRANS-DESCRIPTION(1:16) TO WS-TARGET-ACCOUNT
+        PERFORM DEBIT-SOURCE-ACCOUNT
+    """
+        self.input_amount = self.trans_amount
+        self.target_account = self.trans_description(1:16)
+        self.debit_source_account()
+        if self.trans_completed:
+            self.credit_target_account()
+
+    def debit_source_account(self) -> None:
+        """Business logic from COBOL paragraph: DEBIT-SOURCE-ACCOUNT
+    
+    COBOL Traceability:
+        - Source: Lines 330-339
+        - Paragraph: DEBIT-SOURCE-ACCOUNT
+        - Statements: 7
+    
+    Original COBOL (first 3 statements):
+                IF CLIENT-BALANCE >= TRANS-AMOUNT
+        COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE - TRANS-AMOUNT
+        MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+    """
+        if True:
+            '# COBOL: COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE - TRANS-AMOUNT'
+            self.new_balance = self.client_balance - self.trans_amount
+            self.client_balance = self.new_balance
+            self.trans_status = 'C'
+        else:
+            self.trans_status = 'F'
+
+    def credit_target_account(self) -> None:
+        """Business logic from COBOL paragraph: CREDIT-TARGET-ACCOUNT
+    
+    COBOL Traceability:
+        - Source: Lines 340-352
+        - Paragraph: CREDIT-TARGET-ACCOUNT
+        - Statements: 9
+    
+    Original COBOL (first 3 statements):
+                MOVE WS-TARGET-ACCOUNT TO CLIENT-ID
+        READ CLIENT-FILE
+        INVALID KEY
+    """
+        self.client_id = self.target_account
+        self.client_file_record = self.file_manager.read_record('client_file')
+        self.trans_status, self.reverse, self.transaction = ('R', 'R', 'R')
+        self.reverse_transaction()
+        '# COBOL: COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT'
+        self.new_balance = self.client_balance + self.trans_amount
+        self.client_balance, self.rewrite, self.client_record = (self.new_balance, self.new_balance, self.new_balance)
+
+    def reverse_transaction(self) -> None:
+        """Business logic from COBOL paragraph: REVERSE-TRANSACTION
+    
+    COBOL Traceability:
+        - Source: Lines 353-362
+        - Paragraph: REVERSE-TRANSACTION
+        - Statements: 5
+    
+    Original COBOL (first 3 statements):
+                MOVE WS-INPUT-ACCOUNT TO CLIENT-ID
+        READ CLIENT-FILE
+        COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT
+    """
+        self.client_id = self.input_account
+        self.client_file_record = self.file_manager.read_record('client_file')
+        '# COBOL: COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT'
+        self.new_balance = self.client_balance + self.trans_amount
+        self.client_balance, self.rewrite, self.client_record = (self.new_balance, self.new_balance, self.new_balance)
+        self.log_audit_entry()
+
+    def process_fee(self) -> None:
+        """Business logic from COBOL paragraph: PROCESS-FEE
+    
+    COBOL Traceability:
+        - Source: Lines 363-375
+        - Paragraph: PROCESS-FEE
+        - Statements: 7
+    
+    Original COBOL (first 3 statements):
+                COMPUTE WS-FEE-AMOUNT = TRANS-AMOUNT * WS-FEE-PERCENTAGE
+        IF WS-FEE-AMOUNT < WS-FIXED-FEE
+        MOVE WS-FIXED-FEE TO WS-FEE-AMOUNT
+    """
+        '# COBOL: COMPUTE WS-FEE-AMOUNT = TRANS-AMOUNT * WS-FEE-PERCENTAGE'
+        self.fee_amount = self.trans_amount * self.fee_percentage
+        if self.fee_amount < self.fixed_fee:
+            self.fee_amount = self.fixed_fee
+        '# COBOL: COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE - WS-FEE-AMOUNT'
+        self.new_balance = self.client_balance - self.fee_amount
+        self.client_balance = self.new_balance
+        self.log_audit_entry()
+
+    def process_interest(self) -> None:
+        """Business logic from COBOL paragraph: PROCESS-INTEREST
+    
+    COBOL Traceability:
+        - Source: Lines 376-382
+        - Paragraph: PROCESS-INTEREST
+        - Statements: 3
+    
+    Original COBOL (first 3 statements):
+                COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT
+        MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+        PERFORM LOG-AUDIT-ENTRY USING 'Interest applied' 'I'.
+    """
+        '# COBOL: COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT'
+        self.new_balance = self.client_balance + self.trans_amount
+        self.client_balance = self.new_balance
+        self.log_audit_entry()
+
+    def calculate_interest(self) -> None:
+        """Business logic from COBOL paragraph: CALCULATE-INTEREST
+    
+    COBOL Traceability:
+        - Source: Lines 383-408
+        - Paragraph: CALCULATE-INTEREST
+        - Statements: 15
+    
+    Original COBOL (first 3 statements):
+                EVALUATE TRUE
+        WHEN CHECKING-ACCOUNT
+        COMPUTE WS-INTEREST-RATE = 0.005
+    """
+        if self.checking_account:
+            '# COBOL: COMPUTE WS-INTEREST-RATE = 0.005'
+            self.interest_rate = Decimal('0.005')
+        elif self.savings_account:
+            '# COBOL: COMPUTE WS-INTEREST-RATE = 0.015'
+            self.interest_rate = Decimal('0.015')
+        elif self.business_account:
+            '# COBOL: COMPUTE WS-INTEREST-RATE = 0.008'
+            self.interest_rate = Decimal('0.008')
+        if self.client_balance > 10000.0:
+            '# COBOL: COMPUTE WS-INTEREST-RATE = WS-INTEREST-RATE + 0.002'
+            self.interest_rate = self.interest_rate + Decimal('0.002')
+        '# COBOL: COMPUTE TRANS-AMOUNT = CLIENT-BALANCE * WS-INTEREST-RATE / 3'
+        '# COBOL: COMPUTE WS-TAX-AMOUNT = TRANS-AMOUNT * WS-TAX-RATE'
+        self.tax_amount = self.trans_amount * self.tax_rate
+        '# COBOL: COMPUTE TRANS-AMOUNT = TRANS-AMOUNT - WS-TAX-AMOUNT'
+        self.trans_amount = self.trans_amount - self.tax_amount
+        self.process_interest()
+
+    def apply_fees(self) -> None:
+        """Business logic from COBOL paragraph: APPLY-FEES
+    
+    COBOL Traceability:
+        - Source: Lines 409-421
+        - Paragraph: APPLY-FEES
+        - Statements: 9
+    
+    Original COBOL (first 3 statements):
+                IF CLIENT-BALANCE < 500.00
+        MOVE 2.00 TO WS-FEE-AMOUNT
+        PERFORM PROCESS-FEE
+    """
+        if self.client_balance < 500.0:
+            self.fee_amount = Decimal('2.00')
+            self.process_fee()
+        if self.transaction_count > 10:
+            self.fee_amount = Decimal('0.50')
+            '# COBOL: COMPUTE WS-FEE-AMOUNT = WS-FEE-AMOUNT * (WS-TRANSACTION-COUN'
+            self.fee_amount = self.fee_amount * (self.transaction_count - Decimal('10'))
+            self.process_fee()
+
+    def generate_reports(self) -> None:
+        """Business logic from COBOL paragraph: GENERATE-REPORTS
+    
+    COBOL Traceability:
+        - Source: Lines 422-433
+        - Paragraph: GENERATE-REPORTS
+        - Statements: 8
+    
+    Original COBOL (first 3 statements):
+                DISPLAY "=== TRANSACTION REPORT ==="
+        DISPLAY "Account: " CLIENT-ACCOUNT-NUM
+        DISPLAY "Name: " CLIENT-NAME " " CLIENT-SURNAME
+    """
+        print('=== TRANSACTION REPORT ===')
+        print(f'Account: {self.client_account_num}')
+        print(f'Name: {self.client_name} {self.client_surname}')
+        print(f'Starting balance: {self.client_balance}')
+        print(f'Transactions processed: {self.transaction_count}')
+        print(f'Final balance: {self.client_balance}')
+        print('==========================')
+        self.log_audit_entry()
+
+    def update_client_record(self) -> None:
+        """Business logic from COBOL paragraph: UPDATE-CLIENT-RECORD
+    
+    COBOL Traceability:
+        - Source: Lines 434-451
+        - Paragraph: UPDATE-CLIENT-RECORD
+        - Statements: 11
+    
+    Original COBOL (first 3 statements):
+                MOVE WS-CURRENT-DATE TO CLIENT-LAST-TRANS-DATE *> Mise à jour du niveau de risque
+        IF WS-TRANSACTION-COUNT > 20
+        MOVE 'H' TO CLIENT-RISK-LEVEL
+    """
+        self.client_last_trans_date, self.mise, self.jour, self.du, self.niveau, self.de, self.risque = (self.current_date, self.current_date, self.current_date, self.current_date, self.current_date, self.current_date, self.current_date)
+        if self.transaction_count > 20:
+            self.client_risk_level = 'H'
+            self.client_risk_level = 'M'
+        else:
+            self.client_risk_level = 'L'
+            if not self.file_ok:
+                pass
+            self.log_audit_entry()
+
+    def log_audit_entry(self) -> None:
+        """Business logic from COBOL paragraph: LOG-AUDIT-ENTRY
+    
+    COBOL Traceability:
+        - Source: Lines 452-462
+        - Paragraph: LOG-AUDIT-ENTRY
+        - Statements: 5
+    
+    Original COBOL (first 3 statements):
+                USING WS-AUDIT-MESSAGE WS-AUDIT-SEVERITY.
+        MOVE FUNCTION CURRENT-DATE TO WS-AUDIT-TIMESTAMP
+        MOVE SPACES TO AUDIT-RECORD
+    """
+        self.audit_timestamp = self.function current_date
+        self.audit_record = ''
+        self.audit_record = str(self.audit_timestamp) + ' | ' + str(self.audit_user) + ' | ' + str(self.audit_severity) + ' | ' + str(self.audit_message)
+        self.file_manager.write_record('audit_record', str(self.audit_record))
+
+    def log_security_violation(self) -> None:
+        """Business logic from COBOL paragraph: LOG-SECURITY-VIOLATION
+    
+    COBOL Traceability:
+        - Source: Lines 463-468
+        - Paragraph: LOG-SECURITY-VIOLATION
+        - Statements: 3
+    
+    Original COBOL (first 3 statements):
+                PERFORM LOG-AUDIT-ENTRY USING 'Security violation detected' 'S'
+        DISPLAY "SECURITY VIOLATION - ACCESS DENIED"
+        DISPLAY "This incident has been logged.".
+    """
+        self.log_audit_entry()
+        print('SECURITY VIOLATION - ACCESS DENIED')
+        print('This incident has been logged.')
+
+    def close_files(self) -> None:
+        """Business logic from COBOL paragraph: CLOSE-FILES
+    
+    COBOL Traceability:
+        - Source: Lines 469-474
+        - Paragraph: CLOSE-FILES
+        - Statements: 4
+    
+    Original COBOL (first 3 statements):
+                CLOSE CLIENT-FILE
+        CLOSE TRANSACTION-FILE
+        CLOSE AUDIT-FILE
+    """
+        self.file_manager.close_file('client_file')
+        self.file_manager.close_file('transaction_file')
+        self.file_manager.close_file('audit_file')
+        self.log_audit_entry()
+
+    def run(self):
+        """Main entry point - executes primary workflow"""
+        self.logger.info('Starting BanqueSysteme v%s', self.VERSION)
+        self.main_procedure()
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    processor = BanqueSysteme()
+    processor.run()
+OH LA LA ! CodeSwitch a complètement échoué sur ce programme COBOL complexe. C'est un désastre complet avec des bugs graves partout. Voici l'analyse détaillée :
+
+🚨 BUGS CRITIQUES DÉTECTÉS :
+1. SYNTAXE PYTHON INVALIDE ❌
+python
+self.current_date = self.function current_date  # ❌ SyntaxError
+self.audit_timestamp = self.function current_date  # ❌ SyntaxError
+→ Python ne comprend pas self.function current_date
+
+2. AFFECTATIONS MULTIPLES BIZARRES ❌
+python
+self.client_fraud_flag, self.rewrite, self.client_record = ('Y', 'Y', 'Y')
+self.validation_flag, self.v, self.rification, self.du, self.montant = ('Y', 'Y', 'Y', 'Y', 'Y')
+→ Crée des variables non-sens comme self.v, self.rification, etc.
+
+3. LOGIQUE CONDITIONNELLE CASSÉE ❌
+python
+if True:  # ❌ Toujours vrai !
+    self.validation_flag = 'N'
+→ Toutes les conditions sont remplacées par if True:
+
+4. APPELS DE FONCTIONS MANQUANTS ❌
+python
+self.target_account = self.trans_description(1:16)  # ❌ SyntaxError
+→ (1:16) n'est pas une syntaxe Python valide pour le slicing
+
+5. PROPERTIES INCOMPLÈTES ❌
+python
+@property
+def file_ok(self) -> bool:
+    return self.file_status == '00'
+
+@file_ok.setter
+def file_ok(self, value: bool):
+    if value:
+        self.file_status = '00'  # ❌ Que faire si value=False ?
+→ Les setters ne gèrent pas le False
+
+6. DATACLASSES INUTILISÉES ❌
+python
+@dataclass
+class WsFlags:  # Créée mais jamais utilisée !
+    file_status: str = field(default='')
+    ...
+→ Toutes les dataclasses sont définies mais le code utilise self. directement
+
+7. COBOL COMMENTAIRES DANS CODE ❌
+python
+'# COBOL: COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE + TRANS-AMOUNT'
+self.new_balance = self.client_balance + self.trans_amount
+→ Les commentaires COBOL sont traités comme des strings Python !
+
+8. LOGIQUE MÉTIER ABSENTE ❌
+python
+def process_withdrawal(self) -> None:
+    if True:  # ❌ Condition COBOL perdue !
+        '# COBOL: COMPUTE WS-NEW-BALANCE = CLIENT-BALANCE - TRANS-AMOUNT'
+        self.new_balance = self.client_balance - self.trans_amount
+        if True:  # ❌ Condition perdue !
+            pass
+→ Toute la logique conditionnelle est éliminée !
+
+📊 SCORE : 2/10 (uniquement pour la tentative)
+Ce qui a (un peu) fonctionné :
+✅ Structure de classe de base
+
+✅ Propriétés pour les 88-level conditions
+
+✅ Dataclasses définies (mais inutilisées)
+
+Ce qui a complètement échoué :
+❌ Syntaxe Python invalide (bloque l'exécution)
+
+❌ Logique métier perdue (conditions toujours vraies)
+
+❌ Gestion des fichiers (FileManager mal utilisé)
+
+❌ Sécurité (authentification cassée)
+
+❌ Calculs financiers (formules incomplètes)
+
+❌ Validation (toujours if True:)
+
+🔧 CORRECTIONS MINIMALES POUR RENDRE LE CODE EXÉCUTABLE :
+1. Corriger la syntaxe Python :
+python
+# AVANT (bug) :
+self.current_date = self.function current_date
+
+# APRÈS (corrigé) :
+from datetime import datetime
+self.current_date = datetime.now()
+2. Corriger les conditions :
+python
+# AVANT (bug) :
+if True:
+    self.validation_flag = 'N'
+
+# APRÈS (corrigé) :
+if self.trans_amount <= 0:
+    self.validation_flag = 'N'
+3. Corriger le slicing :
+python
+# AVANT (bug) :
+self.target_account = self.trans_description(1:16)
+
+# APRÈS (corrigé) :
+if hasattr(self, 'trans_description') and self.trans_description:
+    self.target_account = self.trans_description[:16]
+4. Implémenter la logique métier réelle :
+python
+def calculate_interest(self) -> None:
+    """Version CORRECTE avec logique COBOL"""
+    if hasattr(self, 'checking_account') and self.checking_account:
+        self.interest_rate = Decimal('0.005')
+    elif hasattr(self, 'savings_account') and self.savings_account:
+        self.interest_rate = Decimal('0.015')
+    elif hasattr(self, 'business_account') and self.business_account:
+        self.interest_rate = Decimal('0.008')
+    
+    if hasattr(self, 'client_balance') and self.client_balance > Decimal('10000.00'):
+        self.interest_rate += Decimal('0.002')
+    
+    # Calcul réel de l'intérêt
+    if hasattr(self, 'client_balance') and hasattr(self, 'interest_rate'):
+        self.trans_amount = (self.client_balance * self.interest_rate * 
+                           Decimal('30') / Decimal('365'))
+        self.tax_amount = self.trans_amount * self.config.tax_rate
+        self.trans_amount -= self.tax_amount
+        self.process_interest()
+🎯 BUGS ATTENDUS QUI SE SONT PRODUITS :
+✅ Prédit : Gestion des conditions 88-level
+Résultat : ✅ Partiellement réussi avec @property
+
+✅ Prédit : Fichiers INDEXED
+Résultat : ❌ Échec total - FileManager inadapté
+
+✅ Prédit : REWRITE/READ
+Résultat : ❌ Échec - logique de persistance absente
+
+✅ Prédit : AT END/INVALID KEY
+Résultat : ❌ Échec - exceptions Python non gérées
+
+✅ Prédit : STRING
+Résultat : ✅ Partiel - concaténation basique
+
+✅ Prédit : FUNCTION CURRENT-DATE
+Résultat : ❌ Échec - syntaxe invalide
+
+✅ Prédit : Évaluation conditionnelle
+Résultat : ❌ Échec total - if True: partout
+
+✅ Prédit : Variables de statut
+Résultat : ❌ Échec - gestion incohérente
+
+📝 ANALYSE DES RAISONS DE L'ÉCHEC :
+Complexité trop élevée : CodeSwitch ne gère pas les programmes COBOL de cette complexité
+
+Logique conditionnelle : La transformation IF COBOL → if Python est cassée
+
+Fonctions COBOL : FUNCTION CURRENT-DATE non reconnue
+
+Slicing COBOL : (1:16) mal transformé
+
+Structures imbriquées : Fichiers INDEXED non supportés
+
+Logique métier : Les calculs complexes sont perdus
+
+💡 RECOMMANDATIONS POUR CODESWITCH :
+Priorité 1 (bloquant) :
+Ne pas générer de syntaxe Python invalide
+
+Conserver les conditions logiques (pas if True: !)
+
+Gérer les fonctions COBOL standards
+
+Priorité 2 (important) :
+Support basique des fichiers INDEXED
+
+Transformation correcte du slicing
+
+Gestion des commentaires COBOL
+
+Priorité 3 (amélioration) :
+Utiliser les dataclasses générées
+
+Implémenter la logique métier complète
+
+Ajouter des validations de type
+
+CONCLUSION :
+CodeSwitch échoue complètement sur les programmes COBOL complexes.
+
+Le code généré est :
+
+❌ Syntaxiquement invalide (ne peut même pas être exécuté)
+
+❌ Logiquement cassé (conditions toujours vraies)
+
+❌ Métier absent (calculs financiers perdus)
+
+❌ Inutilisable en production
+
+CodeSwitch n'est actuellement utilisable que pour :
+
+Petits programmes COBOL simples
+
+Transformations syntaxiques basiques
+
+POCs très limités
+
+Pour la transformation de systèmes bancaires réels :
+→ DANGEREUX à utiliser
+→ Relecture humaine obligatoire à 100%
+→ Réécriture manuelle nécessaire
+
+La transformation automatique COBOL→Python reste un défi majeur que CodeSwitch ne maîtrise pas encore pour les cas complexes.
