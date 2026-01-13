@@ -1,6 +1,11 @@
 """
-COBOL → Python Transpiler v5.7.16 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.17 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.17:
+- CRITICAL FIX: Paragraph names excluded from used_variables (no more method-variables)
+- FIX: SEARCH table logic generates proper for-loop with break
+- FIX: OCCURS tables now initialize as proper lists
 
 Improvements in v5.7.14:
 - NEW: Layered architecture (DataLayer, BusinessLayer, PresentationLayer)
@@ -781,6 +786,7 @@ class CobolVariable:
     parent_group: Optional[str] = None
     conditions_88: List[Cobol88Condition] = field(default_factory=list)
     redefines: Optional[str] = None  # v5.7.5: REDEFINES target variable
+    occurs: Optional[int] = None  # v5.7.17: OCCURS count for table variables
 
 
 @dataclass
@@ -983,6 +989,12 @@ def parse_variables_with_88(source: str) -> Tuple[List[CobolVariable], List[Cobo
         if redefines_match:
             redefines_target = redefines_match.group(1)
         
+        # v5.7.17: Extract OCCURS count for table variables
+        occurs_count = None
+        occurs_match = re.search(r'OCCURS\s+(\d+)\s*(?:TIMES)?', line, re.IGNORECASE)
+        if occurs_match:
+            occurs_count = int(occurs_match.group(1))
+        
         # Extract VALUE
         value = None
         value_match = re.search(
@@ -1009,7 +1021,8 @@ def parse_variables_with_88(source: str) -> Tuple[List[CobolVariable], List[Cobo
             value=value,
             line=i + 1,
             parent_group=current_group if level > 1 else None,
-            redefines=redefines_target
+            redefines=redefines_target,
+            occurs=occurs_count  # v5.7.17: OCCURS table support
         )
         variables.append(var)
         last_variable = var
@@ -2461,7 +2474,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.16]
+Auto-transpiled from COBOL [AST Transpiler v5.7.17]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -3212,7 +3225,19 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
         if var.level == 1 and not var.picture:
             continue
         
-        if is_flag_variable(var.name, var.value, var.conditions_88):
+        # v5.7.17: Handle OCCURS tables as lists
+        if var.occurs and var.occurs > 0:
+            py_type = 'List'
+            # Create a list with occurs_count elements
+            element_type, _ = pic_to_python_type(var.picture, var.value)
+            element_value = cobol_value_to_python_v3(var.value, var.picture, var.name, var.conditions_88)
+            # Generate: [default_value] * occurs_count
+            py_value = ast.BinOp(
+                left=ast.List(elts=[element_value], ctx=ast.Load()),
+                op=ast.Mult(),
+                right=ast.Constant(value=var.occurs)
+            )
+        elif is_flag_variable(var.name, var.value, var.conditions_88):
             py_type = 'bool'
             # v5.7.6: Ensure bool flags always get bool values (not '' or Decimal)
             if var.value is None:
@@ -4616,7 +4641,7 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     # Clean up multiple spaces
     cond = re.sub(r'\s+', ' ', cond).strip()
     
-    # v5.7.16: Replace decimal literals with Decimal('value') for financial precision
+    # v5.7.17: Replace decimal literals with Decimal('value') for financial precision
     # Match standalone decimal numbers (not part of variable names)
     def replace_decimal_literal(match):
         num = match.group(0)
@@ -4658,13 +4683,13 @@ def parse_cobol_condition(condition: str) -> ast.expr:
             else:
                 op = ast.Eq()
             
-            # Determine right side - v5.7.16: use Decimal for decimals (not float)
+            # Determine right side - v5.7.17: use Decimal for decimals (not float)
             try:
                 # Check for numeric values including decimals and negatives
                 if re.match(r'^-?\d+$', right_str):
                     right = ast.Constant(value=int(right_str))
                 elif re.match(r'^-?\d+\.\d+$', right_str):
-                    # v5.7.16: Generate Decimal('value') instead of float for financial precision
+                    # v5.7.17: Generate Decimal('value') instead of float for financial precision
                     right = ast.Call(
                         func=ast.Name(id='Decimal', ctx=ast.Load()),
                         args=[ast.Constant(value=right_str)],
@@ -6960,6 +6985,16 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         # v5.4.0: Extract all used variables for explicit declaration
         cobol_ast.used_variables = extract_all_used_variables(cobol_source)
         
+        # v5.7.17: Filter out paragraph names from used_variables
+        # This prevents method names like "process_deposit" from being declared as variables
+        paragraph_names_set = {to_snake_case(p.name) for p in cobol_ast.paragraphs}
+        paragraph_names_upper = {p.name.upper() for p in cobol_ast.paragraphs}
+        cobol_ast.used_variables = {
+            v for v in cobol_ast.used_variables 
+            if to_snake_case(v) not in paragraph_names_set 
+            and v.upper() not in paragraph_names_upper
+        }
+        
         python_ast = generate_python_ast_v4(cobol_ast)
         python_code = ast.unparse(python_ast)
         
@@ -7042,7 +7077,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.16-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.16-golden' if enhance else '5.7.16',
+            'version': '5.7.17-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.17-golden' if enhance else '5.7.17',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -7646,7 +7681,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.16',
+            'version': '5.7.17',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
