@@ -977,7 +977,7 @@ def parse_pic_default(pic: str, value: Optional[str]) -> str:
         elif value.upper() not in ('SPACES', 'SPACE'):
             try:
                 return str(value)
-            except:
+            except (ValueError, TypeError):
                 pass
     
     if 'V' in upper:
@@ -990,7 +990,7 @@ def parse_pic_default(pic: str, value: Optional[str]) -> str:
                 if value.startswith('.'):
                     return f'0{value}'
                 return str(float(value))
-            except:
+            except (ValueError, TypeError):
                 pass
         
         if decimal_places > 0:
@@ -1011,7 +1011,7 @@ def count_pic_digits(pic_part: str) -> int:
                 if end != -1:
                     try:
                         count += int(pic_part[i + 2:end])
-                    except:
+                    except (ValueError, TypeError):
                         count += 1
                     i = end + 1
                     continue
@@ -5378,7 +5378,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.0',
+            'version': '5.7.5',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
