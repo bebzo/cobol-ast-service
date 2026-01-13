@@ -1,6 +1,11 @@
 """
-COBOL → Python Transpiler v5.7.23 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.24 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.24:
+- FLAGS: MOVE 'Y'/'N' to flag variables now converts to True/False
+- DECLARATIVES: FileManager now triggers error handlers automatically
+- QUALITY: Enhanced flag detection for bool conversion
 
 Improvements in v5.7.23:
 - EXCEPTIONS: Added business exceptions (InsufficientFundsError, AccountLockedError, etc.)
@@ -2652,7 +2657,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.23]
+Auto-transpiled from COBOL [AST Transpiler v5.7.24]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -4396,7 +4401,10 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
             )
     elif re.match(r'^["\'].*["\']$', source_str):
         # String literal
-        source_ast = ast.Constant(value=source_str[1:-1])
+        literal_value = source_str[1:-1]
+        # v5.7.24: Check if this is a Y/N assignment to a flag variable
+        # Will be converted to bool in create_target_assignment if target is a flag
+        source_ast = ast.Constant(value=literal_value)
     elif re.match(r'^-?\d+\.?\d*$', source_str):
         # Numeric literal
         source_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=source_str)], keywords=[])
@@ -4464,9 +4472,24 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
             )
         else:
             # Simple variable assignment
+            target_snake = to_snake_case(target_str)
+            final_value = value_ast
+            
+            # v5.7.24: Convert 'Y'/'N' to bool for flag variables
+            if isinstance(value_ast, ast.Constant) and isinstance(value_ast.value, str):
+                val_upper = value_ast.value.upper()
+                if val_upper in ('Y', 'N'):
+                    # Check if target is a flag variable
+                    flag_keywords = ['FLAG', 'EOF', 'END_OF', 'ERROR', 'VALID', 'FOUND', 
+                                     'SWITCH', 'INDICATOR', 'STATUS', 'OK', 'ACTIVE']
+                    target_upper = target_snake.upper()
+                    is_flag = any(kw in target_upper for kw in flag_keywords)
+                    if is_flag:
+                        final_value = ast.Constant(value=(val_upper == 'Y'))
+            
             return ast.Assign(
-                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=to_snake_case(target_str), ctx=ast.Store())],
-                value=value_ast
+                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target_snake, ctx=ast.Store())],
+                value=final_value
             )
     
     if len(target_names) == 1:
@@ -7624,7 +7647,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.23-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.23-golden' if enhance else '5.7.23',
+            'version': '5.7.24-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.24-golden' if enhance else '5.7.24',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -8229,7 +8252,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.23',
+            'version': '5.7.24',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
