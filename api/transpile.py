@@ -2229,11 +2229,14 @@ Methods:
     ))
     
     # __init__ method - v5.4.0: now includes pre-declared used variables
+    # v5.7.8: Pass 88-level conditions to exclude property names from attributes
     used_vars = getattr(cobol_ast, 'used_variables', None)
+    property_names_88 = {to_snake_case(c.name) for c in cobol_ast.conditions_88} if cobol_ast.conditions_88 else set()
     init_body = generate_init_body_v4(cobol_ast.variables, class_name, 
                                       has_config=(config_class is not None),
                                       has_files=bool(cobol_ast.file_descriptors),
-                                      used_variables=used_vars)
+                                      used_variables=used_vars,
+                                      property_names=property_names_88)
     init_method = ast.FunctionDef(
         name='__init__',
         args=ast.arguments(
@@ -2574,6 +2577,38 @@ def __getattr__(self, name):
     )
     class_body.append(run_method)
     
+    # v5.7.8: Generate stub methods for CALL statements (external programs)
+    # Extract CALL targets from procedure division
+    call_targets = set()
+    for para in cobol_ast.paragraphs:
+        for stmt in para.statements:
+            call_match = re.match(r'CALL\s+["\']?([A-Z0-9][-A-Z0-9]*)["\']?', stmt.upper())
+            if call_match:
+                call_targets.add(call_match.group(1))
+    
+    for target in sorted(call_targets):
+        method_name = f'call_{to_snake_case(target)}'
+        # Generate stub method with *args to accept any parameters
+        stub_method = ast.FunctionDef(
+            name=method_name,
+            args=ast.arguments(
+                posonlyargs=[],
+                args=[ast.arg(arg='self')],
+                vararg=ast.arg(arg='args'),  # Accept any arguments
+                kwonlyargs=[],
+                kw_defaults=[],
+                kwarg=None,
+                defaults=[]
+            ),
+            body=[
+                ast.Expr(value=ast.Constant(value=f"Stub for external CALL '{target}'. Implement as needed.")),
+                ast.Pass()
+            ],
+            decorator_list=[],
+            returns=None
+        )
+        class_body.append(stub_method)
+    
     # Create main class
     class_def = ast.ClassDef(
         name=class_name,
@@ -2628,12 +2663,15 @@ def generate_config_dataclass(config_vars: List[CobolVariable], class_name: str)
 
 def generate_init_body_v4(variables: List[CobolVariable], class_name: str, 
                           has_config: bool = True, has_files: bool = False,
-                          used_variables: Optional[Set[str]] = None) -> List[ast.stmt]:
+                          used_variables: Optional[Set[str]] = None,
+                          property_names: Optional[Set[str]] = None) -> List[ast.stmt]:
     """Generate __init__ body with FileManager support and explicit variable declaration.
     
     v5.4.0: Now accepts used_variables to pre-declare variables referenced in code,
     reducing reliance on __getattr__ dynamic creation.
+    v5.7.8: Excludes property_names (88-level conditions) to prevent attr/property conflicts.
     """
+    property_names = property_names or set()
     init_body = []
     declared_vars = set()  # Track what we've declared
     
@@ -2704,6 +2742,10 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
         
         py_name = to_snake_case(var.name)
         
+        # v5.7.8: Skip if this name will be a @property (88-level condition)
+        if py_name in property_names:
+            continue
+        
         if var.level == 1 and not var.picture:
             continue
         
@@ -2739,6 +2781,9 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
         for var_name in sorted(used_variables):
             py_name = to_snake_case(var_name)
             if py_name in declared_vars:
+                continue
+            # v5.7.8: Skip if this name will be a @property (88-level condition)
+            if py_name in property_names:
                 continue
             
             # Determine default value based on naming conventions
@@ -3918,6 +3963,30 @@ def parse_cobol_condition(condition: str) -> ast.expr:
                 ctx=ast.Load()
             )
         )
+    
+    # v5.7.8: Convert COBOL array subscript notation VAR(INDEX) to Python VAR[int(INDEX)-1]
+    # Pattern: VARNAME(INDEXVAR) where there's no colon (so it's not a substring)
+    # Note: Must do this BEFORE identifier replacement
+    def convert_array_subscript(m):
+        var_name = to_snake_case(m.group(1))
+        index_expr = m.group(2).strip()
+        # Check if index is numeric
+        if index_expr.isdigit():
+            # COBOL is 1-based, Python is 0-based
+            py_index = int(index_expr) - 1
+            return f'self.{var_name}[{py_index}]'
+        else:
+            # Variable index - convert to Python: self.var[int(self.idx) - 1]
+            idx_py = to_snake_case(index_expr)
+            return f'self.{var_name}[int(self.{idx_py}) - 1]'
+    
+    # Match VAR(INDEX) but NOT VAR(X:Y) which is substring
+    cond = re.sub(
+        r'\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*([A-Z0-9][A-Z0-9-]*)\s*\)(?!\s*:)',
+        convert_array_subscript,
+        cond,
+        flags=re.IGNORECASE
+    )
     
     # v5.6.0: First, protect numeric literals by wrapping them temporarily
     # This prevents them from being transformed into self.xxx
