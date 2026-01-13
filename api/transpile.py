@@ -3187,6 +3187,68 @@ def parse_cobol_substring(expr: str) -> ast.expr:
             ctx=ast.Load()
         )
     
+    # Pattern 4: VAR(expr:) - expression with no length (to end of string)
+    # Example: WS-STRING(WS-IDX + 1:) -> self.string[int(self.idx) + 1 - 1:]
+    match = re.match(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*(.+?)\s*:\s*\)', expr, re.IGNORECASE)
+    if match:
+        var_name = to_snake_case(match.group(1))
+        start_expr_str = match.group(2).strip()
+        
+        # Try to parse the start expression
+        # Simple case: just a number
+        if start_expr_str.isdigit():
+            py_start = int(start_expr_str) - 1
+            return ast.Subscript(
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=var_name, ctx=ast.Load()),
+                slice=ast.Slice(lower=ast.Constant(value=py_start), upper=None, step=None),
+                ctx=ast.Load()
+            )
+        
+        # Complex expression: VAR + N or VAR - N
+        # Generate: self.var[int(expr) - 1:]
+        expr_match = re.match(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*([+-])\s*(\d+)', start_expr_str, re.IGNORECASE)
+        if expr_match:
+            idx_var = to_snake_case(expr_match.group(1))
+            op = expr_match.group(2)
+            offset = int(expr_match.group(3))
+            
+            # Build: int(self.idx_var) +/- offset - 1
+            var_int = ast.Call(
+                func=ast.Name(id='int', ctx=ast.Load()),
+                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=idx_var, ctx=ast.Load())],
+                keywords=[]
+            )
+            if op == '+':
+                # int(var) + offset - 1 = int(var) + (offset - 1)
+                idx_expr = ast.BinOp(left=var_int, op=ast.Add(), right=ast.Constant(value=offset - 1))
+            else:
+                # int(var) - offset - 1 = int(var) - (offset + 1)
+                idx_expr = ast.BinOp(left=var_int, op=ast.Sub(), right=ast.Constant(value=offset + 1))
+            
+            return ast.Subscript(
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=var_name, ctx=ast.Load()),
+                slice=ast.Slice(lower=idx_expr, upper=None, step=None),
+                ctx=ast.Load()
+            )
+        
+        # Just a variable name
+        if re.match(r'^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*$', start_expr_str, re.IGNORECASE):
+            idx_var = to_snake_case(start_expr_str)
+            idx_expr = ast.BinOp(
+                left=ast.Call(
+                    func=ast.Name(id='int', ctx=ast.Load()),
+                    args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=idx_var, ctx=ast.Load())],
+                    keywords=[]
+                ),
+                op=ast.Sub(),
+                right=ast.Constant(value=1)
+            )
+            return ast.Subscript(
+                value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=var_name, ctx=ast.Load()),
+                slice=ast.Slice(lower=idx_expr, upper=None, step=None),
+                ctx=ast.Load()
+            )
+    
     # Not a substring - return as normal variable
     return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=to_snake_case(expr), ctx=ast.Load())
 
@@ -3401,14 +3463,35 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
         source_ast = ast.Constant(value='\x00')
     elif source_upper in ('HIGH-VALUE', 'HIGH-VALUES'):
         source_ast = ast.Constant(value='\xff')
+    # v5.7.7: Handle ALL 'char' - repeats character to fill target
+    elif source_upper.startswith('ALL '):
+        # Extract the character/string after ALL
+        all_match = re.match(r"ALL\s+['\"](.)['\"]", source_str, re.IGNORECASE)
+        if all_match:
+            char = all_match.group(1)
+            # Generate: char * 256 (max reasonable length, will be sliced by target)
+            source_ast = ast.BinOp(
+                left=ast.Constant(value=char),
+                op=ast.Mult(),
+                right=ast.Constant(value=256)
+            )
+        else:
+            # ALL followed by variable or multi-char - just use the rest
+            rest = source_str[4:].strip().strip("'\"")
+            source_ast = ast.BinOp(
+                left=ast.Constant(value=rest),
+                op=ast.Mult(),
+                right=ast.Constant(value=256)
+            )
     elif re.match(r'^["\'].*["\']$', source_str):
         # String literal
         source_ast = ast.Constant(value=source_str[1:-1])
     elif re.match(r'^-?\d+\.?\d*$', source_str):
         # Numeric literal
         source_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=source_str)], keywords=[])
-    # Check for substring notation in source
-    elif re.match(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\s*\(\s*\d+\s*:\s*\d+\s*\)', source_str, re.IGNORECASE):
+    # Check for substring notation in source - v5.7.7: Also match variable indices and expressions
+    # Pattern: VAR(start:length) or VAR(start:) where start can be expr like VAR+1
+    elif re.match(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\s*\([^)]*:[^)]*\)', source_str, re.IGNORECASE):
         source_ast = parse_cobol_substring(source_str)
     else:
         # Variable reference
