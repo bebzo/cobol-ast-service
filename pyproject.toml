@@ -1,9 +1,9 @@
-# CodeSwitch v5.7.35 - Python Project Configuration
+# CodeSwitch v6.0.0 - Python Project Configuration
 # ==================================================
 
 [project]
 name = "codeswitch"
-version = "5.7.35"
+version = "6.0.0"
 description = "Enterprise COBOL-to-Python Transpiler with Clean Architecture"
 requires-python = ">=3.10"
 
@@ -34,7 +34,7 @@ allow-direct-references = true
 packages = ["api"]
 
 # ============================================================
-# v5.7.35: pytest + Coverage Configuration
+# v6.0.0: pytest + Coverage Configuration
 # ============================================================
 
 [tool.pytest.ini_options]
@@ -47,10 +47,6 @@ addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
-    "--cov=api",
-    "--cov-report=term-missing",
-    "--cov-report=html:coverage_html",
-    "--cov-report=xml:coverage.xml",
 ]
 markers = [
     "slow: marks tests as slow",
@@ -77,7 +73,7 @@ show_missing = true
 
 [tool.coverage.html]
 directory = "coverage_html"
-title = "CodeSwitch v5.7.35 Coverage Report"
+title = "CodeSwitch v6.0.0 Coverage Report"
 
 [tool.black]
 line-length = 100

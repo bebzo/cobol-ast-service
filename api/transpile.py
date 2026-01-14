@@ -1,8 +1,8 @@
 """
-COBOL → Python Transpiler v5.7.35 (Enterprise Architecture)
+COBOL → Python Transpiler v6.0.0 (Production Grade)
 Uses Python's ast module for 100% syntax-valid output
 
-Improvements in v5.7.35:
+Improvements in v6.0.0:
 - CONFIG: YAML configuration file support (config.yaml)
 - CONFIG: load_config_yaml() for flexible deployment
 - TESTING: pytest-cov integration for coverage metrics
@@ -191,6 +191,17 @@ from http.server import BaseHTTPRequestHandler
 from typing import Any, Dict, List, Optional, Tuple, Set
 from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
+
+# ============================================================
+# v6.0.0: Import new features from dedicated module
+# ============================================================
+from api.v6_features import (
+    ThreadSafeWrapper,
+    wrap_thread_safe,
+    generate_external_call_template,
+    generate_equivalence_tests,
+    RedefinesSimulator,
+)
 
 
 # ============================================================
@@ -8539,7 +8550,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
             'architecture_diagram': architecture_diagram,  # v5.7.34
-            'version': '5.7.35-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.35-golden' if enhance else '5.7.35',
+            'version': '6.0.0-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '6.0.0' if enhance else '6.0.0',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -9230,7 +9241,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.35',
+            'version': '6.0.0',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
