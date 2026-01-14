@@ -98,6 +98,43 @@ cp .env.example .env.local
 npm run dev
 ```
 
+### Python Usage Examples
+
+```python
+# 1. Transpile COBOL to Python
+from api.transpile import generate_python_code
+
+with open('banking.cbl', 'r') as f:
+    cobol_code = f.read()
+
+result = generate_python_code(cobol_code, enhance=True)
+print(f"Generated: {len(result['python_code']):,} chars")
+print(f"Tests: {len(result['unit_tests']):,} chars")
+print(f"Confidence: {result['confidence_score']}%")
+
+# 2. Use the transpiled banking system
+from output.banking_transpiled import UltimateBankingSystem
+
+bank = UltimateBankingSystem()
+bank.run()  # Execute main processing
+
+# 3. External authentication (production mode)
+from core.external_calls import get_auth_module
+
+auth = get_auth_module()
+success, message, session_id = auth.authenticate("user123", "password")
+if success:
+    print(f"Logged in! Session: {session_id}")
+
+# 4. Audit trail
+from core.external_calls import get_audit_module
+
+audit = get_audit_module()
+audit_id = audit.log_action("DEPOSIT", user_id="user123", 
+                            resource="ACC-001", 
+                            details={"amount": 1000.00})
+```
+
 ## 🏗️ Architecture
 
 ```
