@@ -863,7 +863,24 @@ export default function Home() {
     setAnimatedMetrics({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, improvements: 0, security: 0, testsLines: 0, confidence: 0 });
 
     try {
-      setAnalysisStatus("🚀 Connecting to CodeSwitch API...");
+      setAnalysisStatus("🚀 Initializing analysis...");
+      setAnalysisProgress(2);
+      
+      // Simulate initial progress during connection (cold start can take 1-3s)
+      let connectionProgress = 2;
+      const connectionInterval = setInterval(() => {
+        if (connectionProgress < 8) {
+          connectionProgress += 1;
+          setAnalysisProgress(connectionProgress);
+          const msgs = [
+            "🔌 Connecting to server...",
+            "🔌 Establishing connection...",
+            "🔌 Warming up transpiler...",
+            "🔌 Ready to analyze...",
+          ];
+          setAnalysisStatus(msgs[Math.min(connectionProgress - 2, msgs.length - 1)]);
+        }
+      }, 400);
       
       // v8.2: Use SSE for real-time progress
       const sseResponse = await fetch('/api/analyse-sse', {
@@ -873,9 +890,14 @@ export default function Home() {
         signal: controller.signal
       });
       
+      clearInterval(connectionInterval); // Stop simulation once connected
+      
       if (!sseResponse.ok) {
         throw new Error('Failed to connect to analysis API');
       }
+      
+      setAnalysisStatus("📡 Connected! Receiving data...");
+      setAnalysisProgress(10);
       
       const reader = sseResponse.body?.getReader();
       if (!reader) throw new Error('No response stream');
@@ -1551,16 +1573,21 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
           {isLoading && analysisProgress < 100 && (
             <div className="bg-slate-800 rounded-lg p-4 border border-indigo-500/30">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-slate-300">🔄 {analysisStatus}</span>
-                <span className="text-sm font-mono text-indigo-400">{Math.round(analysisProgress)}%</span>
+                <span className="text-sm text-slate-300 font-medium">{analysisStatus}</span>
+                <span className="text-sm font-mono text-indigo-400 font-bold">{Math.round(analysisProgress)}%</span>
               </div>
               <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-200"
+                  className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 transition-all duration-300 ease-out"
                   style={{ width: `${analysisProgress}%` }}
                 />
               </div>
-              <p className="text-xs text-slate-400 mt-2 animate-pulse">{analysisStatus}</p>
+              <p className="text-xs text-slate-500 mt-2">
+                {analysisProgress < 10 ? "Initializing..." : 
+                 analysisProgress < 40 ? "Parsing COBOL structure..." :
+                 analysisProgress < 70 ? "Transpiling to Python..." :
+                 analysisProgress < 90 ? "Generating tests & reports..." : "Finalizing..."}
+              </p>
             </div>
           )}
           {/* Show brief "finalizing" message at 100% */}
