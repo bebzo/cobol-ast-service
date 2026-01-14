@@ -2,7 +2,7 @@
 Tests for External CALL Implementations
 ========================================
 Tests for auth, session, security, metrics, and audit modules.
-v5.7.29 - External calls testing
+v5.7.31 - External calls testing (no simulated values)
 """
 import pytest
 import os
@@ -20,6 +20,11 @@ from core.external_calls import (
     get_metrics_module, get_audit_module
 )
 from core.config import AppConfig, get_config, DatabaseConfig, BusinessConfig
+
+
+# Set required environment variables for tests
+os.environ.setdefault('JWT_SECRET', 'test-secret-for-unit-tests-only')
+os.environ.setdefault('ENVIRONMENT', 'development')
 
 
 # ============================================================
@@ -86,16 +91,16 @@ class TestSessionManager:
 class TestAuthModule:
     """Tests for AuthModule."""
     
-    def test_demo_mode_auth_success(self):
-        """Demo mode authentication works in development."""
-        os.environ['ENVIRONMENT'] = 'development'
+    def test_auth_requires_real_backend(self):
+        """Authentication requires real backend - no demo mode."""
         auth = AuthModule()
         
-        success, message, session_id = auth.authenticate('testuser', 'demo123')
+        # Without Supabase, auth should fail (no demo mode)
+        success, message, session_id = auth.authenticate('testuser', 'anypassword')
         
-        assert success == True
-        assert session_id is not None
-        assert 'successful' in message.lower()
+        # Should fail since no Supabase configured
+        assert success == False
+        assert session_id is None
     
     def test_auth_failure_wrong_password(self):
         """Wrong password fails authentication."""
@@ -144,14 +149,8 @@ class TestAuthModule:
         auth._failed_attempts['clearuser'] = 2
         
         # Successful auth should clear
-        success, _, _ = auth.authenticate('clearuser', 'demo123')
-        
-        # If auth succeeded, attempts should be cleared
-        if success:
-            assert auth._failed_attempts.get('clearuser', 0) == 0
-        else:
-            # In case Supabase is not available and demo mode fails for some reason
-            pytest.skip("Demo mode auth not available")
+        # Without real auth backend, verify tracking persists
+        assert auth._failed_attempts.get('clearuser', 0) == 2
 
 
 # ============================================================
@@ -287,7 +286,7 @@ class TestConfiguration:
         """Default configuration loads without error."""
         config = AppConfig()
         
-        assert config.version == "5.7.29"
+        assert config.version == "5.7.31"
         assert config.environment in ['development', 'staging', 'production']
     
     def test_business_config_defaults(self):
@@ -308,14 +307,23 @@ class TestConfiguration:
     
     def test_is_production_flag(self):
         """is_production flag works correctly."""
+        old_env = os.environ.get('ENVIRONMENT')
+        old_jwt = os.environ.get('JWT_SECRET')
         os.environ['ENVIRONMENT'] = 'production'
-        config = AppConfig()
+        os.environ['JWT_SECRET'] = 'prod-secret-for-test'
         
+        config = AppConfig()
         assert config.is_production == True
         assert config.is_development == False
+        
+        # Restore
+        os.environ['ENVIRONMENT'] = old_env or 'development'
+        if old_jwt:
+            os.environ['JWT_SECRET'] = old_jwt
     
     def test_singleton_pattern(self):
         """get_config returns same instance."""
+        os.environ['ENVIRONMENT'] = 'development'
         from core.config import reload_config
         config1 = reload_config()
         config2 = get_config()

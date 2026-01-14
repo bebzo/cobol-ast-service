@@ -48,7 +48,9 @@ class SessionManager:
     """Manages user sessions in memory (for dev) or database (for prod)."""
     
     def __init__(self, jwt_secret: str = None, session_timeout_minutes: int = 60):
-        self.jwt_secret = jwt_secret or os.getenv('JWT_SECRET', 'dev-secret-change-in-prod')
+        self.jwt_secret = jwt_secret or os.getenv('JWT_SECRET')
+        if not self.jwt_secret:
+            raise ValueError("JWT_SECRET environment variable is required")
         self.session_timeout = timedelta(minutes=session_timeout_minutes)
         self._sessions: Dict[str, Session] = {}
         self._supabase_client = None
@@ -202,7 +204,7 @@ class AuthModule:
             try:
                 # Use Supabase Auth
                 result = supabase.auth.sign_in_with_password({
-                    "email": user_id if '@' in user_id else f"{user_id}@placeholder.com",
+                    "email": user_id,  # Must be a valid email
                     "password": password
                 })
                 if result.user:
@@ -214,14 +216,7 @@ class AuthModule:
             except Exception as e:
                 logger.warning(f"Supabase auth failed: {e}")
         
-        # Fallback: Demo mode (for development only)
-        if os.getenv('ENVIRONMENT', 'development') == 'development':
-            if password == 'demo123':  # Demo password for testing
-                session_mgr = SessionManager()
-                session = session_mgr.create_session(user_id)
-                self._failed_attempts.pop(user_id, None)  # Clear failed attempts on success
-                logger.info(f"User {user_id} authenticated (demo mode)")
-                return True, "Authentication successful (demo mode)", session.session_id
+        # No demo mode - production requires real authentication
         
         # Failed authentication
         self._failed_attempts[user_id] = self._failed_attempts.get(user_id, 0) + 1

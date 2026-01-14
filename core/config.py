@@ -28,7 +28,7 @@ class DatabaseConfig:
 @dataclass
 class AuthConfig:
     """Authentication settings."""
-    jwt_secret: str = field(default_factory=lambda: os.getenv('JWT_SECRET', 'dev-secret-change-in-prod'))
+    jwt_secret: str = field(default_factory=lambda: os.getenv('JWT_SECRET', ''))  # Required in production
     session_timeout_minutes: int = field(default_factory=lambda: int(os.getenv('SESSION_TIMEOUT_MINUTES', '60')))
     max_login_attempts: int = field(default_factory=lambda: int(os.getenv('MAX_LOGIN_ATTEMPTS', '5')))
     lockout_duration_minutes: int = field(default_factory=lambda: int(os.getenv('LOCKOUT_DURATION_MINUTES', '30')))
@@ -93,7 +93,7 @@ class AppConfig:
     """Main application configuration."""
     environment: str = field(default_factory=lambda: os.getenv('ENVIRONMENT', 'development'))
     debug: bool = field(default_factory=lambda: os.getenv('DEBUG', 'false').lower() == 'true')
-    version: str = "5.7.29"
+    version: str = "5.7.31"
     
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     auth: AuthConfig = field(default_factory=AuthConfig)
@@ -108,8 +108,8 @@ class AppConfig:
                 logger.warning("Production environment without database configuration!")
             if self.security.allow_stubs:
                 logger.error("SECURITY: allow_stubs=true in production is dangerous!")
-            if self.auth.jwt_secret == 'dev-secret-change-in-prod':
-                logger.error("SECURITY: Using default JWT secret in production!")
+            if not self.auth.jwt_secret:
+                raise ValueError("JWT_SECRET is required in production environment")
     
     @property
     def is_production(self) -> bool:
