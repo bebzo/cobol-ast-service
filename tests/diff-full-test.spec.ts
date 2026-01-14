@@ -1,40 +1,42 @@
 import { test, expect } from '@playwright/test';
 
-test('Diff Panel with COBOL code', async ({ page }) => {
+test('Diff Panel with demo code', async ({ page }) => {
   await page.goto('https://cobol-ast-service.vercel.app');
   await page.waitForLoadState('networkidle');
   
-  // Load demo
-  console.log('Loading demo...');
-  await page.click('text=Load Demo');
+  // Click Load Demo
+  const loadDemo = page.locator('text=Load Demo').first();
+  await loadDemo.click();
   await page.waitForTimeout(2000);
   await page.screenshot({ path: '/workspace/test-results/01-demo-loaded.png' });
   
-  // Refactor with Gemini
-  console.log('Refactoring with Gemini...');
-  const refactorBtn = page.locator('text=Refactor with Gemini');
-  if (await refactorBtn.count() > 0) {
-    await refactorBtn.click();
-    await page.waitForTimeout(10000); // Wait for API
+  // Click Refactor with Gemini to generate Python
+  const refactor = page.locator('text=Refactor with Gemini').first();
+  if (await refactor.isVisible()) {
+    await refactor.click();
+    await page.waitForTimeout(15000); // Wait for transpilation
   }
-  await page.screenshot({ path: '/workspace/test-results/02-refactored.png' });
+  await page.screenshot({ path: '/workspace/test-results/02-after-refactor.png' });
   
   // Click Diff v6.1 tab
-  console.log('Clicking Diff v6.1 tab...');
   const diffTab = page.locator('text=Diff v6.1').first();
-  if (await diffTab.count() > 0) {
+  if (await diffTab.isVisible()) {
     await diffTab.click();
     await page.waitForTimeout(2000);
   }
   await page.screenshot({ path: '/workspace/test-results/03-diff-panel.png' });
   
-  // Test bidirectional click
-  const cobolLines = await page.locator('[class*="cobol"] .view-line, .cobol-panel .view-line').count();
-  console.log('COBOL lines found:', cobolLines);
+  // Check if diff content is visible
+  const diffContent = await page.locator('[class*="diff"], [class*="panel"]').count();
+  console.log('Diff content elements:', diffContent);
   
-  // Check for diff panel content
-  const diffContent = await page.locator('[class*="diff"], [class*="Diff"]').count();
-  console.log('Diff elements found:', diffContent);
+  // Try clicking on COBOL lines
+  const cobolLines = page.locator('.view-line').first();
+  if (await cobolLines.count() > 0) {
+    await cobolLines.click();
+    await page.waitForTimeout(500);
+    console.log('Clicked on COBOL line');
+  }
   
-  await page.screenshot({ path: '/workspace/test-results/04-final.png', fullPage: true });
+  await page.screenshot({ path: '/workspace/test-results/04-after-click.png', fullPage: true });
 });

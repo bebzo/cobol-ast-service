@@ -190,11 +190,12 @@ export default function DiffPanel({
               <span className="text-slate-500 select-none w-12 text-right pr-3 py-0.5 flex-shrink-0">
                 {lineNum}
               </span>
-              <span className={`py-0.5 pr-4 whitespace-pre ${
-                type === 'cobol' ? 'text-amber-200' : 'text-green-200'
-              }`}>
-                {highlightSyntax(line, type)}
-              </span>
+              <span 
+                className={`py-0.5 pr-4 whitespace-pre ${
+                  type === 'cobol' ? 'text-amber-200' : 'text-green-200'
+                }`}
+                dangerouslySetInnerHTML={{ __html: highlightSyntax(line, type) }}
+              />
             </div>
           );
         })}
@@ -202,23 +203,34 @@ export default function DiffPanel({
     );
   };
 
+  // Escape HTML to prevent XSS
+  const escapeHtml = (str: string) => {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
   // Simple syntax highlighting
   const highlightSyntax = (line: string, type: 'cobol' | 'python') => {
+    const escaped = escapeHtml(line);
     if (type === 'cobol') {
       // COBOL keywords
-      return line
+      return escaped
         .replace(/(IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE|DIVISION|SECTION|PROGRAM-ID|AUTHOR|WORKING-STORAGE|PERFORM|MOVE|COMPUTE|IF|ELSE|END-IF|DISPLAY|STOP RUN|COPY|PIC|VALUE|CALL)/gi, 
           '<span class="text-purple-400 font-semibold">$1</span>')
         .replace(/(\d+)/g, '<span class="text-cyan-400">$1</span>')
-        .replace(/(".*?")/g, '<span class="text-green-400">$1</span>')
+        .replace(/(&quot;.*?&quot;)/g, '<span class="text-green-400">$1</span>')
         .replace(/(\*.*$)/gm, '<span class="text-slate-500 italic">$1</span>');
     } else {
       // Python keywords
-      return line
+      return escaped
         .replace(/\b(def|class|import|from|return|if|else|elif|for|while|try|except|with|as|self|True|False|None)\b/g,
           '<span class="text-purple-400 font-semibold">$1</span>')
         .replace(/(\d+\.?\d*)/g, '<span class="text-cyan-400">$1</span>')
-        .replace(/(["'].*?["'])/g, '<span class="text-green-400">$1</span>')
+        .replace(/(&#039;.*?&#039;|&quot;.*?&quot;)/g, '<span class="text-green-400">$1</span>')
         .replace(/(#.*$)/gm, '<span class="text-slate-500 italic">$1</span>');
     }
   };
