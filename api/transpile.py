@@ -201,6 +201,8 @@ from api.v6_features import (
     generate_external_call_template,
     generate_equivalence_tests,
     generate_run_with_guidance_method,
+    generate_validate_production_ready_method,
+    generate_quick_start_snippet,
     generate_migration_report,
     MigrationMetrics,
     RedefinesSimulator,
@@ -3903,6 +3905,35 @@ def _initialize_field(self, field_name: str) -> None:
         returns=None
     )
     class_body.append(run_method)
+    
+    # v6.0.0: Add validate_production_ready() and run_with_guidance() methods
+    # These are injected as exec() code since they're complex and template-based
+    # The actual methods are added via __init__ monkey-patching pattern
+    # We add helper methods to the class for better UX
+    
+    # Collect external calls for the helper methods
+    external_call_list = []
+    for para in cobol_ast.paragraphs:
+        for stmt in para.statements:
+            call_match = re.match(r'CALL\s+["\']?([A-Z0-9][-A-Z0-9]*)["\']?', stmt.upper())
+            if call_match:
+                external_call_list.append(call_match.group(1))
+    external_call_list = list(set(external_call_list))  # Unique
+    
+    # Add validate_production_ready method
+    validate_method_code = generate_validate_production_ready_method(external_call_list)
+    validate_method = ast.parse(validate_method_code).body
+    for node in validate_method:
+        if isinstance(node, ast.FunctionDef):
+            # Fix indentation for class method
+            class_body.append(node)
+    
+    # Add run_with_guidance method
+    guidance_method_code = generate_run_with_guidance_method(external_call_list)
+    guidance_method = ast.parse(guidance_method_code).body
+    for node in guidance_method:
+        if isinstance(node, ast.FunctionDef):
+            class_body.append(node)
     
     # v5.7.19: Enhanced stub methods for CALL statements with USING params
     # Extract CALL targets and their USING parameters from procedure division

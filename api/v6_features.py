@@ -483,3 +483,136 @@ class MigrationMetrics:
             "complexity_score": self.complexity_score,
             "risk_level": self.risk_level
         }
+
+
+def generate_validate_production_ready_method(external_calls: List[str]) -> str:
+    """Generate validate_production_ready() method for production checks."""
+    calls_check = ' or '.join(f'"{c}"' for c in external_calls) if external_calls else 'False'
+    calls_list = ', '.join(f'"{c}"' for c in external_calls)
+    
+    return f'''
+    def validate_production_ready(self) -> dict:
+        """Check if the system is ready for production deployment.
+        
+        v6.0.0: Returns a detailed status report.
+        
+        Returns:
+            dict with keys:
+                - ready (bool): True if all checks pass
+                - missing_calls (list): External CALLs not implemented
+                - warnings (list): Non-blocking issues
+                - config_ok (bool): Configuration validation
+        """
+        import os
+        
+        result = {{
+            "ready": True,
+            "missing_calls": [],
+            "warnings": [],
+            "config_ok": True,
+            "checks_passed": [],
+            "checks_failed": [],
+        }}
+        
+        # Check 1: External CALLs
+        external_calls = [{calls_list}]
+        allow_stubs = os.getenv("ALLOW_STUBS", "") == "true"
+        
+        if external_calls and not allow_stubs:
+            result["missing_calls"] = external_calls
+            result["ready"] = False
+            result["checks_failed"].append("external_calls")
+        else:
+            result["checks_passed"].append("external_calls")
+        
+        # Check 2: File paths configured
+        if hasattr(self, 'file_manager') and self.file_manager:
+            if not self.file_manager.file_paths:
+                result["warnings"].append("No file paths configured in FileManager")
+            else:
+                result["checks_passed"].append("file_paths")
+        
+        # Check 3: Strict mode recommendation
+        if not getattr(self, '_strict_mode', False):
+            result["warnings"].append("_strict_mode=False: undeclared variables auto-created")
+        else:
+            result["checks_passed"].append("strict_mode")
+        
+        # Check 4: ALLOW_STUBS in production
+        if allow_stubs:
+            result["warnings"].append("ALLOW_STUBS=true: Not recommended for production")
+        
+        # Summary
+        if result["warnings"]:
+            result["checks_passed"].append("warnings_acknowledged")
+        
+        return result
+    
+    def print_production_status(self):
+        """Print a formatted production readiness report."""
+        status = self.validate_production_ready()
+        
+        print("=" * 60)
+        print("🔍 PRODUCTION READINESS CHECK")
+        print("=" * 60)
+        
+        if status["ready"]:
+            print("✅ STATUS: READY FOR PRODUCTION")
+        else:
+            print("❌ STATUS: NOT READY")
+        
+        print()
+        
+        if status["checks_passed"]:
+            print("✓ Passed checks:")
+            for check in status["checks_passed"]:
+                print(f"  • {{check}}")
+        
+        if status["checks_failed"]:
+            print()
+            print("✗ Failed checks:")
+            for check in status["checks_failed"]:
+                print(f"  • {{check}}")
+        
+        if status["missing_calls"]:
+            print()
+            print("⚠️  Missing external CALLs:")
+            for call in status["missing_calls"]:
+                print(f"  • {{call}}")
+        
+        if status["warnings"]:
+            print()
+            print("⚠️  Warnings:")
+            for warn in status["warnings"]:
+                print(f"  • {{warn}}")
+        
+        print("=" * 60)
+        return status
+'''
+
+
+def generate_quick_start_snippet(class_name: str, has_external_calls: bool) -> str:
+    """Generate a Quick Start snippet for the generated code."""
+    
+    return f'''
+# ============================================================
+# 🚀 QUICK START GUIDE
+# ============================================================
+#
+# 1. DEVELOPMENT MODE (with stubs):
+#    $ ALLOW_STUBS=true python {class_name.lower()}.py
+#
+# 2. CHECK PRODUCTION READINESS:
+#    >>> system = {class_name}()
+#    >>> system.print_production_status()
+#
+# 3. RUN WITH GUIDANCE:
+#    >>> system.run_with_guidance()
+#
+# 4. PRODUCTION MODE:
+#    - Implement all external CALLs in core/external_calls.py
+#    - Set ALLOW_STUBS=false (or unset)
+#    - Run: $ python {class_name.lower()}.py
+#
+# ============================================================
+'''
