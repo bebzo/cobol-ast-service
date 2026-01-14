@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, Fragment } from 'react';
 import {
   GitCompare,
   Link2,
@@ -18,6 +18,9 @@ import {
   Layers,
   ArrowLeftRight,
   Search,
+  Map,
+  Zap,
+  AlertCircle,
 } from 'lucide-react';
 import {
   generateLineMappings,
@@ -68,6 +71,13 @@ export default function DiffPanel({
   const [searchResults, setSearchResults] = useState<{cobol: number[], python: number[]}>({cobol: [], python: []});
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
   const [searchSide, setSearchSide] = useState<'cobol' | 'python'>('cobol');
+  
+  // Mini-map state
+  const [showMinimap, setShowMinimap] = useState(true);
+  const [minimapHoverLine, setMinimapHoverLine] = useState<{side: 'cobol' | 'python', line: number} | null>(null);
+  
+  // Auto-debug state
+  const [autoDebugSuggestions, setAutoDebugSuggestions] = useState<{line: number, message: string, severity: string}[]>([]);
 
   // Refs
   const cobolPanelRef = useRef<HTMLDivElement>(null);
@@ -424,6 +434,17 @@ export default function DiffPanel({
               <Search className="w-4 h-4" />
             </button>
 
+            {/* Mini-map Toggle */}
+            <button
+              onClick={() => setShowMinimap(!showMinimap)}
+              className={`p-2 rounded-lg transition ${
+                showMinimap ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              }`}
+              title="Toggle Mini-map"
+            >
+              <Map className="w-4 h-4" />
+            </button>
+
             {/* Fullscreen Toggle */}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
@@ -590,7 +611,7 @@ export default function DiffPanel({
         </div>
       )}
 
-      {/* Code Panels with Mapping Arrows */}
+      {/* Code Panels with Mapping Arrows and Mini-maps */}
       <div className={`flex flex-col md:flex-row ${isFullscreen ? 'flex-1 overflow-hidden' : 'h-[400px] md:h-[500px]'}`}>
         {/* COBOL Panel */}
         <div className="w-full md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-slate-700 h-1/2 md:h-full">
@@ -611,12 +632,67 @@ export default function DiffPanel({
               )}
             </button>
           </div>
-          <div
-            ref={cobolPanelRef}
-            className="flex-1 overflow-auto bg-slate-950"
-            onScroll={() => handleScroll('cobol')}
-          >
-            {renderCode(cobolCode, 'cobol', showLineMapping ? handleCobolLineClick : undefined, highlightedCobolLines)}
+          <div className="flex flex-1 overflow-hidden">
+            {/* COBOL Code Panel */}
+            <div
+              ref={cobolPanelRef}
+              className="flex-1 overflow-auto bg-slate-950"
+              onScroll={() => handleScroll('cobol')}
+            >
+              {renderCode(cobolCode, 'cobol', showLineMapping ? handleCobolLineClick : undefined, highlightedCobolLines)}
+            </div>
+            
+            {/* COBOL Mini-map */}
+            {showMinimap && (
+              <div 
+                className="w-20 bg-slate-900 border-l border-slate-700 overflow-hidden relative cursor-pointer"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const clickY = e.clientY - rect.top;
+                  const lineNum = Math.floor((clickY / rect.height) * cobolLines);
+                  if (cobolPanelRef.current) {
+                    cobolPanelRef.current.scrollTop = lineNum * 20;
+                  }
+                }}
+              >
+                <div className="absolute inset-0 p-1">
+                  {/* Minimap content visualization */}
+                  {cobolCode.split('\n').map((line, idx) => {
+                    const isHighlighted = highlightedCobolLines.includes(idx + 1);
+                    const isSelected = selectedCobolLine === idx + 1;
+                    const hasKeyword = /PERFORM|COMPUTE|IF|MOVE|CALL/.test(line);
+                    return (
+                      <div
+                        key={idx}
+                        className={`h-[2px] mb-[1px] rounded-sm transition-all ${
+                          isSelected ? 'bg-cyan-400' :
+                          isHighlighted ? 'bg-yellow-400' :
+                          hasKeyword ? 'bg-purple-400/60' :
+                          line.trim() ? 'bg-amber-300/30' : 'bg-transparent'
+                        }`}
+                        style={{ width: `${Math.min(100, (line.length / 80) * 100)}%` }}
+                        onMouseEnter={() => setMinimapHoverLine({side: 'cobol', line: idx + 1})}
+                        onMouseLeave={() => setMinimapHoverLine(null)}
+                      />
+                    );
+                  }).slice(0, 200)}
+                </div>
+                {/* Viewport indicator */}
+                <div 
+                  className="absolute left-0 right-0 bg-amber-500/20 border border-amber-500/50 pointer-events-none"
+                  style={{
+                    top: cobolPanelRef.current ? `${(cobolPanelRef.current.scrollTop / cobolPanelRef.current.scrollHeight) * 100}%` : '0%',
+                    height: cobolPanelRef.current ? `${(cobolPanelRef.current.clientHeight / cobolPanelRef.current.scrollHeight) * 100}%` : '10%'
+                  }}
+                />
+                {/* Hover tooltip */}
+                {minimapHoverLine?.side === 'cobol' && (
+                  <div className="absolute top-0 right-full mr-2 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white whitespace-nowrap z-10">
+                    Line {minimapHoverLine.line}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -709,15 +785,105 @@ export default function DiffPanel({
               </button>
             </div>
           </div>
-          <div
-            ref={pythonPanelRef}
-            className="flex-1 overflow-auto bg-slate-950"
-            onScroll={() => handleScroll('python')}
-          >
-            {renderCode(pythonCode, 'python', showLineMapping ? handlePythonLineClick : undefined, highlightedPythonLines)}
+          <div className="flex flex-1 overflow-hidden">
+            {/* Python Mini-map */}
+            {showMinimap && (
+              <div 
+                className="w-20 bg-slate-900 border-r border-slate-700 overflow-hidden relative cursor-pointer"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const clickY = e.clientY - rect.top;
+                  const lineNum = Math.floor((clickY / rect.height) * pythonLines);
+                  if (pythonPanelRef.current) {
+                    pythonPanelRef.current.scrollTop = lineNum * 20;
+                  }
+                }}
+              >
+                <div className="absolute inset-0 p-1">
+                  {/* Minimap content visualization */}
+                  {pythonCode.split('\n').map((line, idx) => {
+                    const isHighlighted = highlightedPythonLines.includes(idx + 1);
+                    const isSelected = selectedPythonLine === idx + 1;
+                    const hasKeyword = /def |class |import |return |if |for |while /.test(line);
+                    const hasError = autoDebugSuggestions.some(s => s.line === idx + 1);
+                    return (
+                      <div
+                        key={idx}
+                        className={`h-[2px] mb-[1px] rounded-sm transition-all ${
+                          hasError ? 'bg-red-500' :
+                          isSelected ? 'bg-cyan-400' :
+                          isHighlighted ? 'bg-yellow-400' :
+                          hasKeyword ? 'bg-purple-400/60' :
+                          line.trim() ? 'bg-green-300/30' : 'bg-transparent'
+                        }`}
+                        style={{ width: `${Math.min(100, (line.length / 80) * 100)}%` }}
+                        onMouseEnter={() => setMinimapHoverLine({side: 'python', line: idx + 1})}
+                        onMouseLeave={() => setMinimapHoverLine(null)}
+                      />
+                    );
+                  }).slice(0, 200)}
+                </div>
+                {/* Viewport indicator */}
+                <div 
+                  className="absolute left-0 right-0 bg-green-500/20 border border-green-500/50 pointer-events-none"
+                  style={{
+                    top: pythonPanelRef.current ? `${(pythonPanelRef.current.scrollTop / pythonPanelRef.current.scrollHeight) * 100}%` : '0%',
+                    height: pythonPanelRef.current ? `${(pythonPanelRef.current.clientHeight / pythonPanelRef.current.scrollHeight) * 100}%` : '10%'
+                  }}
+                />
+                {/* Hover tooltip */}
+                {minimapHoverLine?.side === 'python' && (
+                  <div className="absolute top-0 left-full ml-2 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white whitespace-nowrap z-10">
+                    Line {minimapHoverLine.line}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Python Code Panel */}
+            <div
+              ref={pythonPanelRef}
+              className="flex-1 overflow-auto bg-slate-950"
+              onScroll={() => handleScroll('python')}
+            >
+              {renderCode(pythonCode, 'python', showLineMapping ? handlePythonLineClick : undefined, highlightedPythonLines)}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Auto-Debug Suggestions Panel */}
+      {autoDebugSuggestions.length > 0 && (
+        <div className="bg-red-900/20 border-t border-red-500/30 px-4 py-3">
+          <div className="flex items-center gap-2 text-red-400 font-semibold text-sm mb-2">
+            <Zap className="w-4 h-4" />
+            Auto-Debug Suggestions ({autoDebugSuggestions.length})
+          </div>
+          <div className="space-y-1">
+            {autoDebugSuggestions.slice(0, 3).map((s, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-xs">
+                <AlertCircle className={`w-3 h-3 ${
+                  s.severity === 'critical' ? 'text-red-400' :
+                  s.severity === 'high' ? 'text-orange-400' : 'text-yellow-400'
+                }`} />
+                <span className="text-slate-400">Line {s.line}:</span>
+                <span className="text-slate-300">{s.message}</span>
+                <button 
+                  className="ml-auto px-2 py-0.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded text-xs"
+                  onClick={() => {
+                    if (pythonPanelRef.current) {
+                      pythonPanelRef.current.scrollTop = (s.line - 5) * 20;
+                    }
+                    setSelectedPythonLine(s.line);
+                  }}
+                >
+                  Go to line
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Mapping Info */}
       {showLineMapping && lineMappings.length > 0 && (
