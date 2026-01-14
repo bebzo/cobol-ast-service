@@ -2900,6 +2900,27 @@ For production use with concurrent requests:
         ], level=0),
         ast.Import(names=[ast.alias(name='logging')]),
         ast.Import(names=[ast.alias(name='os')]),  # v5.7.21: For ALLOW_STUBS env var
+        # v5.7.31: Import external_calls for real CALL implementations
+        ast.Try(
+            body=[
+                ast.ImportFrom(module='core.external_calls', names=[
+                    ast.alias(name='get_auth_module'),
+                    ast.alias(name='get_session_manager'),
+                    ast.alias(name='get_security_module'),
+                    ast.alias(name='get_metrics_module'),
+                    ast.alias(name='get_audit_module'),
+                ], level=0)
+            ],
+            handlers=[
+                ast.ExceptHandler(
+                    type=ast.Name(id='ImportError', ctx=ast.Load()),
+                    name=None,
+                    body=[ast.Pass()]
+                )
+            ],
+            orelse=[],
+            finalbody=[]
+        ),
     ]
     body.extend(imports)
     
@@ -3020,6 +3041,58 @@ Methods:
         returns=None
     )
     class_body.append(init_method)
+    
+    # v5.7.31: Add _call_external_module method for routing to real implementations
+    external_module_method = ast.parse('''
+def _call_external_module(self, target: str, **kwargs):
+    """Route external CALL to real implementation (v5.7.31)."""
+    target_upper = target.upper()
+    try:
+        if 'AUTH' in target_upper:
+            auth = get_auth_module()
+            return auth.authenticate(
+                kwargs.get('user_id', ''),
+                kwargs.get('password', ''),
+                kwargs.get('security_level', 1)
+            )
+        elif 'SESSION' in target_upper:
+            session_mgr = get_session_manager()
+            if 'VALIDATE' in target_upper:
+                return session_mgr.validate_session(kwargs.get('session_id', ''))
+            else:
+                return session_mgr.create_session(kwargs.get('user_id', ''))
+        elif 'SECURITY' in target_upper or 'ALERT' in target_upper:
+            security = get_security_module()
+            return security.send_alert(
+                kwargs.get('alert_type', 'UNKNOWN'),
+                kwargs.get('user_id'),
+                kwargs.get('details')
+            )
+        elif 'METRIC' in target_upper:
+            metrics = get_metrics_module()
+            return metrics.update(
+                kwargs.get('transaction_count', 0),
+                kwargs.get('total_amount'),
+                kwargs.get('transaction_type')
+            )
+        elif 'AUDIT' in target_upper:
+            audit = get_audit_module()
+            if 'VERIFY' in target_upper:
+                return audit.verify(kwargs.get('audit_id'))
+            else:
+                return audit.log_action(
+                    kwargs.get('action', 'UNKNOWN'),
+                    kwargs.get('user_id'),
+                    kwargs.get('resource')
+                )
+        else:
+            self.logger.warning(f"Unknown external module: {target}")
+            return None
+    except NameError:
+        self.logger.warning(f"External module {target} not available - core.external_calls not imported")
+        return None
+''').body[0]
+    class_body.append(external_module_method)
     
     # Add 88-level properties as code
     if cobol_ast.conditions_88:
@@ -3572,8 +3645,15 @@ def _initialize_field(self, field_name: str) -> None:
                         args=[ast.Constant(value=f"STUB: External program '{target}' not implemented (ALLOW_STUBS=true)")],
                         keywords=[]
                     )),
-                    # v5.7.31: Return realistic stub values based on external program type
-                    *_generate_stub_return(target)
+                    # v5.7.31: Use real external_calls implementation instead of stubs
+                    ast.Return(value=ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(id='self', ctx=ast.Load()),
+                            attr='_call_external_module', ctx=ast.Load()
+                        ),
+                        args=[ast.Constant(value=target)],
+                        keywords=[ast.keyword(arg=None, value=ast.Name(id='kwargs', ctx=ast.Load()))]
+                    ))
                 ]
             )
         ]
