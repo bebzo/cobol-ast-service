@@ -1,6 +1,11 @@
 """
-COBOL → Python Transpiler v5.7.24 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.25 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.25:
+- FIX: Y/N to bool conversion now respects 88-levels with string values
+- FIX: validation_flag stays 'Y'/'N' when 88-level compares with strings
+- QUALITY: _FIELDS_WITH_STRING_88_LEVELS tracks fields that must stay string
 
 Improvements in v5.7.24:
 - FLAGS: MOVE 'Y'/'N' to flag variables now converts to True/False
@@ -159,6 +164,14 @@ from http.server import BaseHTTPRequestHandler
 from typing import Any, Dict, List, Optional, Tuple, Set
 from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
+
+
+# ============================================================
+# v5.7.25: Global context for field metadata
+# ============================================================
+# Set of field names (snake_case) that have 88-levels with string comparisons
+# These should NOT be converted from 'Y'/'N' to bool in MOVE statements
+_FIELDS_WITH_STRING_88_LEVELS: set = set()
 
 
 # ============================================================
@@ -1646,6 +1659,9 @@ def format_88_value_for_comparison(value: str, is_numeric: bool) -> str:
 def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[List] = None) -> bool:
     """Check if variable is a Y/N flag that should become bool.
     
+    v5.7.25: Critical fix - if 88-levels exist with Y/N values, field MUST stay str
+    because the 88-level properties compare with 'Y'/'N' strings, not True/False.
+    
     v5.7.6: Improved logic:
     - If 88-level conditions use non-Y/N values (like 'P', 'F'), it's a multi-state str
     - Only true Y/N or TRUE/FALSE values become bool
@@ -1655,18 +1671,20 @@ def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[Li
     if conditions_88 and len(conditions_88) > 2:
         return False
     
-    # v5.7.6: If 88-level conditions exist, check their values
-    # Only Y/N, TRUE/FALSE, 0/1 are valid bool values
+    # v5.7.25: If 88-level conditions exist with string values, field must stay str
+    # This ensures consistency: field is str, MOVEs assign 'Y'/'N', 88-levels compare 'Y'/'N'
     if conditions_88 and len(conditions_88) > 0:
-        bool_values = {'Y', 'N', 'TRUE', 'FALSE', '0', '1'}
         for cond in conditions_88:
             if hasattr(cond, 'values') and cond.values:
                 for val in cond.values:
-                    if val.upper() not in bool_values:
+                    # Any string value in 88-level means field must be str
+                    if isinstance(val, str) and val.upper() in ('Y', 'N'):
+                        return False  # v5.7.25: Stay str, not bool
+                    if val.upper() not in ('TRUE', 'FALSE', '0', '1'):
                         # Non-boolean value like 'P', 'F', 'H', 'L' - use str
                         return False
     
-    # Only return True for explicit Y/N values
+    # Only return True for explicit Y/N values WITHOUT 88-levels
     if value and value.upper() in ('Y', 'N', 'TRUE', 'FALSE'):
         return True
     
@@ -2657,7 +2675,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.24]
+Auto-transpiled from COBOL [AST Transpiler v5.7.25]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -4402,7 +4420,7 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
     elif re.match(r'^["\'].*["\']$', source_str):
         # String literal
         literal_value = source_str[1:-1]
-        # v5.7.24: Check if this is a Y/N assignment to a flag variable
+        # v5.7.25: Check if this is a Y/N assignment to a flag variable
         # Will be converted to bool in create_target_assignment if target is a flag
         source_ast = ast.Constant(value=literal_value)
     elif re.match(r'^-?\d+\.?\d*$', source_str):
@@ -4475,17 +4493,20 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
             target_snake = to_snake_case(target_str)
             final_value = value_ast
             
-            # v5.7.24: Convert 'Y'/'N' to bool for flag variables
+            # v5.7.25: Convert 'Y'/'N' to bool for flag variables
+            # BUT NOT if the field has 88-levels with string comparisons (e.g., data_valid == 'Y')
             if isinstance(value_ast, ast.Constant) and isinstance(value_ast.value, str):
                 val_upper = value_ast.value.upper()
                 if val_upper in ('Y', 'N'):
-                    # Check if target is a flag variable
-                    flag_keywords = ['FLAG', 'EOF', 'END_OF', 'ERROR', 'VALID', 'FOUND', 
-                                     'SWITCH', 'INDICATOR', 'STATUS', 'OK', 'ACTIVE']
-                    target_upper = target_snake.upper()
-                    is_flag = any(kw in target_upper for kw in flag_keywords)
-                    if is_flag:
-                        final_value = ast.Constant(value=(val_upper == 'Y'))
+                    # v5.7.25: Skip conversion if field has 88-levels with 'Y'/'N' string values
+                    if target_snake not in _FIELDS_WITH_STRING_88_LEVELS:
+                        # Check if target is a flag variable
+                        flag_keywords = ['FLAG', 'EOF', 'END_OF', 'ERROR', 'VALID', 'FOUND', 
+                                         'SWITCH', 'INDICATOR', 'STATUS', 'OK', 'ACTIVE']
+                        target_upper = target_snake.upper()
+                        is_flag = any(kw in target_upper for kw in flag_keywords)
+                        if is_flag:
+                            final_value = ast.Constant(value=(val_upper == 'Y'))
             
             return ast.Assign(
                 targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target_snake, ctx=ast.Store())],
@@ -7539,6 +7560,25 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         cobol_ast.has_cics = len(cics_commands) > 0
         cobol_ast.has_sql = len(sql_commands) > 0
         
+        # v5.7.25: Build set of fields with 88-levels that use string comparisons
+        # These fields should NOT have Y/N converted to bool in MOVE statements
+        global _FIELDS_WITH_STRING_88_LEVELS
+        _FIELDS_WITH_STRING_88_LEVELS = set()
+        for var in cobol_ast.variables:
+            if var.conditions_88:
+                # Check if any 88-level has non-boolean string values
+                has_string_88 = False
+                for cond in var.conditions_88:
+                    for val in cond.values:
+                        # If 88-level compares with 'Y' or 'N' as string, field must stay string
+                        if val.upper() in ('Y', 'N'):
+                            has_string_88 = True
+                            break
+                    if has_string_88:
+                        break
+                if has_string_88:
+                    _FIELDS_WITH_STRING_88_LEVELS.add(to_snake_case(var.name))
+        
         # v5.4.0: Extract all used variables for explicit declaration
         cobol_ast.used_variables = extract_all_used_variables(cobol_source)
         
@@ -7647,7 +7687,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.24-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.24-golden' if enhance else '5.7.24',
+            'version': '5.7.25-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.25-golden' if enhance else '5.7.25',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -8252,7 +8292,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.24',
+            'version': '5.7.25',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
