@@ -64,10 +64,11 @@ export async function transpileCobolViaPython(
   copybooks?: Record<string, string>
 ): Promise<TranspileResult> {
   try {
-    // Use relative URL for same-origin calls (faster on Vercel)
-    const baseUrl = typeof window !== 'undefined' 
-      ? '' // Client-side: relative URL
-      : (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://cobol-ast-service.vercel.app');
+    // Use production domain for Python API calls
+    // Note: VERCEL_URL gives preview URL, we need the stable production domain
+    const baseUrl = 'https://cobol-ast-service.vercel.app';
+    
+    console.log(`[Transpiler] Calling ${baseUrl}/api/transpile`);
     
     // Add timeout via AbortController (280s max for large files)
     const controller = new AbortController();
