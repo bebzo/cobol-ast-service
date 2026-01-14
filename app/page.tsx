@@ -863,24 +863,24 @@ export default function Home() {
     setAnimatedMetrics({ cobolLines: 0, pythonLines: 0, reduction: 0, issues: 0, improvements: 0, security: 0, testsLines: 0, confidence: 0 });
 
     try {
-      setAnalysisStatus("🚀 Initializing analysis...");
+      setAnalysisStatus("🚀 Starting analysis...");
       setAnalysisProgress(2);
       
-      // Simulate initial progress during connection (cold start can take 1-3s)
-      let connectionProgress = 2;
-      const connectionInterval = setInterval(() => {
-        if (connectionProgress < 8) {
-          connectionProgress += 1;
-          setAnalysisProgress(connectionProgress);
+      // Show progress during initialization
+      let initProgress = 2;
+      const initInterval = setInterval(() => {
+        if (initProgress < 8) {
+          initProgress += 1;
+          setAnalysisProgress(initProgress);
           const msgs = [
-            "🔌 Connecting to server...",
-            "🔌 Establishing connection...",
-            "🔌 Warming up transpiler...",
-            "🔌 Ready to analyze...",
+            "📂 Loading COBOL file...",
+            "🔍 Scanning structure...",
+            "⚙️ Initializing transpiler...",
+            "🚀 Starting analysis...",
           ];
-          setAnalysisStatus(msgs[Math.min(connectionProgress - 2, msgs.length - 1)]);
+          setAnalysisStatus(msgs[Math.min(initProgress - 2, msgs.length - 1)]);
         }
-      }, 400);
+      }, 300);
       
       // v8.2: Use SSE for real-time progress
       const sseResponse = await fetch('/api/analyse-sse', {
@@ -890,13 +890,13 @@ export default function Home() {
         signal: controller.signal
       });
       
-      clearInterval(connectionInterval); // Stop simulation once connected
+      clearInterval(initInterval); // Stop initial animation
       
       if (!sseResponse.ok) {
-        throw new Error('Failed to connect to analysis API');
+        throw new Error('Analysis failed to start');
       }
       
-      setAnalysisStatus("📡 Connected! Receiving data...");
+      setAnalysisStatus("📖 Parsing COBOL...");
       setAnalysisProgress(10);
       
       const reader = sseResponse.body?.getReader();
