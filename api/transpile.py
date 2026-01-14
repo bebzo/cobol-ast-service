@@ -1,6 +1,13 @@
 """
-COBOL → Python Transpiler v5.7.33 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.34 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.34:
+- MINIFIED: New minified_mode parameter to remove COBOL comments for production
+- CONFIG: COBOL_BUFFER_SIZE environment variable for configurable buffers
+- MONITORING: OpenTelemetry integration support with trace spans
+- DOCS: Auto-generate Mermaid architecture diagrams
+- API: generate_architecture_diagram() function added
 
 Improvements in v5.7.33:
 - INDEXED: READ ... KEY IS now uses read_by_key() instead of read_record()
@@ -355,9 +362,69 @@ def generate_error_codes_class(extracted_codes: List[ExtractedErrorCode]) -> str
 
 COBOL_RUNTIME_CODE = '''
 from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
-from typing import Optional, Any, Union
-from dataclasses import dataclass
+from typing import Optional, Any, Union, Callable
+from dataclasses import dataclass, field
 from datetime import datetime
+from contextlib import contextmanager
+import os
+
+
+# ============================================================
+# v5.7.34: Production Configuration
+# ============================================================
+
+@dataclass
+class ProductionConfig:
+    """v5.7.34: Configurable production settings via environment variables."""
+    buffer_size: int = field(default_factory=lambda: int(os.getenv('COBOL_BUFFER_SIZE', '10000')))
+    enable_tracing: bool = field(default_factory=lambda: os.getenv('COBOL_TRACE', 'false').lower() == 'true')
+    allow_stubs: bool = field(default_factory=lambda: os.getenv('ALLOW_STUBS', 'false').lower() == 'true')
+    log_level: str = field(default_factory=lambda: os.getenv('COBOL_LOG_LEVEL', 'INFO'))
+
+# Global config instance
+_config = ProductionConfig()
+
+
+# ============================================================
+# v5.7.34: OpenTelemetry Integration (Optional)
+# ============================================================
+
+class TracingContext:
+    """v5.7.34: OpenTelemetry-compatible tracing context.
+    
+    If opentelemetry is installed, uses real traces.
+    Otherwise, provides a no-op implementation.
+    """
+    _tracer = None
+    
+    @classmethod
+    def get_tracer(cls, name: str = 'cobol-transpiled'):
+        if cls._tracer is None:
+            try:
+                from opentelemetry import trace
+                cls._tracer = trace.get_tracer(name)
+            except ImportError:
+                # No OpenTelemetry - use no-op tracer
+                cls._tracer = NoOpTracer()
+        return cls._tracer
+    
+    @classmethod
+    @contextmanager
+    def span(cls, name: str, attributes: dict = None):
+        """Create a trace span for monitoring."""
+        tracer = cls.get_tracer()
+        if hasattr(tracer, 'start_as_current_span'):
+            with tracer.start_as_current_span(name, attributes=attributes or {}) as span:
+                yield span
+        else:
+            yield None  # No-op
+
+
+class NoOpTracer:
+    """No-op tracer when OpenTelemetry is not installed."""
+    @contextmanager
+    def start_as_current_span(self, name: str, attributes: dict = None):
+        yield None
 
 
 # ============================================================
@@ -2957,7 +3024,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.33]
+Auto-transpiled from COBOL [AST Transpiler v5.7.34]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -7924,14 +7991,200 @@ def detect_dead_code(python_code: str) -> List[Dict[str, Any]]:
 
 
 # ============================================================
+# v5.7.34: Architecture Diagram Generation
+# ============================================================
+
+def generate_architecture_diagram(cobol_ast: 'CobolAST', program_name: str = None) -> str:
+    """v5.7.34: Generate a Mermaid architecture diagram from COBOL AST.
+    
+    Creates a visual representation of:
+    - Layer architecture (Data, Business, Presentation)
+    - Paragraph call hierarchy
+    - File dependencies
+    - External module integrations
+    
+    Returns:
+        Mermaid diagram code as string
+    """
+    program_name = program_name or cobol_ast.program_id
+    
+    lines = []
+    lines.append("```mermaid")
+    lines.append("graph TD")
+    lines.append(f"    subgraph \"{program_name} Architecture\"")
+    lines.append("        direction TB")
+    lines.append("")
+    
+    # Source layer
+    lines.append("        subgraph Source[\"📄 COBOL Source\"]")
+    lines.append(f"            COBOL[\"{program_name}.cbl\"]")
+    lines.append("        end")
+    lines.append("")
+    
+    # Transpiler
+    lines.append("        subgraph Transpiler[\"🔄 CodeSwitch v5.7.34\"]")
+    lines.append("            AST[\"AST Parser\"]")
+    lines.append("            GEN[\"Code Generator\"]")
+    lines.append("        end")
+    lines.append("")
+    
+    # Generated layers
+    lines.append("        subgraph Generated[\"🐍 Python Code\"]")
+    lines.append("            DATA[\"DataLayer\"]")
+    lines.append("            BIZ[\"BusinessLayer\"]")
+    lines.append("            PRES[\"PresentationLayer\"]")
+    lines.append("            RT[\"CobolRuntime\"]")
+    lines.append("        end")
+    lines.append("")
+    
+    # Main class
+    lines.append("        subgraph MainClass[\"🏛️ " + to_pascal_case(program_name) + "\"]")
+    
+    # Add paragraphs (limit to 10 for readability)
+    para_count = min(len(cobol_ast.paragraphs), 10)
+    for para in cobol_ast.paragraphs[:para_count]:
+        method_name = to_snake_case(para.name)
+        lines.append(f"            {method_name}[\"{para.name}\"]")
+    if len(cobol_ast.paragraphs) > 10:
+        lines.append(f"            MORE[\"... +{len(cobol_ast.paragraphs) - 10} more\"]")
+    lines.append("        end")
+    lines.append("")
+    
+    # Files
+    if cobol_ast.file_descriptors:
+        lines.append("        subgraph Files[\"📁 File I/O\"]")
+        for fd in cobol_ast.file_descriptors[:5]:
+            file_id = to_snake_case(fd.name)
+            lines.append(f"            {file_id}[(\"{fd.name}\")]")
+        lines.append("        end")
+        lines.append("")
+    
+    # External calls
+    external_calls = set()
+    for para in cobol_ast.paragraphs:
+        for stmt in para.statements:
+            if 'CALL' in stmt.upper():
+                match = re.search(r"CALL\s+['\"]?([A-Z0-9-]+)['\"]?", stmt.upper())
+                if match:
+                    external_calls.add(match.group(1))
+    
+    if external_calls:
+        lines.append("        subgraph External[\"🔌 External Modules\"]")
+        for ext in list(external_calls)[:5]:
+            ext_id = ext.replace('-', '_').lower()
+            lines.append(f"            {ext_id}[[{ext}]]")
+        lines.append("        end")
+        lines.append("")
+    
+    lines.append("    end")
+    lines.append("")
+    
+    # Connections
+    lines.append("    %% Flow connections")
+    lines.append("    COBOL --> AST")
+    lines.append("    AST --> GEN")
+    lines.append("    GEN --> DATA")
+    lines.append("    GEN --> BIZ")
+    lines.append("    GEN --> PRES")
+    lines.append("    GEN --> RT")
+    
+    if cobol_ast.paragraphs:
+        first_para = to_snake_case(cobol_ast.paragraphs[0].name)
+        lines.append(f"    BIZ --> {first_para}")
+    
+    if cobol_ast.file_descriptors:
+        first_file = to_snake_case(cobol_ast.file_descriptors[0].name)
+        lines.append(f"    DATA --> {first_file}")
+    
+    if external_calls:
+        first_ext = list(external_calls)[0].replace('-', '_').lower()
+        lines.append(f"    BIZ -.-> {first_ext}")
+    
+    lines.append("")
+    lines.append("    %% Styling")
+    lines.append("    classDef source fill:#e1f5fe,stroke:#01579b")
+    lines.append("    classDef transpiler fill:#fff3e0,stroke:#e65100")
+    lines.append("    classDef generated fill:#e8f5e9,stroke:#2e7d32")
+    lines.append("    classDef external fill:#fce4ec,stroke:#c2185b")
+    lines.append("    class COBOL source")
+    lines.append("    class AST,GEN transpiler")
+    lines.append("    class DATA,BIZ,PRES,RT generated")
+    
+    lines.append("```")
+    
+    return "\n".join(lines)
+
+
+def minify_python_code(python_code: str) -> str:
+    """v5.7.34: Remove COBOL traceability comments for production deployment.
+    
+    Removes:
+    - COBOL Traceability docstrings
+    - Original COBOL comments in strings
+    - Excessive whitespace
+    
+    Keeps:
+    - Functional code
+    - Python docstrings for methods
+    - Type hints
+    """
+    lines = python_code.split('\n')
+    result = []
+    skip_until_end_docstring = False
+    in_cobol_trace = False
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Skip COBOL Traceability docstrings
+        if 'COBOL Traceability:' in line or 'Original COBOL' in line:
+            in_cobol_trace = True
+            continue
+        
+        if in_cobol_trace:
+            if stripped.startswith('"""') or stripped.endswith('"""'):
+                in_cobol_trace = False
+            continue
+        
+        # Skip lines that are just COBOL comments as strings
+        if stripped.startswith("'# COBOL:") or stripped.startswith('"# COBOL:'):
+            continue
+        
+        # Skip empty docstring lines within trace blocks
+        if stripped == '"""' and len(result) > 0 and 'Traceability' in result[-1]:
+            continue
+        
+        result.append(line)
+    
+    # Remove excessive blank lines (more than 2 consecutive)
+    final = []
+    blank_count = 0
+    for line in result:
+        if line.strip() == '':
+            blank_count += 1
+            if blank_count <= 2:
+                final.append(line)
+        else:
+            blank_count = 0
+            final.append(line)
+    
+    return '\n'.join(final)
+
+
+# ============================================================
 # Code Generation & Unit Tests
 # ============================================================
 
 def generate_python_code(cobol_source: str, enhance: bool = False,
                          cics_commands: List[CICSCommand] = None,
                          sql_commands: List[SQLCommand] = None,
-                         exception_mode: str = 'cobol') -> Dict[str, Any]:
+                         exception_mode: str = 'cobol',
+                         minified_mode: bool = False) -> Dict[str, Any]:
     """Main entry point: COBOL source → Python code
+    
+    v5.7.34: minified_mode parameter
+    - False (default): Full traceability with COBOL comments
+    - True: Production-optimized code without traceability comments
     
     v5.7.26: exception_mode parameter
     - 'cobol': Use return codes (COBOL-faithful)
@@ -8141,12 +8394,20 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             lines.insert(insert_idx, exception_wrapper.rstrip())
             python_code = '\n'.join(lines)
         
+        # v5.7.34: Apply minification if requested
+        if minified_mode:
+            python_code = minify_python_code(python_code)
+        
+        # v5.7.34: Generate architecture diagram
+        architecture_diagram = generate_architecture_diagram(cobol_ast, cobol_ast.program_id)
+        
         return {
             'success': True,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.33-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.33-golden' if enhance else '5.7.33',
+            'architecture_diagram': architecture_diagram,  # v5.7.34
+            'version': '5.7.34-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.34-golden' if enhance else '5.7.34',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -8167,6 +8428,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
                 'input_warnings': input_warnings,
                 'dead_code_warnings': dead_code_warnings,
                 'exception_mode': exception_mode,
+                'minified_mode': minified_mode,  # v5.7.34
                 **gemini_stats,
                 **confidence['coverage'],
                 **confidence['quality_factors']
@@ -8789,6 +9051,7 @@ class handler(BaseHTTPRequestHandler):
             enhance = data.get('enhance', False)
             copybooks = data.get('copybooks', {})  # New: copybooks dictionary
             exception_mode = data.get('exceptionMode', 'cobol')  # v5.7.26: 'cobol' or 'python'
+            minified_mode = data.get('minifiedMode', False)  # v5.7.34: Remove COBOL comments
             
             if not cobol_code:
                 self.send_error_response({'error': 'cobolCode is required'})
@@ -8814,7 +9077,8 @@ class handler(BaseHTTPRequestHandler):
             result = generate_python_code(cobol_code, enhance, 
                                           cics_commands=cics_commands, 
                                           sql_commands=sql_commands,
-                                          exception_mode=exception_mode)
+                                          exception_mode=exception_mode,
+                                          minified_mode=minified_mode)
             
             # Add preprocessor stats to result
             if copybook_stats:
@@ -8834,7 +9098,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.33',
+            'version': '5.7.34',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
