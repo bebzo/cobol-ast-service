@@ -18,7 +18,7 @@
 **/downloads/
 **/eggs/
 **/.eggs/
-**/lib/
+# **/lib/  # Commented - we need our lib/ folder
 **/lib64/
 **/parts/
 **/sdist/
