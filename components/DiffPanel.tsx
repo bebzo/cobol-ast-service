@@ -241,7 +241,7 @@ export default function DiffPanel({
 
   return (
     <div className={`bg-slate-900 rounded-xl border border-slate-700 overflow-hidden ${
-      isFullscreen ? 'fixed inset-4 z-50' : ''
+      isFullscreen ? 'fixed inset-4 z-50 flex flex-col' : ''
     }`}>
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-800 to-indigo-900/30 px-4 py-3 border-b border-slate-700">
@@ -410,7 +410,7 @@ export default function DiffPanel({
       )}
 
       {/* Code Panels with Mapping Arrows */}
-      <div className={`flex flex-col md:flex-row ${isFullscreen ? 'h-[calc(100%-120px)]' : 'h-auto md:h-[500px]'}`}>
+      <div className={`flex flex-col md:flex-row ${isFullscreen ? 'flex-1 overflow-hidden' : 'h-auto md:h-[500px]'}`}>
         {/* COBOL Panel */}
         <div className="flex-1 flex flex-col border-b md:border-b-0 md:border-r border-slate-700 min-h-[250px] md:min-h-0">
           <div className="flex items-center justify-between px-4 py-2 bg-amber-900/20 border-b border-amber-500/30">
