@@ -5,6 +5,56 @@ All notable changes to CodeSwitch will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [6.1.0] - 2026-01-14
+
+### Interactive Diff Features Release
+
+Major enhancement to the Diff visualization with 5 new features for code review and comparison.
+
+### Added
+
+#### Interactive Diff v6.1
+- **Line Mapping** - Click on any COBOL line to highlight the corresponding Python code
+  - Automatic mapping of COBOL paragraphs to Python methods
+  - DATA DIVISION variables linked to Python class attributes
+  - Visual highlighting with yellow/cyan indicators
+
+- **Sync Scroll** - Synchronized scrolling between COBOL and Python panels
+  - Toggle on/off with one click
+  - Percentage-based scroll synchronization
+  - Smooth scrolling experience
+
+- **Enhanced Syntax Highlighting** - Improved code colorization
+  - COBOL keywords (PERFORM, COMPUTE, MOVE, etc.) in purple
+  - Python keywords (def, class, return, etc.) highlighted
+  - Comments, strings, and numbers with distinct colors
+
+- **Export PDF** - Generate diff reports as downloadable HTML/PDF
+  - Side-by-side code comparison
+  - Statistics summary (lines, ratio)
+  - Professional styling for documentation
+
+- **A/B Testing** - Compare multiple Python versions
+  - Select Version A vs Version B
+  - Automatic metrics comparison (lines, methods, tests passed)
+  - Winner determination with analysis
+
+#### New Components
+- `lib/diff-features.ts` - Core diff algorithms and utilities
+- `components/DiffPanel.tsx` - React component for interactive diff view
+- New "Diff v6.1" tab in the main interface
+
+### Changed
+- Updated `activeTab` to include `diffv2` option
+- Added `Scroll` and `FlaskConical` icons to imports
+
+### Technical Details
+- Line mapping uses paragraph detection and variable matching
+- Scroll sync uses percentage-based calculation for different-length files
+- Export generates standalone HTML with embedded CSS
+
+---
+
 ## [6.0.0] - 2026-01-14
 
 ### 🎉 Major Release: Production Grade

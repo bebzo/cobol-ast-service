@@ -25,7 +25,7 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser(
-        description='CodeSwitch - COBOL to Python Transpiler v6.0.0',
+        description='CodeSwitch - COBOL to Python Transpiler v6.1.0',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -44,7 +44,7 @@ Examples:
     parser.add_argument('--tests', action='store_true', help='Generate equivalence tests')
     parser.add_argument('--template', action='store_true', help='Generate external calls template')
     parser.add_argument('--quiet', '-q', action='store_true', help='Minimal output')
-    parser.add_argument('--version', action='version', version='CodeSwitch v6.0.0')
+    parser.add_argument('--version', action='version', version='CodeSwitch v6.1.0')
     
     args = parser.parse_args()
     
@@ -62,7 +62,7 @@ Examples:
     
     if not args.quiet:
         print("=" * 60)
-        print("🔄 CodeSwitch v6.0.0 - COBOL to Python Transpiler")
+        print("🔄 CodeSwitch v6.1.0 - COBOL to Python Transpiler")
         print("=" * 60)
         print(f"📂 Input: {args.input}")
         print(f"📂 Output: {args.output}")

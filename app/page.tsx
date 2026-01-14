@@ -34,12 +34,15 @@ import {
   Layers,
   Package,
   Link2,
+  Scroll,
+  FlaskConical,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode } from "@/lib/postprocess";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
 
 // Pyodide for Python syntax validation
 declare global {
@@ -592,7 +595,7 @@ export default function Home() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [modulesLimit, setModulesLimit] = useState(50);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "arch" | "modules" | "ddd" | "impact" | "report">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "diffv2" | "arch" | "modules" | "ddd" | "impact" | "report">("code");
   const [selectedDddFile, setSelectedDddFile] = useState<string>("shared.py");
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
@@ -1665,6 +1668,15 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <GitCompare className="w-4 h-4" />Diff
                 </button>
                 <button
+                  onClick={() => setActiveTab("diffv2")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "diffv2" ? "bg-indigo-500/20 text-indigo-400 border-b-2 border-indigo-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Link2 className="w-4 h-4" />Diff v6.1
+                  <span className="px-1.5 py-0.5 bg-indigo-500/30 text-indigo-300 text-[10px] rounded">NEW</span>
+                </button>
+                <button
                   onClick={() => setActiveTab("arch")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
                     activeTab === "arch" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
@@ -1969,6 +1981,33 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                             scrollBeyondLastLine: false 
                           }}
                         />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "diffv2" && (
+                <div className="min-h-[500px]">
+                  {analysis?.python_code && cobolCode ? (
+                    <DiffPanel
+                      cobolCode={analyzedCobolCode || cobolCode}
+                      pythonCode={analysis.python_code}
+                      filename={filename || 'program'}
+                    />
+                  ) : (
+                    <div className="h-[400px] flex items-center justify-center text-slate-400 bg-slate-900">
+                      <div className="text-center">
+                        <Link2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-lg font-medium">Interactive Diff v6.1</p>
+                        <p className="text-sm mt-2">Analyse du code requise pour activer les features:</p>
+                        <ul className="text-xs mt-3 space-y-1 text-slate-500">
+                          <li>1. Line Mapping (click COBOL → highlight Python)</li>
+                          <li>2. Sync Scroll (scroll synchronise)</li>
+                          <li>3. Enhanced Syntax Highlighting</li>
+                          <li>4. Export PDF</li>
+                          <li>5. A/B Testing</li>
+                        </ul>
                       </div>
                     </div>
                   )}
