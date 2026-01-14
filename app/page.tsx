@@ -36,6 +36,9 @@ import {
   Link2,
   Scroll,
   FlaskConical,
+  BarChart3,
+  Network,
+  FolderOutput,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
@@ -43,6 +46,9 @@ import { postProcessPythonCode } from "@/lib/postprocess";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
+const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard"), { ssr: false });
+const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
+const FrameworkExporter = dynamic(() => import("@/components/FrameworkExporter"), { ssr: false });
 
 // Pyodide for Python syntax validation
 declare global {
