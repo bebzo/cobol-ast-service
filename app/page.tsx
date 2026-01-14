@@ -50,6 +50,10 @@ const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard")
 const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
 const FrameworkExporter = dynamic(() => import("@/components/FrameworkExporter"), { ssr: false });
 const EquivalenceDashboard = dynamic(() => import("@/components/EquivalenceDashboard"), { ssr: false });
+const MigrationGuide = dynamic(() => import("@/components/MigrationGuide"), { ssr: false });
+const Glossary = dynamic(() => import("@/components/Glossary"), { ssr: false });
+import Tooltip, { METRIC_TOOLTIPS } from "@/components/Tooltip";
+import { HelpButton } from "@/components/HelpModal";
 
 // Certificate generator
 import { downloadCertificateAsPDF, CertificateData } from "@/lib/certificate-generator";
@@ -622,6 +626,8 @@ export default function Home() {
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   // Chat expanded mode
   const [chatExpanded, setChatExpanded] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  const [showGlossary, setShowGlossary] = useState(false);
   const [diffStep, setDiffStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showMagicDiff, setShowMagicDiff] = useState(false);
@@ -1501,7 +1507,23 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
             </button>
 
-            <a href="/docs" className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700 rounded-lg transition hidden md:block">Docs</a>
+            <button
+              onClick={() => setShowGuide(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-300 rounded-lg transition"
+              title="Guide de Migration"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span className="hidden sm:inline">Guide</span>
+            </button>
+
+            <button
+              onClick={() => setShowGlossary(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 rounded-lg transition"
+              title="Glossaire COBOL/Python"
+            >
+              <Scroll className="w-4 h-4" />
+              <span className="hidden sm:inline">Glossaire</span>
+            </button>
             <a href="/login" className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition">Login</a>
 
             <div className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/50 rounded-lg">
@@ -2251,13 +2273,15 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     {activeReportTab === "issues" && (analysis.issues || []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-red-500/10 rounded-lg">
                         <span className="text-red-400 font-bold">{i + 1}.</span>
-                        <span className="text-slate-300">{typeof item === 'string' ? item : JSON.stringify(item)}</span>
+                        <span className="text-slate-300 flex-1">{typeof item === 'string' ? item : JSON.stringify(item)}</span>
+                        <HelpButton issueText={typeof item === 'string' ? item : JSON.stringify(item)} issueType="issue" />
                       </li>
                     ))}
                     {activeReportTab === "improvements" && (analysis.improvements || []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-amber-500/10 rounded-lg">
                         <span className="text-amber-400 font-bold">{i + 1}.</span>
-                        <span className="text-slate-300">{typeof item === 'string' ? item : JSON.stringify(item)}</span>
+                        <span className="text-slate-300 flex-1">{typeof item === 'string' ? item : JSON.stringify(item)}</span>
+                        <HelpButton issueText={typeof item === 'string' ? item : JSON.stringify(item)} issueType="improvement" />
                       </li>
                     ))}
                     {activeReportTab === "security" && (analysis.security_warnings || []).map((item, i) => {
@@ -2371,25 +2395,31 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
                 {/* COBOL Lines */}
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-amber-400 tabular-nums">{(analyzedCobolCode || cobolCode).split('\n').length}</p>
-                  <p className="text-xs text-slate-400 mt-1">COBOL</p>
-                </div>
+                <Tooltip content={METRIC_TOOLTIPS.cobolLines.content} title={METRIC_TOOLTIPS.cobolLines.title}>
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-center cursor-help">
+                    <p className="text-2xl font-bold text-amber-400 tabular-nums">{(analyzedCobolCode || cobolCode).split('\n').length}</p>
+                    <p className="text-xs text-slate-400 mt-1">COBOL</p>
+                  </div>
+                </Tooltip>
                 {/* Arrow */}
                 <div className="hidden lg:flex items-center justify-center">
                   <ArrowRight className="w-6 h-6 text-slate-500" />
                 </div>
                 {/* Python Lines */}
-                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-green-400 tabular-nums">{analysis.python_lines || (analysis.python_code || '').split('\n').length}</p>
-                  <p className="text-xs text-slate-400 mt-1">Python</p>
-                  <p className="text-[10px] text-slate-500">(lignes)</p>
-                </div>
+                <Tooltip content={METRIC_TOOLTIPS.pythonLines.content} title={METRIC_TOOLTIPS.pythonLines.title}>
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center cursor-help">
+                    <p className="text-2xl font-bold text-green-400 tabular-nums">{analysis.python_lines || (analysis.python_code || '').split('\n').length}</p>
+                    <p className="text-xs text-slate-400 mt-1">Python</p>
+                    <p className="text-[10px] text-slate-500">(lignes)</p>
+                  </div>
+                </Tooltip>
                 {/* Tests */}
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{testResults?.total || (() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })()}</p>
-                  <p className="text-xs text-slate-400 mt-1">Tests</p>
-                </div>
+                <Tooltip content={METRIC_TOOLTIPS.tests.content} title={METRIC_TOOLTIPS.tests.title}>
+                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center cursor-help">
+                    <p className="text-2xl font-bold text-purple-400 tabular-nums">{testResults?.total || (() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })()}</p>
+                    <p className="text-xs text-slate-400 mt-1">Tests</p>
+                  </div>
+                </Tooltip>
                 {/* Total */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-blue-400 tabular-nums">
@@ -2398,10 +2428,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <p className="text-xs text-slate-400 mt-1">Total</p>
                 </div>
                 {/* Issues */}
-                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-red-400 tabular-nums">{Array.isArray(analysis.issues) ? analysis.issues.length : 3}</p>
-                  <p className="text-xs text-slate-400 mt-1">Issues</p>
-                </div>
+                <Tooltip content={METRIC_TOOLTIPS.issues.content} title={METRIC_TOOLTIPS.issues.title}>
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center cursor-help">
+                    <p className="text-2xl font-bold text-red-400 tabular-nums">{Array.isArray(analysis.issues) ? analysis.issues.length : 3}</p>
+                    <p className="text-xs text-slate-400 mt-1">Issues</p>
+                  </div>
+                </Tooltip>
                 {/* Improvements */}
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-cyan-400 tabular-nums">{Array.isArray(analysis.improvements) ? analysis.improvements.length : 5}</p>
@@ -2409,11 +2441,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
                 
                 {/* Confidence */}
-                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center" title="Based on code complexity and business logic clarity">
-                  <p className="text-2xl font-bold text-green-400 tabular-nums">{typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0}%</p>
-                  <p className="text-xs text-slate-400 mt-1">Confidence</p>
-                  <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, ''))) < 70 ? '(needs review)' : '(validated)'}</p>
-                </div>
+                <Tooltip content={METRIC_TOOLTIPS.confidence.content} title={METRIC_TOOLTIPS.confidence.title}>
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center cursor-help">
+                    <p className="text-2xl font-bold text-green-400 tabular-nums">{typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0}%</p>
+                    <p className="text-xs text-slate-400 mt-1">Confidence</p>
+                    <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, ''))) < 70 ? '(needs review)' : '(validated)'}</p>
+                  </div>
+                </Tooltip>
               </div>
               
               {/* v8.1: Coverage Metrics Panel */}
@@ -2847,10 +2881,16 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
         </div>
       )}
 
+      {/* Migration Guide Modal */}
+      <MigrationGuide isOpen={showGuide} onClose={() => setShowGuide(false)} />
+
+      {/* Glossary Modal */}
+      <Glossary isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
+
       {/* Footer */}
       <footer className="bg-slate-800/50 border-t border-slate-700 px-6 py-4">
         <div className="max-w-[1800px] mx-auto flex items-center justify-between text-sm text-slate-400">
-          <span>CodeSwitch Pro v8.4 - Gemini Voice Assistant AI</span>
+          <span>CodeSwitch Pro v8.5 - Phase 4 Documentation Inline</span>
           <span>Hackathon Gemini 3</span>
         </div>
       </footer>
