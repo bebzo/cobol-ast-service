@@ -17,6 +17,7 @@ import {
   Download,
   Layers,
   ArrowLeftRight,
+  Search,
 } from 'lucide-react';
 import {
   generateLineMappings,
@@ -60,6 +61,13 @@ export default function DiffPanel({
   const [selectedVersionB, setSelectedVersionB] = useState<string | null>(null);
   const [exportingPDF, setExportingPDF] = useState(false);
   const [copiedSide, setCopiedSide] = useState<'cobol' | 'python' | null>(null);
+  
+  // Search state
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<{cobol: number[], python: number[]}>({cobol: [], python: []});
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
+  const [searchSide, setSearchSide] = useState<'cobol' | 'python'>('cobol');
 
   // Refs
   const cobolPanelRef = useRef<HTMLDivElement>(null);
@@ -154,6 +162,81 @@ export default function DiffPanel({
     setTimeout(() => setCopiedSide(null), 2000);
   };
 
+  // Search functionality
+  const handleSearch = useCallback((term: string) => {
+    setSearchTerm(term);
+    if (!term.trim()) {
+      setSearchResults({cobol: [], python: []});
+      setCurrentSearchIndex(0);
+      return;
+    }
+
+    const termLower = term.toLowerCase();
+    const cobolLines = cobolCode.split('\n');
+    const pythonLines = pythonCode.split('\n');
+
+    const cobolMatches: number[] = [];
+    const pythonMatches: number[] = [];
+
+    cobolLines.forEach((line, idx) => {
+      if (line.toLowerCase().includes(termLower)) {
+        cobolMatches.push(idx + 1);
+      }
+    });
+
+    pythonLines.forEach((line, idx) => {
+      if (line.toLowerCase().includes(termLower)) {
+        pythonMatches.push(idx + 1);
+      }
+    });
+
+    setSearchResults({cobol: cobolMatches, python: pythonMatches});
+    setCurrentSearchIndex(0);
+
+    // Auto-scroll to first result
+    const firstResult = searchSide === 'cobol' ? cobolMatches[0] : pythonMatches[0];
+    if (firstResult) {
+      scrollToLine(firstResult, searchSide);
+    }
+  }, [cobolCode, pythonCode, searchSide]);
+
+  const scrollToLine = (lineNumber: number, side: 'cobol' | 'python') => {
+    const panel = side === 'cobol' ? cobolPanelRef.current : pythonPanelRef.current;
+    if (panel) {
+      const lineHeight = 20;
+      panel.scrollTop = (lineNumber - 5) * lineHeight;
+    }
+  };
+
+  const navigateSearch = (direction: 'next' | 'prev') => {
+    const results = searchSide === 'cobol' ? searchResults.cobol : searchResults.python;
+    if (results.length === 0) return;
+
+    let newIndex = currentSearchIndex;
+    if (direction === 'next') {
+      newIndex = (currentSearchIndex + 1) % results.length;
+    } else {
+      newIndex = currentSearchIndex === 0 ? results.length - 1 : currentSearchIndex - 1;
+    }
+
+    setCurrentSearchIndex(newIndex);
+    scrollToLine(results[newIndex], searchSide);
+
+    // Also highlight corresponding lines in the other panel
+    if (showLineMapping) {
+      const lineNumber = results[newIndex];
+      if (searchSide === 'cobol') {
+        const pythonLines = findPythonLinesForCobol(lineNumber, lineMappings);
+        setHighlightedPythonLines(pythonLines);
+        setSelectedCobolLine(lineNumber);
+      } else {
+        const cobolLines = findCobolLinesForPython(lineNumber, lineMappings);
+        setHighlightedCobolLines(cobolLines);
+        setSelectedPythonLine(lineNumber);
+      }
+    }
+  };
+
   // A/B Test comparison
   const abTestResult = useMemo(() => {
     if (!showABTest || !selectedVersionA || !selectedVersionB) return null;
@@ -171,6 +254,9 @@ export default function DiffPanel({
     highlightedLines: number[] = []
   ) => {
     const lines = code.split('\n');
+    const searchMatches = type === 'cobol' ? searchResults.cobol : searchResults.python;
+    const currentMatch = searchMatches[currentSearchIndex];
+    
     return (
       <div className="font-mono text-xs">
         {lines.map((line, idx) => {
@@ -178,29 +264,42 @@ export default function DiffPanel({
           const isHighlighted = highlightedLines.includes(lineNum);
           const isSelected = (type === 'cobol' && selectedCobolLine === lineNum) || 
                             (type === 'python' && selectedPythonLine === lineNum);
+          const isSearchMatch = searchMatches.includes(lineNum);
+          const isCurrentSearchMatch = searchSide === type && lineNum === currentMatch;
           
           return (
             <div
               key={lineNum}
               className={`flex hover:bg-slate-700/50 cursor-pointer transition-colors ${
+                isCurrentSearchMatch ? 'bg-orange-500/40 border-l-2 border-orange-400' : 
+                isSearchMatch ? 'bg-yellow-500/20 border-l-2 border-yellow-500' :
                 isHighlighted ? 'bg-yellow-500/20 border-l-2 border-yellow-400' : ''
               } ${isSelected ? 'bg-cyan-500/30 border-l-2 border-cyan-400' : ''}`}
               onClick={() => onLineClick?.(lineNum)}
             >
-              <span className="text-slate-500 select-none w-12 text-right pr-3 py-0.5 flex-shrink-0">
+              <span className={`select-none w-12 text-right pr-3 py-0.5 flex-shrink-0 ${
+                isCurrentSearchMatch ? 'text-orange-400 font-bold' : 'text-slate-500'
+              }`}>
                 {lineNum}
               </span>
               <span 
                 className={`py-0.5 pr-4 whitespace-pre ${
                   type === 'cobol' ? 'text-amber-200' : 'text-green-200'
                 }`}
-                dangerouslySetInnerHTML={{ __html: highlightSyntax(line, type) }}
+                dangerouslySetInnerHTML={{ __html: highlightSearchTerm(highlightSyntax(line, type)) }}
               />
             </div>
           );
         })}
       </div>
     );
+  };
+
+  // Highlight search term in code
+  const highlightSearchTerm = (html: string) => {
+    if (!searchTerm.trim()) return html;
+    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return html.replace(regex, '<mark class="bg-yellow-400 text-black px-0.5 rounded">$1</mark>');
   };
 
   // Escape HTML to prevent XSS
@@ -314,6 +413,17 @@ export default function DiffPanel({
               )}
             </button>
 
+            {/* Search Toggle */}
+            <button
+              onClick={() => setShowSearch(!showSearch)}
+              className={`p-2 rounded-lg transition ${
+                showSearch ? 'bg-yellow-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              }`}
+              title="Search"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+
             {/* Fullscreen Toggle */}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
@@ -325,8 +435,79 @@ export default function DiffPanel({
           </div>
         </div>
 
+        {/* Search Bar */}
+        {showSearch && (
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-slate-800 rounded-lg px-2 py-1">
+              <button
+                onClick={() => setSearchSide('cobol')}
+                className={`px-2 py-1 text-xs rounded ${searchSide === 'cobol' ? 'bg-amber-500 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                COBOL
+              </button>
+              <button
+                onClick={() => setSearchSide('python')}
+                className={`px-2 py-1 text-xs rounded ${searchSide === 'python' ? 'bg-green-500 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                Python
+              </button>
+            </div>
+            <div className="flex-1 min-w-[200px] relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder={`Search in ${searchSide.toUpperCase()}...`}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => handleSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => navigateSearch('prev')}
+                disabled={(searchSide === 'cobol' ? searchResults.cobol : searchResults.python).length === 0}
+                className="p-1.5 rounded bg-slate-700 text-slate-400 hover:bg-slate-600 disabled:opacity-50"
+                title="Previous"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => navigateSearch('next')}
+                disabled={(searchSide === 'cobol' ? searchResults.cobol : searchResults.python).length === 0}
+                className="p-1.5 rounded bg-slate-700 text-slate-400 hover:bg-slate-600 disabled:opacity-50"
+                title="Next"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
+            {searchTerm && (
+              <span className="text-xs text-slate-400">
+                {(searchSide === 'cobol' ? searchResults.cobol : searchResults.python).length > 0 ? (
+                  <>
+                    {currentSearchIndex + 1}/{(searchSide === 'cobol' ? searchResults.cobol : searchResults.python).length} in {searchSide.toUpperCase()}
+                    {searchResults.cobol.length > 0 && searchResults.python.length > 0 && (
+                      <span className="ml-2 text-green-400">
+                        (+{searchSide === 'cobol' ? searchResults.python.length : searchResults.cobol.length} in {searchSide === 'cobol' ? 'Python' : 'COBOL'})
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-red-400">No results</span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Feature hints */}
-        {showLineMapping && (
+        {showLineMapping && !showSearch && (
           <div className="mt-2 text-xs text-slate-400 flex items-center gap-2">
             <Link2 className="w-3 h-3" />
             <span>Click on a COBOL line to highlight the corresponding Python code</span>
