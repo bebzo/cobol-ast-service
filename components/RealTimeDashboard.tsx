@@ -1,0 +1,506 @@
+"use client";
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Activity,
+  Clock,
+  Cpu,
+  HardDrive,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Bell,
+  BellOff,
+  RefreshCw,
+  Pause,
+  Play,
+  Settings,
+  X,
+  CheckCircle,
+  XCircle,
+  Zap,
+} from 'lucide-react';
+import {
+  DataPoint,
+  AnomalyAlert,
+  StatisticalSummary,
+  RealTimeAnomalyMonitor,
+  calculateStats,
+  detectZScoreAnomalies,
+  analyzeTrend,
+  formatAnomalyAlerts,
+} from '@/lib/anomaly-detector';
+
+interface MetricData {
+  id: string;
+  name: string;
+  value: number;
+  unit: string;
+  history: DataPoint[];
+  trend: 'up' | 'down' | 'stable';
+  status: 'normal' | 'warning' | 'critical';
+}
+
+interface RealTimeDashboardProps {
+  transpilationMetrics?: {
+    avgTime: number;
+    successRate: number;
+    linesProcessed: number;
+    memoryUsage: number;
+  };
+  onAlertDismiss?: (alertId: string) => void;
+}
+
+export default function RealTimeDashboard({ 
+  transpilationMetrics,
+  onAlertDismiss 
+}: RealTimeDashboardProps) {
+  const [isLive, setIsLive] = useState(true);
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
+  const [metrics, setMetrics] = useState<MetricData[]>([
+    {
+      id: 'transpile-time',
+      name: 'Temps de Transpilation',
+      value: 0,
+      unit: 'ms',
+      history: [],
+      trend: 'stable',
+      status: 'normal'
+    },
+    {
+      id: 'success-rate',
+      name: 'Taux de Succès',
+      value: 100,
+      unit: '%',
+      history: [],
+      trend: 'stable',
+      status: 'normal'
+    },
+    {
+      id: 'lines-per-sec',
+      name: 'Lignes/Seconde',
+      value: 0,
+      unit: 'L/s',
+      history: [],
+      trend: 'stable',
+      status: 'normal'
+    },
+    {
+      id: 'memory',
+      name: 'Mémoire Utilisée',
+      value: 0,
+      unit: 'MB',
+      history: [],
+      trend: 'stable',
+      status: 'normal'
+    }
+  ]);
+
+  const monitorsRef = useRef<Map<string, RealTimeAnomalyMonitor>>(new Map());
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Initialize monitors
+  useEffect(() => {
+    metrics.forEach(metric => {
+      if (!monitorsRef.current.has(metric.id)) {
+        monitorsRef.current.set(
+          metric.id,
+          new RealTimeAnomalyMonitor(50, (alert) => {
+            if (alertsEnabled) {
+              setAlerts(prev => [alert, ...prev].slice(0, 10));
+            }
+          })
+        );
+      }
+    });
+  }, [metrics, alertsEnabled]);
+
+  // Simulate real-time data (in production, this would come from WebSocket)
+  useEffect(() => {
+    if (!isLive) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      return;
+    }
+
+    intervalRef.current = setInterval(() => {
+      setMetrics(prev => prev.map(metric => {
+        // Generate simulated value or use actual metrics
+        let newValue: number;
+        let baseValue: number;
+
+        switch (metric.id) {
+          case 'transpile-time':
+            baseValue = transpilationMetrics?.avgTime || 150;
+            newValue = baseValue + (Math.random() - 0.5) * 50;
+            break;
+          case 'success-rate':
+            baseValue = transpilationMetrics?.successRate || 98;
+            newValue = Math.min(100, Math.max(90, baseValue + (Math.random() - 0.5) * 5));
+            break;
+          case 'lines-per-sec':
+            baseValue = transpilationMetrics?.linesProcessed || 500;
+            newValue = baseValue + (Math.random() - 0.5) * 100;
+            break;
+          case 'memory':
+            baseValue = transpilationMetrics?.memoryUsage || 128;
+            newValue = Math.max(50, baseValue + (Math.random() - 0.5) * 30);
+            break;
+          default:
+            newValue = metric.value;
+        }
+
+        const dataPoint: DataPoint = {
+          timestamp: Date.now(),
+          value: newValue,
+          label: metric.name
+        };
+
+        const newHistory = [...metric.history, dataPoint].slice(-50);
+        
+        // Update monitor
+        const monitor = monitorsRef.current.get(metric.id);
+        if (monitor) {
+          monitor.addDataPoint(dataPoint);
+        }
+
+        // Analyze trend
+        const trend = analyzeTrend(newHistory.slice(-10));
+        const trendDirection = trend.direction === 'increasing' ? 'up' :
+                              trend.direction === 'decreasing' ? 'down' : 'stable';
+
+        // Determine status based on thresholds
+        let status: 'normal' | 'warning' | 'critical' = 'normal';
+        if (metric.id === 'transpile-time' && newValue > 300) {
+          status = newValue > 500 ? 'critical' : 'warning';
+        } else if (metric.id === 'success-rate' && newValue < 95) {
+          status = newValue < 90 ? 'critical' : 'warning';
+        } else if (metric.id === 'memory' && newValue > 200) {
+          status = newValue > 300 ? 'critical' : 'warning';
+        }
+
+        return {
+          ...metric,
+          value: Math.round(newValue * 10) / 10,
+          history: newHistory,
+          trend: trendDirection,
+          status
+        };
+      }));
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [isLive, transpilationMetrics, alertsEnabled]);
+
+  const dismissAlert = useCallback((alertId: string) => {
+    setAlerts(prev => prev.filter(a => a.id !== alertId));
+    onAlertDismiss?.(alertId);
+  }, [onAlertDismiss]);
+
+  const clearAllAlerts = useCallback(() => {
+    setAlerts([]);
+  }, []);
+
+  return (
+    <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-slate-800 to-emerald-900/30 px-4 py-3 border-b border-slate-700">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Activity className="w-5 h-5 text-emerald-400" />
+            <h3 className="font-semibold text-white">Dashboard Temps Réel</h3>
+            {isLive && (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
+                <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                LIVE
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Alerts Toggle */}
+            <button
+              onClick={() => setAlertsEnabled(!alertsEnabled)}
+              className={`p-2 rounded-lg transition ${
+                alertsEnabled ? 'bg-amber-500 text-white' : 'bg-slate-700 text-slate-400'
+              }`}
+              title={alertsEnabled ? 'Désactiver les alertes' : 'Activer les alertes'}
+            >
+              {alertsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+            </button>
+
+            {/* Play/Pause */}
+            <button
+              onClick={() => setIsLive(!isLive)}
+              className={`p-2 rounded-lg transition ${
+                isLive ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-400'
+              }`}
+              title={isLive ? 'Pause' : 'Reprendre'}
+            >
+              {isLive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+            </button>
+
+            {/* Refresh */}
+            <button
+              onClick={() => {
+                setMetrics(prev => prev.map(m => ({ ...m, history: [] })));
+                monitorsRef.current.forEach(m => m.clear());
+              }}
+              className="p-2 rounded-lg bg-slate-700 text-slate-400 hover:bg-slate-600 transition"
+              title="Réinitialiser"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-4">
+        {metrics.map(metric => (
+          <MetricCard key={metric.id} metric={metric} />
+        ))}
+      </div>
+
+      {/* Charts Section */}
+      <div className="px-4 pb-4">
+        <div className="bg-slate-800/50 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-slate-300 mb-3">Historique (50 derniers points)</h4>
+          <div className="grid grid-cols-2 gap-4">
+            {metrics.slice(0, 2).map(metric => (
+              <MiniChart key={metric.id} metric={metric} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Alerts Panel */}
+      {alerts.length > 0 && (
+        <div className="border-t border-slate-700 px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium text-amber-400 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Alertes Anomalies ({alerts.length})
+            </h4>
+            <button
+              onClick={clearAllAlerts}
+              className="text-xs text-slate-400 hover:text-white"
+            >
+              Tout effacer
+            </button>
+          </div>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {alerts.map(alert => (
+              <AlertCard key={alert.id} alert={alert} onDismiss={dismissAlert} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stats Summary */}
+      <div className="border-t border-slate-700 px-4 py-3 bg-slate-800/30">
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center gap-4">
+            <span>Dernière mise à jour: {new Date().toLocaleTimeString()}</span>
+            <span>Alertes totales: {alerts.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1">
+              <CheckCircle className="w-3 h-3 text-green-400" />
+              {metrics.filter(m => m.status === 'normal').length}
+            </span>
+            <span className="flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3 text-amber-400" />
+              {metrics.filter(m => m.status === 'warning').length}
+            </span>
+            <span className="flex items-center gap-1">
+              <XCircle className="w-3 h-3 text-red-400" />
+              {metrics.filter(m => m.status === 'critical').length}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Metric Card Component
+function MetricCard({ metric }: { metric: MetricData }) {
+  const TrendIcon = metric.trend === 'up' ? TrendingUp :
+                   metric.trend === 'down' ? TrendingDown : Minus;
+
+  const statusColors = {
+    normal: 'bg-green-500/20 border-green-500/30',
+    warning: 'bg-amber-500/20 border-amber-500/30',
+    critical: 'bg-red-500/20 border-red-500/30'
+  };
+
+  const trendColors = {
+    up: 'text-green-400',
+    down: 'text-red-400',
+    stable: 'text-slate-400'
+  };
+
+  const icons: Record<string, React.ElementType> = {
+    'transpile-time': Clock,
+    'success-rate': Zap,
+    'lines-per-sec': Cpu,
+    'memory': HardDrive
+  };
+
+  const Icon = icons[metric.id] || Activity;
+
+  return (
+    <div className={`rounded-lg border p-4 ${statusColors[metric.status]}`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 text-slate-400">
+          <Icon className="w-4 h-4" />
+          <span className="text-xs">{metric.name}</span>
+        </div>
+        <TrendIcon className={`w-4 h-4 ${trendColors[metric.trend]}`} />
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span className="text-2xl font-bold text-white">{metric.value}</span>
+        <span className="text-sm text-slate-400">{metric.unit}</span>
+      </div>
+      {metric.history.length > 1 && (
+        <div className="mt-2">
+          <SparkLine data={metric.history.slice(-20)} status={metric.status} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Spark Line Component
+function SparkLine({ data, status }: { data: DataPoint[]; status: string }) {
+  if (data.length < 2) return null;
+
+  const values = data.map(d => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * 100;
+    const y = 100 - ((v - min) / range) * 100;
+    return `${x},${y}`;
+  }).join(' ');
+
+  const colors = {
+    normal: '#22c55e',
+    warning: '#f59e0b',
+    critical: '#ef4444'
+  };
+
+  return (
+    <svg className="w-full h-8" viewBox="0 0 100 100" preserveAspectRatio="none">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={colors[status as keyof typeof colors]}
+        strokeWidth="2"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+// Mini Chart Component
+function MiniChart({ metric }: { metric: MetricData }) {
+  const data = metric.history;
+  if (data.length < 2) {
+    return (
+      <div className="bg-slate-900 rounded p-3 h-32 flex items-center justify-center text-slate-500 text-xs">
+        En attente de données...
+      </div>
+    );
+  }
+
+  const values = data.map(d => d.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const stats = calculateStats(values);
+
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * 280 + 10;
+    const y = 90 - ((v - min) / range) * 70;
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <div className="bg-slate-900 rounded p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-slate-400">{metric.name}</span>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-slate-500">μ={stats.mean.toFixed(1)}</span>
+          <span className="text-slate-500">σ={stats.stdDev.toFixed(1)}</span>
+        </div>
+      </div>
+      <svg className="w-full h-24" viewBox="0 0 300 100">
+        {/* Grid lines */}
+        <line x1="10" y1="20" x2="290" y2="20" stroke="#334155" strokeWidth="0.5" />
+        <line x1="10" y1="55" x2="290" y2="55" stroke="#334155" strokeWidth="0.5" />
+        <line x1="10" y1="90" x2="290" y2="90" stroke="#334155" strokeWidth="0.5" />
+        
+        {/* Mean line */}
+        <line 
+          x1="10" 
+          y1={90 - ((stats.mean - min) / range) * 70} 
+          x2="290" 
+          y2={90 - ((stats.mean - min) / range) * 70} 
+          stroke="#6366f1" 
+          strokeWidth="1" 
+          strokeDasharray="4,4"
+        />
+
+        {/* Data line */}
+        <polyline
+          points={points}
+          fill="none"
+          stroke="#22d3ee"
+          strokeWidth="2"
+        />
+
+        {/* Y-axis labels */}
+        <text x="5" y="23" className="text-[8px] fill-slate-500">{max.toFixed(0)}</text>
+        <text x="5" y="93" className="text-[8px] fill-slate-500">{min.toFixed(0)}</text>
+      </svg>
+    </div>
+  );
+}
+
+// Alert Card Component
+function AlertCard({ alert, onDismiss }: { alert: AnomalyAlert; onDismiss: (id: string) => void }) {
+  const severityColors = {
+    info: 'bg-blue-500/10 border-blue-500/30 text-blue-300',
+    warning: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+    critical: 'bg-red-500/10 border-red-500/30 text-red-300'
+  };
+
+  return (
+    <div className={`flex items-start gap-3 p-2 rounded border ${severityColors[alert.severity]}`}>
+      <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs">{alert.message}</p>
+        {alert.suggestion && (
+          <p className="text-xs text-slate-400 mt-1">{alert.suggestion}</p>
+        )}
+      </div>
+      <button
+        onClick={() => onDismiss(alert.id)}
+        className="text-slate-500 hover:text-white"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
