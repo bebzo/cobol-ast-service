@@ -17,6 +17,7 @@ interface EquivalenceMetrics {
   numericalEquivalence: number;
   behavioralEquivalence: number;
   edgeCaseCoverage: number;
+  hasEdgeCaseTests: boolean;
   performanceDeviation: number;
   semanticCoverage: number;
   propertyTestsPassed: number;
@@ -48,6 +49,7 @@ export default function EquivalenceDashboard({
     numericalEquivalence: 0,
     behavioralEquivalence: 0,
     edgeCaseCoverage: 0,
+    hasEdgeCaseTests: false,
     performanceDeviation: 0,
     semanticCoverage: 0,
     propertyTestsPassed: 0,
@@ -79,17 +81,41 @@ export default function EquivalenceDashboard({
     const coverageMetrics = analysis?.coverage_metrics || {};
     const translationRate = coverageMetrics.translation_rate || (passRate * 100);
 
+    // Count numerical tests (tests with numbers, calculations, compute)
+    const numericalTests = testResults.details.filter(
+      (t) => t.name.includes("calc") || t.name.includes("compute") || t.name.includes("interest") || t.name.includes("amount")
+    );
+    const numericalPassed = numericalTests.filter((t) => t.status === "passed").length;
+
+    // Count behavioral tests (tests with behavior, flow, logic)
+    const behavioralTests = testResults.details.filter(
+      (t) => t.name.includes("test_") || t.name.includes("should") || t.name.includes("when")
+    );
+    const behavioralPassed = behavioralTests.filter((t) => t.status === "passed").length;
+
+    // Calculate performance deviation from analysis metadata if available
+    const perfData = analysis?.performance_metrics || {};
+    const measuredDeviation = perfData.deviation_percent ?? 0;
+
     const newMetrics: EquivalenceMetrics = {
-      numericalEquivalence: Math.min(99.9, passRate * 100 + Math.random() * 2),
-      behavioralEquivalence: Math.min(100, passRate * 98 + 2),
+      // Numerical equivalence: based on numerical/calculation tests, fallback to overall pass rate
+      numericalEquivalence: numericalTests.length > 0 
+        ? (numericalPassed / numericalTests.length) * 100 
+        : passRate * 100,
+      // Behavioral equivalence: based on all tests pass rate
+      behavioralEquivalence: passRate * 100,
+      // Edge case coverage: based on edge case tests
       edgeCaseCoverage: edgeCaseTests.length > 0 
         ? (edgeCasePassed / edgeCaseTests.length) * 100 
-        : passRate * 85,
-      performanceDeviation: Math.random() * 25 - 5, // -5% to +20%
+        : 0, // 0 if no edge case tests exist
+      // Performance deviation: from analysis or 0 if not measured
+      performanceDeviation: measuredDeviation,
+      // Semantic coverage from backend analysis
       semanticCoverage: translationRate,
       propertyTestsPassed: propertyPassed,
       propertyTestsTotal: propertyTests.length,
       regressionSafety: testResults.failed === 0,
+      hasEdgeCaseTests: edgeCaseTests.length > 0,
     };
 
     setMetrics(newMetrics);
@@ -108,6 +134,7 @@ export default function EquivalenceDashboard({
         numericalEquivalence: newMetrics.numericalEquivalence * eased,
         behavioralEquivalence: newMetrics.behavioralEquivalence * eased,
         edgeCaseCoverage: newMetrics.edgeCaseCoverage * eased,
+        hasEdgeCaseTests: newMetrics.hasEdgeCaseTests,
         performanceDeviation: newMetrics.performanceDeviation * eased,
         semanticCoverage: newMetrics.semanticCoverage * eased,
         propertyTestsPassed: Math.round(newMetrics.propertyTestsPassed * eased),
@@ -241,10 +268,10 @@ export default function EquivalenceDashboard({
             <AlertTriangle className={`w-4 h-4 ${getStatusColor(animatedMetrics.edgeCaseCoverage, [60, 80])}`} />
             <span className="text-xs text-slate-400">Edge Cases</span>
           </div>
-          <p className={`text-2xl font-bold tabular-nums ${getStatusColor(animatedMetrics.edgeCaseCoverage, [60, 80])}`}>
-            {animatedMetrics.edgeCaseCoverage.toFixed(1)}%
+          <p className={`text-2xl font-bold tabular-nums ${animatedMetrics.hasEdgeCaseTests ? getStatusColor(animatedMetrics.edgeCaseCoverage, [60, 80]) : 'text-slate-500'}`}>
+            {animatedMetrics.hasEdgeCaseTests ? `${animatedMetrics.edgeCaseCoverage.toFixed(1)}%` : 'N/A'}
           </p>
-          <p className="text-[10px] text-slate-500 mt-1">Boundary conditions</p>
+          <p className="text-[10px] text-slate-500 mt-1">{animatedMetrics.hasEdgeCaseTests ? 'Boundary conditions' : 'No edge tests'}</p>
         </div>
 
         {/* Semantic Coverage */}
