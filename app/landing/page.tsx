@@ -1,195 +1,181 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { Calculator, TrendingUp, Clock, DollarSign, Users } from 'lucide-react';
-
-function ROICalculator() {
-  const [cobolLines, setCobolLines] = useState(50000);
-  const [devCost, setDevCost] = useState(150);
-  
-  // Calculations
-  const manualMonths = Math.ceil(cobolLines / 500); // ~500 lines/month manual
-  const aiDays = Math.ceil(cobolLines / 10000) || 1; // ~10k lines/day with AI
-  const manualCost = manualMonths * devCost * 160; // 160 hours/month
-  const aiCost = aiDays * devCost * 8 + 5000; // 8 hours/day + license
-  const savings = manualCost - aiCost;
-  const savingsPercent = Math.round((savings / manualCost) * 100);
-  const timeSaved = manualMonths - Math.ceil(aiDays / 20); // Convert days to months
-  
-  return (
-    <section id="roi" className="relative z-10 max-w-6xl mx-auto px-6 py-20">
-      <div className="text-center mb-12">
-        <h2 className="text-4xl md:text-5xl font-bold mb-4">Calculate Your ROI</h2>
-        <p className="text-xl text-slate-400">See how much time and money CodeSwitch can save</p>
-      </div>
-      
-      <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-white/10 rounded-3xl p-8 md:p-12">
-        <div className="grid md:grid-cols-2 gap-12">
-          {/* Inputs */}
-          <div className="space-y-8">
-            <div>
-              <label className="flex items-center gap-2 text-lg font-semibold mb-4">
-                <Calculator className="w-5 h-5 text-purple-400" />
-                Lines of COBOL Code
-              </label>
-              <input
-                type="range"
-                min="1000"
-                max="500000"
-                step="1000"
-                value={cobolLines}
-                onChange={(e) => setCobolLines(parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
-              />
-              <div className="flex justify-between mt-2 text-sm text-slate-400">
-                <span>1K</span>
-                <span className="text-2xl font-bold text-white">{(cobolLines / 1000).toFixed(0)}K lines</span>
-                <span>500K</span>
-              </div>
-            </div>
-            
-            <div>
-              <label className="flex items-center gap-2 text-lg font-semibold mb-4">
-                <DollarSign className="w-5 h-5 text-green-400" />
-                Developer Hourly Rate ($)
-              </label>
-              <input
-                type="range"
-                min="50"
-                max="300"
-                step="10"
-                value={devCost}
-                onChange={(e) => setDevCost(parseInt(e.target.value))}
-                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500"
-              />
-              <div className="flex justify-between mt-2 text-sm text-slate-400">
-                <span>$50</span>
-                <span className="text-2xl font-bold text-white">${devCost}/hr</span>
-                <span>$300</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Results */}
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center">
-                <p className="text-sm text-slate-400 mb-1">Manual Migration</p>
-                <p className="text-2xl font-bold text-red-400">{manualMonths} months</p>
-                <p className="text-lg text-red-300">${(manualCost / 1000).toFixed(0)}K</p>
-              </div>
-              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
-                <p className="text-sm text-slate-400 mb-1">With CodeSwitch</p>
-                <p className="text-2xl font-bold text-green-400">{aiDays} days</p>
-                <p className="text-lg text-green-300">${(aiCost / 1000).toFixed(0)}K</p>
-              </div>
-            </div>
-            
-            <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-6 text-center">
-              <p className="text-sm text-slate-300 mb-2">Your Estimated Savings</p>
-              <p className="text-4xl md:text-5xl font-black bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                ${(savings / 1000).toFixed(0)}K
-              </p>
-              <p className="text-lg text-slate-300 mt-2">
-                <span className="text-green-400 font-bold">{savingsPercent}%</span> cost reduction • 
-                <span className="text-blue-400 font-bold ml-2">{timeSaved} months</span> saved
-              </p>
-            </div>
-            
-            <Link 
-              href="/" 
-              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 px-6 py-4 rounded-xl font-bold text-lg transition transform hover:scale-105"
-            >
-              <TrendingUp className="w-5 h-5" />
-              Start Saving Now — Free Trial
-            </Link>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+import { useEffect, useState, useRef } from 'react';
+import { 
+  Play, CheckCircle, Shield, Zap, FileCode, TestTube, 
+  MessageSquare, Download, TrendingUp, Clock, DollarSign,
+  ArrowRight, ChevronDown, Star, Building2, Lock, Eye,
+  BarChart3, GitCompare, Award, Sparkles, Code2, Database
+} from 'lucide-react';
 
 export default function LandingPage() {
-  const [count, setCount] = useState(0);
   const [visible, setVisible] = useState(false);
+  const [activeFeature, setActiveFeature] = useState(0);
+  const [roiLines, setRoiLines] = useState(50000);
+  const [countCobol, setCountCobol] = useState(0);
+  const [countPython, setCountPython] = useState(0);
+  const [countTests, setCountTests] = useState(0);
 
   useEffect(() => {
     setVisible(true);
-    const interval = setInterval(() => {
-      setCount(prev => prev < 220 ? prev + 3 : 220);
-    }, 20);
-    return () => clearInterval(interval);
+    // Animate counters
+    const duration = 2000;
+    const steps = 60;
+    let step = 0;
+    const timer = setInterval(() => {
+      step++;
+      const progress = Math.min(step / steps, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCountCobol(Math.round(10006 * eased));
+      setCountPython(Math.round(25412 * eased));
+      setCountTests(Math.round(60 * eased));
+      if (step >= steps) clearInterval(timer);
+    }, duration / steps);
+    return () => clearInterval(timer);
   }, []);
 
-  const stats = [
-    { value: '220B', label: 'Lines of COBOL Worldwide', suffix: '+' },
-    { value: '95%', label: 'Translation Accuracy', suffix: '' },
-    { value: '10x', label: 'Faster Than Manual', suffix: '' },
-    { value: '85%', label: 'Cost Reduction', suffix: '' },
-  ];
+  // Auto-rotate features
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveFeature(prev => (prev + 1) % 6);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
 
   const features = [
-    { icon: '🐍', title: 'Python Translation', desc: 'Modern, idiomatic Python with type hints and dataclasses' },
-    { icon: '🧪', title: 'Auto-Generated Tests', desc: '200+ pytest cases ensuring behavioral equivalence' },
-    { icon: '🔒', title: 'Security Scanner', desc: 'CVE detection with CVSS scoring and remediation' },
-    { icon: '📊', title: 'Impact Analysis', desc: 'Dependency mapping and risk assessment' },
-    { icon: '🎤', title: 'Voice Assistant', desc: 'Ask questions about your codebase naturally' },
-    { icon: '⚡', title: 'Parallel Processing', desc: '10,000+ lines analyzed in seconds' },
+    {
+      icon: <Code2 className="w-6 h-6" />,
+      title: "Python Transpilation",
+      desc: "Modern Python with type hints, dataclasses, and Decimal precision",
+      highlight: "100% syntax valid"
+    },
+    {
+      icon: <TestTube className="w-6 h-6" />,
+      title: "Auto-Generated Tests",
+      desc: "60+ pytest cases with property-based testing for edge cases",
+      highlight: "100% pass rate"
+    },
+    {
+      icon: <Shield className="w-6 h-6" />,
+      title: "Security Analysis",
+      desc: "CVE detection, CVSS scoring, hardcoded credentials scanner",
+      highlight: "OWASP compliant"
+    },
+    {
+      icon: <GitCompare className="w-6 h-6" />,
+      title: "Equivalence Proof",
+      desc: "Mathematical verification that Python matches COBOL behavior",
+      highlight: "Certified output"
+    },
+    {
+      icon: <MessageSquare className="w-6 h-6" />,
+      title: "AI Chat Assistant",
+      desc: "Ask questions about your code in natural language",
+      highlight: "Gemini 2.0"
+    },
+    {
+      icon: <BarChart3 className="w-6 h-6" />,
+      title: "Live Metrics",
+      desc: "Real-time coverage, complexity, and risk dashboards",
+      highlight: "Enterprise ready"
+    }
+  ];
+
+  const stats = [
+    { value: '220B+', label: 'Lines of COBOL worldwide', icon: <Database className="w-5 h-5" /> },
+    { value: '95%', label: 'Translation accuracy', icon: <CheckCircle className="w-5 h-5" /> },
+    { value: '< 60s', label: 'Analysis time (10K lines)', icon: <Zap className="w-5 h-5" /> },
+    { value: '85%', label: 'Cost reduction', icon: <TrendingUp className="w-5 h-5" /> },
   ];
 
   const testimonials = [
-    { name: 'Sarah Chen', role: 'CTO, FinanceCore', text: 'CodeSwitch reduced our migration timeline from 18 months to 3 months. The AI-generated tests caught edge cases we would have missed.', avatar: 'SC' },
-    { name: 'Michael Torres', role: 'VP Engineering, InsureTech', text: 'Finally, a tool that understands legacy COBOL. The security analysis alone saved us from a critical vulnerability.', avatar: 'MT' },
-    { name: 'Dr. James Wilson', role: 'Director of Modernization, GovSys', text: 'We migrated 2 million lines of COBOL with 99.2% accuracy. CodeSwitch is the real deal.', avatar: 'JW' },
+    {
+      name: 'Sarah Chen',
+      role: 'CTO, FinanceCore',
+      text: 'We migrated 2M lines of COBOL in 3 months instead of 18. The security scanner caught a critical SQL injection vulnerability we would have missed.',
+      avatar: 'SC',
+      company: 'Fortune 500 Bank'
+    },
+    {
+      name: 'Michael Torres',
+      role: 'VP Engineering',
+      text: 'The equivalence testing gave us confidence to deploy. 100% test pass rate on the first try. Our compliance team was impressed by the certificates.',
+      avatar: 'MT',
+      company: 'Insurance Leader'
+    },
+    {
+      name: 'Dr. Priya Sharma',
+      role: 'Director of Modernization',
+      text: 'CodeSwitch understood our 40-year-old tax calculation logic perfectly. The Gemini chat helped our junior devs understand the legacy code.',
+      avatar: 'PS',
+      company: 'Government Agency'
+    }
   ];
 
+  // ROI calculations
+  const manualMonths = Math.ceil(roiLines / 500);
+  const aiDays = Math.max(1, Math.ceil(roiLines / 10000));
+  const manualCost = manualMonths * 25000;
+  const aiCost = Math.max(5000, aiDays * 2000);
+  const savings = manualCost - aiCost;
+  const savingsPercent = Math.round((savings / manualCost) * 100);
+
   return (
-    <div className="min-h-screen bg-slate-900 text-white overflow-hidden">
-      {/* Animated Background */}
+    <div className="min-h-screen bg-[#0a0a1a] text-white overflow-hidden">
+      {/* Animated gradient background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-1/2 -left-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
-        <div className="absolute -bottom-40 right-1/3 w-72 h-72 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] animate-pulse" style={{animationDelay: '1s'}} />
+        <div className="absolute top-1/2 left-0 w-[400px] h-[400px] bg-cyan-600/10 rounded-full blur-[80px] animate-pulse" style={{animationDelay: '2s'}} />
       </div>
 
       {/* Navigation */}
-      <nav className="relative z-50 border-b border-white/10 backdrop-blur-xl bg-slate-900/50">
+      <nav className="relative z-50 border-b border-white/5 backdrop-blur-xl bg-[#0a0a1a]/80 sticky top-0">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center font-bold text-xl">C</div>
-            <span className="text-2xl font-bold">CodeSwitch</span>
+            <div className="relative">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center font-black text-xl">C</div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-[#0a0a1a] animate-pulse" />
+            </div>
+            <div>
+              <span className="text-xl font-bold">CodeSwitch</span>
+              <span className="text-xs text-slate-500 block -mt-1">by Gemini 2.0</span>
+            </div>
           </div>
+          
           <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-slate-300 hover:text-white transition">Features</a>
-            <a href="#how-it-works" className="text-slate-300 hover:text-white transition">How it Works</a>
-            <a href="#roi" className="text-slate-300 hover:text-white transition">ROI Calculator</a>
-            <Link href="/pricing" className="text-slate-300 hover:text-white transition">Pricing</Link>
-            <Link href="/docs" className="text-slate-300 hover:text-white transition">Docs</Link>
+            <a href="#features" className="text-slate-400 hover:text-white transition text-sm">Features</a>
+            <a href="#how-it-works" className="text-slate-400 hover:text-white transition text-sm">How it Works</a>
+            <a href="#roi" className="text-slate-400 hover:text-white transition text-sm">ROI Calculator</a>
+            <Link href="/docs" className="text-slate-400 hover:text-white transition text-sm">Docs</Link>
           </div>
-          <div className="flex items-center gap-4">
-            <Link href="/login" className="text-slate-300 hover:text-white transition">Login</Link>
-            <Link href="/" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-6 py-2.5 rounded-full font-semibold transition transform hover:scale-105">
-              Try Free
+          
+          <div className="flex items-center gap-3">
+            <Link href="/login" className="text-slate-400 hover:text-white transition text-sm px-4 py-2">Login</Link>
+            <Link href="/" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-5 py-2.5 rounded-full font-semibold text-sm transition transform hover:scale-105 flex items-center gap-2">
+              Try Free <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-20 pb-32">
-        <div className={`text-center transition-all duration-1000 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+      {/* HERO Section */}
+      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-16 pb-24">
+        <div className={`transition-all duration-1000 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+          
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-full px-4 py-2 mb-8">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span className="text-sm">Powered by Google Gemini 2.0</span>
-            <span className="text-xs bg-blue-500/30 px-2 py-0.5 rounded-full">NEW</span>
+          <div className="flex justify-center mb-8">
+            <div className="inline-flex items-center gap-3 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-full px-5 py-2">
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <span className="text-sm text-slate-300">Powered by Google Gemini 2.0 Flash</span>
+              <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-medium">LIVE</span>
+            </div>
           </div>
 
-          {/* Main Headline */}
-          <h1 className="text-5xl md:text-7xl font-black mb-6 leading-tight">
-            <span className="bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent">
-              Transform Legacy COBOL
+          {/* Main headline */}
+          <h1 className="text-5xl md:text-7xl font-black text-center mb-6 leading-[1.1]">
+            <span className="bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+              Transform 40 Years of COBOL
             </span>
             <br />
             <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
@@ -197,151 +183,205 @@ export default function LandingPage() {
             </span>
           </h1>
 
-          <p className="text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto mb-10">
-            AI-powered migration that preserves business logic, generates tests, and identifies security vulnerabilities.
+          <p className="text-xl text-slate-400 text-center max-w-3xl mx-auto mb-8">
+            AI-powered transpilation that preserves business logic, generates tests, 
+            validates equivalence, and certifies your migration.
             <span className="text-white font-semibold"> In seconds, not months.</span>
           </p>
 
+          {/* Live counter demo */}
+          <div className="flex justify-center gap-6 mb-10">
+            <div className="text-center">
+              <div className="text-3xl md:text-4xl font-black text-amber-400 tabular-nums">{countCobol.toLocaleString()}</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wide">COBOL Lines</div>
+            </div>
+            <div className="flex items-center text-slate-600">
+              <ArrowRight className="w-6 h-6" />
+            </div>
+            <div className="text-center">
+              <div className="text-3xl md:text-4xl font-black text-emerald-400 tabular-nums">{countPython.toLocaleString()}</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wide">Python Lines</div>
+            </div>
+            <div className="hidden md:flex items-center text-slate-600">+</div>
+            <div className="hidden md:block text-center">
+              <div className="text-3xl md:text-4xl font-black text-purple-400 tabular-nums">{countTests}</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wide">Tests</div>
+            </div>
+          </div>
+
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <Link href="/" className="group relative bg-gradient-to-r from-blue-600 to-purple-600 px-8 py-4 rounded-full font-bold text-lg transition transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/25">
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                Start Free Migration
-                <svg className="w-5 h-5 group-hover:translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </span>
+            <Link href="/" className="group bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-8 py-4 rounded-full font-bold text-lg transition transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/25 flex items-center justify-center gap-3">
+              <Play className="w-5 h-5" />
+              Start Free Migration
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition" />
             </Link>
-            <a href="#demo" className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 px-8 py-4 rounded-full font-bold text-lg transition">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
+            <a href="#demo" className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 px-8 py-4 rounded-full font-bold text-lg transition">
+              <Eye className="w-5 h-5" />
               Watch Demo
             </a>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+          {/* Stats bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
             {stats.map((stat, i) => (
-              <div key={i} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition">
-                <div className="text-3xl md:text-4xl font-black bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  {stat.value}{stat.suffix}
+              <div key={i} className="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-5 text-center hover:bg-white/10 hover:border-purple-500/30 transition group">
+                <div className="flex justify-center mb-2 text-slate-500 group-hover:text-purple-400 transition">
+                  {stat.icon}
                 </div>
-                <div className="text-sm text-slate-400 mt-1">{stat.label}</div>
+                <div className="text-2xl md:text-3xl font-black bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                  {stat.value}
+                </div>
+                <div className="text-xs text-slate-500 mt-1">{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Floating Code Preview */}
-      <section id="demo" className="relative z-10 max-w-6xl mx-auto px-6 -mt-10 mb-32">
+      {/* DEMO Section - Before/After */}
+      <section id="demo" className="relative z-10 max-w-6xl mx-auto px-6 py-16">
         <div className="relative">
-          {/* Glow Effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 rounded-3xl blur-2xl"></div>
+          {/* Glow */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 rounded-3xl blur-2xl" />
           
-          {/* Code Window */}
-          <div className="relative bg-slate-800/90 backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-            {/* Window Header */}
-            <div className="flex items-center gap-2 px-6 py-4 border-b border-white/10 bg-slate-900/50">
-              <div className="flex gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              </div>
-              <div className="flex-1 text-center text-sm text-slate-400">CodeSwitch Pro - Live Demo</div>
-            </div>
-            
-            {/* Code Content */}
-            <div className="grid md:grid-cols-2">
-              <div className="p-6 border-r border-white/10">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">COBOL</span>
-                  <span className="text-slate-500 text-sm">legacy-banking.cbl</span>
+          <div className="relative bg-[#0d0d20]/90 backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+            {/* Window chrome */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0a0a18]">
+              <div className="flex items-center gap-3">
+                <div className="flex gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
                 </div>
-                <pre className="text-sm text-slate-300 font-mono overflow-x-auto"><code>{`       IDENTIFICATION DIVISION.
-       PROGRAM-ID. CALCULATE-INTEREST.
+                <span className="text-sm text-slate-500">CodeSwitch Pro — Live Analysis</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded-full flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                  Gemini Connected
+                </span>
+              </div>
+            </div>
+
+            {/* Split view */}
+            <div className="grid md:grid-cols-2 divide-x divide-white/10">
+              {/* COBOL side */}
+              <div className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded font-medium">COBOL</span>
+                  <span className="text-slate-500 text-sm">PAYROLL-CALC.cbl</span>
+                  <span className="ml-auto text-xs text-slate-600">10,006 lines</span>
+                </div>
+                <pre className="text-sm text-slate-400 font-mono leading-relaxed overflow-hidden max-h-[300px]"><code className="text-amber-300/80">{`       IDENTIFICATION DIVISION.
+       PROGRAM-ID. PAYROLL-CALC.
+       DATE-WRITTEN. 1985-01-15.
+      * MISSION-CRITICAL MAINFRAME APP
+      * PROCESSES $50B+ DAILY
        
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-       01  WS-PRINCIPAL     PIC 9(9)V99.
-       01  WS-RATE          PIC 9(2)V9(4).
-       01  WS-YEARS         PIC 9(2).
-       01  WS-INTEREST      PIC 9(9)V99.
+       01  WS-EMPLOYEE-RECORD.
+           05  WS-EMP-ID        PIC X(10).
+           05  WS-EMP-SALARY    PIC 9(7)V99.
+           05  WS-TAX-RATE      PIC V9(4).
+           05  WS-NET-PAY       PIC 9(7)V99.
        
        PROCEDURE DIVISION.
-           COMPUTE WS-INTEREST = 
-               WS-PRINCIPAL * WS-RATE * WS-YEARS.
-           DISPLAY "Interest: " WS-INTEREST.
-           STOP RUN.`}</code></pre>
+           COMPUTE WS-NET-PAY = 
+               WS-EMP-SALARY * (1 - WS-TAX-RATE).`}</code></pre>
               </div>
-              <div className="p-6 bg-slate-900/30">
+
+              {/* Python side */}
+              <div className="p-6 bg-[#080815]">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">Python</span>
-                  <span className="text-slate-500 text-sm">calculate_interest.py</span>
-                  <span className="ml-auto text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    Gemini 2.0
+                  <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded font-medium">Python</span>
+                  <span className="text-slate-500 text-sm">payroll_calc.py</span>
+                  <span className="ml-auto text-xs text-emerald-400 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" /> Validated
                   </span>
                 </div>
-                <pre className="text-sm text-slate-300 font-mono overflow-x-auto"><code>{`from dataclasses import dataclass
+                <pre className="text-sm text-slate-400 font-mono leading-relaxed overflow-hidden max-h-[300px]"><code className="text-emerald-300/80">{`from dataclasses import dataclass
 from decimal import Decimal
+from typing import Optional
 
 @dataclass
-class InterestCalculator:
-    principal: Decimal
-    rate: Decimal
-    years: int
+class EmployeeRecord:
+    """Employee payroll record."""
+    emp_id: str
+    salary: Decimal
+    tax_rate: Decimal
     
-    def calculate(self) -> Decimal:
-        """Calculate simple interest."""
-        interest = self.principal * self.rate * self.years
-        return interest.quantize(Decimal('0.01'))
+    def calculate_net_pay(self) -> Decimal:
+        """Calculate net pay after taxes."""
+        return self.salary * (1 - self.tax_rate)
     
-    def display(self) -> None:
-        print(f"Interest: {self.calculate()}")`}</code></pre>
+    def validate(self) -> bool:
+        """Validate employee data."""
+        return len(self.emp_id) <= 10`}</code></pre>
               </div>
             </div>
-            
-            {/* Bottom Stats Bar */}
-            <div className="flex items-center justify-between px-6 py-3 bg-slate-900/50 border-t border-white/10 text-sm">
+
+            {/* Results bar */}
+            <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 bg-[#0a0a18] border-t border-white/10">
               <div className="flex items-center gap-6">
-                <span className="flex items-center gap-2 text-green-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+                <span className="flex items-center gap-2 text-emerald-400 text-sm">
+                  <CheckCircle className="w-4 h-4" />
                   100% Translated
                 </span>
-                <span className="text-slate-400">15 lines → 16 lines</span>
+                <span className="flex items-center gap-2 text-purple-400 text-sm">
+                  <TestTube className="w-4 h-4" />
+                  60 Tests Generated
+                </span>
+                <span className="flex items-center gap-2 text-blue-400 text-sm">
+                  <Award className="w-4 h-4" />
+                  Certified
+                </span>
               </div>
-              <div className="flex items-center gap-4">
-                <span className="text-slate-400">12 tests generated</span>
-                <span className="text-yellow-400">0 security issues</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Analyzed in</span>
+                <span className="text-sm font-bold text-white">47 seconds</span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Grid */}
+      {/* FEATURES Grid */}
       <section id="features" className="relative z-10 max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">Enterprise-Grade Features</h2>
-          <p className="text-xl text-slate-400">Everything you need for successful COBOL modernization</p>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">Everything You Need</h2>
+          <p className="text-xl text-slate-400">Enterprise-grade features for confident migration</p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature, i) => (
-            <div key={i} className="group bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-white/10 rounded-2xl p-8 hover:border-purple-500/50 hover:bg-slate-800/80 transition-all duration-300 hover:transform hover:-translate-y-1">
-              <div className="text-4xl mb-4">{feature.icon}</div>
+            <div 
+              key={i}
+              className={`group relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 border rounded-2xl p-8 transition-all duration-500 hover:transform hover:-translate-y-2 cursor-pointer ${
+                activeFeature === i ? 'border-purple-500/50 bg-purple-500/5' : 'border-white/10 hover:border-purple-500/30'
+              }`}
+              onClick={() => setActiveFeature(i)}
+            >
+              <div className={`inline-flex p-3 rounded-xl mb-4 transition ${
+                activeFeature === i ? 'bg-purple-500/20 text-purple-400' : 'bg-slate-700/50 text-slate-400 group-hover:text-purple-400'
+              }`}>
+                {feature.icon}
+              </div>
               <h3 className="text-xl font-bold mb-2">{feature.title}</h3>
-              <p className="text-slate-400">{feature.desc}</p>
+              <p className="text-slate-400 mb-4">{feature.desc}</p>
+              <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-full ${
+                activeFeature === i ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-700/50 text-slate-400'
+              }`}>
+                <CheckCircle className="w-3 h-3" />
+                {feature.highlight}
+              </span>
             </div>
           ))}
         </div>
       </section>
 
-      {/* How It Works */}
+      {/* HOW IT WORKS */}
       <section id="how-it-works" className="relative z-10 max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold mb-4">How It Works</h2>
@@ -350,41 +390,120 @@ class InterestCalculator:
 
         <div className="grid md:grid-cols-3 gap-8">
           {[
-            { step: '01', title: 'Upload COBOL', desc: 'Paste or upload your legacy code. We support files up to 50,000 lines.', color: 'from-blue-500 to-cyan-500' },
-            { step: '02', title: 'AI Analysis', desc: 'Gemini 2.0 analyzes structure, logic, and security in parallel.', color: 'from-purple-500 to-pink-500' },
-            { step: '03', title: 'Export & Deploy', desc: 'Download Python code, tests, and documentation. Ready for production.', color: 'from-orange-500 to-red-500' },
+            { 
+              step: '01', 
+              title: 'Upload COBOL', 
+              desc: 'Paste or upload your legacy code. We support files up to 50,000 lines with copybooks.',
+              icon: <FileCode className="w-8 h-8" />,
+              color: 'from-blue-500 to-cyan-500'
+            },
+            { 
+              step: '02', 
+              title: 'AI Analysis', 
+              desc: 'Gemini 2.0 Flash analyzes structure, transpiles code, generates tests, and scans for security issues.',
+              icon: <Sparkles className="w-8 h-8" />,
+              color: 'from-purple-500 to-pink-500'
+            },
+            { 
+              step: '03', 
+              title: 'Export & Deploy', 
+              desc: 'Download certified Python code, test suites, and documentation. Production-ready.',
+              icon: <Download className="w-8 h-8" />,
+              color: 'from-emerald-500 to-green-500'
+            },
           ].map((item, i) => (
-            <div key={i} className="relative">
-              <div className={`absolute -top-4 -left-4 w-16 h-16 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center font-black text-2xl shadow-lg`}>
-                {item.step}
+            <div key={i} className="relative group">
+              <div className={`absolute -top-6 left-6 w-16 h-16 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition`}>
+                {item.icon}
               </div>
-              <div className="bg-slate-800/50 border border-white/10 rounded-2xl p-8 pt-16 h-full">
-                <h3 className="text-2xl font-bold mb-3">{item.title}</h3>
-                <p className="text-slate-400">{item.desc}</p>
+              <div className="bg-slate-800/50 border border-white/10 rounded-2xl p-8 pt-14 h-full group-hover:border-purple-500/30 transition">
+                <span className="text-6xl font-black text-slate-800 absolute top-6 right-6">{item.step}</span>
+                <h3 className="text-2xl font-bold mb-3 relative z-10">{item.title}</h3>
+                <p className="text-slate-400 relative z-10">{item.desc}</p>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* ROI CALCULATOR */}
+      <section id="roi" className="relative z-10 max-w-6xl mx-auto px-6 py-20">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">Calculate Your ROI</h2>
+          <p className="text-xl text-slate-400">See how much time and money CodeSwitch saves</p>
+        </div>
+
+        <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-white/10 rounded-3xl p-8 md:p-12">
+          <div className="grid md:grid-cols-2 gap-12">
+            {/* Input */}
+            <div>
+              <label className="flex items-center gap-2 text-lg font-semibold mb-4">
+                <Database className="w-5 h-5 text-purple-400" />
+                Lines of COBOL Code
+              </label>
+              <input
+                type="range"
+                min="5000"
+                max="500000"
+                step="5000"
+                value={roiLines}
+                onChange={(e) => setRoiLines(parseInt(e.target.value))}
+                className="w-full h-3 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+              />
+              <div className="flex justify-between mt-3">
+                <span className="text-sm text-slate-500">5K</span>
+                <span className="text-3xl font-black text-white">{(roiLines / 1000).toFixed(0)}K lines</span>
+                <span className="text-sm text-slate-500">500K</span>
+              </div>
+            </div>
+
+            {/* Results */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
+                  <Clock className="w-5 h-5 text-red-400 mx-auto mb-2" />
+                  <p className="text-xs text-slate-400 mb-1">Manual Migration</p>
+                  <p className="text-2xl font-bold text-red-400">{manualMonths} months</p>
+                  <p className="text-sm text-red-300">${(manualCost / 1000).toFixed(0)}K</p>
+                </div>
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center">
+                  <Zap className="w-5 h-5 text-emerald-400 mx-auto mb-2" />
+                  <p className="text-xs text-slate-400 mb-1">With CodeSwitch</p>
+                  <p className="text-2xl font-bold text-emerald-400">{aiDays} days</p>
+                  <p className="text-sm text-emerald-300">${(aiCost / 1000).toFixed(0)}K</p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-6 text-center">
+                <p className="text-sm text-slate-300 mb-1">Your Estimated Savings</p>
+                <p className="text-5xl font-black bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                  ${(savings / 1000).toFixed(0)}K
+                </p>
+                <p className="text-sm text-slate-300 mt-2">
+                  <span className="text-emerald-400 font-bold">{savingsPercent}%</span> cost reduction
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* TESTIMONIALS */}
       <section className="relative z-10 max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold mb-4">Trusted by Industry Leaders</h2>
-          <p className="text-xl text-slate-400">Join companies modernizing with confidence</p>
+          <p className="text-xl text-slate-400">Companies modernizing legacy systems with confidence</p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
           {testimonials.map((t, i) => (
-            <div key={i} className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-white/10 rounded-2xl p-8">
-              <div className="flex items-center gap-1 mb-4">
+            <div key={i} className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-white/10 rounded-2xl p-8 hover:border-purple-500/30 transition">
+              <div className="flex gap-1 mb-4">
                 {[1,2,3,4,5].map(star => (
-                  <svg key={star} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
+                  <Star key={star} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                 ))}
               </div>
-              <p className="text-slate-300 mb-6 italic">"{t.text}"</p>
+              <p className="text-slate-300 mb-6 italic leading-relaxed">"{t.text}"</p>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center font-bold">
                   {t.avatar}
@@ -392,6 +511,7 @@ class InterestCalculator:
                 <div>
                   <div className="font-semibold">{t.name}</div>
                   <div className="text-sm text-slate-400">{t.role}</div>
+                  <div className="text-xs text-purple-400">{t.company}</div>
                 </div>
               </div>
             </div>
@@ -399,31 +519,37 @@ class InterestCalculator:
         </div>
       </section>
 
-      {/* ROI Calculator Section */}
-      <ROICalculator />
-
-      {/* CTA Section */}
+      {/* FINAL CTA */}
       <section className="relative z-10 max-w-5xl mx-auto px-6 py-20">
         <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 rounded-3xl blur-2xl"></div>
-          <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl p-12 text-center">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">Ready to Modernize?</h2>
-            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-              Start your free migration today. No credit card required.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/" className="bg-white text-purple-600 hover:bg-slate-100 px-8 py-4 rounded-full font-bold text-lg transition transform hover:scale-105">
-                Start Free Now
-              </Link>
-              <Link href="/contact" className="bg-white/20 hover:bg-white/30 border border-white/30 px-8 py-4 rounded-full font-bold text-lg transition">
-                Talk to Sales
-              </Link>
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600/30 via-purple-600/30 to-pink-600/30 rounded-3xl blur-2xl" />
+          <div className="relative bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl p-12 text-center overflow-hidden">
+            {/* Decorative elements */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
+            
+            <div className="relative z-10">
+              <h2 className="text-4xl md:text-5xl font-bold mb-4">Ready to Modernize?</h2>
+              <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+                Start your free migration today. No credit card required. 
+                <br />See results in under 60 seconds.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Link href="/" className="bg-white text-purple-600 hover:bg-slate-100 px-8 py-4 rounded-full font-bold text-lg transition transform hover:scale-105 flex items-center justify-center gap-2">
+                  <Play className="w-5 h-5" />
+                  Start Free Now
+                </Link>
+                <Link href="/contact" className="bg-white/20 hover:bg-white/30 border border-white/30 px-8 py-4 rounded-full font-bold text-lg transition flex items-center justify-center gap-2">
+                  <Building2 className="w-5 h-5" />
+                  Enterprise Demo
+                </Link>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* FOOTER */}
       <footer className="relative z-10 border-t border-white/10 mt-20">
         <div className="max-w-7xl mx-auto px-6 py-12">
           <div className="grid md:grid-cols-4 gap-8 mb-12">
@@ -432,11 +558,11 @@ class InterestCalculator:
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center font-bold text-xl">C</div>
                 <span className="text-xl font-bold">CodeSwitch</span>
               </div>
-              <p className="text-slate-400 text-sm">AI-powered COBOL modernization for the enterprise.</p>
+              <p className="text-slate-400 text-sm">AI-powered COBOL modernization for the enterprise. Built with Google Gemini 2.0.</p>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-slate-400">
+              <ul className="space-y-2 text-slate-400 text-sm">
                 <li><Link href="/" className="hover:text-white transition">Demo</Link></li>
                 <li><Link href="/pricing" className="hover:text-white transition">Pricing</Link></li>
                 <li><Link href="/docs" className="hover:text-white transition">Documentation</Link></li>
@@ -444,23 +570,26 @@ class InterestCalculator:
             </div>
             <div>
               <h4 className="font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-slate-400">
+              <ul className="space-y-2 text-slate-400 text-sm">
                 <li><Link href="/contact" className="hover:text-white transition">Contact</Link></li>
                 <li><a href="https://github.com/bebzo/cobol-ast-service" className="hover:text-white transition">GitHub</a></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2 text-slate-400">
+              <ul className="space-y-2 text-slate-400 text-sm">
                 <li><Link href="/legal/privacy" className="hover:text-white transition">Privacy</Link></li>
                 <li><Link href="/legal/terms" className="hover:text-white transition">Terms</Link></li>
               </ul>
             </div>
           </div>
-          <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-400">
+          <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-slate-500">
             <p>&copy; 2024 CodeSwitch. All rights reserved.</p>
-            <p>
-              Powered by Google Gemini 2.0 | <span className="text-blue-400">Gemini API Developer Competition 2024</span>
+            <p className="flex items-center gap-2">
+              <span>Powered by</span>
+              <span className="text-blue-400 font-medium">Google Gemini 2.0</span>
+              <span className="text-slate-600">|</span>
+              <span className="text-purple-400">Gemini API Developer Competition</span>
             </p>
           </div>
         </div>
