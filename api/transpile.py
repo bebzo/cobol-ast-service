@@ -1,5 +1,5 @@
 """
-COBOL → Python Transpiler v6.0.0 (Production Grade)
+COBOL → Python Transpiler v6.1.1 (Production Grade)
 Uses Python's ast module for 100% syntax-valid output
 
 Improvements in v6.0.0:
@@ -9,7 +9,7 @@ Improvements in v6.0.0:
 - TESTING: Coverage badge generation support
 - API: get_coverage_config() for CI/CD integration
 
-Improvements in v5.7.34:
+Improvements in v6.1.1:
 - MINIFIED: New minified_mode parameter to remove COBOL comments for production
 - CONFIG: COBOL_BUFFER_SIZE environment variable for configurable buffers
 - MONITORING: OpenTelemetry integration support with trace spans
@@ -538,11 +538,11 @@ def get_config() -> ProductionConfig:
 
 
 # ============================================================
-# v5.7.34: OpenTelemetry Integration (Optional)
+# v6.1.1: OpenTelemetry Integration (Optional)
 # ============================================================
 
 class TracingContext:
-    """v5.7.34: OpenTelemetry-compatible tracing context.
+    """v6.1.1: OpenTelemetry-compatible tracing context.
     
     If opentelemetry is installed, uses real traces.
     Otherwise, provides a no-op implementation.
@@ -3176,7 +3176,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.34]
+Auto-transpiled from COBOL [AST Transpiler v6.1.1]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -8215,11 +8215,11 @@ def detect_dead_code(python_code: str) -> List[Dict[str, Any]]:
 
 
 # ============================================================
-# v5.7.34: Architecture Diagram Generation
+# v6.1.1: Architecture Diagram Generation
 # ============================================================
 
 def generate_architecture_diagram(cobol_ast: 'CobolAST', program_name: str = None) -> str:
-    """v5.7.34: Generate a Mermaid architecture diagram from COBOL AST.
+    """v6.1.1: Generate a Mermaid architecture diagram from COBOL AST.
     
     Creates a visual representation of:
     - Layer architecture (Data, Business, Presentation)
@@ -8246,7 +8246,7 @@ def generate_architecture_diagram(cobol_ast: 'CobolAST', program_name: str = Non
     lines.append("")
     
     # Transpiler
-    lines.append("        subgraph Transpiler[\"🔄 CodeSwitch v5.7.34\"]")
+    lines.append("        subgraph Transpiler[\"🔄 CodeSwitch v6.1.1\"]")
     lines.append("            AST[\"AST Parser\"]")
     lines.append("            GEN[\"Code Generator\"]")
     lines.append("        end")
@@ -8340,7 +8340,7 @@ def generate_architecture_diagram(cobol_ast: 'CobolAST', program_name: str = Non
 
 
 def minify_python_code(python_code: str) -> str:
-    """v5.7.34: Remove COBOL traceability comments for production deployment.
+    """v6.1.1: Remove COBOL traceability comments for production deployment.
     
     Removes:
     - COBOL Traceability docstrings
@@ -8406,7 +8406,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
                          minified_mode: bool = False) -> Dict[str, Any]:
     """Main entry point: COBOL source → Python code
     
-    v5.7.34: minified_mode parameter
+    v6.1.1: minified_mode parameter
     - False (default): Full traceability with COBOL comments
     - True: Production-optimized code without traceability comments
     
@@ -8618,11 +8618,11 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             lines.insert(insert_idx, exception_wrapper.rstrip())
             python_code = '\n'.join(lines)
         
-        # v5.7.34: Apply minification if requested
+        # v6.1.1: Apply minification if requested
         if minified_mode:
             python_code = minify_python_code(python_code)
         
-        # v5.7.34: Generate architecture diagram
+        # v6.1.1: Generate architecture diagram
         architecture_diagram = generate_architecture_diagram(cobol_ast, cobol_ast.program_id)
         
         return {
@@ -8630,7 +8630,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'architecture_diagram': architecture_diagram,  # v5.7.34
+            'architecture_diagram': architecture_diagram,  # v6.1.1
             'version': '6.0.0-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '6.0.0' if enhance else '6.0.0',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
@@ -8652,7 +8652,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
                 'input_warnings': input_warnings,
                 'dead_code_warnings': dead_code_warnings,
                 'exception_mode': exception_mode,
-                'minified_mode': minified_mode,  # v5.7.34
+                'minified_mode': minified_mode,  # v6.1.1
                 **gemini_stats,
                 **confidence['coverage'],
                 **confidence['quality_factors']
@@ -9275,7 +9275,7 @@ class handler(BaseHTTPRequestHandler):
             enhance = data.get('enhance', False)
             copybooks = data.get('copybooks', {})  # New: copybooks dictionary
             exception_mode = data.get('exceptionMode', 'cobol')  # v5.7.26: 'cobol' or 'python'
-            minified_mode = data.get('minifiedMode', False)  # v5.7.34: Remove COBOL comments
+            minified_mode = data.get('minifiedMode', False)  # v6.1.1: Remove COBOL comments
             
             if not cobol_code:
                 self.send_error_response({'error': 'cobolCode is required'})
