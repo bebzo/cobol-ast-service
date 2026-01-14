@@ -1468,12 +1468,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               {analysis && (
                 <div className="relative">
                   <button
                     onClick={() => setShowExportMenu(!showExportMenu)}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition whitespace-nowrap"
                   >
                     <Download className="w-4 h-4" />
                     Export ▾
@@ -1520,22 +1520,22 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               <button
                 onClick={handleConvert}
                 disabled={isLoading}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-medium transition ${
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                   isLoading ? "bg-indigo-500/50 cursor-wait" : "bg-indigo-500 hover:bg-indigo-600"
                 }`}
               >
                 {isLoading ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" />Analyzing... {Math.min(100, Math.round(analysisProgress))}%</>
+                  <><Loader2 className="w-4 h-4 animate-spin" />Analyzing... {Math.min(100, Math.round(analysisProgress))}%</>
                 ) : (
-                  <><Play className="w-5 h-5" />Refactor with Gemini</>
+                  <><Play className="w-4 h-4" />Refactor with Gemini</>
                 )}
               </button>
               {isLoading && (
                 <button
                   onClick={cancelAnalysis}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium bg-red-500/80 hover:bg-red-600 transition"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-red-500/80 hover:bg-red-600 transition whitespace-nowrap"
                 >
-                  <X className="w-5 h-5" />Cancel
+                  <X className="w-4 h-4" />Cancel
                 </button>
               )}
             </div>
