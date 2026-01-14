@@ -3572,8 +3572,8 @@ def _initialize_field(self, field_name: str) -> None:
                         args=[ast.Constant(value=f"STUB: External program '{target}' not implemented (ALLOW_STUBS=true)")],
                         keywords=[]
                     )),
-                    # Return None only when stubs are explicitly allowed
-                    ast.Return(value=ast.Constant(value=None))
+                    # v5.7.31: Return realistic stub values based on external program type
+                    *_generate_stub_return(target)
                 ]
             )
         ]
