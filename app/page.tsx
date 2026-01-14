@@ -1264,9 +1264,9 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           query, 
-          cobolCode: cobolCode.substring(0, 2000),  // More context
-          pythonCode: pythonCode.substring(0, 2000),
-          analysis: analysis  // Full analysis object with all metrics
+          cobolCode: cobolCode.substring(0, 3000),  // More context
+          pythonCode: pythonCode.substring(0, 3000),
+          analysis  // FULL analysis object with all metrics!
         })
       });
       const data = await res.json();
