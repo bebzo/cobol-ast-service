@@ -204,6 +204,8 @@ from api.v6_features import (
     generate_validate_production_ready_method,
     generate_quick_start_snippet,
     generate_migration_report,
+    generate_config_yaml_template,
+    generate_cli_script,
     MigrationMetrics,
     RedefinesSimulator,
     DEFENSIVE_COMMENTS,
