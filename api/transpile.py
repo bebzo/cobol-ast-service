@@ -7824,7 +7824,7 @@ def generate_unit_tests_v4(cobol_ast: CobolAST, class_name: str, python_code: st
     tests.append('"""')
     tests.append('')
     tests.append('import pytest')
-    tests.append('from decimal import Decimal, ROUND_HALF_UP')
+    tests.append('from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_EVEN, ROUND_DOWN, ROUND_UP')
     tests.append('from unittest.mock import Mock, patch, MagicMock')
     tests.append('import tempfile')
     tests.append('import os')
