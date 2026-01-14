@@ -64,19 +64,15 @@ export async function transpileCobolViaPython(
   copybooks?: Record<string, string>
 ): Promise<TranspileResult> {
   try {
-    // Optimized routing: use relative URL for internal Vercel calls
-    // On Vercel serverless, relative URLs use internal fast routing
-    // On client-side, relative URLs work naturally via same domain
-    const isServer = typeof window === 'undefined';
-    const baseUrl = isServer 
-      ? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '')
-      : ''; // Client-side: relative URL
+    // Use stable production URL - Vercel serverless requires full URL for internal calls
+    // VERCEL_URL gives preview URLs which can cause issues, use stable domain instead
+    const baseUrl = 'https://cobol-ast-service.vercel.app';
     
-    console.log(`[Transpiler] Calling ${baseUrl || 'relative'}/api/transpile`);
+    console.log(`[Transpiler] Calling ${baseUrl}/api/transpile`);
     
-    // Optimized timeout: 60s for normal files, faster feedback on issues
+    // Timeout: 120s for transpilation (large files need more time)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
     
     const response = await fetch(`${baseUrl}/api/transpile`, {
       method: 'POST',
