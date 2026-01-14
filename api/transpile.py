@@ -1,16 +1,18 @@
 """
-COBOL → Python Transpiler v5.7.26 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.27 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.27:
+- FEATURE: Extract error codes directly from COBOL source
+- FEATURE: Generate ErrorCodes class with extracted codes
+- API: extracted_error_codes added to output
+- QUALITY: Error codes are now COBOL-faithful, not hardcoded
 
 Improvements in v5.7.26:
 - FEATURE: exception_mode parameter ('cobol' | 'python')
 - FEATURE: run_safe() wrapper for Python-style exception handling
-- API: exception_mode added to stats output
-
-Improvements in v5.7.26:
 - FIX: Y/N to bool conversion now respects 88-levels with string values
 - FIX: validation_flag stays 'Y'/'N' when 88-level compares with strings
-- QUALITY: _FIELDS_WITH_STRING_88_LEVELS tracks fields that must stay string
 
 Improvements in v5.7.24:
 - FLAGS: MOVE 'Y'/'N' to flag variables now converts to True/False
@@ -177,6 +179,168 @@ from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_U
 # Set of field names (snake_case) that have 88-levels with string comparisons
 # These should NOT be converted from 'Y'/'N' to bool in MOVE statements
 _FIELDS_WITH_STRING_88_LEVELS: set = set()
+
+
+# ============================================================
+# v5.7.27: Error Code Extraction from COBOL Source
+# ============================================================
+
+@dataclass
+class ExtractedErrorCode:
+    """An error code extracted from COBOL source"""
+    code: str           # e.g., "9003"
+    message: str        # e.g., "ACCOUNT NOT FOUND"
+    context: str        # e.g., "310-PROCESS-DEPOSIT" (paragraph name)
+    line: int           # Line number in source
+    category: str       # e.g., "ACCOUNT", "FILE", "SECURITY", "VALIDATION"
+
+
+def extract_error_codes(cobol_source: str) -> Tuple[List[ExtractedErrorCode], Dict[str, str]]:
+    """
+    v5.7.27: Extract error codes from COBOL source.
+    
+    Parses patterns like:
+        MOVE 'ACCOUNT NOT FOUND' TO LS-ERROR-MSG
+        MOVE 9003 TO LS-RETURN-CODE
+    
+    Returns:
+        Tuple of (list of ExtractedErrorCode, dict mapping code -> message)
+    """
+    error_codes = []
+    code_to_message = {}
+    lines = cobol_source.split('\n')
+    
+    current_paragraph = "UNKNOWN"
+    pending_message = None
+    pending_message_line = 0
+    
+    # Pattern for paragraph names
+    para_pattern = re.compile(r'^\s{6,8}([A-Z0-9][-A-Z0-9]*)\s*(?:SECTION)?\s*\.\s*$', re.IGNORECASE)
+    
+    # Pattern for error messages: MOVE 'message' TO LS-ERROR-MSG or WS-ERROR-MESSAGE
+    msg_pattern = re.compile(
+        r"MOVE\s+['\"]([^'\"]+)['\"]\s+TO\s+(?:LS-ERROR-MSG|WS-ERROR-MESSAGE|LS-ERROR-MESSAGE)",
+        re.IGNORECASE
+    )
+    
+    # Pattern for return codes: MOVE 9003 TO LS-RETURN-CODE
+    code_pattern = re.compile(
+        r"MOVE\s+(\d{4})\s+TO\s+(?:LS-RETURN-CODE|WS-RETURN-CODE|RETURN-CODE)",
+        re.IGNORECASE
+    )
+    
+    for i, line in enumerate(lines):
+        # Track current paragraph
+        para_match = para_pattern.match(line)
+        if para_match:
+            current_paragraph = para_match.group(1)
+            continue
+        
+        # Check for error message
+        msg_match = msg_pattern.search(line)
+        if msg_match:
+            pending_message = msg_match.group(1).strip()
+            pending_message_line = i + 1
+            continue
+        
+        # Check for return code
+        code_match = code_pattern.search(line)
+        if code_match:
+            code = code_match.group(1)
+            message = pending_message or f"ERROR {code}"
+            
+            # Categorize the error
+            category = _categorize_error(message, current_paragraph)
+            
+            error_code = ExtractedErrorCode(
+                code=code,
+                message=message,
+                context=current_paragraph,
+                line=i + 1,
+                category=category
+            )
+            error_codes.append(error_code)
+            code_to_message[code] = message
+            
+            # Reset pending message
+            pending_message = None
+    
+    return error_codes, code_to_message
+
+
+def _categorize_error(message: str, context: str) -> str:
+    """Categorize an error based on message and context"""
+    msg_upper = message.upper()
+    ctx_upper = context.upper()
+    
+    if any(kw in msg_upper for kw in ['ACCOUNT', 'CUSTOMER', 'NOT FOUND']):
+        return 'ACCOUNT'
+    elif any(kw in msg_upper for kw in ['FILE', 'OPEN', 'READ', 'WRITE']):
+        return 'FILE'
+    elif any(kw in msg_upper for kw in ['SECURITY', 'AUTH', 'LOCKED', 'VIOLATION']):
+        return 'SECURITY'
+    elif any(kw in msg_upper for kw in ['INVALID', 'EXCEED', 'LIMIT', 'FRAUD']):
+        return 'VALIDATION'
+    elif any(kw in msg_upper for kw in ['UPDATE', 'FAILED', 'ERROR']):
+        return 'SYSTEM'
+    elif 'TRANSFER' in ctx_upper or 'WITHDRAW' in ctx_upper or 'DEPOSIT' in ctx_upper:
+        return 'TRANSACTION'
+    else:
+        return 'GENERAL'
+
+
+def generate_error_codes_class(extracted_codes: List[ExtractedErrorCode]) -> str:
+    """
+    v5.7.27: Generate a Python ErrorCodes class from extracted COBOL codes.
+    
+    Example output:
+        class ErrorCodes:
+            '''Error codes extracted from COBOL source'''
+            ACCOUNT_NOT_FOUND = "9003"
+            ACCOUNT_LOCKED = "9004"
+            ...
+            
+            @classmethod
+            def get_message(cls, code: str) -> str:
+                return cls._MESSAGES.get(code, f"Unknown error: {code}")
+    """
+    if not extracted_codes:
+        return ""
+    
+    lines = []
+    lines.append("class ErrorCodes:")
+    lines.append("    '''Error codes extracted from COBOL source (v5.7.27)'''")
+    lines.append("    ")
+    
+    # Generate constants
+    seen_names = set()
+    for ec in extracted_codes:
+        # Convert message to constant name
+        const_name = ec.message.upper().replace(' ', '_').replace('-', '_')
+        const_name = re.sub(r'[^A-Z0-9_]', '', const_name)
+        const_name = re.sub(r'_+', '_', const_name).strip('_')
+        
+        # Handle duplicates
+        if const_name in seen_names:
+            const_name = f"{const_name}_{ec.context.replace('-', '_').upper()}"
+        seen_names.add(const_name)
+        
+        lines.append(f'    {const_name} = "{ec.code}"  # {ec.message} (from {ec.context})')
+    
+    lines.append("    ")
+    lines.append("    # Message lookup table")
+    lines.append("    _MESSAGES = {")
+    for ec in extracted_codes:
+        lines.append(f'        "{ec.code}": "{ec.message}",')
+    lines.append("    }")
+    lines.append("    ")
+    lines.append("    @classmethod")
+    lines.append("    def get_message(cls, code: str) -> str:")
+    lines.append('        """Get error message for a code"""')
+    lines.append('        return cls._MESSAGES.get(code, f"Unknown error: {code}")')
+    lines.append("")
+    
+    return "\n".join(lines)
 
 
 # ============================================================
@@ -7615,8 +7779,16 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         python_ast = generate_python_ast_v4(cobol_ast)
         python_code = ast.unparse(python_ast)
         
+        # v5.7.27: Extract error codes from COBOL source
+        extracted_error_codes, error_code_map = extract_error_codes(cobol_source)
+        
         # v5.7.14: Prepend CobolRuntime and infrastructure code
         infrastructure_code = COBOL_RUNTIME_CODE + "\n\n"
+        
+        # v5.7.27: Add ErrorCodes class if codes were extracted
+        if extracted_error_codes:
+            infrastructure_code += generate_error_codes_class(extracted_error_codes) + "\n\n"
+        
         if cobol_ast.has_cics:
             infrastructure_code += generate_cics_context_code() + "\n\n"
         if cobol_ast.has_sql:
@@ -7745,10 +7917,11 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.26-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.26-golden' if enhance else '5.7.26',
+            'version': '5.7.27-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.27-golden' if enhance else '5.7.27',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
+            'extracted_error_codes': [{'code': ec.code, 'message': ec.message, 'context': ec.context} for ec in extracted_error_codes],
             'stats': {
                 'variables': len(cobol_ast.variables),
                 'paragraphs': len(cobol_ast.paragraphs),
@@ -7760,6 +7933,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
                 'sql_commands': len(cobol_ast.sql_commands),
                 'has_cics': cobol_ast.has_cics,
                 'has_sql': cobol_ast.has_sql,
+                'error_codes_extracted': len(extracted_error_codes),
                 'input_valid': is_valid,
                 'input_warnings': input_warnings,
                 'dead_code_warnings': dead_code_warnings,
