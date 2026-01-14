@@ -200,6 +200,9 @@ from api.v6_features import (
     wrap_thread_safe,
     generate_external_call_template,
     generate_equivalence_tests,
+    generate_run_with_guidance_method,
+    generate_migration_report,
+    MigrationMetrics,
     RedefinesSimulator,
 )
 
