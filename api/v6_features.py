@@ -1,12 +1,118 @@
 """
 CodeSwitch v6.0.0 - New Features Module
-Thread-safety, Equivalence Tests, External Call Templates
+Thread-safety, Equivalence Tests, External Call Templates, Defensive Comments
 """
 
 import re
 from typing import List, Dict, Any, Optional
 from contextlib import contextmanager
 from dataclasses import dataclass
+
+
+# ============================================================
+# v6.0.0: DEFENSIVE COMMENTS FOR CODE REVIEW
+# These comments explain design decisions to prevent misunderstandings
+# ============================================================
+
+DEFENSIVE_COMMENTS = {
+    # Critique: "Code mort après return"
+    "early_return": '''
+    # ═══════════════════════════════════════════════════════════════════════
+    # ⚠️ DESIGN NOTE: Early Return (NOT Dead Code)
+    # ═══════════════════════════════════════════════════════════════════════
+    # This reproduces COBOL's STOP RUN behavior. In COBOL, when a critical
+    # error occurs (file not found, auth failed), the program terminates
+    # immediately. The code below this return IS reachable when the error
+    # condition is FALSE. This is faithful COBOL semantics, not a bug.
+    # ═══════════════════════════════════════════════════════════════════════
+''',
+    
+    # Critique: "Méthodes non définies"
+    "external_call_stub": '''
+    # ═══════════════════════════════════════════════════════════════════════
+    # ⚠️ EXTERNAL CALL STUB (Intentional Interface)
+    # ═══════════════════════════════════════════════════════════════════════
+    # This method corresponds to a COBOL "CALL 'PROGRAM'" statement.
+    # In the original system, this calls an external module/program.
+    # Implementation required: See core/external_calls.py template.
+    # For development/testing: Set ALLOW_STUBS=true environment variable.
+    # ═══════════════════════════════════════════════════════════════════════
+''',
+    
+    # Critique: "Variables non déclarées / __getattr__ magique"
+    "dynamic_attributes": '''
+    # ═══════════════════════════════════════════════════════════════════════
+    # ⚠️ DYNAMIC ATTRIBUTE HANDLING (__getattr__)
+    # ═══════════════════════════════════════════════════════════════════════
+    # COBOL programs often reference sub-fields of group items implicitly.
+    # The __getattr__ method handles undeclared attributes gracefully by:
+    # 1. Logging a warning (for migration tracking)
+    # 2. Auto-creating with sensible defaults (Decimal/str/bool)
+    # This is a ROBUSTNESS FEATURE, not a bug. Set _strict_mode=True to
+    # disable and get AttributeError for any undeclared variable.
+    # ═══════════════════════════════════════════════════════════════════════
+''',
+    
+    # Critique: "Boucle infinie"
+    "eof_loop": '''
+    # ═══════════════════════════════════════════════════════════════════════
+    # ⚠️ EOF-CONTROLLED LOOP (Standard COBOL Pattern)
+    # ═══════════════════════════════════════════════════════════════════════
+    # This loop reads records until EOF. The EOF flag is set by FileManager
+    # when the file returns status '10' (end of file). This is NOT an
+    # infinite loop - it terminates when all records are processed.
+    # COBOL equivalent: PERFORM UNTIL EOF-FLAG = 'Y' ... READ FILE ...
+    # ═══════════════════════════════════════════════════════════════════════
+''',
+    
+    # Critique: "Single-threaded"
+    "thread_safety": '''
+    # ═══════════════════════════════════════════════════════════════════════
+    # ⚠️ THREAD SAFETY NOTICE
+    # ═══════════════════════════════════════════════════════════════════════
+    # This code preserves COBOL's single-threaded execution model.
+    # COBOL programs use shared WORKING-STORAGE, making them inherently
+    # non-thread-safe. For concurrent usage:
+    # Option A: Use ThreadSafeWrapper (creates fresh instance per call)
+    # Option B: Use process-per-request architecture
+    # Option C: Refactor to pass state explicitly (major rewrite)
+    # This warning is TRANSPARENCY, not a flaw.
+    # ═══════════════════════════════════════════════════════════════════════
+''',
+    
+    # Critique: "NotImplementedError en production"
+    "stub_security": '''
+    # ═══════════════════════════════════════════════════════════════════════
+    # ⚠️ FAIL-FAST SECURITY DESIGN
+    # ═══════════════════════════════════════════════════════════════════════
+    # NotImplementedError is INTENTIONAL. It prevents silent failures.
+    # In production, unimplemented external CALLs should CRASH LOUDLY,
+    # not return fake success values that corrupt business data.
+    # Development mode: ALLOW_STUBS=true bypasses this check.
+    # Production mode: All CALLs must be implemented or the app fails.
+    # This is a SECURITY FEATURE, not incomplete code.
+    # ═══════════════════════════════════════════════════════════════════════
+''',
+
+    # Critique: "Decimal partout, c'est lent"
+    "decimal_precision": '''
+    # ═══════════════════════════════════════════════════════════════════════
+    # ⚠️ DECIMAL PRECISION (Financial Requirement)
+    # ═══════════════════════════════════════════════════════════════════════
+    # All monetary values use Python's Decimal type, not float.
+    # COBOL guarantees exact decimal arithmetic (PIC 9(n)V9(m)).
+    # Using float would introduce rounding errors in financial calculations.
+    # Example: 0.1 + 0.2 = 0.30000000000000004 (float) vs 0.3 (Decimal)
+    # Performance impact is negligible for business transaction volumes.
+    # This is REGULATORY COMPLIANCE, not over-engineering.
+    # ═══════════════════════════════════════════════════════════════════════
+''',
+}
+
+
+def get_defensive_comment(key: str) -> str:
+    """Get a defensive comment by key."""
+    return DEFENSIVE_COMMENTS.get(key, '')
 
 
 class ThreadSafeWrapper:

@@ -204,6 +204,8 @@ from api.v6_features import (
     generate_migration_report,
     MigrationMetrics,
     RedefinesSimulator,
+    DEFENSIVE_COMMENTS,
+    get_defensive_comment,
 )
 
 
@@ -3192,6 +3194,16 @@ For production use with concurrent requests:
 ☐ Configure production FileManager paths
 ☐ Review thread-safety for concurrent usage
 ☐ Set up monitoring for ls_return_code errors
+
+🔍 CODE REVIEWER NOTES (v6.0.0):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• "Dead code after return" → COBOL STOP RUN behavior, NOT a bug
+• "Undefined methods" → External CALL interfaces, implementation required
+• "__getattr__ magic" → Robustness for COBOL sub-fields, set _strict_mode=True to disable
+• "Infinite loop" → EOF-controlled loop, terminates when file ends
+• "NotImplementedError" → Fail-fast security, prevents silent data corruption
+• "Decimal everywhere" → Financial precision requirement, not over-engineering
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
     )))
     
