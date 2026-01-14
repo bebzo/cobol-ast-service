@@ -601,7 +601,7 @@ export default function Home() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [modulesLimit, setModulesLimit] = useState(50);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "diffv2" | "arch" | "modules" | "ddd" | "impact" | "report">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diff" | "diffv2" | "arch" | "modules" | "ddd" | "impact" | "report" | "dashboard" | "graph" | "export">("code");
   const [selectedDddFile, setSelectedDddFile] = useState<string>("shared.py");
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
@@ -1723,6 +1723,31 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 >
                   <FileText className="w-4 h-4" />Report
                 </button>
+                <span className="w-px h-6 bg-slate-600 mx-1"></span>
+                <button
+                  onClick={() => setActiveTab("dashboard")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "dashboard" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <BarChart3 className="w-4 h-4" />Dashboard
+                </button>
+                <button
+                  onClick={() => setActiveTab("graph")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "graph" ? "bg-teal-500/20 text-teal-400 border-b-2 border-teal-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Network className="w-4 h-4" />Call Graph
+                </button>
+                <button
+                  onClick={() => setActiveTab("export")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "export" ? "bg-violet-500/20 text-violet-400 border-b-2 border-violet-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <FolderOutput className="w-4 h-4" />Export
+                </button>
               </div>
               
               {activeTab === "code" && (
@@ -2383,6 +2408,36 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
                     <p>Migration report will appear here</p>
                   </div>
+                </div>
+              )}
+
+              {activeTab === "dashboard" && (
+                <div className="h-[400px] overflow-hidden">
+                  <RealTimeDashboard 
+                    transpilationMetrics={{
+                      avgTime: analysis ? 2.5 : 0,
+                      successRate: testResults.total > 0 ? (testResults.passed / testResults.total) * 100 : 0,
+                      linesProcessed: analysis?.python_lines || 0,
+                      memoryUsage: 45
+                    }}
+                  />
+                </div>
+              )}
+
+              {activeTab === "graph" && (
+                <div className="h-[400px] overflow-hidden">
+                  <CallGraphViewer 
+                    cobolCode={cobolCode}
+                  />
+                </div>
+              )}
+
+              {activeTab === "export" && (
+                <div className="h-[400px] overflow-hidden">
+                  <FrameworkExporter 
+                    pythonCode={pythonCode}
+                    className={filename.replace(/\.(cbl|cob|cobol)$/i, '') || 'CobolProgram'}
+                  />
                 </div>
               )}
             </div>
