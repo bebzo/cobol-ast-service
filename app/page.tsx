@@ -701,18 +701,18 @@ export default function Home() {
   // Animate metrics when analysis completes - REAL DATA from Gemini
   useEffect(() => {
     if (analysis && analysis.python_code && !metricsAnimated) {
-      // REAL DATA from analysis
-      const cobolLines = cobolCode ? cobolCode.split('\n').length : 350;
-      const pythonLines = analysis.python_code ? analysis.python_code.split('\n').length : 85;
+      // REAL DATA from analysis - NO FAKE FALLBACKS
+      const cobolLines = cobolCode ? cobolCode.split('\n').length : 0;
+      const pythonLines = analysis.python_code ? analysis.python_code.split('\n').length : 0;
       const testsStr = Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysis.unit_tests || '');
-      const testsLines = testsStr.split('\n').length || 24;
-      const issuesCount = Array.isArray(analysis.issues) ? analysis.issues.length : 3;
-      const improvementsCount = Array.isArray(analysis.improvements) ? analysis.improvements.length : 5;
-      const securityCount = Array.isArray(analysis.security_warnings) ? analysis.security_warnings.length : 2;
+      const testsLines = testsStr ? testsStr.split('\n').length : 0;
+      const issuesCount = Array.isArray(analysis.issues) ? analysis.issues.length : 0;
+      const improvementsCount = Array.isArray(analysis.improvements) ? analysis.improvements.length : 0;
+      const securityCount = Array.isArray(analysis.security_warnings) ? analysis.security_warnings.length : 0;
       
-      // Parse confidence from number or string
+      // Parse confidence from number or string - default 0 if not available
       const confValue = analysis.migration_score?.confidence;
-      const confidenceNum = typeof confValue === 'number' ? confValue : parseInt(String(confValue || '85').replace(/[^0-9]/g, '')) || 85;
+      const confidenceNum = typeof confValue === 'number' ? confValue : parseInt(String(confValue || '0').replace(/[^0-9]/g, '')) || 0;
       
       // Calculate code difference
       const diff = cobolLines - pythonLines;
@@ -1398,8 +1398,16 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
   const handleExportCertificate = () => {
     if (!analysis) return;
     
-    const passRate = testResults.total > 0 ? (testResults.passed / testResults.total) * 100 : 85;
+    // REAL DATA ONLY - no fake values
+    const passRate = testResults.total > 0 ? (testResults.passed / testResults.total) * 100 : 0;
     const coverageMetrics = (analysis.coverage_metrics || {}) as { translation_rate?: number };
+    
+    // Count edge case tests from details
+    const edgeCaseTests = testResults.details.filter(
+      t => t.name.includes('edge') || t.name.includes('zero') || t.name.includes('negative') || t.name.includes('limit')
+    );
+    const edgeCasePassed = edgeCaseTests.filter(t => t.status === 'passed').length;
+    const realEdgeCoverage = edgeCaseTests.length > 0 ? (edgeCasePassed / edgeCaseTests.length) * 100 : 0;
     
     const certificateData: CertificateData = {
       programName: filename || 'COBOL Program',
@@ -1411,15 +1419,15 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
       testsTotal: testResults.total || 0,
       testsPassed: testResults.passed || 0,
       testsFailed: testResults.failed || 0,
-      numericalEquivalence: Math.min(99.9, passRate + Math.random() * 2),
-      behavioralEquivalence: Math.min(100, passRate * 0.98 + 2),
-      edgeCaseCoverage: passRate * 0.85,
+      numericalEquivalence: passRate,  // Real: based on actual test pass rate
+      behavioralEquivalence: passRate, // Real: same as pass rate
+      edgeCaseCoverage: realEdgeCoverage, // Real: from edge case tests
       semanticCoverage: coverageMetrics.translation_rate || passRate,
-      performanceDeviation: Math.random() * 20 - 5,
-      riskLevel: analysis.migration_score?.risk_level || analysis.migration_score?.risk || 'MEDIUM',
+      performanceDeviation: 0, // Real: 0 unless measured (not available yet)
+      riskLevel: analysis.migration_score?.risk_level || analysis.migration_score?.risk || 'UNKNOWN',
       confidence: typeof analysis.migration_score?.confidence === 'number' 
         ? analysis.migration_score.confidence 
-        : parseInt(String(analysis.migration_score?.confidence || '85').replace(/[^0-9]/g, '')),
+        : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0,
       issues: (analysis.issues || []).slice(0, 5).map((i: any) => typeof i === 'string' ? i : i.title || JSON.stringify(i)),
       securityWarnings: (analysis.security_warnings || []).length,
       limitations: [
@@ -1687,11 +1695,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
                 {analysis.migration_score && (
                   <div className="flex gap-2">
-                    <div className={`px-3 py-1 rounded text-xs font-medium ${getRiskColor(analysis.migration_score.risk_level || analysis.migration_score.risk || 'Medium')}`}>
-                      Risk: {analysis.migration_score.risk_level || analysis.migration_score.risk || 'Medium'}
+                    <div className={`px-3 py-1 rounded text-xs font-medium ${getRiskColor(analysis.migration_score.risk_level || analysis.migration_score.risk || 'N/A')}`}>
+                      Risk: {analysis.migration_score.risk_level || analysis.migration_score.risk || 'N/A'}
                     </div>
                     <div className="px-3 py-1 rounded text-xs font-medium bg-indigo-500/20 text-indigo-300">
-                      {analysis.migration_score.confidence || 85} confidence
+                      {analysis.migration_score.confidence || 0} confidence
                     </div>
                   </div>
                 )}
@@ -2379,9 +2387,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 
                 {/* Confidence */}
                 <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center" title="Based on code complexity and business logic clarity">
-                  <p className="text-2xl font-bold text-green-400 tabular-nums">{typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '85').replace(/[^0-9]/g, '')) || 85}%</p>
+                  <p className="text-2xl font-bold text-green-400 tabular-nums">{typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0}%</p>
                   <p className="text-xs text-slate-400 mt-1">Confidence</p>
-                  <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '80').replace(/[^0-9]/g, ''))) < 70 ? '(needs review)' : '(validated)'}</p>
+                  <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, ''))) < 70 ? '(needs review)' : '(validated)'}</p>
                 </div>
               </div>
               
@@ -2613,7 +2621,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4">
                     <p className="text-xs text-slate-400 mb-1">Risk Level</p>
-                    <p className={`font-semibold ${getRiskColor(analysis.migration_score.risk_level || analysis.migration_score.risk || 'Medium')}`}>{analysis.migration_score.risk_level || analysis.migration_score.risk || 'Medium'}</p>
+                    <p className={`font-semibold ${getRiskColor(analysis.migration_score.risk_level || analysis.migration_score.risk || 'N/A')}`}>{analysis.migration_score.risk_level || analysis.migration_score.risk || 'N/A'}</p>
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4" title="Includes migration, testing, security, docs & UAT">
                     <p className="text-xs text-slate-400 mb-1">Estimated Effort</p>
@@ -2622,8 +2630,8 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </div>
                   <div className="bg-slate-700/50 rounded-lg p-4" title="Lower = needs more validation">
                     <p className="text-xs text-slate-400 mb-1">Confidence</p>
-                    <p className="font-semibold text-indigo-400">{analysis.migration_score.confidence}</p>
-                    <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score.confidence || '80').replace(/[^0-9]/g, ''))) < 70 ? 'Expert review needed' : 'Ready for UAT'}</p>
+                    <p className="font-semibold text-indigo-400">{analysis.migration_score.confidence || 0}</p>
+                    <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score.confidence || '0').replace(/[^0-9]/g, ''))) < 70 ? 'Expert review needed' : 'Ready for UAT'}</p>
                   </div>
                 </div>
               )}
