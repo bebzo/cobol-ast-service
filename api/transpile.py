@@ -7729,9 +7729,16 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         except Exception as e:
             return {'success': False, 'error_code': '9999', 'error_msg': f'UNEXPECTED: {e}', 'data': None}
 '''
-            # Insert wrapper at the end of the code (before any trailing whitespace)
-            # The wrapper is already properly indented for a class method
-            python_code = python_code.rstrip() + '\n' + exception_wrapper.strip() + '\n'
+            # Insert wrapper BEFORE 'if __name__' block (inside the class)
+            lines = python_code.split('\n')
+            insert_idx = len(lines)  # Default: end of file
+            for i, line in enumerate(lines):
+                if "if __name__" in line:
+                    insert_idx = i
+                    break
+            # Insert the wrapper method before if __name__
+            lines.insert(insert_idx, exception_wrapper.rstrip())
+            python_code = '\n'.join(lines)
         
         return {
             'success': True,
