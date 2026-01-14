@@ -59,6 +59,17 @@ CodeSwitch uses **Google Gemini 2.0** to deliver enterprise-grade COBOL moderniz
 | **⚡ Parallel Processing** | 10,000+ lines analyzed in seconds via smart chunking |
 | **📄 Full Reports** | PDF/JSON exports with migration roadmaps |
 
+## 🆕 v6.0.0 - Production Grade Release
+
+| Feature | Description |
+|---------|-------------|
+| **🎯 Interactive Guidance** | `run_with_guidance()` detects missing implementations and guides developers |
+| **✅ Production Validation** | `validate_production_ready()` ensures all dependencies are wired |
+| **📝 Defensive Headers** | Code Reviewer Notes explain architectural choices (stubs, dead code, ratios) |
+| **🖥️ CLI Tooling** | `codeswitch_cli.py` for one-liner transpilation with all artifacts |
+| **⚙️ Auto-Config** | Generates `config.yaml` and `external_calls_template.py` |
+| **🔇 Verbose Control** | `_verbose_mode` toggle to suppress warnings in production |
+
 ## 📈 Results
 
 <div align="center">
@@ -98,6 +109,19 @@ cp .env.example .env.local
 npm run dev
 ```
 
+### CLI Usage (v6.0.0)
+
+```bash
+# One-liner transpilation with all artifacts
+python codeswitch_cli.py banking.cbl output/banking/
+
+# Generated files:
+# - banking.py           (transpiled code)
+# - config.yaml          (production configuration)
+# - external_calls_template.py  (implementation stubs)
+# - MIGRATION_REPORT.md  (metrics and next steps)
+```
+
 ### Python Usage Examples
 
 ```python
@@ -111,6 +135,16 @@ result = generate_python_code(cobol_code, enhance=True)
 print(f"Generated: {len(result['python_code']):,} chars")
 print(f"Tests: {len(result['unit_tests']):,} chars")
 print(f"Confidence: {result['confidence_score']}%")
+
+# 2. Production Validation (v6.0.0)
+from output.banking import UltimateBankingSystem
+
+bank = UltimateBankingSystem()
+is_ready, issues = bank.validate_production_ready()
+if is_ready:
+    bank.run()
+else:
+    bank.run_with_guidance()  # Interactive migration help
 
 # 2. Use the transpiled banking system
 from output.banking_transpiled import UltimateBankingSystem
@@ -207,7 +241,7 @@ Returns transpiler version and supported features.
 
 ### POST /api/transpile
 
-Pure AST-based transpilation (v5.7.24):
+Pure AST-based transpilation (v6.0.0 - Production Grade):
 
 ```bash
 curl -X POST https://cobol-ast-service.vercel.app/api/transpile \
