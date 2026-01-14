@@ -620,6 +620,8 @@ export default function Home() {
   const [conversationHistory, setConversationHistory] = useState<{query: string; response: string}[]>([]);
   // Phase 5: Suggested questions from Gemini
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
+  // Chat expanded mode
+  const [chatExpanded, setChatExpanded] = useState(false);
   const [diffStep, setDiffStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showMagicDiff, setShowMagicDiff] = useState(false);
@@ -860,6 +862,9 @@ export default function Home() {
     setAnalysisStatus("Parsing COBOL structure...");
     setVoiceResponse("");  // Reset chat for new analysis
     setVoiceTranscript("");  // Reset user message too
+    setConversationHistory([]);  // Reset conversation history
+    setSuggestedQuestions([]);  // Reset suggested questions
+    setChatExpanded(false);  // Collapse chat
     
     // v8.2: Real-time SSE progress - no simulation
     setError("");
@@ -2574,15 +2579,57 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
             />
           )}
 
-          {/* AI Chat Panel */}
+          {/* AI Chat Panel - Expandable */}
           {analysis && (
-            <div className="bg-gradient-to-r from-slate-800 to-purple-900/20 rounded-lg p-6 border border-purple-500/30">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-purple-400" />
-                Gemini Live Chat
-                <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">ONLINE</span>
-              </h3>
-              <div className="bg-slate-900/50 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
+            <div className={`bg-gradient-to-r from-slate-800 to-purple-900/20 rounded-lg p-6 border border-purple-500/30 transition-all duration-300 ${
+              chatExpanded ? 'fixed inset-4 z-50 overflow-hidden flex flex-col' : ''
+            }`}>
+              {/* Backdrop when expanded */}
+              {chatExpanded && (
+                <div className="fixed inset-0 bg-black/60 -z-10" onClick={() => setChatExpanded(false)} />
+              )}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-purple-400" />
+                  Gemini Live Chat
+                  <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">ONLINE</span>
+                </h3>
+                <button
+                  onClick={() => setChatExpanded(!chatExpanded)}
+                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                  title={chatExpanded ? "Réduire" : "Agrandir"}
+                >
+                  {chatExpanded ? (
+                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <div className={`bg-slate-900/50 rounded-lg p-4 mb-4 overflow-y-auto ${
+                chatExpanded ? 'flex-1 max-h-none' : 'max-h-48'
+              }`}>
+                {/* Show full conversation history when expanded */}
+                {chatExpanded && conversationHistory.length > 1 && (
+                  <div className="space-y-3 mb-4 pb-4 border-b border-slate-700">
+                    {conversationHistory.slice(0, -1).map((msg, i) => (
+                      <div key={i} className="space-y-2 opacity-70">
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-full bg-indigo-500/50 flex items-center justify-center text-xs">U</div>
+                          <div className="bg-slate-700/50 rounded-lg p-2 text-sm text-slate-400">{msg.query}</div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="w-6 h-6 rounded-full bg-purple-500/50 flex items-center justify-center text-xs">G</div>
+                          <div className="bg-purple-500/10 rounded-lg p-2 text-sm text-slate-400 whitespace-pre-wrap">{msg.response.substring(0, 300)}{msg.response.length > 300 ? '...' : ''}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {voiceResponse ? (
                   <div className="space-y-3">
                     <div className="flex items-start gap-2">
@@ -2591,7 +2638,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </div>
                     <div className="flex items-start gap-2">
                       <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs">G</div>
-                      <div className="bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200 whitespace-pre-wrap">{voiceResponse}</div>
+                      <div className={`bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200 whitespace-pre-wrap ${chatExpanded ? '' : 'max-h-32 overflow-hidden'}`}>{voiceResponse}</div>
                     </div>
                     {/* Phase 5: Suggested Questions */}
                     {suggestedQuestions.length > 0 && (
