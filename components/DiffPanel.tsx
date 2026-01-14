@@ -409,7 +409,7 @@ export default function DiffPanel({
         </div>
       )}
 
-      {/* Code Panels */}
+      {/* Code Panels with Mapping Arrows */}
       <div className={`flex ${isFullscreen ? 'h-[calc(100%-120px)]' : 'h-[500px]'}`}>
         {/* COBOL Panel */}
         <div className="flex-1 flex flex-col border-r border-slate-700">
@@ -438,6 +438,69 @@ export default function DiffPanel({
             {renderCode(cobolCode, 'cobol', showLineMapping ? handleCobolLineClick : undefined, highlightedCobolLines)}
           </div>
         </div>
+
+        {/* Mapping Arrows Column */}
+        {showLineMapping && (selectedCobolLine || selectedPythonLine) && (
+          <div className="w-16 bg-slate-800/50 border-x border-slate-700 flex flex-col items-center justify-start pt-8 relative overflow-hidden">
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+                </marker>
+                <marker id="arrowhead-reverse" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                  <polygon points="10 0, 0 3.5, 10 7" fill="#a78bfa" />
+                </marker>
+                <linearGradient id="arrow-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#f59e0b" />
+                  <stop offset="100%" stopColor="#22c55e" />
+                </linearGradient>
+              </defs>
+              {/* Render mapping arrows */}
+              {selectedCobolLine && highlightedPythonLines.length > 0 && highlightedPythonLines.slice(0, 10).map((pyLine, idx) => {
+                const lineHeight = 20;
+                const cobolY = (selectedCobolLine - 1) * lineHeight + 10;
+                const pythonY = (pyLine - 1) * lineHeight + 10;
+                const midY = (cobolY + pythonY) / 2;
+                return (
+                  <g key={idx}>
+                    <path
+                      d={`M 0 ${cobolY} C 32 ${cobolY}, 32 ${pythonY}, 64 ${pythonY}`}
+                      stroke="url(#arrow-gradient)"
+                      strokeWidth="2"
+                      fill="none"
+                      markerEnd="url(#arrowhead)"
+                      className="opacity-80"
+                    />
+                    <circle cx="0" cy={cobolY} r="4" fill="#f59e0b" />
+                    <circle cx="64" cy={pythonY} r="4" fill="#22c55e" />
+                  </g>
+                );
+              })}
+              {selectedPythonLine && highlightedCobolLines.length > 0 && highlightedCobolLines.slice(0, 10).map((cobolLine, idx) => {
+                const lineHeight = 20;
+                const cobolY = (cobolLine - 1) * lineHeight + 10;
+                const pythonY = (selectedPythonLine - 1) * lineHeight + 10;
+                return (
+                  <g key={idx}>
+                    <path
+                      d={`M 64 ${pythonY} C 32 ${pythonY}, 32 ${cobolY}, 0 ${cobolY}`}
+                      stroke="#a78bfa"
+                      strokeWidth="2"
+                      fill="none"
+                      markerEnd="url(#arrowhead-reverse)"
+                      className="opacity-80"
+                    />
+                    <circle cx="64" cy={pythonY} r="4" fill="#22c55e" />
+                    <circle cx="0" cy={cobolY} r="4" fill="#f59e0b" />
+                  </g>
+                );
+              })}
+            </svg>
+            <div className="absolute top-2 left-1/2 -translate-x-1/2">
+              <ArrowLeftRight className="w-4 h-4 text-slate-500" />
+            </div>
+          </div>
+        )}
 
         {/* Python Panel */}
         <div className="flex-1 flex flex-col">
