@@ -1,8 +1,13 @@
 """
-COBOL → Python Transpiler v5.7.25 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.26 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
 
-Improvements in v5.7.25:
+Improvements in v5.7.26:
+- FEATURE: exception_mode parameter ('cobol' | 'python')
+- FEATURE: run_safe() wrapper for Python-style exception handling
+- API: exception_mode added to stats output
+
+Improvements in v5.7.26:
 - FIX: Y/N to bool conversion now respects 88-levels with string values
 - FIX: validation_flag stays 'Y'/'N' when 88-level compares with strings
 - QUALITY: _FIELDS_WITH_STRING_88_LEVELS tracks fields that must stay string
@@ -167,7 +172,7 @@ from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_U
 
 
 # ============================================================
-# v5.7.25: Global context for field metadata
+# v5.7.26: Global context for field metadata
 # ============================================================
 # Set of field names (snake_case) that have 88-levels with string comparisons
 # These should NOT be converted from 'Y'/'N' to bool in MOVE statements
@@ -1659,7 +1664,7 @@ def format_88_value_for_comparison(value: str, is_numeric: bool) -> str:
 def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[List] = None) -> bool:
     """Check if variable is a Y/N flag that should become bool.
     
-    v5.7.25: Critical fix - if 88-levels exist with Y/N values, field MUST stay str
+    v5.7.26: Critical fix - if 88-levels exist with Y/N values, field MUST stay str
     because the 88-level properties compare with 'Y'/'N' strings, not True/False.
     
     v5.7.6: Improved logic:
@@ -1671,7 +1676,7 @@ def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[Li
     if conditions_88 and len(conditions_88) > 2:
         return False
     
-    # v5.7.25: If 88-level conditions exist with string values, field must stay str
+    # v5.7.26: If 88-level conditions exist with string values, field must stay str
     # This ensures consistency: field is str, MOVEs assign 'Y'/'N', 88-levels compare 'Y'/'N'
     if conditions_88 and len(conditions_88) > 0:
         for cond in conditions_88:
@@ -1679,7 +1684,7 @@ def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[Li
                 for val in cond.values:
                     # Any string value in 88-level means field must be str
                     if isinstance(val, str) and val.upper() in ('Y', 'N'):
-                        return False  # v5.7.25: Stay str, not bool
+                        return False  # v5.7.26: Stay str, not bool
                     if val.upper() not in ('TRUE', 'FALSE', '0', '1'):
                         # Non-boolean value like 'P', 'F', 'H', 'L' - use str
                         return False
@@ -2675,7 +2680,7 @@ def generate_python_ast_v4(cobol_ast: CobolAST) -> ast.Module:
     # Module docstring
     body.append(ast.Expr(value=ast.Constant(
         value=f"""{class_name} - Clean Architecture Python Code
-Auto-transpiled from COBOL [AST Transpiler v5.7.25]
+Auto-transpiled from COBOL [AST Transpiler v5.7.26]
 
 Architecture:
 - FileManager with context managers for safe I/O
@@ -4420,7 +4425,7 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
     elif re.match(r'^["\'].*["\']$', source_str):
         # String literal
         literal_value = source_str[1:-1]
-        # v5.7.25: Check if this is a Y/N assignment to a flag variable
+        # v5.7.26: Check if this is a Y/N assignment to a flag variable
         # Will be converted to bool in create_target_assignment if target is a flag
         source_ast = ast.Constant(value=literal_value)
     elif re.match(r'^-?\d+\.?\d*$', source_str):
@@ -4493,12 +4498,12 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
             target_snake = to_snake_case(target_str)
             final_value = value_ast
             
-            # v5.7.25: Convert 'Y'/'N' to bool for flag variables
+            # v5.7.26: Convert 'Y'/'N' to bool for flag variables
             # BUT NOT if the field has 88-levels with string comparisons (e.g., data_valid == 'Y')
             if isinstance(value_ast, ast.Constant) and isinstance(value_ast.value, str):
                 val_upper = value_ast.value.upper()
                 if val_upper in ('Y', 'N'):
-                    # v5.7.25: Skip conversion if field has 88-levels with 'Y'/'N' string values
+                    # v5.7.26: Skip conversion if field has 88-levels with 'Y'/'N' string values
                     if target_snake not in _FIELDS_WITH_STRING_88_LEVELS:
                         # Check if target is a flag variable
                         flag_keywords = ['FLAG', 'EOF', 'END_OF', 'ERROR', 'VALID', 'FOUND', 
@@ -7531,8 +7536,13 @@ def detect_dead_code(python_code: str) -> List[Dict[str, Any]]:
 
 def generate_python_code(cobol_source: str, enhance: bool = False,
                          cics_commands: List[CICSCommand] = None,
-                         sql_commands: List[SQLCommand] = None) -> Dict[str, Any]:
+                         sql_commands: List[SQLCommand] = None,
+                         exception_mode: str = 'cobol') -> Dict[str, Any]:
     """Main entry point: COBOL source → Python code
+    
+    v5.7.26: exception_mode parameter
+    - 'cobol': Use return codes (COBOL-faithful)
+    - 'python': Add exception wrapper with try/catch (modern Python)
     
     v5.1.0: CICS and SQL support
     v4.4.2: Safe Gemini enrichment with rollback protection
@@ -7560,7 +7570,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         cobol_ast.has_cics = len(cics_commands) > 0
         cobol_ast.has_sql = len(sql_commands) > 0
         
-        # v5.7.25: Build set of fields with 88-levels that use string comparisons
+        # v5.7.26: Build set of fields with 88-levels that use string comparisons
         # These fields should NOT have Y/N converted to bool in MOVE statements
         global _FIELDS_WITH_STRING_88_LEVELS
         _FIELDS_WITH_STRING_88_LEVELS = set()
@@ -7682,12 +7692,53 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
         # v5.7.22: Dead code detection
         dead_code_warnings = detect_dead_code(python_code)
         
+        # v5.7.26: Add exception wrapper if exception_mode='python'
+        if exception_mode == 'python':
+            exception_wrapper = '''
+    def run_safe(self, *args, **kwargs):
+        """Execute with Python-style exception handling.
+        
+        v5.7.26: Wraps execution to catch business exceptions and
+        convert them to structured error responses.
+        
+        Returns:
+            dict: {'success': bool, 'error_code': str, 'error_msg': str, 'data': Any}
+        """
+        try:
+            result = self.run(*args, **kwargs)
+            return {
+                'success': True,
+                'error_code': '0',
+                'error_msg': 'SUCCESS',
+                'data': result
+            }
+        except CustomerNotFoundError as e:
+            return {'success': False, 'error_code': e.error_code, 'error_msg': str(e), 'data': None}
+        except AccountLockedError as e:
+            return {'success': False, 'error_code': e.error_code, 'error_msg': str(e), 'data': None}
+        except InsufficientFundsError as e:
+            return {'success': False, 'error_code': e.error_code, 'error_msg': str(e), 'data': None}
+        except DailyLimitExceededError as e:
+            return {'success': False, 'error_code': e.error_code, 'error_msg': str(e), 'data': None}
+        except InvalidTransactionError as e:
+            return {'success': False, 'error_code': e.error_code, 'error_msg': str(e), 'data': None}
+        except SecurityViolationError as e:
+            return {'success': False, 'error_code': e.error_code, 'error_msg': str(e), 'data': None}
+        except CobolBusinessError as e:
+            return {'success': False, 'error_code': e.error_code, 'error_msg': str(e), 'data': None}
+        except Exception as e:
+            return {'success': False, 'error_code': '9999', 'error_msg': f'UNEXPECTED: {e}', 'data': None}
+'''
+            # Insert wrapper at the end of the code (before any trailing whitespace)
+            # The wrapper is already properly indented for a class method
+            python_code = python_code.rstrip() + '\n' + exception_wrapper.strip() + '\n'
+        
         return {
             'success': True,
             'python_code': python_code,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
-            'version': '5.7.25-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.25-golden' if enhance else '5.7.25',
+            'version': '5.7.26-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.26-golden' if enhance else '5.7.26',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -7705,6 +7756,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
                 'input_valid': is_valid,
                 'input_warnings': input_warnings,
                 'dead_code_warnings': dead_code_warnings,
+                'exception_mode': exception_mode,
                 **gemini_stats,
                 **confidence['coverage'],
                 **confidence['quality_factors']
@@ -8231,6 +8283,75 @@ def generate_unit_tests_v4(cobol_ast: CobolAST, class_name: str, python_code: st
     tests.append('            pytest.fail(f"Workflow failed: {e}")')
     tests.append('')
     
+    # v5.7.26: Exception tests
+    tests.append('')
+    tests.append('# ════════════════════════════════════════════════════════════════')
+    tests.append('# 8. BUSINESS EXCEPTION TESTS (v5.7.26)')
+    tests.append('# ════════════════════════════════════════════════════════════════')
+    tests.append('')
+    tests.append('class TestBusinessExceptions:')
+    tests.append('    """Test that business exceptions are properly defined and can be raised."""')
+    tests.append('')
+    tests.append('    def test_insufficient_funds_error(self):')
+    tests.append('        """Test InsufficientFundsError with amount details."""')
+    tests.append('        try:')
+    tests.append('            raise InsufficientFundsError(Decimal("100.00"), Decimal("500.00"))')
+    tests.append('        except InsufficientFundsError as e:')
+    tests.append('            assert e.error_code == "9003"')
+    tests.append('            assert e.available == Decimal("100.00")')
+    tests.append('            assert e.requested == Decimal("500.00")')
+    tests.append('')
+    tests.append('    def test_account_locked_error(self):')
+    tests.append('        """Test AccountLockedError with customer ID."""')
+    tests.append('        try:')
+    tests.append('            raise AccountLockedError("CUST123")')
+    tests.append('        except AccountLockedError as e:')
+    tests.append('            assert e.error_code == "9004"')
+    tests.append('            assert "CUST123" in str(e)')
+    tests.append('')
+    tests.append('    def test_daily_limit_exceeded_error(self):')
+    tests.append('        """Test DailyLimitExceededError with limit details."""')
+    tests.append('        try:')
+    tests.append('            raise DailyLimitExceededError(Decimal("10000.00"), Decimal("5000.00"))')
+    tests.append('        except DailyLimitExceededError as e:')
+    tests.append('            assert e.error_code == "9005"')
+    tests.append('')
+    tests.append('    def test_invalid_transaction_error(self):')
+    tests.append('        """Test InvalidTransactionError with reason."""')
+    tests.append('        try:')
+    tests.append('            raise InvalidTransactionError("Amount must be positive")')
+    tests.append('        except InvalidTransactionError as e:')
+    tests.append('            assert e.error_code == "9006"')
+    tests.append('            assert "positive" in str(e)')
+    tests.append('')
+    tests.append('    def test_customer_not_found_error(self):')
+    tests.append('        """Test CustomerNotFoundError."""')
+    tests.append('        try:')
+    tests.append('            raise CustomerNotFoundError("CUST999")')
+    tests.append('        except CustomerNotFoundError as e:')
+    tests.append('            assert e.error_code == "9007"')
+    tests.append('')
+    tests.append('    def test_security_violation_error(self):')
+    tests.append('        """Test SecurityViolationError."""')
+    tests.append('        try:')
+    tests.append('            raise SecurityViolationError("Unauthorized access attempt", "IP-BLOCK")')
+    tests.append('        except SecurityViolationError as e:')
+    tests.append('            assert e.error_code == "9008"')
+    tests.append('')
+    tests.append('    def test_exception_hierarchy(self):')
+    tests.append('        """Test all business exceptions inherit from CobolBusinessError."""')
+    tests.append('        exceptions = [')
+    tests.append('            InsufficientFundsError(Decimal("0"), Decimal("0")),')
+    tests.append('            AccountLockedError("X"),')
+    tests.append('            DailyLimitExceededError(Decimal("0"), Decimal("0")),')
+    tests.append('            InvalidTransactionError("X"),')
+    tests.append('            CustomerNotFoundError("X"),')
+    tests.append('            SecurityViolationError("X", "X"),')
+    tests.append('        ]')
+    tests.append('        for exc in exceptions:')
+    tests.append('            assert isinstance(exc, CobolBusinessError)')
+    tests.append('')
+    
     return '\n'.join(tests)
 
 
@@ -8248,6 +8369,7 @@ class handler(BaseHTTPRequestHandler):
             cobol_code = data.get('cobolCode', '')
             enhance = data.get('enhance', False)
             copybooks = data.get('copybooks', {})  # New: copybooks dictionary
+            exception_mode = data.get('exceptionMode', 'cobol')  # v5.7.26: 'cobol' or 'python'
             
             if not cobol_code:
                 self.send_error_response({'error': 'cobolCode is required'})
@@ -8272,7 +8394,8 @@ class handler(BaseHTTPRequestHandler):
             
             result = generate_python_code(cobol_code, enhance, 
                                           cics_commands=cics_commands, 
-                                          sql_commands=sql_commands)
+                                          sql_commands=sql_commands,
+                                          exception_mode=exception_mode)
             
             # Add preprocessor stats to result
             if copybook_stats:
@@ -8292,7 +8415,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.25',
+            'version': '5.7.26',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [
