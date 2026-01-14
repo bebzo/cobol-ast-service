@@ -195,17 +195,34 @@ export async function POST(request: NextRequest) {
       };
       const countOccurrences = (pattern: string) => (lower.match(new RegExp(pattern, 'gi')) || []).length;
       
+      // v8.7: Find function/paragraph name near a line
+      const findFunctionName = (lineNum: number): string | undefined => {
+        if (lineNum <= 0) return undefined;
+        // Search backwards from lineNum to find the nearest PARAGRAPH or SECTION
+        for (let i = lineNum - 1; i >= 0 && i >= lineNum - 50; i--) {
+          const line = lines[i] || '';
+          // Match COBOL paragraph: starts with name followed by period
+          const paraMatch = line.match(/^\s{0,6}([A-Z0-9][-A-Z0-9]*)\s*(SECTION)?\.?\s*$/i);
+          if (paraMatch && paraMatch[1] && !['WORKING-STORAGE', 'DATA', 'PROCEDURE', 'FILE', 'LINKAGE'].includes(paraMatch[1].toUpperCase())) {
+            return paraMatch[1].replace(/-/g, '_').toLowerCase();
+          }
+        }
+        return undefined;
+      };
+      
       // CRITICAL: Hardcoded Credentials
       const credentialPatterns = ['password', 'pwd', 'passwd', 'secret', 'api-key', 'apikey'];
       for (const pattern of credentialPatterns) {
         if (lower.includes(pattern)) {
+          const lineNum = findLine(pattern);
           securityWarnings.push({ 
             title: 'Hardcoded Credentials Detected', 
             severity: 'CRITICAL', 
             cvss_score: 9.1,
-            location: `Line ${findLine(pattern)}`,
+            line: lineNum,
+            function_name: findFunctionName(lineNum),
             description: `Sensitive credential field "${pattern}" found. Store credentials in environment variables or secret managers.`,
-            fix: 'Use environment variables, AWS Secrets Manager, or HashiCorp Vault.',
+            fix_suggestion: 'Use os.getenv() or AWS Secrets Manager',
             cwe: 'CWE-798'
           });
           break;
@@ -214,13 +231,15 @@ export async function POST(request: NextRequest) {
       
       // CRITICAL: SQL Injection
       if (lower.includes('exec sql') && !lower.includes('prepare')) {
+        const lineNum = findLine('exec sql');
         securityWarnings.push({ 
           title: 'SQL Injection Vulnerability', 
           severity: 'CRITICAL', 
           cvss_score: 9.8,
-          location: `Line ${findLine('exec sql')}`,
+          line: lineNum,
+          function_name: findFunctionName(lineNum),
           description: 'Embedded SQL without PREPARE/EXECUTE pattern. Use parameterized queries.',
-          fix: 'Use PREPARE statement with parameter markers.',
+          fix_suggestion: 'Use prepared statements with parameter binding',
           cwe: 'CWE-89'
         });
       }
@@ -229,24 +248,30 @@ export async function POST(request: NextRequest) {
       const piiPatterns = ['ssn', 'social-security', 'tax-id', 'date-of-birth'];
       const foundPii = piiPatterns.filter(p => lower.includes(p));
       if (foundPii.length > 0) {
+        const lineNum = findLine(foundPii[0]);
         securityWarnings.push({ 
           title: 'PII Data Detected', 
           severity: 'HIGH', 
           cvss_score: 7.5,
+          line: lineNum,
+          function_name: findFunctionName(lineNum),
           description: `Found PII fields: ${foundPii.join(', ')}. Implement field-level encryption.`,
-          fix: 'Encrypt PII with AES-256-GCM. Implement data masking.',
+          fix_suggestion: 'Encrypt with AES-256-GCM, add data masking',
           cwe: 'CWE-312'
         });
       }
       
       // HIGH: CICS without security
       if (upper.includes('EXEC CICS') && !upper.includes('VERIFY') && !upper.includes('SIGNON')) {
+        const lineNum = findLine('EXEC CICS');
         securityWarnings.push({ 
           title: 'CICS Transaction Without Security', 
           severity: 'HIGH', 
           cvss_score: 7.5,
+          line: lineNum,
+          function_name: findFunctionName(lineNum),
           description: 'CICS transactions should implement RACF/ACF2 security verification.',
-          fix: 'Add EXEC CICS VERIFY PASSWORD or RACF integration.',
+          fix_suggestion: 'Add authentication check before CICS transaction',
           cwe: 'CWE-862'
         });
       }
@@ -255,24 +280,30 @@ export async function POST(request: NextRequest) {
       const inputCount = countOccurrences('accept') + countOccurrences('read ');
       const validationCount = countOccurrences('validate') + countOccurrences('verify');
       if (inputCount > 0 && validationCount < inputCount / 2) {
+        const lineNum = findLine('accept') || findLine('read ');
         securityWarnings.push({ 
           title: 'Insufficient Input Validation', 
           severity: 'MEDIUM', 
           cvss_score: 6.1,
+          line: lineNum,
+          function_name: findFunctionName(lineNum),
           description: `Found ${inputCount} input operations but only ${validationCount} validation checks.`,
-          fix: 'Validate all inputs: check data type, length, format, and range.',
+          fix_suggestion: 'Add InputValidator.validate_decimal() calls',
           cwe: 'CWE-20'
         });
       }
       
       // MEDIUM: Missing overflow handling
       if ((upper.includes('COMPUTE') || upper.includes('ADD')) && !upper.includes('ON SIZE ERROR')) {
+        const lineNum = findLine('COMPUTE') || findLine('ADD ');
         securityWarnings.push({ 
           title: 'Missing Numeric Overflow Handling', 
           severity: 'MEDIUM', 
           cvss_score: 5.5,
+          line: lineNum,
+          function_name: findFunctionName(lineNum),
           description: 'Arithmetic operations without ON SIZE ERROR can cause silent truncation.',
-          fix: 'Add ON SIZE ERROR clause to all arithmetic operations.',
+          fix_suggestion: 'v8.5 auto-injects decimal.getcontext().traps',
           cwe: 'CWE-190'
         });
       }
@@ -280,12 +311,15 @@ export async function POST(request: NextRequest) {
       // LOW: GO TO complexity
       const gotoCount = countOccurrences('go to');
       if (gotoCount > 3) {
+        const lineNum = findLine('GO TO');
         securityWarnings.push({ 
           title: 'Complex Control Flow (GO TO)', 
           severity: 'LOW', 
           cvss_score: 2.5,
+          line: lineNum,
+          function_name: findFunctionName(lineNum),
           description: `${gotoCount} GO TO statements create spaghetti code difficult to audit.`,
-          fix: 'Refactor to use structured PERFORM statements.',
+          fix_suggestion: 'Transpiler converts to structured Python functions',
           cwe: 'CWE-1120'
         });
       }
