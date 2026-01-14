@@ -125,9 +125,9 @@ export async function POST(request: NextRequest) {
       ];
       const progressInterval = setInterval(() => {
         if (currentProgress < 68) {
-          currentProgress += 1;
+          currentProgress += 2; // Faster increments
           const phase = transpilePhases[progressPhase % transpilePhases.length];
-          if (currentProgress % 3 === 0) progressPhase++;
+          if (currentProgress % 4 === 0) progressPhase++;
           send('progress', { 
             percent: Math.min(currentProgress, 68), 
             step: 'transpile',
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
             detail: `${phase.detail} (${totalLines.toLocaleString()} lines)`
           });
         }
-      }, 400); // Update every 400ms for smoother feel
+      }, 250); // Update every 250ms for faster perceived progress
       
       let result;
       try {
