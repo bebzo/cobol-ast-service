@@ -3207,6 +3207,7 @@ For production use with concurrent requests:
 • "Infinite loop" → EOF-controlled loop, terminates when file ends
 • "NotImplementedError" → Fail-fast security, prevents silent data corruption
 • "Decimal everywhere" → Financial precision requirement, not over-engineering
+• "Verbose logging" → Migration tracking, set _verbose_mode=False to disable
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
     )))
@@ -3624,8 +3625,14 @@ def __getattr__(self, name):
             f"Add 'self.{name} = ...' in __init__ or set _strict_mode = False."
         )
     
-    # Log warning for undeclared variable access
-    if hasattr(self, 'logger'):
+    # ═══════════════════════════════════════════════════════════════════════
+    # INTENTIONAL VERBOSITY: Migration Tracking
+    # ═══════════════════════════════════════════════════════════════════════
+    # This warning helps identify COBOL variables that weren't explicitly
+    # declared in WORKING-STORAGE. These may be sub-fields of group items
+    # or REDEFINES targets. Disable with: self._verbose_mode = False
+    # ═══════════════════════════════════════════════════════════════════════
+    if getattr(self, '_verbose_mode', True) and hasattr(self, 'logger'):
         self.logger.warning(f"Accessing undeclared variable '{name}' - auto-creating with default value")
     
     # Determine type based on naming conventions
@@ -4152,6 +4159,19 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
             ctx=ast.Store()
         )],
         value=ast.Constant(value=False)
+    ))
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # VERBOSE MODE: Controls logging of undeclared variables and stubs
+    # Set to False in production to reduce log noise
+    # ═══════════════════════════════════════════════════════════════════════
+    init_body.append(ast.Assign(
+        targets=[ast.Attribute(
+            value=ast.Name(id='self', ctx=ast.Load()),
+            attr='_verbose_mode',
+            ctx=ast.Store()
+        )],
+        value=ast.Constant(value=True)  # True for dev, set False for prod
     ))
     
     # Config instance

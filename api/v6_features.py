@@ -160,6 +160,9 @@ security:
   
   # Strict mode: raise errors for undeclared variables
   strict_mode: false
+  
+  # Verbose mode: log warnings for undeclared vars and stubs (set false for prod)
+  verbose_mode: true
 
 # External CALL implementations
 # Status: pending | implemented | not_required
