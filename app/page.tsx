@@ -51,6 +51,7 @@ const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { 
 const FrameworkExporter = dynamic(() => import("@/components/FrameworkExporter"), { ssr: false });
 const EquivalenceDashboard = dynamic(() => import("@/components/EquivalenceDashboard"), { ssr: false });
 const ConversionCTA = dynamic(() => import("@/components/ConversionCTA"), { ssr: false });
+const ShareResults = dynamic(() => import("@/components/ShareResults"), { ssr: false });
 const MigrationGuide = dynamic(() => import("@/components/MigrationGuide"), { ssr: false });
 const Glossary = dynamic(() => import("@/components/Glossary"), { ssr: false });
 import Tooltip, { METRIC_TOOLTIPS } from "@/components/Tooltip";
@@ -2620,21 +2621,30 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
           {/* v8.7: Conversion CTAs */}
           {analysis && pythonCode && (
-            <ConversionCTA
-              confidence={typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0}
-              cobolLines={(analyzedCobolCode || cobolCode).split('\n').length}
-              pythonLines={analysis.python_lines || pythonCode.split('\n').length}
-              onDownload={() => {
-                const blob = new Blob([pythonCode], { type: 'text/x-python' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${filename?.replace(/\.[^/.]+$/, '') || 'transpiled'}.py`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              onScheduleDemo={() => window.open('/contact', '_blank')}
-            />
+            <div className="flex flex-wrap items-start gap-4">
+              <ConversionCTA
+                confidence={typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0}
+                cobolLines={(analyzedCobolCode || cobolCode).split('\n').length}
+                pythonLines={analysis.python_lines || pythonCode.split('\n').length}
+                onDownload={() => {
+                  const blob = new Blob([pythonCode], { type: 'text/x-python' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${filename?.replace(/\.[^/.]+$/, '') || 'transpiled'}.py`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                onScheduleDemo={() => window.open('/contact', '_blank')}
+              />
+              <ShareResults
+                cobolLines={(analyzedCobolCode || cobolCode).split('\n').length}
+                pythonLines={analysis.python_lines || pythonCode.split('\n').length}
+                confidence={typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0}
+                filename={filename || 'COBOL_Program'}
+                onGeneratePDF={handleExportCertificate}
+              />
+            </div>
           )}
 
           {/* AI Chat Panel - Expandable */}
