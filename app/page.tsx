@@ -616,6 +616,10 @@ export default function Home() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceResponse, setVoiceResponse] = useState("");
   const [showVoicePanel, setShowVoicePanel] = useState(false);
+  // Phase 3: Conversation history for Gemini context
+  const [conversationHistory, setConversationHistory] = useState<{query: string; response: string}[]>([]);
+  // Phase 5: Suggested questions from Gemini
+  const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
   const [diffStep, setDiffStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showMagicDiff, setShowMagicDiff] = useState(false);
@@ -1267,40 +1271,54 @@ export default function Home() {
     setVoiceTranscript(query);
     setIsListening(false);
     setVoiceResponse("🔄 Réflexion en cours...");
+    setSuggestedQuestions([]); // Clear previous suggestions
     
     try {
-      // Send full analysis context for comprehensive responses
+      // Phase 1: Build enhanced context
+      const enhancedPayload = { 
+        query, 
+        cobolCode: cobolCode.substring(0, 4000),  // More context
+        pythonCode: pythonCode.substring(0, 4000),
+        analysis,  // FULL analysis object with all metrics!
+        testResults: { 
+          total: testResults.total, 
+          passed: testResults.passed, 
+          failed: testResults.failed,
+          details: testResults.details.slice(0, 10) // Include some test details
+        },
+        // Phase 3: Include conversation history for context
+        conversationHistory: conversationHistory.slice(-5) // Last 5 exchanges
+      };
+      
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          query, 
-          cobolCode: cobolCode.substring(0, 3000),  // More context
-          pythonCode: pythonCode.substring(0, 3000),
-          analysis,  // FULL analysis object with all metrics!
-          testResults: { 
-            total: testResults.total, 
-            passed: testResults.passed, 
-            failed: testResults.failed 
-          }
-        })
+        body: JSON.stringify(enhancedPayload)
       });
       const data = await res.json();
       const response = data.response || "Désolé, je n'ai pas pu traiter votre demande.";
       setVoiceResponse(response);
       
-      // Text-to-speech
-      if ('speechSynthesis' in window) {
+      // Phase 3: Save to conversation history
+      setConversationHistory(prev => [...prev.slice(-9), { query, response }]);
+      
+      // Phase 5: Set suggested questions from API
+      if (data.suggestedQuestions && data.suggestedQuestions.length > 0) {
+        setSuggestedQuestions(data.suggestedQuestions);
+      }
+      
+      // Text-to-speech (optional - only for short responses)
+      if ('speechSynthesis' in window && response.length < 500) {
         setIsSpeaking(true);
         const utterance = new SpeechSynthesisUtterance(response);
-        utterance.lang = 'en-US';
-        utterance.rate = 1.1;
+        utterance.lang = 'fr-FR'; // French by default
+        utterance.rate = 1.0;
         utterance.onend = () => setIsSpeaking(false);
         speechSynthesis.speak(utterance);
       }
     } catch (err) {
       console.error(err);
-      setVoiceResponse("Sorry, I couldn't process your request.");
+      setVoiceResponse("Désolé, je n'ai pas pu traiter votre demande. Veuillez réessayer.");
     }
   };
 
@@ -2573,8 +2591,25 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </div>
                     <div className="flex items-start gap-2">
                       <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs">G</div>
-                      <div className="bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200">{voiceResponse}</div>
+                      <div className="bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200 whitespace-pre-wrap">{voiceResponse}</div>
                     </div>
+                    {/* Phase 5: Suggested Questions */}
+                    {suggestedQuestions.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-slate-700">
+                        <p className="text-xs text-slate-400 mb-2">💡 Questions connexes:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {suggestedQuestions.map((q, i) => (
+                            <button
+                              key={i}
+                              onClick={() => handleVoiceQuery(q)}
+                              className="text-xs bg-slate-700 hover:bg-purple-600/50 text-slate-300 hover:text-white px-3 py-1.5 rounded-full transition-colors"
+                            >
+                              {q}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="flex items-start gap-2">
