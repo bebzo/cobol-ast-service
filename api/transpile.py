@@ -2009,11 +2009,21 @@ class FileManager:
             fm.write_record('audit_log', record)
     """
     
-    def __init__(self, file_paths: Optional[Dict[str, str]] = None):
+    def __init__(self, file_paths: Optional[Dict[str, str]] = None, error_handler: Callable = None):
         self.file_paths = file_paths or {}
         self._files: Dict[str, Any] = {}
         self._status: Dict[str, str] = {}
         self.logger = logging.getLogger(__name__)
+        # v5.7.32: Error handler callback for DECLARATIVES integration
+        self._error_handler = error_handler
+    
+    def _trigger_error(self, file_name: str, error: Exception = None):
+        """Trigger error handler from DECLARATIVES if registered."""
+        if self._error_handler:
+            try:
+                self._error_handler(file_name, error)
+            except Exception as e:
+                self.logger.error(f"Error in error handler: {e}")
     
     def __enter__(self) -> 'FileManager':
         """Open all configured files"""
@@ -2036,17 +2046,20 @@ class FileManager:
             self._status[name] = '00'  # COBOL success status
             self.logger.debug(f"Opened file: {name} ({path})")
             return True
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             self._status[name] = '35'  # COBOL file not found
             self.logger.error(f"File not found: {path}")
+            self._trigger_error(name, e)  # v5.7.32: Auto-trigger DECLARATIVES handler
             return False
-        except PermissionError:
+        except PermissionError as e:
             self._status[name] = '37'  # COBOL permission denied
             self.logger.error(f"Permission denied: {path}")
+            self._trigger_error(name, e)
             return False
         except Exception as e:
             self._status[name] = '99'  # COBOL general error
             self.logger.error(f"Error opening {path}: {e}")
+            self._trigger_error(name, e)
             return False
     
     def close_all(self) -> None:
@@ -2090,6 +2103,7 @@ class FileManager:
         except Exception as e:
             self._status[name] = '99'
             self.logger.error(f"Error reading {name}: {e}")
+            self._trigger_error(name, e)  # v5.7.32: Auto-trigger handler
             return None
     
     def write_record(self, name: str, record: str) -> bool:
@@ -2105,6 +2119,7 @@ class FileManager:
         except Exception as e:
             self._status[name] = '99'
             self.logger.error(f"Error writing to {name}: {e}")
+            self._trigger_error(name, e)  # v5.7.32: Auto-trigger handler
             return False
     
     def rewrite_record(self, name: str, record: str) -> bool:
@@ -6117,8 +6132,10 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                 cond_py = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+|[A-Z]{2,}[A-Z0-9]*)', 
                                 replace_id_eval, cond_py)
                 test_ast = ast.parse(cond_py, mode='eval').body
-            except:
-                test_ast = ast.Constant(value=True)
+            except Exception as e:
+                # v5.7.32: Log unparseable condition instead of silent True fallback
+                logger.warning(f"Could not parse EVALUATE condition '{cond}': {e}")
+                test_ast = ast.Constant(value=True)  # Fallback but logged
         else:
             subject_py = to_snake_case(subject)
             try:
@@ -6135,7 +6152,9 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                         ops=[ast.Eq()],
                         comparators=[ast.Constant(value=value_py)]
                     )
-            except:
+            except Exception as e:
+                # v5.7.32: Log parse failure instead of silent True fallback
+                logger.warning(f"Could not parse WHEN condition for {subject}={cond}: {e}")
                 test_ast = ast.Constant(value=True)
         
         if result is None:
@@ -6574,15 +6593,18 @@ def transpile_search_v4(statements: List[str], start_idx: int) -> Tuple[Optional
             orelse=[]
         ))
     
-    # Return as a block (first statement, others added separately)
+    # v5.7.32: Return statements as a block without dummy if True
+    # Use a with statement as a clean block delimiter instead
     if len(result_stmts) == 1:
         return result_stmts[0], consumed
     else:
-        # Wrap in a dummy if True to keep as single statement
-        return ast.If(
-            test=ast.Constant(value=True),
+        # Return as list of statements - caller should handle multiple
+        # Wrap in a try/finally for block structure without if True
+        return ast.Try(
             body=result_stmts,
-            orelse=[]
+            handlers=[],
+            orelse=[],
+            finalbody=[ast.Pass()]  # Empty finally to make it valid
         ), consumed
 
 
