@@ -1,6 +1,8 @@
 /**
  * Post-processing utilities for generated Python code
  * Applied AFTER code fusion in frontend to ensure clean output
+ * 
+ * v8.5: Added overflow protection, type hint improvements, and calculation assertions
  */
 
 /**
@@ -518,6 +520,15 @@ export function postProcessPythonCode(code: string, programId: string = 'PROGRAM
   // Phase 5: Remove orphan 'pass' statements at class level
   finalCode = removeOrphanClassPass(finalCode);
 
+  // Phase 6 (v8.5): Inject overflow protection for Decimal
+  finalCode = injectOverflowProtection(finalCode);
+
+  // Phase 7 (v8.5): Improve type hints (reduce Any usage)
+  finalCode = improveTypeHints(finalCode);
+
+  // Phase 8 (v8.5): Add assertions for critical financial calculations
+  finalCode = addCalculationAssertions(finalCode);
+
   return finalCode;
 }
 
@@ -632,6 +643,172 @@ function injectMissingInit(code: string): string {
     } else {
       result.push(line);
     }
+  }
+  
+  return result.join('\n');
+}
+
+
+/**
+ * v8.5: Inject Decimal overflow protection at the top of the file
+ * This prevents silent overflow errors in financial calculations
+ */
+function injectOverflowProtection(code: string): string {
+  // Check if already has overflow protection
+  if (code.includes('decimal.getcontext()') || code.includes('getcontext().traps')) {
+    return code;
+  }
+  
+  // Check if code uses Decimal
+  if (!code.includes('from decimal import') && !code.includes('import decimal')) {
+    return code;
+  }
+  
+  const lines = code.split('\n');
+  const result: string[] = [];
+  let injected = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    result.push(line);
+    
+    // Inject after the decimal import
+    if (!injected && line.trim().startsWith('from decimal import')) {
+      result.push('import decimal');
+      result.push('# v8.5: Enable overflow protection for financial calculations');
+      result.push('decimal.getcontext().prec = 28  # High precision for financial calcs');
+      result.push('decimal.getcontext().traps[decimal.Overflow] = True');
+      result.push('decimal.getcontext().traps[decimal.InvalidOperation] = True');
+      result.push('');
+      injected = true;
+    } else if (!injected && line.trim() === 'import decimal') {
+      result.push('# v8.5: Enable overflow protection for financial calculations');
+      result.push('decimal.getcontext().prec = 28  # High precision for financial calcs');
+      result.push('decimal.getcontext().traps[decimal.Overflow] = True');
+      result.push('decimal.getcontext().traps[decimal.InvalidOperation] = True');
+      result.push('');
+      injected = true;
+    }
+  }
+  
+  return result.join('\n');
+}
+
+/**
+ * v8.5: Improve type hints by replacing common Any patterns with specific types
+ */
+function improveTypeHints(code: string): string {
+  let improved = code;
+  
+  // Replace common Any patterns with more specific types
+  // Pattern: variable: Any = {} → variable: Dict[str, Any] = {}
+  improved = improved.replace(
+    /(\w+):\s*Any\s*=\s*\{\}/g,
+    '$1: Dict[str, Any] = {}'
+  );
+  
+  // Pattern: variable: Any = [] → variable: List[Any] = []
+  improved = improved.replace(
+    /(\w+):\s*Any\s*=\s*\[\]/g,
+    '$1: List[Any] = []'
+  );
+  
+  // Pattern: variable: Any = None → variable: Optional[Any] = None
+  improved = improved.replace(
+    /(\w+):\s*Any\s*=\s*None/g,
+    '$1: Optional[Any] = None'
+  );
+  
+  // Pattern: variable: Any = '' or "" → variable: str = ''
+  improved = improved.replace(
+    /(\w+):\s*Any\s*=\s*['"]{1,2}\s*['"]{0,2}/g,
+    "$1: str = ''"
+  );
+  
+  // Pattern: variable: Any = 0 → variable: int = 0
+  improved = improved.replace(
+    /(\w+):\s*Any\s*=\s*0(?!\.\d)/g,
+    '$1: int = 0'
+  );
+  
+  // Pattern: variable: Any = 0.0 → variable: float = 0.0
+  improved = improved.replace(
+    /(\w+):\s*Any\s*=\s*0\.0/g,
+    '$1: float = 0.0'
+  );
+  
+  // Pattern: variable: Any = False/True → variable: bool = False/True
+  improved = improved.replace(
+    /(\w+):\s*Any\s*=\s*(True|False)/g,
+    '$1: bool = $2'
+  );
+  
+  // Pattern: variable: Any = Decimal(...) → variable: Decimal = Decimal(...)
+  improved = improved.replace(
+    /(\w+):\s*Any\s*=\s*Decimal\(/g,
+    '$1: Decimal = Decimal('
+  );
+  
+  return improved;
+}
+
+/**
+ * v8.5: Add assertions for critical financial calculations
+ * Detects Decimal operations and adds overflow bounds checking
+ */
+function addCalculationAssertions(code: string): string {
+  // Only process if code contains Decimal calculations
+  if (!code.includes('Decimal(')) {
+    return code;
+  }
+  
+  const lines = code.split('\n');
+  const result: string[] = [];
+  
+  // Track if we've added the MAX_DECIMAL constant
+  let maxDecimalAdded = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // Add MAX_DECIMAL constant after imports if not present
+    if (!maxDecimalAdded && trimmed.startsWith('from decimal import')) {
+      result.push(line);
+      // Check if MAX_DECIMAL already exists
+      if (!code.includes('MAX_DECIMAL')) {
+        result.push("# v8.5: Maximum value for COBOL PIC S9(18)V99 equivalent");
+        result.push("MAX_DECIMAL = Decimal('999999999999999999.99')");
+        result.push("MIN_DECIMAL = Decimal('-999999999999999999.99')");
+        result.push("");
+      }
+      maxDecimalAdded = true;
+      continue;
+    }
+    
+    // Detect critical financial calculation patterns
+    // Pattern: self.variable = expr * expr / expr (multiplication/division chains)
+    const calcPattern = /^(\s*)(self\.[\w_]+)\s*=\s*(.+\*\s*.+\/|\s*.+\/\s*.+\*).+$/;
+    const calcMatch = line.match(calcPattern);
+    
+    if (calcMatch && line.includes('Decimal') || (calcMatch && code.includes('Decimal'))) {
+      const indent = calcMatch[1];
+      const variable = calcMatch[2];
+      
+      // Add the calculation
+      result.push(line);
+      
+      // Add bounds assertion after critical calculations
+      // Only if it looks like a financial calculation (contains common keywords)
+      const isFinancial = /prime|tax|rate|amount|total|sum|balance|interest|payment|salary|wage/i.test(line);
+      if (isFinancial) {
+        result.push(`${indent}# v8.5: Bounds check for COBOL overflow protection`);
+        result.push(`${indent}assert MIN_DECIMAL <= ${variable} <= MAX_DECIMAL, f"Overflow: {${variable}}"`);
+      }
+      continue;
+    }
+    
+    result.push(line);
   }
   
   return result.join('\n');
