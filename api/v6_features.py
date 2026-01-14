@@ -399,30 +399,30 @@ def generate_run_with_guidance_method(external_calls: List[str]) -> str:
     calls_list = ', '.join(f'"{c}"' for c in external_calls)
     
     return f'''
-    def run_with_guidance(self, ls_control_block: 'Optional[Dict[str, Any]]'=None, 
-                          ls_data_block: 'Optional[Dict[str, Any]]'=None):
-        """Enhanced entry point with guidance for missing implementations.
-        
-        v6.0.0: Provides helpful feedback instead of cryptic errors.
-        """
-        import os
-        missing_methods = [{calls_list}]
-        
-        if os.getenv('ALLOW_STUBS', '') != 'true' and missing_methods:
-            print("=" * 60)
-            print("⚠️  CODESWITCH MIGRATION ASSISTANT")
-            print("=" * 60)
-            print(f"\\n{{len(missing_methods)}} external CALL(s) need implementation:\\n")
-            for m in missing_methods:
-                print(f"  • {{m}}")
-            print("\\nOptions:")
-            print("  1) Set ALLOW_STUBS=true to run with stubs (dev only)")
-            print("  2) Implement methods in core/external_calls.py")
-            print("  3) See generated template: core_external_calls_template.py")
-            print("=" * 60)
-            return {{"status": "guidance", "missing": missing_methods}}
-        
-        return self.run(ls_control_block, ls_data_block)
+def run_with_guidance(self, ls_control_block: 'Optional[Dict[str, Any]]'=None, 
+                      ls_data_block: 'Optional[Dict[str, Any]]'=None):
+    """Enhanced entry point with guidance for missing implementations.
+    
+    v6.0.0: Provides helpful feedback instead of cryptic errors.
+    """
+    import os
+    missing_methods = [{calls_list}]
+    
+    if os.getenv('ALLOW_STUBS', '') != 'true' and missing_methods:
+        print("=" * 60)
+        print("⚠️  CODESWITCH MIGRATION ASSISTANT")
+        print("=" * 60)
+        print(f"\\n{{len(missing_methods)}} external CALL(s) need implementation:\\n")
+        for m in missing_methods:
+            print(f"  • {{m}}")
+        print("\\nOptions:")
+        print("  1) Set ALLOW_STUBS=true to run with stubs (dev only)")
+        print("  2) Implement methods in core/external_calls.py")
+        print("  3) See generated template: core_external_calls_template.py")
+        print("=" * 60)
+        return {{"status": "guidance", "missing": missing_methods}}
+    
+    return self.run(ls_control_block, ls_data_block)
 '''
 
 
@@ -491,100 +491,100 @@ def generate_validate_production_ready_method(external_calls: List[str]) -> str:
     calls_list = ', '.join(f'"{c}"' for c in external_calls)
     
     return f'''
-    def validate_production_ready(self) -> dict:
-        """Check if the system is ready for production deployment.
-        
-        v6.0.0: Returns a detailed status report.
-        
-        Returns:
-            dict with keys:
-                - ready (bool): True if all checks pass
-                - missing_calls (list): External CALLs not implemented
-                - warnings (list): Non-blocking issues
-                - config_ok (bool): Configuration validation
-        """
-        import os
-        
-        result = {{
-            "ready": True,
-            "missing_calls": [],
-            "warnings": [],
-            "config_ok": True,
-            "checks_passed": [],
-            "checks_failed": [],
-        }}
-        
-        # Check 1: External CALLs
-        external_calls = [{calls_list}]
-        allow_stubs = os.getenv("ALLOW_STUBS", "") == "true"
-        
-        if external_calls and not allow_stubs:
-            result["missing_calls"] = external_calls
-            result["ready"] = False
-            result["checks_failed"].append("external_calls")
-        else:
-            result["checks_passed"].append("external_calls")
-        
-        # Check 2: File paths configured
-        if hasattr(self, 'file_manager') and self.file_manager:
-            if not self.file_manager.file_paths:
-                result["warnings"].append("No file paths configured in FileManager")
-            else:
-                result["checks_passed"].append("file_paths")
-        
-        # Check 3: Strict mode recommendation
-        if not getattr(self, '_strict_mode', False):
-            result["warnings"].append("_strict_mode=False: undeclared variables auto-created")
-        else:
-            result["checks_passed"].append("strict_mode")
-        
-        # Check 4: ALLOW_STUBS in production
-        if allow_stubs:
-            result["warnings"].append("ALLOW_STUBS=true: Not recommended for production")
-        
-        # Summary
-        if result["warnings"]:
-            result["checks_passed"].append("warnings_acknowledged")
-        
-        return result
+def validate_production_ready(self) -> dict:
+    """Check if the system is ready for production deployment.
     
-    def print_production_status(self):
-        """Print a formatted production readiness report."""
-        status = self.validate_production_ready()
-        
-        print("=" * 60)
-        print("🔍 PRODUCTION READINESS CHECK")
-        print("=" * 60)
-        
-        if status["ready"]:
-            print("✅ STATUS: READY FOR PRODUCTION")
+    v6.0.0: Returns a detailed status report.
+    
+    Returns:
+        dict with keys:
+            - ready (bool): True if all checks pass
+            - missing_calls (list): External CALLs not implemented
+            - warnings (list): Non-blocking issues
+            - config_ok (bool): Configuration validation
+    """
+    import os
+    
+    result = {{
+        "ready": True,
+        "missing_calls": [],
+        "warnings": [],
+        "config_ok": True,
+        "checks_passed": [],
+        "checks_failed": [],
+    }}
+    
+    # Check 1: External CALLs
+    external_calls = [{calls_list}]
+    allow_stubs = os.getenv("ALLOW_STUBS", "") == "true"
+    
+    if external_calls and not allow_stubs:
+        result["missing_calls"] = external_calls
+        result["ready"] = False
+        result["checks_failed"].append("external_calls")
+    else:
+        result["checks_passed"].append("external_calls")
+    
+    # Check 2: File paths configured
+    if hasattr(self, 'file_manager') and self.file_manager:
+        if not self.file_manager.file_paths:
+            result["warnings"].append("No file paths configured in FileManager")
         else:
-            print("❌ STATUS: NOT READY")
-        
+            result["checks_passed"].append("file_paths")
+    
+    # Check 3: Strict mode recommendation
+    if not getattr(self, '_strict_mode', False):
+        result["warnings"].append("_strict_mode=False: undeclared variables auto-created")
+    else:
+        result["checks_passed"].append("strict_mode")
+    
+    # Check 4: ALLOW_STUBS in production
+    if allow_stubs:
+        result["warnings"].append("ALLOW_STUBS=true: Not recommended for production")
+    
+    # Summary
+    if result["warnings"]:
+        result["checks_passed"].append("warnings_acknowledged")
+    
+    return result
+
+def print_production_status(self):
+    """Print a formatted production readiness report."""
+    status = self.validate_production_ready()
+    
+    print("=" * 60)
+    print("🔍 PRODUCTION READINESS CHECK")
+    print("=" * 60)
+    
+    if status["ready"]:
+        print("✅ STATUS: READY FOR PRODUCTION")
+    else:
+        print("❌ STATUS: NOT READY")
+    
+    print()
+    
+    if status["checks_passed"]:
+        print("✓ Passed checks:")
+        for check in status["checks_passed"]:
+            print(f"  • {{check}}")
+    
+    if status["checks_failed"]:
         print()
-        
-        if status["checks_passed"]:
-            print("✓ Passed checks:")
-            for check in status["checks_passed"]:
-                print(f"  • {{check}}")
-        
-        if status["checks_failed"]:
-            print()
-            print("✗ Failed checks:")
-            for check in status["checks_failed"]:
-                print(f"  • {{check}}")
-        
-        if status["missing_calls"]:
-            print()
-            print("⚠️  Missing external CALLs:")
-            for call in status["missing_calls"]:
-                print(f"  • {{call}}")
-        
-        if status["warnings"]:
-            print()
-            print("⚠️  Warnings:")
-            for warn in status["warnings"]:
-                print(f"  • {{warn}}")
+        print("✗ Failed checks:")
+        for check in status["checks_failed"]:
+            print(f"  • {{check}}")
+    
+    if status["missing_calls"]:
+        print()
+        print("⚠️  Missing external CALLs:")
+        for call in status["missing_calls"]:
+            print(f"  • {{call}}")
+    
+    if status["warnings"]:
+        print()
+        print("⚠️  Warnings:")
+        for warn in status["warnings"]:
+            print(f"  • {{warn}}")
         
         print("=" * 60)
         return status
