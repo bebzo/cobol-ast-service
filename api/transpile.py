@@ -1,6 +1,13 @@
 """
-COBOL → Python Transpiler v5.7.34 (Enterprise Architecture)
+COBOL → Python Transpiler v5.7.35 (Enterprise Architecture)
 Uses Python's ast module for 100% syntax-valid output
+
+Improvements in v5.7.35:
+- CONFIG: YAML configuration file support (config.yaml)
+- CONFIG: load_config_yaml() for flexible deployment
+- TESTING: pytest-cov integration for coverage metrics
+- TESTING: Coverage badge generation support
+- API: get_coverage_config() for CI/CD integration
 
 Improvements in v5.7.34:
 - MINIFIED: New minified_mode parameter to remove COBOL comments for production
@@ -370,19 +377,144 @@ import os
 
 
 # ============================================================
-# v5.7.34: Production Configuration
+# v5.7.35: Production Configuration with YAML Support
 # ============================================================
 
 @dataclass
 class ProductionConfig:
-    """v5.7.34: Configurable production settings via environment variables."""
-    buffer_size: int = field(default_factory=lambda: int(os.getenv('COBOL_BUFFER_SIZE', '10000')))
-    enable_tracing: bool = field(default_factory=lambda: os.getenv('COBOL_TRACE', 'false').lower() == 'true')
-    allow_stubs: bool = field(default_factory=lambda: os.getenv('ALLOW_STUBS', 'false').lower() == 'true')
-    log_level: str = field(default_factory=lambda: os.getenv('COBOL_LOG_LEVEL', 'INFO'))
+    """v5.7.35: Configurable production settings via YAML or environment variables.
+    
+    Priority order:
+    1. Environment variables (highest priority)
+    2. config.yaml file
+    3. Default values (lowest priority)
+    
+    Usage:
+        # Load from default config.yaml
+        config = ProductionConfig.load()
+        
+        # Load from specific file
+        config = ProductionConfig.load('/path/to/config.yaml')
+    """
+    buffer_size: int = 10000
+    enable_tracing: bool = False
+    allow_stubs: bool = False
+    log_level: str = 'INFO'
+    max_retries: int = 3
+    timeout_seconds: int = 30
+    
+    # v5.7.35: File paths from YAML
+    customer_master_path: str = 'data/customers.dat'
+    transaction_log_path: str = 'data/transactions.dat'
+    audit_trail_path: str = 'data/audit.dat'
+    
+    # v5.7.35: Secrets backend configuration
+    secrets_backend: str = 'env'  # env | vault | aws | azure
+    vault_addr: str = ''
+    
+    @classmethod
+    def load(cls, config_path: str = 'config.yaml') -> 'ProductionConfig':
+        """v5.7.35: Load configuration from YAML file with env var overrides.
+        
+        Args:
+            config_path: Path to YAML configuration file
+            
+        Returns:
+            ProductionConfig instance with merged settings
+        """
+        config_data = {}
+        
+        # Try to load YAML file
+        try:
+            import yaml
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    yaml_data = yaml.safe_load(f) or {}
+                    # Flatten nested structure
+                    if 'production' in yaml_data:
+                        config_data.update(yaml_data['production'])
+                    if 'files' in yaml_data:
+                        for key, val in yaml_data['files'].items():
+                            config_data[f"{key}_path"] = val
+                    if 'security' in yaml_data:
+                        config_data.update(yaml_data['security'])
+        except ImportError:
+            pass  # PyYAML not installed, use env vars only
+        except Exception:
+            pass  # Config file error, use defaults
+        
+        # Apply environment variable overrides (highest priority)
+        return cls(
+            buffer_size=int(os.getenv('COBOL_BUFFER_SIZE', config_data.get('buffer_size', 10000))),
+            enable_tracing=os.getenv('COBOL_TRACE', str(config_data.get('trace_enabled', False))).lower() == 'true',
+            allow_stubs=os.getenv('ALLOW_STUBS', str(config_data.get('allow_stubs', False))).lower() == 'true',
+            log_level=os.getenv('COBOL_LOG_LEVEL', config_data.get('log_level', 'INFO')),
+            max_retries=int(os.getenv('COBOL_MAX_RETRIES', config_data.get('max_retries', 3))),
+            timeout_seconds=int(os.getenv('COBOL_TIMEOUT', config_data.get('timeout_seconds', 30))),
+            customer_master_path=os.getenv('CUSTOMER_MASTER_PATH', config_data.get('customer_master_path', 'data/customers.dat')),
+            transaction_log_path=os.getenv('TRANSACTION_LOG_PATH', config_data.get('transaction_log_path', 'data/transactions.dat')),
+            audit_trail_path=os.getenv('AUDIT_TRAIL_PATH', config_data.get('audit_trail_path', 'data/audit.dat')),
+            secrets_backend=os.getenv('SECRETS_BACKEND', config_data.get('secrets_backend', 'env')),
+            vault_addr=os.getenv('VAULT_ADDR', config_data.get('vault_addr', '')),
+        )
+    
+    def to_dict(self) -> dict:
+        """Export configuration as dictionary."""
+        return {
+            'buffer_size': self.buffer_size,
+            'enable_tracing': self.enable_tracing,
+            'allow_stubs': self.allow_stubs,
+            'log_level': self.log_level,
+            'max_retries': self.max_retries,
+            'timeout_seconds': self.timeout_seconds,
+            'customer_master_path': self.customer_master_path,
+            'transaction_log_path': self.transaction_log_path,
+            'audit_trail_path': self.audit_trail_path,
+            'secrets_backend': self.secrets_backend,
+        }
 
-# Global config instance
-_config = ProductionConfig()
+
+def get_coverage_config() -> dict:
+    """v5.7.35: Return pytest-cov configuration for CI/CD integration.
+    
+    Usage in pyproject.toml or pytest.ini:
+        [tool.pytest.ini_options]
+        addopts = "--cov=api --cov-report=html --cov-report=term-missing"
+    
+    Returns:
+        dict with coverage configuration
+    """
+    return {
+        'pytest_args': [
+            '--cov=api',
+            '--cov-report=html',
+            '--cov-report=term-missing',
+            '--cov-report=xml',
+            '--cov-fail-under=80',
+        ],
+        'coverage_config': {
+            'branch': True,
+            'source': ['api'],
+            'omit': ['*/tests/*', '*/__pycache__/*'],
+        },
+        'badge_thresholds': {
+            'excellent': 90,
+            'good': 80,
+            'acceptable': 70,
+            'poor': 50,
+        }
+    }
+
+
+# Global config instance (lazy loaded)
+_config = None
+
+def get_config() -> ProductionConfig:
+    """Get global configuration instance (lazy loaded)."""
+    global _config
+    if _config is None:
+        _config = ProductionConfig.load()
+    return _config
 
 
 # ============================================================
@@ -8407,7 +8539,7 @@ def generate_python_code(cobol_source: str, enhance: bool = False,
             'unit_tests': test_code,
             'transformation_doc': transformation_doc,
             'architecture_diagram': architecture_diagram,  # v5.7.34
-            'version': '5.7.34-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.34-golden' if enhance else '5.7.34',
+            'version': '5.7.35-enterprise' if (cobol_ast.has_cics or cobol_ast.has_sql) else '5.7.35-golden' if enhance else '5.7.35',
             'architecture': 'Clean Architecture + Enterprise Patterns',
             'confidence_score': confidence['confidence_score'],
             'business_patterns': list(patterns_found.keys()),
@@ -9098,7 +9230,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_json_response({
             'name': 'COBOL AST Transpiler',
-            'version': '5.7.34',
+            'version': '5.7.35',
             'engine': 'Python AST Native',
             'architecture': 'Clean Architecture + Enterprise Patterns + Enhanced Traceability',
             'features': [

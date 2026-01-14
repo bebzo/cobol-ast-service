@@ -1,10 +1,27 @@
-[project]
-name = "cobol-ast-service"
-version = "5.7.5"
-description = "COBOL to Python Transpiler API"
-requires-python = ">=3.12"
+# CodeSwitch v5.7.35 - Python Project Configuration
+# ==================================================
 
-dependencies = []
+[project]
+name = "codeswitch"
+version = "5.7.35"
+description = "Enterprise COBOL-to-Python Transpiler with Clean Architecture"
+requires-python = ">=3.10"
+
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "hypothesis>=6.0",
+    "black>=23.0",
+]
+tracing = [
+    "opentelemetry-api>=1.0",
+    "opentelemetry-sdk>=1.0",
+]
 
 [build-system]
 requires = ["hatchling>=1.18.0"]
@@ -15,3 +32,53 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["api"]
+
+# ============================================================
+# v5.7.35: pytest + Coverage Configuration
+# ============================================================
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--cov=api",
+    "--cov-report=term-missing",
+    "--cov-report=html:coverage_html",
+    "--cov-report=xml:coverage.xml",
+]
+markers = [
+    "slow: marks tests as slow",
+    "integration: marks integration tests",
+    "golden: marks golden tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["api"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+show_missing = true
+
+[tool.coverage.html]
+directory = "coverage_html"
+title = "CodeSwitch v5.7.35 Coverage Report"
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']

@@ -1,0 +1,37 @@
+# CodeSwitch v5.7.35 Configuration File
+# =====================================
+# This file configures the transpiled COBOL application.
+# Environment variables take priority over these settings.
+
+# Production settings
+production:
+  buffer_size: 4096          # I/O buffer size (env: COBOL_BUFFER_SIZE)
+  log_level: INFO            # DEBUG|INFO|WARNING|ERROR (env: COBOL_LOG_LEVEL)
+  allow_stubs: false         # Allow stub implementations (env: ALLOW_STUBS)
+  trace_enabled: true        # Enable OpenTelemetry tracing (env: COBOL_TRACE)
+  max_retries: 3             # Transaction retry limit (env: COBOL_MAX_RETRIES)
+  timeout_seconds: 30        # Operation timeout (env: COBOL_TIMEOUT)
+
+# File paths for COBOL data files
+files:
+  customer_master: /data/customers.dat      # env: CUSTOMER_MASTER_PATH
+  transaction_log: /data/transactions.dat   # env: TRANSACTION_LOG_PATH
+  audit_trail: /data/audit.dat              # env: AUDIT_TRAIL_PATH
+
+# Security configuration
+security:
+  secrets_backend: vault     # env | vault | aws | azure (env: SECRETS_BACKEND)
+  vault_addr: https://vault.company.com:8200  # env: VAULT_ADDR
+  
+# Database configuration (for SQL transpiled code)
+database:
+  host: localhost
+  port: 5432
+  name: cobol_legacy
+  pool_size: 10
+  
+# CICS emulation settings (for CICS transpiled code)  
+cics:
+  region: PROD01
+  transaction_timeout: 60
+  max_concurrent: 100
