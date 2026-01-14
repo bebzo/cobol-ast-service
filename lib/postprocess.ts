@@ -529,6 +529,12 @@ export function postProcessPythonCode(code: string, programId: string = 'PROGRAM
   // Phase 8 (v8.5): Add assertions for critical financial calculations
   finalCode = addCalculationAssertions(finalCode);
 
+  // Phase 9 (v8.6): Add input validation class
+  finalCode = addInputValidation(finalCode);
+
+  // Phase 10 (v8.6): Add @lru_cache for performance on lookup functions
+  finalCode = addCacheDecorators(finalCode);
+
   return finalCode;
 }
 

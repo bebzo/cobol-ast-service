@@ -42,7 +42,7 @@ import {
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
-import { postProcessPythonCode } from "@/lib/postprocess";
+import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
@@ -1162,7 +1162,11 @@ export default function Home() {
       
       // Count tests from code (instant, no Pyodide needed)
       const testCode = parsed.tests || parsed.unit_tests || '';
-      const testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
+      let testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
+      
+      // v8.6: Generate property-based tests for financial calculations
+      testStr = generatePropertyTests(finalPythonCode, testStr);
+      
       const testCount = (testStr.match(/def test_/g) || []).length;
       
       // Show estimated results immediately (user sees progress)
