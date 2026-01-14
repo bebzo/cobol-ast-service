@@ -21,6 +21,7 @@ import {
 import {
   generateLineMappings,
   findPythonLinesForCobol,
+  findCobolLinesForPython,
   calculateScrollSync,
   applyScrollSync,
   exportDiffToPDF,
@@ -48,7 +49,9 @@ export default function DiffPanel({
 }: DiffPanelProps) {
   // State
   const [selectedCobolLine, setSelectedCobolLine] = useState<number | null>(null);
+  const [selectedPythonLine, setSelectedPythonLine] = useState<number | null>(null);
   const [highlightedPythonLines, setHighlightedPythonLines] = useState<number[]>([]);
+  const [highlightedCobolLines, setHighlightedCobolLines] = useState<number[]>([]);
   const [syncScrollEnabled, setSyncScrollEnabled] = useState(true);
   const [showLineMapping, setShowLineMapping] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -72,6 +75,8 @@ export default function DiffPanel({
   // Handle COBOL line click
   const handleCobolLineClick = useCallback((lineNumber: number) => {
     setSelectedCobolLine(lineNumber);
+    setSelectedPythonLine(null); // Clear Python selection
+    setHighlightedCobolLines([]); // Clear COBOL highlights
     const pythonLines = findPythonLinesForCobol(lineNumber, lineMappings);
     setHighlightedPythonLines(pythonLines);
 
@@ -80,6 +85,22 @@ export default function DiffPanel({
       const targetLine = pythonLines[0];
       const lineHeight = 20; // Approximate line height
       pythonPanelRef.current.scrollTop = (targetLine - 5) * lineHeight;
+    }
+  }, [lineMappings]);
+
+  // Handle Python line click (reverse mapping)
+  const handlePythonLineClick = useCallback((lineNumber: number) => {
+    setSelectedPythonLine(lineNumber);
+    setSelectedCobolLine(null); // Clear COBOL selection
+    setHighlightedPythonLines([]); // Clear Python highlights
+    const cobolLines = findCobolLinesForPython(lineNumber, lineMappings);
+    setHighlightedCobolLines(cobolLines);
+
+    // Scroll COBOL panel to highlighted lines
+    if (cobolLines.length > 0 && cobolPanelRef.current) {
+      const targetLine = cobolLines[0];
+      const lineHeight = 20; // Approximate line height
+      cobolPanelRef.current.scrollTop = (targetLine - 5) * lineHeight;
     }
   }, [lineMappings]);
 
@@ -155,7 +176,8 @@ export default function DiffPanel({
         {lines.map((line, idx) => {
           const lineNum = idx + 1;
           const isHighlighted = highlightedLines.includes(lineNum);
-          const isSelected = type === 'cobol' && selectedCobolLine === lineNum;
+          const isSelected = (type === 'cobol' && selectedCobolLine === lineNum) || 
+                            (type === 'python' && selectedPythonLine === lineNum);
           
           return (
             <div
@@ -401,7 +423,7 @@ export default function DiffPanel({
             className="flex-1 overflow-auto bg-slate-950"
             onScroll={() => handleScroll('cobol')}
           >
-            {renderCode(cobolCode, 'cobol', showLineMapping ? handleCobolLineClick : undefined)}
+            {renderCode(cobolCode, 'cobol', showLineMapping ? handleCobolLineClick : undefined, highlightedCobolLines)}
           </div>
         </div>
 
@@ -436,7 +458,7 @@ export default function DiffPanel({
             className="flex-1 overflow-auto bg-slate-950"
             onScroll={() => handleScroll('python')}
           >
-            {renderCode(pythonCode, 'python', undefined, highlightedPythonLines)}
+            {renderCode(pythonCode, 'python', showLineMapping ? handlePythonLineClick : undefined, highlightedPythonLines)}
           </div>
         </div>
       </div>
@@ -451,6 +473,11 @@ export default function DiffPanel({
             {selectedCobolLine && (
               <span className="text-cyan-400">
                 COBOL Line {selectedCobolLine} → Python Lines {highlightedPythonLines.join(', ') || 'none'}
+              </span>
+            )}
+            {selectedPythonLine && (
+              <span className="text-green-400">
+                Python Line {selectedPythonLine} → COBOL Lines {highlightedCobolLines.join(', ') || 'none'}
               </span>
             )}
           </div>
