@@ -241,7 +241,7 @@ export default function DiffPanel({
 
   return (
     <div className={`bg-slate-900 rounded-xl border border-slate-700 ${
-      isFullscreen ? 'fixed inset-4 z-50 flex flex-col overflow-hidden' : 'max-h-[80vh] overflow-y-auto md:overflow-hidden'
+      isFullscreen ? 'fixed inset-4 z-50 flex flex-col overflow-hidden' : ''
     }`}>
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-800 to-indigo-900/30 px-4 py-3 border-b border-slate-700">
@@ -410,9 +410,9 @@ export default function DiffPanel({
       )}
 
       {/* Code Panels with Mapping Arrows */}
-      <div className={`flex flex-col md:flex-row ${isFullscreen ? 'flex-1 overflow-hidden' : 'min-h-[600px] md:h-[500px]'}`}>
+      <div className={`flex flex-col md:flex-row ${isFullscreen ? 'flex-1 overflow-hidden' : 'h-[400px] md:h-[500px]'}`}>
         {/* COBOL Panel */}
-        <div className="flex-1 flex flex-col border-b md:border-b-0 md:border-r border-slate-700 h-[300px] md:h-auto">
+        <div className="w-full md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-slate-700 h-1/2 md:h-full">
           <div className="flex items-center justify-between px-4 py-2 bg-amber-900/20 border-b border-amber-500/30">
             <span className="text-amber-400 font-semibold text-sm flex items-center gap-2">
               <Layers className="w-4 h-4" />
@@ -503,7 +503,7 @@ export default function DiffPanel({
         )}
 
         {/* Python Panel */}
-        <div className="flex-1 flex flex-col h-[300px] md:h-auto">
+        <div className="w-full md:w-1/2 flex flex-col h-1/2 md:h-full">
           <div className="flex items-center justify-between px-4 py-2 bg-green-900/20 border-b border-green-500/30">
             <span className="text-green-400 font-semibold text-sm flex items-center gap-2">
               <Layers className="w-4 h-4" />
