@@ -1,6 +1,114 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { Calculator, TrendingUp, Clock, DollarSign, Users } from 'lucide-react';
+
+function ROICalculator() {
+  const [cobolLines, setCobolLines] = useState(50000);
+  const [devCost, setDevCost] = useState(150);
+  
+  // Calculations
+  const manualMonths = Math.ceil(cobolLines / 500); // ~500 lines/month manual
+  const aiDays = Math.ceil(cobolLines / 10000) || 1; // ~10k lines/day with AI
+  const manualCost = manualMonths * devCost * 160; // 160 hours/month
+  const aiCost = aiDays * devCost * 8 + 5000; // 8 hours/day + license
+  const savings = manualCost - aiCost;
+  const savingsPercent = Math.round((savings / manualCost) * 100);
+  const timeSaved = manualMonths - Math.ceil(aiDays / 20); // Convert days to months
+  
+  return (
+    <section id="roi" className="relative z-10 max-w-6xl mx-auto px-6 py-20">
+      <div className="text-center mb-12">
+        <h2 className="text-4xl md:text-5xl font-bold mb-4">Calculate Your ROI</h2>
+        <p className="text-xl text-slate-400">See how much time and money CodeSwitch can save</p>
+      </div>
+      
+      <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-white/10 rounded-3xl p-8 md:p-12">
+        <div className="grid md:grid-cols-2 gap-12">
+          {/* Inputs */}
+          <div className="space-y-8">
+            <div>
+              <label className="flex items-center gap-2 text-lg font-semibold mb-4">
+                <Calculator className="w-5 h-5 text-purple-400" />
+                Lines of COBOL Code
+              </label>
+              <input
+                type="range"
+                min="1000"
+                max="500000"
+                step="1000"
+                value={cobolLines}
+                onChange={(e) => setCobolLines(parseInt(e.target.value))}
+                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+              />
+              <div className="flex justify-between mt-2 text-sm text-slate-400">
+                <span>1K</span>
+                <span className="text-2xl font-bold text-white">{(cobolLines / 1000).toFixed(0)}K lines</span>
+                <span>500K</span>
+              </div>
+            </div>
+            
+            <div>
+              <label className="flex items-center gap-2 text-lg font-semibold mb-4">
+                <DollarSign className="w-5 h-5 text-green-400" />
+                Developer Hourly Rate ($)
+              </label>
+              <input
+                type="range"
+                min="50"
+                max="300"
+                step="10"
+                value={devCost}
+                onChange={(e) => setDevCost(parseInt(e.target.value))}
+                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+              />
+              <div className="flex justify-between mt-2 text-sm text-slate-400">
+                <span>$50</span>
+                <span className="text-2xl font-bold text-white">${devCost}/hr</span>
+                <span>$300</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Results */}
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center">
+                <p className="text-sm text-slate-400 mb-1">Manual Migration</p>
+                <p className="text-2xl font-bold text-red-400">{manualMonths} months</p>
+                <p className="text-lg text-red-300">${(manualCost / 1000).toFixed(0)}K</p>
+              </div>
+              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
+                <p className="text-sm text-slate-400 mb-1">With CodeSwitch</p>
+                <p className="text-2xl font-bold text-green-400">{aiDays} days</p>
+                <p className="text-lg text-green-300">${(aiCost / 1000).toFixed(0)}K</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-6 text-center">
+              <p className="text-sm text-slate-300 mb-2">Your Estimated Savings</p>
+              <p className="text-4xl md:text-5xl font-black bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                ${(savings / 1000).toFixed(0)}K
+              </p>
+              <p className="text-lg text-slate-300 mt-2">
+                <span className="text-green-400 font-bold">{savingsPercent}%</span> cost reduction • 
+                <span className="text-blue-400 font-bold ml-2">{timeSaved} months</span> saved
+              </p>
+            </div>
+            
+            <Link 
+              href="/" 
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 px-6 py-4 rounded-xl font-bold text-lg transition transform hover:scale-105"
+            >
+              <TrendingUp className="w-5 h-5" />
+              Start Saving Now — Free Trial
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function LandingPage() {
   const [count, setCount] = useState(0);
@@ -55,6 +163,7 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-slate-300 hover:text-white transition">Features</a>
             <a href="#how-it-works" className="text-slate-300 hover:text-white transition">How it Works</a>
+            <a href="#roi" className="text-slate-300 hover:text-white transition">ROI Calculator</a>
             <Link href="/pricing" className="text-slate-300 hover:text-white transition">Pricing</Link>
             <Link href="/docs" className="text-slate-300 hover:text-white transition">Docs</Link>
           </div>
@@ -289,6 +398,9 @@ class InterestCalculator:
           ))}
         </div>
       </section>
+
+      {/* ROI Calculator Section */}
+      <ROICalculator />
 
       {/* CTA Section */}
       <section className="relative z-10 max-w-5xl mx-auto px-6 py-20">
