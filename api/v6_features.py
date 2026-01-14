@@ -653,12 +653,15 @@ def run_with_guidance(self, ls_control_block: 'Optional[Dict[str, Any]]'=None,
     
     if os.getenv('ALLOW_STUBS', '') != 'true' and missing_methods:
         print("=" * 60)
-        print("⚠️  CODESWITCH MIGRATION ASSISTANT")
+        print("CODESWITCH MIGRATION ASSISTANT")
         print("=" * 60)
-        print(f"\\n{{len(missing_methods)}} external CALL(s) need implementation:\\n")
+        print("")
+        print(f"{{len(missing_methods)}} external CALL(s) need implementation:")
+        print("")
         for m in missing_methods:
-            print(f"  • {{m}}")
-        print("\\nOptions:")
+            print(f"  - {{m}}")
+        print("")
+        print("Options:")
         print("  1) Set ALLOW_STUBS=true to run with stubs (dev only)")
         print("  2) Implement methods in core/external_calls.py")
         print("  3) See generated template: core_external_calls_template.py")
