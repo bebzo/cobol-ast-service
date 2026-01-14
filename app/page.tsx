@@ -152,7 +152,7 @@ export default function LandingPage() {
           
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-slate-400 hover:text-white transition text-sm px-4 py-2">Login</Link>
-            <Link href="/app" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-5 py-2.5 rounded-full font-semibold text-sm transition transform hover:scale-105 flex items-center gap-2">
+            <Link href="/dashboard" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-5 py-2.5 rounded-full font-semibold text-sm transition transform hover:scale-105 flex items-center gap-2">
               Try Free <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -211,7 +211,7 @@ export default function LandingPage() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <Link href="/app" className="group bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-8 py-4 rounded-full font-bold text-lg transition transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/25 flex items-center justify-center gap-3">
+            <Link href="/dashboard" className="group bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-8 py-4 rounded-full font-bold text-lg transition transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/25 flex items-center justify-center gap-3">
               <Play className="w-5 h-5" />
               Start Free Migration
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition" />
@@ -535,7 +535,7 @@ class EmployeeRecord:
                 <br />See results in under 60 seconds.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/app" className="bg-white text-purple-600 hover:bg-slate-100 px-8 py-4 rounded-full font-bold text-lg transition transform hover:scale-105 flex items-center justify-center gap-2">
+                <Link href="/dashboard" className="bg-white text-purple-600 hover:bg-slate-100 px-8 py-4 rounded-full font-bold text-lg transition transform hover:scale-105 flex items-center justify-center gap-2">
                   <Play className="w-5 h-5" />
                   Start Free Now
                 </Link>
@@ -563,7 +563,7 @@ class EmployeeRecord:
             <div>
               <h4 className="font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-slate-400 text-sm">
-                <li><Link href="/app" className="hover:text-white transition">Demo</Link></li>
+                <li><Link href="/dashboard" className="hover:text-white transition">Demo</Link></li>
                 <li><Link href="/pricing" className="hover:text-white transition">Pricing</Link></li>
                 <li><Link href="/docs" className="hover:text-white transition">Documentation</Link></li>
               </ul>

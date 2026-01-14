@@ -13,7 +13,7 @@ function LoginForm() {
   const [supabase, setSupabase] = useState<any>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/app';
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
 
   useEffect(() => {
     // Only create client on client-side
