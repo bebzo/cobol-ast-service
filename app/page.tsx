@@ -1129,7 +1129,14 @@ export default function Home() {
       
       setPythonCode(finalPythonCode);
       // Create new object to trigger React state update - include code_valid!
-      const updatedAnalysis = { ...parsed, python_code: finalPythonCode, code_valid: finalCodeValid };
+      const updatedAnalysis = { 
+        ...parsed, 
+        python_code: finalPythonCode, 
+        code_valid: finalCodeValid,
+        // Ensure metrics are always available for chat context
+        cobol_lines: parsed.cobol_lines || cobolCode.split('\n').length,
+        python_lines: finalPythonCode.split('\n').length,
+      };
       setAnalysis(updatedAnalysis);
       setAnalyzedCobolCode(cobolCode);
 
@@ -1270,7 +1277,12 @@ export default function Home() {
           query, 
           cobolCode: cobolCode.substring(0, 3000),  // More context
           pythonCode: pythonCode.substring(0, 3000),
-          analysis  // FULL analysis object with all metrics!
+          analysis,  // FULL analysis object with all metrics!
+          testResults: { 
+            total: testResults.total, 
+            passed: testResults.passed, 
+            failed: testResults.failed 
+          }
         })
       });
       const data = await res.json();

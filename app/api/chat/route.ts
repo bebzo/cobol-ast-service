@@ -15,7 +15,7 @@ export async function OPTIONS() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { query, cobolCode, pythonCode, analysis } = await request.json();
+    const { query, cobolCode, pythonCode, analysis, testResults } = await request.json();
 
     if (!query) {
       return NextResponse.json(
@@ -65,6 +65,12 @@ export async function POST(request: NextRequest) {
 - Complexity: ${metrics.complexity}
 - Risk Level: ${metrics.riskLevel}
 - Estimated Effort: ${metrics.effort}
+
+## TEST RESULTS:
+- Tests Total: ${testResults?.total || 0}
+- Tests Passed: ${testResults?.passed || 0}
+- Tests Failed: ${testResults?.failed || 0}
+- Pass Rate: ${testResults?.total > 0 ? Math.round((testResults.passed / testResults.total) * 100) : 0}%
 
 ## ISSUES FOUND (${issues.length}):
 ${issues.slice(0, 5).map((i: any) => `- ${typeof i === 'string' ? i : i.title || JSON.stringify(i)}`).join('\n')}
