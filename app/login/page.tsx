@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [message, setMessage] = useState('');
   const [supabase, setSupabase] = useState<any>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/app';
 
   useEffect(() => {
     // Only create client on client-side
@@ -39,7 +41,7 @@ export default function LoginPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push('/');
+        router.push(redirectTo);
       }
     } catch (err: any) {
       setError(err.message);
@@ -52,7 +54,7 @@ export default function LoginPage() {
     if (!supabase) return;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/` }
+      options: { redirectTo: `${window.location.origin}${redirectTo}` }
     });
     if (error) setError(error.message);
   };
@@ -61,7 +63,7 @@ export default function LoginPage() {
     if (!supabase) return;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
-      options: { redirectTo: `${window.location.origin}/` }
+      options: { redirectTo: `${window.location.origin}${redirectTo}` }
     });
     if (error) setError(error.message);
   };
@@ -171,5 +173,17 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
