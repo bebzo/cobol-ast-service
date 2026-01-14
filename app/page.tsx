@@ -1255,15 +1255,22 @@ export default function Home() {
     
     setVoiceTranscript(query);
     setIsListening(false);
+    setVoiceResponse("🔄 Réflexion en cours...");
     
     try {
+      // Send full analysis context for comprehensive responses
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, cobolCode: cobolCode.substring(0, 500), pythonCode: pythonCode.substring(0, 500) })
+        body: JSON.stringify({ 
+          query, 
+          cobolCode: cobolCode.substring(0, 2000),  // More context
+          pythonCode: pythonCode.substring(0, 2000),
+          analysis: analysis  // Full analysis object with all metrics
+        })
       });
       const data = await res.json();
-      const response = data.response || "Sorry, I couldn't process your request.";
+      const response = data.response || "Désolé, je n'ai pas pu traiter votre demande.";
       setVoiceResponse(response);
       
       // Text-to-speech
