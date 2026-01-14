@@ -1843,9 +1843,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
                   {/* Animation Mode */}
                   {diffMode === "animation" && (
-                    <div className="p-4 h-[350px]">
+                    <div className="p-4 h-auto md:h-[350px]">
                       {showMagicDiff ? (
-                        <div className="grid grid-cols-2 gap-4 h-[280px]">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-auto md:h-[280px]">
                           {/* COBOL Side - Disappearing */}
                           <div className="bg-slate-900 rounded-lg p-3 overflow-hidden relative">
                             <div className="text-xs text-amber-400 mb-2 font-semibold flex items-center gap-2">
@@ -1941,7 +1941,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
                   {/* Real Code Mode - Side by Side */}
                   {diffMode === "realcode" && (
-                    <div className="grid grid-cols-2 h-[350px]">
+                    <div className="grid grid-cols-1 md:grid-cols-2 h-auto md:h-[350px]">
                       {/* COBOL Original */}
                       <div className="border-r border-slate-700">
                         <div className="px-3 py-1.5 bg-amber-500/20 text-amber-400 text-xs font-semibold flex items-center gap-2">

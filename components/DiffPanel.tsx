@@ -410,9 +410,9 @@ export default function DiffPanel({
       )}
 
       {/* Code Panels with Mapping Arrows */}
-      <div className={`flex ${isFullscreen ? 'h-[calc(100%-120px)]' : 'h-[500px]'}`}>
+      <div className={`flex flex-col md:flex-row ${isFullscreen ? 'h-[calc(100%-120px)]' : 'h-auto md:h-[500px]'}`}>
         {/* COBOL Panel */}
-        <div className="flex-1 flex flex-col border-r border-slate-700">
+        <div className="flex-1 flex flex-col border-b md:border-b-0 md:border-r border-slate-700 min-h-[250px] md:min-h-0">
           <div className="flex items-center justify-between px-4 py-2 bg-amber-900/20 border-b border-amber-500/30">
             <span className="text-amber-400 font-semibold text-sm flex items-center gap-2">
               <Layers className="w-4 h-4" />
@@ -439,9 +439,9 @@ export default function DiffPanel({
           </div>
         </div>
 
-        {/* Mapping Arrows Column */}
+        {/* Mapping Arrows Column - Hidden on mobile */}
         {showLineMapping && (selectedCobolLine || selectedPythonLine) && (
-          <div className="w-16 bg-slate-800/50 border-x border-slate-700 flex flex-col items-center justify-start pt-8 relative overflow-hidden">
+          <div className="hidden md:flex w-16 bg-slate-800/50 border-x border-slate-700 flex-col items-center justify-start pt-8 relative overflow-hidden">
             <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
               <defs>
                 <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -503,7 +503,7 @@ export default function DiffPanel({
         )}
 
         {/* Python Panel */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-[250px] md:min-h-0">
           <div className="flex items-center justify-between px-4 py-2 bg-green-900/20 border-b border-green-500/30">
             <span className="text-green-400 font-semibold text-sm flex items-center gap-2">
               <Layers className="w-4 h-4" />
