@@ -579,6 +579,31 @@ interface AnalysisResult {
   ast_metrics?: { paragraphs?: number; variables?: number; copybooks?: number; totalLines?: number; cyclomaticComplexity?: number };
   coverage_metrics?: CoverageMetrics;
   modular_architecture?: ModularArchitecture;
+  // v8.5: New analysis features
+  cyclomatic_complexity?: {
+    paragraphs: { name: string; line: number; complexity: number; risk: string }[];
+    average: number;
+    highest: { name: string; complexity: number; risk: string };
+  };
+  compliance_assessment?: {
+    applicable_regulations: string[];
+    sox: { applicable: boolean; status: string; findings: string[] };
+    pci_dss: { applicable: boolean; status: string; findings: string[] };
+    gdpr: { applicable: boolean; status: string; findings: string[] };
+    hipaa: { applicable: boolean; status: string; findings: string[] };
+    overall_risk: string;
+    recommendations: string[];
+  };
+  shadow_testing_plan?: {
+    readiness_score: number;
+    readiness_status: string;
+    critical_paths: { category: string; priority: string; testPoints: number; description: string; strategy: string; sample_inputs: string[] }[];
+    test_data_recommendations: { type: string; count: number; examples: string[]; testValues: string[] }[];
+    execution_plan: Record<string, { name: string; duration: string; tasks: string[] }>;
+    estimated_duration: string;
+    risk_mitigation: string[];
+    success_criteria: Record<string, unknown>;
+  };
 }
 
 interface HistoryItem {
@@ -656,7 +681,7 @@ export default function Home() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [modulesLimit, setModulesLimit] = useState(50);
-  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diffv2" | "arch" | "modules" | "ddd" | "impact" | "report" | "dashboard" | "graph" | "export">("code");
+  const [activeTab, setActiveTab] = useState<"code" | "tests" | "config" | "diffv2" | "arch" | "modules" | "ddd" | "impact" | "report" | "dashboard" | "graph" | "export" | "shadow" | "compliance">("code");
   const [selectedDddFile, setSelectedDddFile] = useState<string>("shared.py");
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
@@ -1967,6 +1992,25 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 >
                   <FolderOutput className="w-4 h-4" />Export
                 </button>
+                <span className="w-px h-6 bg-slate-600 mx-1"></span>
+                <button
+                  onClick={() => setActiveTab("shadow")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "shadow" ? "bg-amber-500/20 text-amber-400 border-b-2 border-amber-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <GitCompare className="w-4 h-4" />Shadow Test
+                  <span className="text-[10px] bg-amber-500/30 px-1.5 py-0.5 rounded">NEW</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab("compliance")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "compliance" ? "bg-rose-500/20 text-rose-400 border-b-2 border-rose-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Shield className="w-4 h-4" />Compliance
+                  <span className="text-[10px] bg-rose-500/30 px-1.5 py-0.5 rounded">NEW</span>
+                </button>
               </div>
               
               {activeTab === "code" && (
@@ -2416,6 +2460,308 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     pythonCode={pythonCode}
                     className={filename.replace(/\.(cbl|cob|cobol)$/i, '') || 'CobolProgram'}
                   />
+                </div>
+              )}
+
+              {/* v8.5: Shadow Testing Tab */}
+              {activeTab === "shadow" && (
+                <div className="h-[500px] overflow-y-auto p-4 bg-slate-900">
+                  {analysis?.shadow_testing_plan ? (
+                    <div className="space-y-6">
+                      {/* Header with Readiness Score */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <GitCompare className="w-6 h-6 text-amber-400" />
+                          <div>
+                            <h3 className="text-xl font-bold text-amber-400">Shadow Testing Plan</h3>
+                            <p className="text-slate-400 text-sm">Parallel execution strategy for COBOL→Python migration</p>
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className={`text-3xl font-bold ${
+                            analysis.shadow_testing_plan.readiness_score >= 80 ? 'text-green-400' :
+                            analysis.shadow_testing_plan.readiness_score >= 60 ? 'text-yellow-400' : 'text-red-400'
+                          }`}>
+                            {analysis.shadow_testing_plan.readiness_score}%
+                          </div>
+                          <div className={`text-xs px-2 py-1 rounded ${
+                            analysis.shadow_testing_plan.readiness_status === 'READY' ? 'bg-green-500/20 text-green-400' :
+                            analysis.shadow_testing_plan.readiness_status === 'NEEDS_WORK' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                          }`}>
+                            {analysis.shadow_testing_plan.readiness_status}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Critical Paths */}
+                      <div className="bg-slate-800/50 rounded-lg p-4 border border-amber-500/30">
+                        <h4 className="text-amber-400 font-semibold mb-3 flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4" /> Critical Paths to Test ({analysis.shadow_testing_plan.critical_paths?.length || 0})
+                        </h4>
+                        <div className="grid gap-3">
+                          {analysis.shadow_testing_plan.critical_paths?.map((path, idx) => (
+                            <div key={idx} className={`p-3 rounded-lg border ${
+                              path.priority === 'CRITICAL' ? 'bg-red-500/10 border-red-500/30' :
+                              path.priority === 'HIGH' ? 'bg-orange-500/10 border-orange-500/30' : 'bg-slate-700/50 border-slate-600'
+                            }`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-semibold text-white">{path.category}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs px-2 py-0.5 rounded ${
+                                    path.priority === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
+                                    path.priority === 'HIGH' ? 'bg-orange-500/20 text-orange-400' : 'bg-slate-600 text-slate-300'
+                                  }`}>{path.priority}</span>
+                                  <span className="text-xs text-slate-400">{path.testPoints} test points</span>
+                                </div>
+                              </div>
+                              <p className="text-sm text-slate-300 mb-2">{path.description}</p>
+                              <p className="text-xs text-cyan-400">Strategy: {path.strategy}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Execution Plan */}
+                      <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600">
+                        <h4 className="text-cyan-400 font-semibold mb-3 flex items-center gap-2">
+                          <Clock className="w-4 h-4" /> Execution Plan ({analysis.shadow_testing_plan.estimated_duration})
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                          {Object.entries(analysis.shadow_testing_plan.execution_plan || {}).map(([key, phase]) => (
+                            <div key={key} className="bg-slate-700/50 rounded-lg p-3 border border-slate-600">
+                              <div className="text-sm font-semibold text-white mb-1">{phase.name}</div>
+                              <div className="text-xs text-cyan-400 mb-2">{phase.duration}</div>
+                              <ul className="text-xs text-slate-400 space-y-1">
+                                {phase.tasks?.slice(0, 3).map((task, i) => (
+                                  <li key={i} className="flex items-start gap-1">
+                                    <span className="text-green-400">•</span> {task}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Success Criteria */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
+                          <div className="text-2xl font-bold text-green-400">99.99%</div>
+                          <div className="text-xs text-slate-400">Output Parity</div>
+                        </div>
+                        <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
+                          <div className="text-2xl font-bold text-cyan-400">±10%</div>
+                          <div className="text-xs text-slate-400">Performance Threshold</div>
+                        </div>
+                        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
+                          <div className="text-2xl font-bold text-purple-400">0</div>
+                          <div className="text-xs text-slate-400">Data Corruption</div>
+                        </div>
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-center">
+                          <div className="text-2xl font-bold text-amber-400">30d</div>
+                          <div className="text-xs text-slate-400">COBOL Fallback</div>
+                        </div>
+                      </div>
+
+                      {/* Risk Mitigation */}
+                      <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600">
+                        <h4 className="text-slate-300 font-semibold mb-2">Risk Mitigation</h4>
+                        <ul className="text-sm text-slate-400 space-y-1">
+                          {analysis.shadow_testing_plan.risk_mitigation?.map((item, i) => (
+                            <li key={i} className="flex items-center gap-2">
+                              <CheckCircle className="w-3 h-3 text-green-400" /> {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-400">
+                      <div className="text-center">
+                        <GitCompare className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Shadow Testing Plan will appear after analysis</p>
+                        <p className="text-xs mt-2 text-slate-500">Run analysis to generate parallel testing strategy</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* v8.5: Compliance Tab */}
+              {activeTab === "compliance" && (
+                <div className="h-[500px] overflow-y-auto p-4 bg-slate-900">
+                  {analysis?.compliance_assessment ? (
+                    <div className="space-y-6">
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <Shield className="w-6 h-6 text-rose-400" />
+                          <div>
+                            <h3 className="text-xl font-bold text-rose-400">Compliance Assessment</h3>
+                            <p className="text-slate-400 text-sm">Regulatory compliance analysis</p>
+                          </div>
+                        </div>
+                        <div className={`px-4 py-2 rounded-lg ${
+                          analysis.compliance_assessment.overall_risk === 'LOW' ? 'bg-green-500/20 text-green-400' :
+                          analysis.compliance_assessment.overall_risk === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                        }`}>
+                          <div className="text-xs">Overall Risk</div>
+                          <div className="text-lg font-bold">{analysis.compliance_assessment.overall_risk}</div>
+                        </div>
+                      </div>
+
+                      {/* Applicable Regulations */}
+                      <div className="flex flex-wrap gap-2">
+                        {analysis.compliance_assessment.applicable_regulations?.map((reg, i) => (
+                          <span key={i} className="px-3 py-1.5 bg-rose-500/20 text-rose-400 rounded-full text-sm font-medium">
+                            {reg}
+                          </span>
+                        ))}
+                        {analysis.compliance_assessment.applicable_regulations?.length === 0 && (
+                          <span className="px-3 py-1.5 bg-slate-700 text-slate-400 rounded-full text-sm">
+                            No specific regulations detected
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Regulation Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* SOX */}
+                        {analysis.compliance_assessment.sox?.applicable && (
+                          <div className={`rounded-lg p-4 border ${
+                            analysis.compliance_assessment.sox.status === 'COMPLIANT' ? 'bg-green-500/10 border-green-500/30' :
+                            analysis.compliance_assessment.sox.status === 'PARTIAL' ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-red-500/10 border-red-500/30'
+                          }`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-semibold text-white">SOX (Sarbanes-Oxley)</span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                analysis.compliance_assessment.sox.status === 'COMPLIANT' ? 'bg-green-500/20 text-green-400' :
+                                analysis.compliance_assessment.sox.status === 'PARTIAL' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                              }`}>{analysis.compliance_assessment.sox.status}</span>
+                            </div>
+                            <ul className="text-sm text-slate-400 space-y-1">
+                              {analysis.compliance_assessment.sox.findings?.map((f, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <AlertTriangle className="w-3 h-3 text-yellow-400 mt-0.5 flex-shrink-0" /> {f}
+                                </li>
+                              ))}
+                              {analysis.compliance_assessment.sox.findings?.length === 0 && (
+                                <li className="flex items-center gap-2 text-green-400">
+                                  <CheckCircle className="w-3 h-3" /> All requirements met
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* PCI-DSS */}
+                        {analysis.compliance_assessment.pci_dss?.applicable && (
+                          <div className={`rounded-lg p-4 border ${
+                            analysis.compliance_assessment.pci_dss.status === 'COMPLIANT' ? 'bg-green-500/10 border-green-500/30' :
+                            analysis.compliance_assessment.pci_dss.status === 'PARTIAL' ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-red-500/10 border-red-500/30'
+                          }`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-semibold text-white">PCI-DSS v4.0</span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                analysis.compliance_assessment.pci_dss.status === 'COMPLIANT' ? 'bg-green-500/20 text-green-400' :
+                                analysis.compliance_assessment.pci_dss.status === 'PARTIAL' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                              }`}>{analysis.compliance_assessment.pci_dss.status}</span>
+                            </div>
+                            <ul className="text-sm text-slate-400 space-y-1">
+                              {analysis.compliance_assessment.pci_dss.findings?.map((f, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <AlertTriangle className="w-3 h-3 text-yellow-400 mt-0.5 flex-shrink-0" /> {f}
+                                </li>
+                              ))}
+                              {analysis.compliance_assessment.pci_dss.findings?.length === 0 && (
+                                <li className="flex items-center gap-2 text-green-400">
+                                  <CheckCircle className="w-3 h-3" /> All requirements met
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* GDPR */}
+                        {analysis.compliance_assessment.gdpr?.applicable && (
+                          <div className={`rounded-lg p-4 border ${
+                            analysis.compliance_assessment.gdpr.status === 'COMPLIANT' ? 'bg-green-500/10 border-green-500/30' :
+                            analysis.compliance_assessment.gdpr.status === 'PARTIAL' ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-red-500/10 border-red-500/30'
+                          }`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-semibold text-white">GDPR (EU)</span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                analysis.compliance_assessment.gdpr.status === 'COMPLIANT' ? 'bg-green-500/20 text-green-400' :
+                                analysis.compliance_assessment.gdpr.status === 'PARTIAL' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                              }`}>{analysis.compliance_assessment.gdpr.status}</span>
+                            </div>
+                            <ul className="text-sm text-slate-400 space-y-1">
+                              {analysis.compliance_assessment.gdpr.findings?.map((f, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <AlertTriangle className="w-3 h-3 text-yellow-400 mt-0.5 flex-shrink-0" /> {f}
+                                </li>
+                              ))}
+                              {analysis.compliance_assessment.gdpr.findings?.length === 0 && (
+                                <li className="flex items-center gap-2 text-green-400">
+                                  <CheckCircle className="w-3 h-3" /> All requirements met
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* HIPAA */}
+                        {analysis.compliance_assessment.hipaa?.applicable && (
+                          <div className={`rounded-lg p-4 border ${
+                            analysis.compliance_assessment.hipaa.status === 'COMPLIANT' ? 'bg-green-500/10 border-green-500/30' :
+                            analysis.compliance_assessment.hipaa.status === 'PARTIAL' ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-red-500/10 border-red-500/30'
+                          }`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-semibold text-white">HIPAA</span>
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                analysis.compliance_assessment.hipaa.status === 'COMPLIANT' ? 'bg-green-500/20 text-green-400' :
+                                analysis.compliance_assessment.hipaa.status === 'PARTIAL' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                              }`}>{analysis.compliance_assessment.hipaa.status}</span>
+                            </div>
+                            <ul className="text-sm text-slate-400 space-y-1">
+                              {analysis.compliance_assessment.hipaa.findings?.map((f, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                  <AlertTriangle className="w-3 h-3 text-yellow-400 mt-0.5 flex-shrink-0" /> {f}
+                                </li>
+                              ))}
+                              {analysis.compliance_assessment.hipaa.findings?.length === 0 && (
+                                <li className="flex items-center gap-2 text-green-400">
+                                  <CheckCircle className="w-3 h-3" /> All requirements met
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Recommendations */}
+                      {analysis.compliance_assessment.recommendations?.length > 0 && (
+                        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-600">
+                          <h4 className="text-slate-300 font-semibold mb-2">Recommendations</h4>
+                          <ul className="text-sm text-slate-400 space-y-1">
+                            {analysis.compliance_assessment.recommendations.map((rec, i) => (
+                              <li key={i} className="flex items-center gap-2">
+                                <Lightbulb className="w-3 h-3 text-yellow-400" /> {rec}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-slate-400">
+                      <div className="text-center">
+                        <Shield className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                        <p>Compliance Assessment will appear after analysis</p>
+                        <p className="text-xs mt-2 text-slate-500">Detects SOX, PCI-DSS, GDPR, HIPAA requirements</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
