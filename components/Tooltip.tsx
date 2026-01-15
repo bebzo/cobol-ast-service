@@ -63,59 +63,59 @@ export default function Tooltip({
 // Metric-specific tooltips for the dashboard
 export const METRIC_TOOLTIPS: Record<string, { title: string; content: string }> = {
   cobolLines: {
-    title: "Lignes COBOL",
-    content: "Nombre total de lignes dans le code source COBOL original, incluant les commentaires et les lignes vides."
+    title: "COBOL Lines",
+    content: "Total number of lines in the original COBOL source code, including comments and blank lines."
   },
   pythonLines: {
-    title: "Lignes Python",
-    content: "Nombre de lignes générées dans le code Python. Une réduction indique une meilleure concision du code moderne."
+    title: "Python Lines",
+    content: "Number of lines generated in Python code. A reduction indicates better conciseness of modern code."
   },
   tests: {
-    title: "Tests Générés",
-    content: "Nombre de tests unitaires automatiquement générés pour valider l'équivalence fonctionnelle entre COBOL et Python."
+    title: "Generated Tests",
+    content: "Number of unit tests automatically generated to validate functional equivalence between COBOL and Python."
   },
   issues: {
-    title: "Problèmes Détectés",
-    content: "Anomalies, patterns obsolètes, ou problèmes potentiels identifiés dans le code COBOL original nécessitant attention."
+    title: "Detected Issues",
+    content: "Anomalies, obsolete patterns, or potential problems identified in the original COBOL code requiring attention."
   },
   improvements: {
-    title: "Améliorations",
-    content: "Suggestions d'optimisations pour le code Python généré: performance, lisibilité, patterns modernes."
+    title: "Improvements",
+    content: "Optimization suggestions for generated Python code: performance, readability, modern patterns."
   },
   confidence: {
-    title: "Niveau de Confiance",
-    content: "Probabilité estimée que la migration soit fonctionnellement équivalente. >85% = prêt pour UAT, <70% = revue experte nécessaire."
+    title: "Confidence Level",
+    content: "Estimated probability that the migration is functionally equivalent. >85% = ready for UAT, <70% = expert review needed."
   },
   numericalEquivalence: {
-    title: "Équivalence Numérique",
-    content: "Précision des calculs arithmétiques: comparaison des résultats COBOL vs Python sur les opérations COMPUTE, ADD, SUBTRACT, etc."
+    title: "Numerical Equivalence",
+    content: "Arithmetic calculation precision: comparison of COBOL vs Python results on COMPUTE, ADD, SUBTRACT operations, etc."
   },
   behavioralEquivalence: {
-    title: "Équivalence Comportementale",
-    content: "Validation que le flux de contrôle (IF, PERFORM, GO TO) produit les mêmes transitions d'état."
+    title: "Behavioral Equivalence",
+    content: "Validation that control flow (IF, PERFORM, GO TO) produces the same state transitions."
   },
   edgeCaseCoverage: {
-    title: "Couverture Edge Cases",
-    content: "Tests des cas limites: valeurs nulles, négatives, très grandes, chaînes vides, dates invalides."
+    title: "Edge Case Coverage",
+    content: "Edge case testing: null values, negative values, very large values, empty strings, invalid dates."
   },
   semanticCoverage: {
-    title: "Couverture Sémantique",
-    content: "Pourcentage de la logique métier COBOL correctement traduite en Python."
+    title: "Semantic Coverage",
+    content: "Percentage of COBOL business logic correctly translated to Python."
   },
   performanceDeviation: {
-    title: "Déviation Performance",
-    content: "Différence de temps d'exécution entre COBOL et Python. Valeur négative = Python plus rapide."
+    title: "Performance Deviation",
+    content: "Execution time difference between COBOL and Python. Negative value = Python faster."
   },
   translationRate: {
-    title: "Taux de Traduction",
-    content: "Pourcentage de paragraphes COBOL traduits avec succès sans fallback ou stub."
+    title: "Translation Rate",
+    content: "Percentage of COBOL paragraphs successfully translated without fallback or stub."
   },
   complexity: {
-    title: "Complexité",
-    content: "Évaluation de la difficulté de migration: LOW (<50 lignes, simple), MEDIUM (50-200 lignes), HIGH (>200 lignes, SQL, fichiers)."
+    title: "Complexity",
+    content: "Migration difficulty assessment: LOW (<50 lines, simple), MEDIUM (50-200 lines), HIGH (>200 lines, SQL, files)."
   },
   riskLevel: {
-    title: "Niveau de Risque",
-    content: "Impact potentiel sur la production: LOW = cosmétique, MEDIUM = fonctionnel, HIGH = données, CRITICAL = financier/légal."
+    title: "Risk Level",
+    content: "Potential production impact: LOW = cosmetic, MEDIUM = functional, HIGH = data, CRITICAL = financial/legal."
   },
 };

@@ -64,7 +64,7 @@ export default function RealTimeDashboard({
   const [metrics, setMetrics] = useState<MetricData[]>([
     {
       id: 'transpile-time',
-      name: 'Temps de Transpilation',
+      name: 'Transpilation Time',
       value: 0,
       unit: 'ms',
       history: [],
@@ -73,7 +73,7 @@ export default function RealTimeDashboard({
     },
     {
       id: 'success-rate',
-      name: 'Taux de Succès',
+      name: 'Success Rate',
       value: 0,
       unit: '%',
       history: [],
@@ -82,7 +82,7 @@ export default function RealTimeDashboard({
     },
     {
       id: 'lines-per-sec',
-      name: 'Lignes/Seconde',
+      name: 'Lines/Second',
       value: 0,
       unit: 'L/s',
       history: [],
@@ -91,7 +91,7 @@ export default function RealTimeDashboard({
     },
     {
       id: 'memory',
-      name: 'Mémoire Utilisée',
+      name: 'Memory Used',
       value: 0,
       unit: 'MB',
       history: [],
@@ -215,9 +215,9 @@ export default function RealTimeDashboard({
         <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-3 border-b border-slate-700">
           <div className="flex items-center gap-3">
             <Activity className="w-5 h-5 text-slate-500" />
-            <h3 className="font-semibold text-white">Métriques Temps Réel</h3>
+            <h3 className="font-semibold text-white">Real-Time Metrics</h3>
             <span className="px-2 py-0.5 bg-slate-700 text-slate-400 text-xs rounded-full">
-              EN ATTENTE
+              WAITING
             </span>
           </div>
         </div>
@@ -225,9 +225,9 @@ export default function RealTimeDashboard({
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center">
             <Activity className="w-8 h-8 text-slate-600" />
           </div>
-          <h4 className="text-lg font-medium text-slate-400 mb-2">Aucune analyse effectuée</h4>
+          <h4 className="text-lg font-medium text-slate-400 mb-2">No analysis performed</h4>
           <p className="text-sm text-slate-500 max-w-md mx-auto">
-            Chargez du code COBOL et lancez une analyse pour voir les métriques en temps réel.
+            Load COBOL code and run an analysis to see real-time metrics.
           </p>
         </div>
       </div>
@@ -241,7 +241,7 @@ export default function RealTimeDashboard({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Activity className="w-5 h-5 text-emerald-400" />
-            <h3 className="font-semibold text-white">Métriques Temps Réel</h3>
+            <h3 className="font-semibold text-white">Real-Time Metrics</h3>
             {isLive && (
               <span className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">
                 <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
@@ -257,7 +257,7 @@ export default function RealTimeDashboard({
               className={`p-2 rounded-lg transition ${
                 alertsEnabled ? 'bg-amber-500 text-white' : 'bg-slate-700 text-slate-400'
               }`}
-              title={alertsEnabled ? 'Désactiver les alertes' : 'Activer les alertes'}
+              title={alertsEnabled ? 'Disable alerts' : 'Enable alerts'}
             >
               {alertsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
             </button>
@@ -268,7 +268,7 @@ export default function RealTimeDashboard({
               className={`p-2 rounded-lg transition ${
                 isLive ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-400'
               }`}
-              title={isLive ? 'Pause' : 'Reprendre'}
+              title={isLive ? 'Pause' : 'Resume'}
             >
               {isLive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             </button>
@@ -280,7 +280,7 @@ export default function RealTimeDashboard({
                 monitorsRef.current.forEach(m => m.clear());
               }}
               className="p-2 rounded-lg bg-slate-700 text-slate-400 hover:bg-slate-600 transition"
-              title="Réinitialiser"
+              title="Reset"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -298,7 +298,7 @@ export default function RealTimeDashboard({
       {/* Charts Section */}
       <div className="px-4 pb-4">
         <div className="bg-slate-800/50 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-slate-300 mb-3">Historique (50 derniers points)</h4>
+          <h4 className="text-sm font-medium text-slate-300 mb-3">History (last 50 points)</h4>
           <div className="grid grid-cols-2 gap-4">
             {metrics.slice(0, 2).map(metric => (
               <MiniChart key={metric.id} metric={metric} />
@@ -313,13 +313,13 @@ export default function RealTimeDashboard({
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-medium text-amber-400 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4" />
-              Alertes Anomalies ({alerts.length})
+              Anomaly Alerts ({alerts.length})
             </h4>
             <button
               onClick={clearAllAlerts}
               className="text-xs text-slate-400 hover:text-white"
             >
-              Tout effacer
+              Clear all
             </button>
           </div>
           <div className="space-y-2 max-h-40 overflow-y-auto">
@@ -334,8 +334,8 @@ export default function RealTimeDashboard({
       <div className="border-t border-slate-700 px-4 py-3 bg-slate-800/30">
         <div className="flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center gap-4">
-            <span>Dernière mise à jour: {new Date().toLocaleTimeString()}</span>
-            <span>Alertes totales: {alerts.length}</span>
+            <span>Last update: {new Date().toLocaleTimeString()}</span>
+            <span>Total alerts: {alerts.length}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1">
@@ -445,7 +445,7 @@ function MiniChart({ metric }: { metric: MetricData }) {
   if (data.length < 2) {
     return (
       <div className="bg-slate-900 rounded p-3 h-32 flex items-center justify-center text-slate-500 text-xs">
-        En attente de données...
+        Waiting for data...
       </div>
     );
   }

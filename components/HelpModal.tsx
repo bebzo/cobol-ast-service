@@ -15,58 +15,58 @@ interface IssueHelp {
 // Knowledge base for common COBOL migration issues
 const ISSUE_KNOWLEDGE_BASE: Record<string, IssueHelp> = {
   "division": {
-    title: "Division par Zéro",
-    description: "Le code COBOL effectue une division sans vérifier si le diviseur est zéro.",
-    whyImportant: "En COBOL, une division par zéro peut produire des résultats différents selon le compilateur. En Python, cela lève une exception ZeroDivisionError qui interrompt le programme.",
+    title: "Division by Zero",
+    description: "The COBOL code performs a division without checking if the divisor is zero.",
+    whyImportant: "In COBOL, division by zero may produce different results depending on the compiler. In Python, this raises a ZeroDivisionError that interrupts the program.",
     pattern: "COMPUTE X = Y / Z",
-    fix: "Ajoutez une vérification: if divisor != 0: result = dividend / divisor else: result = Decimal('0')",
+    fix: "Add a check: if divisor != 0: result = dividend / divisor else: result = Decimal('0')",
     docLink: "https://docs.python.org/3/library/decimal.html"
   },
   "decimal": {
-    title: "Précision Décimale",
-    description: "Les calculs COBOL utilisent des types PIC avec précision fixe (ex: PIC 9(7)V99).",
-    whyImportant: "Python float utilise IEEE 754 qui peut introduire des erreurs d'arrondi. Pour les calculs financiers, cela peut causer des différences de centimes.",
+    title: "Decimal Precision",
+    description: "COBOL calculations use PIC types with fixed precision (e.g., PIC 9(7)V99).",
+    whyImportant: "Python float uses IEEE 754 which can introduce rounding errors. For financial calculations, this can cause penny differences.",
     pattern: "PIC S9(7)V99 COMP-3",
-    fix: "Utilisez decimal.Decimal avec la précision appropriée: from decimal import Decimal, ROUND_HALF_UP",
+    fix: "Use decimal.Decimal with appropriate precision: from decimal import Decimal, ROUND_HALF_UP",
     docLink: "https://docs.python.org/3/library/decimal.html"
   },
   "date": {
-    title: "Logique de Date",
-    description: "Le code contient des manipulations de dates ou timestamps.",
-    whyImportant: "COBOL et Python gèrent les dates différemment: formats (YYYYMMDD vs ISO), fuseaux horaires, années bissextiles.",
+    title: "Date Logic",
+    description: "The code contains date or timestamp manipulations.",
+    whyImportant: "COBOL and Python handle dates differently: formats (YYYYMMDD vs ISO), timezones, leap years.",
     pattern: "WS-DATE PIC 9(8)",
     fix: "Utilisez datetime avec timezone: from datetime import datetime, timezone",
     docLink: "https://docs.python.org/3/library/datetime.html"
   },
   "file": {
-    title: "Opérations Fichier",
-    description: "Le programme COBOL lit ou écrit des fichiers séquentiels ou indexés.",
-    whyImportant: "Les fichiers COBOL ont des formats spécifiques (fixed-width, EBCDIC) qui ne sont pas directement compatibles avec Python.",
+    title: "File Operations",
+    description: "The COBOL program reads or writes sequential or indexed files.",
+    whyImportant: "COBOL files have specific formats (fixed-width, EBCDIC) that are not directly compatible with Python.",
     pattern: "READ FILE-NAME INTO WS-RECORD",
-    fix: "Utilisez pandas pour les CSV ou struct pour les formats binaires fixes.",
+    fix: "Use pandas for CSV or struct for fixed binary formats.",
     docLink: "https://pandas.pydata.org/docs/"
   },
   "sql": {
-    title: "SQL Embarqué",
-    description: "Le code contient des instructions EXEC SQL pour accéder à une base de données.",
-    whyImportant: "Le SQL COBOL utilise des curseurs et des variables hôtes qui doivent être convertis en paramètres Python.",
+    title: "Embedded SQL",
+    description: "The code contains EXEC SQL statements to access a database.",
+    whyImportant: "COBOL SQL uses cursors and host variables that must be converted to Python parameters.",
     pattern: "EXEC SQL SELECT ... INTO :WS-VAR END-EXEC",
-    fix: "Utilisez SQLAlchemy ou psycopg2 avec des requêtes paramétrées pour éviter les injections SQL.",
+    fix: "Use SQLAlchemy or psycopg2 with parameterized queries to prevent SQL injection.",
     docLink: "https://docs.sqlalchemy.org/"
   },
   "obsolete": {
-    title: "Code Obsolète",
-    description: "Le code utilise des taux, limites ou règles qui ne sont plus valides.",
-    whyImportant: "Les constantes métier (taux d'imposition, plafonds) codées en dur peuvent être obsolètes et causer des erreurs de calcul.",
+    title: "Obsolete Code",
+    description: "The code uses rates, limits, or rules that are no longer valid.",
+    whyImportant: "Hardcoded business constants (tax rates, thresholds) may be outdated and cause calculation errors.",
     pattern: "WS-TAX-RATE PIC V99 VALUE .15",
-    fix: "Externalisez les configurations dans des fichiers JSON ou une base de données pour permettre les mises à jour sans recompilation.",
+    fix: "Externalize configurations to JSON files or a database to allow updates without recompilation.",
   },
   "security": {
-    title: "Vulnérabilité Sécurité",
-    description: "Le code présente un risque de sécurité potentiel.",
-    whyImportant: "Les failles de sécurité peuvent exposer des données sensibles ou permettre des attaques.",
+    title: "Security Vulnerability",
+    description: "The code presents a potential security risk.",
+    whyImportant: "Security flaws can expose sensitive data or allow attacks.",
     pattern: "MOVE PASSWORD TO WS-DISPLAY",
-    fix: "N'affichez jamais les mots de passe. Utilisez des bibliothèques de hachage sécurisées comme bcrypt.",
+    fix: "Never display passwords. Use secure hashing libraries like bcrypt.",
   }
 };
 
@@ -83,7 +83,7 @@ export function HelpModal({ isOpen, onClose, issueText, issueType = "issue" }: H
   // Find matching help content based on keywords in the issue
   const findHelp = (): IssueHelp | null => {
     const lowerText = issueText.toLowerCase();
-    if (lowerText.includes("division") || lowerText.includes("divide") || lowerText.includes("zéro")) {
+    if (lowerText.includes("division") || lowerText.includes("divide") || lowerText.includes("zero")) {
       return ISSUE_KNOWLEDGE_BASE.division;
     }
     if (lowerText.includes("decimal") || lowerText.includes("precision") || lowerText.includes("comp-3") || lowerText.includes("pic")) {
@@ -133,8 +133,8 @@ export function HelpModal({ isOpen, onClose, issueText, issueType = "issue" }: H
               <Icon className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-white">{help?.title || "Aide"}</h3>
-              <p className="text-xs text-slate-400">Documentation contextuelle</p>
+              <h3 className="font-bold text-white">{help?.title || "Help"}</h3>
+              <p className="text-xs text-slate-400">Contextual Documentation</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded-lg transition">
@@ -146,7 +146,7 @@ export function HelpModal({ isOpen, onClose, issueText, issueType = "issue" }: H
         <div className="p-6 space-y-4">
           {/* Original Issue */}
           <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
-            <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Problème Détecté</p>
+            <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Detected Issue</p>
             <p className="text-slate-200">{issueText}</p>
           </div>
 
@@ -161,14 +161,14 @@ export function HelpModal({ isOpen, onClose, issueText, issueType = "issue" }: H
               {/* Why Important */}
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
                 <p className="text-xs text-amber-400 mb-2 uppercase tracking-wide flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" /> Pourquoi c'est important
+                  <AlertTriangle className="w-4 h-4" /> Why It's Important
                 </p>
                 <p className="text-amber-200 text-sm">{help.whyImportant}</p>
               </div>
 
               {/* Pattern */}
               <div>
-                <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Pattern COBOL typique</p>
+                <p className="text-xs text-slate-400 mb-2 uppercase tracking-wide">Typical COBOL Pattern</p>
                 <pre className="bg-slate-900 rounded-lg p-3 text-amber-300 font-mono text-sm overflow-x-auto">
                   {help.pattern}
                 </pre>
@@ -177,7 +177,7 @@ export function HelpModal({ isOpen, onClose, issueText, issueType = "issue" }: H
               {/* Fix */}
               <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
                 <p className="text-xs text-green-400 mb-2 uppercase tracking-wide flex items-center gap-2">
-                  <Lightbulb className="w-4 h-4" /> Correction Recommandée
+                  <Lightbulb className="w-4 h-4" /> Recommended Fix
                 </p>
                 <p className="text-green-200 text-sm font-mono">{help.fix}</p>
               </div>
@@ -191,7 +191,7 @@ export function HelpModal({ isOpen, onClose, issueText, issueType = "issue" }: H
                   className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 text-sm transition"
                 >
                   <BookOpen className="w-4 h-4" />
-                  Documentation Python
+                  Python Documentation
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}
@@ -199,9 +199,9 @@ export function HelpModal({ isOpen, onClose, issueText, issueType = "issue" }: H
           ) : (
             <div className="text-center py-8 text-slate-400">
               <HelpCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Aucune documentation spécifique disponible pour ce problème.</p>
+              <p>No specific documentation available for this issue.</p>
               <p className="text-xs mt-2 text-slate-500">
-                Consultez la documentation COBOL/Python ou posez une question dans le chat Gemini.
+                Consult COBOL/Python documentation or ask a question in the Gemini chat.
               </p>
             </div>
           )}
@@ -225,7 +225,7 @@ export function HelpButton({ issueText, issueType = "issue" }: HelpButtonProps) 
       <button
         onClick={() => setIsOpen(true)}
         className="p-1 hover:bg-slate-600 rounded transition-colors"
-        title="Voir l'aide"
+        title="View help"
       >
         <HelpCircle className="w-4 h-4 text-slate-400 hover:text-indigo-400" />
       </button>

@@ -50,7 +50,7 @@ const FRAMEWORK_INFO = {
   flask: {
     name: 'Flask',
     icon: '🧪',
-    description: 'Micro-framework léger et flexible',
+    description: 'Lightweight and flexible micro-framework',
     color: 'amber'
   },
   plain: {
@@ -229,7 +229,7 @@ export default function FrameworkExporter({
               className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg transition"
             >
               <Download className="w-4 h-4" />
-              Télécharger tout
+              Download All
             </button>
           )}
         </div>
@@ -284,7 +284,7 @@ export default function FrameworkExporter({
           {/* Database */}
           {selectedFramework !== 'plain' && (
             <div>
-              <label className="block text-sm text-slate-400 mb-1">Base de données</label>
+              <label className="block text-sm text-slate-400 mb-1">Database</label>
               <select
                 value={databaseType}
                 onChange={(e) => setDatabaseType(e.target.value as any)}
@@ -339,7 +339,7 @@ export default function FrameworkExporter({
           className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Zap className="w-5 h-5" />
-          Générer le projet {FRAMEWORK_INFO[selectedFramework].name}
+          Generate Project {FRAMEWORK_INFO[selectedFramework].name}
         </button>
       </div>
 
@@ -372,12 +372,12 @@ export default function FrameworkExporter({
                     {copied === selectedFile.path ? (
                       <>
                         <Check className="w-3 h-3 text-green-400" />
-                        Copié!
+                        Copied!
                       </>
                     ) : (
                       <>
                         <Copy className="w-3 h-3" />
-                        Copier
+                        Copy
                       </>
                     )}
                   </button>
@@ -390,7 +390,7 @@ export default function FrameworkExporter({
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center text-slate-500">
-                Sélectionnez un fichier
+                Select a file
               </div>
             )}
           </div>

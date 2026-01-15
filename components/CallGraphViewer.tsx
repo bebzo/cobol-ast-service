@@ -76,7 +76,7 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
     return (
       <div className="bg-slate-900 rounded-xl border border-slate-700 p-8 text-center">
         <GitBranch className="w-12 h-12 text-slate-500 mx-auto mb-4" />
-        <p className="text-slate-400">Chargez du code COBOL pour analyser les dépendances</p>
+        <p className="text-slate-400">Load COBOL code to analyze dependencies</p>
       </div>
     );
   }
@@ -88,7 +88,7 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <GitBranch className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold text-white">Graphe d'Appels & Dépendances</h3>
+            <h3 className="font-semibold text-white">Call Graph & Dependencies</h3>
             {graph.cycles.length > 0 && (
               <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3" />
@@ -104,13 +104,13 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
                 onClick={() => setViewMode('graph')}
                 className={`px-2 py-1 text-xs rounded ${viewMode === 'graph' ? 'bg-purple-500 text-white' : 'text-slate-400 hover:text-white'}`}
               >
-                Graphe
+                Graph
               </button>
               <button
                 onClick={() => setViewMode('list')}
                 className={`px-2 py-1 text-xs rounded ${viewMode === 'list' ? 'bg-purple-500 text-white' : 'text-slate-400 hover:text-white'}`}
               >
-                Liste
+                List
               </button>
               <button
                 onClick={() => setViewMode('mermaid')}
@@ -157,7 +157,7 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
           </div>
           <div className="flex items-center gap-1.5">
             <ArrowRight className="w-3 h-3 text-green-400" />
-            <span className="text-slate-400">Arêtes:</span>
+            <span className="text-slate-400">Edges:</span>
             <span className="text-white font-medium">{graph.metrics.totalEdges}</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -167,7 +167,7 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
           </div>
           <div className="flex items-center gap-1.5">
             <RefreshCw className="w-3 h-3 text-amber-400" />
-            <span className="text-slate-400">Complexité:</span>
+            <span className="text-slate-400">Complexity:</span>
             <span className="text-white font-medium">{graph.metrics.cyclomaticComplexity}</span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -307,7 +307,7 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
               <div>
                 <h4 className="text-sm font-medium text-indigo-400 mb-2 flex items-center gap-2">
                   <Target className="w-4 h-4" />
-                  Points d'entrée
+                  Entry Points
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {graph.entryPoints.map(ep => (
@@ -396,7 +396,7 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
             <div className="p-4 border-b border-slate-700">
               <h4 className="text-sm font-medium text-red-400 mb-3 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" />
-                Dépendances Cycliques
+                Cyclic Dependencies
               </h4>
               <div className="space-y-3">
                 {graph.cycles.map((cycle, idx) => (
@@ -459,7 +459,7 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
 
           {/* Legend */}
           <div className="p-4 border-t border-slate-700">
-            <h4 className="text-xs font-medium text-slate-400 mb-2">Légende</h4>
+            <h4 className="text-xs font-medium text-slate-400 mb-2">Legend</h4>
             <div className="space-y-1 text-xs">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-indigo-500" />
