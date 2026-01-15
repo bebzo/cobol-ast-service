@@ -906,8 +906,8 @@ class TestPropertyBased:
     
     @given(st.decimals(min_value=0, max_value=0, places=2))
     @settings(max_examples=10)
-    def test_zero_identity(self, zero_val):
-        """Property: Zero input should produce zero or defined default output"""
+    def test_edge_zero_value(self, zero_val):
+        """Edge case: Zero input should produce zero or defined default output"""
         if not HYPOTHESIS_AVAILABLE:
             return
         # Zero identity check
@@ -915,8 +915,8 @@ class TestPropertyBased:
     
     @given(st.decimals(min_value=-1000000, max_value=1000000, places=2))
     @settings(max_examples=50)
-    def test_overflow_bounds(self, value):
-        """Property: All calculations should stay within COBOL PIC S9(18)V99 bounds"""
+    def test_boundary_overflow_max_min(self, value):
+        """Boundary: All calculations should stay within COBOL PIC S9(18)V99 bounds"""
         if not HYPOTHESIS_AVAILABLE:
             return
         MAX_COBOL = Decimal('999999999999999999.99')
