@@ -52,6 +52,7 @@ const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard")
 const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
 const FrameworkExporter = dynamic(() => import("@/components/FrameworkExporter"), { ssr: false });
 const EquivalenceDashboard = dynamic(() => import("@/components/EquivalenceDashboard"), { ssr: false });
+const ArchitectureViewer = dynamic(() => import("@/components/ArchitectureViewer"), { ssr: false });
 
 const MigrationGuide = dynamic(() => import("@/components/MigrationGuide"), { ssr: false });
 const Glossary = dynamic(() => import("@/components/Glossary"), { ssr: false });
@@ -2049,50 +2050,8 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
               
               {activeTab === "arch" && (
-                <div className="h-[400px] overflow-y-auto p-4 bg-slate-900">
-                  {analysis?.architecture_diagram ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-cyan-400 font-semibold">
-                        <GitCompare className="w-5 h-5" />
-                        COBOL → Python Architecture Map
-                      </div>
-                      <div className="flex flex-wrap items-center justify-center gap-3 p-3">
-                        {/* COBOL Legacy */}
-                        <div className="bg-gradient-to-b from-red-600 to-red-800 rounded-xl p-4 border border-red-400/50 shadow-lg shadow-red-500/20 min-w-[180px] flex-1 max-w-[240px]">
-                          <div className="text-white font-bold text-center mb-2 text-base">COBOL Legacy</div>
-                          <div className="space-y-1.5">
-                            <div className="bg-red-900/50 rounded px-3 py-1.5 text-red-100 text-xs font-medium flex justify-between"><span>Lignes</span><span className="text-white font-bold">{analysis?.cobol_lines || cobolCode.split('\n').length}</span></div>
-                            <div className="bg-red-900/50 rounded px-3 py-1.5 text-red-100 text-xs font-medium flex justify-between"><span>Paragraphes</span><span className="text-white font-bold">{analysis?.ast_metrics?.paragraphs || 0}</span></div>
-                            <div className="bg-red-900/50 rounded px-3 py-1.5 text-red-100 text-xs font-medium flex justify-between"><span>Variables</span><span className="text-white font-bold">{analysis?.ast_metrics?.variables || 0}</span></div>
-                            {(analysis?.ast_metrics?.copybooks || 0) > 0 && <div className="bg-red-900/50 rounded px-3 py-1.5 text-red-100 text-xs font-medium flex justify-between"><span>Copybooks</span><span className="text-white font-bold">{analysis?.ast_metrics?.copybooks}</span></div>}
-                          </div>
-                        </div>
-                        {/* Arrow */}
-                        <div className="flex flex-col items-center px-2">
-                          <div className="text-cyan-400 text-xl animate-pulse">→→→</div>
-                          <div className="text-cyan-400 text-xs">Migration</div>
-                        </div>
-                        {/* Python Modern */}
-                        <div className="bg-gradient-to-b from-blue-600 to-blue-800 rounded-xl p-4 border border-blue-400/50 shadow-lg shadow-blue-500/20 min-w-[180px] flex-1 max-w-[240px]">
-                          <div className="text-white font-bold text-center mb-2 text-base">Python Modern</div>
-                          <div className="space-y-1.5">
-                            <div className="bg-blue-900/50 rounded px-3 py-1.5 text-blue-100 text-xs font-medium flex justify-between"><span>Lignes</span><span className="text-white font-bold">{analysis?.python_lines || (analysis?.python_code?.split('\n').length || 0)}</span></div>
-                            <div className="bg-blue-900/50 rounded px-3 py-1.5 text-blue-100 text-xs font-medium flex justify-between"><span>Fonctions</span><span className="text-white font-bold">{(analysis?.python_code?.match(/def \w+\(/g) || []).length}</span></div>
-                            <div className="bg-green-900/50 rounded px-3 py-1.5 text-green-100 text-xs font-medium flex justify-between"><span>Classes</span><span className="text-white font-bold">{(analysis?.python_code?.match(/class \w+/g) || []).length}</span></div>
-                            <div className="bg-purple-900/50 rounded px-3 py-1.5 text-purple-100 text-xs font-medium flex justify-between"><span>Tests</span><span className="text-white font-bold">{(typeof analysis?.unit_tests === 'string' ? (analysis.unit_tests.match(/def test_/g) || []).length : 0)}</span></div>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-xs text-slate-500 text-center">{analysis?.summary || 'Architecture de migration COBOL vers Python'}</p>
-                    </div>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-slate-400">
-                      <div className="text-center">
-                        <GitCompare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                        <p>Architecture diagram will appear after analysis</p>
-                      </div>
-                    </div>
-                  )}
+                <div className="h-[600px] overflow-hidden">
+                  <ArchitectureViewer analysis={analysis} cobolCode={cobolCode} />
                 </div>
               )}
 
