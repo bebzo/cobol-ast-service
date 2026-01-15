@@ -1,0 +1,18 @@
+{
+  "runtime": "edge",
+  "name": "api/clean",
+  "deploymentTarget": "v8-worker",
+  "entrypoint": "index.js",
+  "assets": [],
+  "framework": {
+    "slug": "nextjs",
+    "version": "14.2.35"
+  },
+  "environment": {
+    "__NEXT_BUILD_ID": "vnIL5ErfBYBuGrR3r81O-",
+    "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "W/sAM/NLldZPy0RjuGa0wdfFfPFVvTz5meMdszVXrf8=",
+    "__NEXT_PREVIEW_MODE_ID": "ddff93770b340ef47035e5c1625fe99d",
+    "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "1f76162e7924852f002cda7d1f11f231f4d23c82d6a0edaf267fe217cfa7de1a",
+    "__NEXT_PREVIEW_MODE_SIGNING_KEY": "a434eb2c14b56ba4d150abba2f248f509975c5e1d88783ab5eac49e19c2c8622"
+  }
+}
