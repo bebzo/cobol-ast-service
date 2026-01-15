@@ -9,29 +9,111 @@ const corsHeaders = {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-// Phase 6: Rounding Analysis for Financial Accuracy
+// ============================================================================
+// Phase 6: Advanced Code Analysis for Expert Support
+// ============================================================================
+
+interface CodeStructure {
+  className: string;
+  methods: string[];
+  properties: string[];
+  imports: string[];
+  hasCobolRuntime: boolean;
+  hasFileManager: boolean;
+  hasLogger: boolean;
+}
+
+interface CalculationIssue {
+  lineNumber: number;
+  code: string;
+  issue: string;
+  severity: 'critical' | 'warning' | 'info';
+  suggestedFix: string;
+}
+
 interface RoundingAnalysis {
   hasCobolRounded: boolean;
+  cobolRoundedVariables: string[];
   pythonRoundingMethods: string[];
   inconsistencies: string[];
   missingRounding: string[];
   recommendations: string[];
+  calculationIssues: CalculationIssue[];
+  autoFixCode: string;
 }
 
+// Deep analysis of Python code structure
+function analyzeCodeStructure(pythonCode: string): CodeStructure {
+  const structure: CodeStructure = {
+    className: '',
+    methods: [],
+    properties: [],
+    imports: [],
+    hasCobolRuntime: false,
+    hasFileManager: false,
+    hasLogger: false
+  };
+
+  if (!pythonCode) return structure;
+
+  const lines = pythonCode.split('\n');
+
+  // Extract class name
+  const classMatch = pythonCode.match(/class\s+(\w+)/);
+  if (classMatch) structure.className = classMatch[1];
+
+  // Extract methods
+  const methodMatches = pythonCode.matchAll(/def\s+(\w+)\s*\(/g);
+  for (const match of methodMatches) {
+    structure.methods.push(match[1]);
+  }
+
+  // Extract self.property assignments
+  const propMatches = pythonCode.matchAll(/self\.(\w+)\s*=/g);
+  const propsSet = new Set<string>();
+  for (const match of propMatches) {
+    propsSet.add(match[1]);
+  }
+  structure.properties = Array.from(propsSet);
+
+  // Extract imports
+  const importMatches = pythonCode.matchAll(/(?:from\s+[\w.]+\s+)?import\s+([^\n]+)/g);
+  for (const match of importMatches) {
+    structure.imports.push(match[0].trim());
+  }
+
+  // Detect key components
+  structure.hasCobolRuntime = pythonCode.includes('CobolRuntime') || pythonCode.includes('cobol_round');
+  structure.hasFileManager = pythonCode.includes('FileManager') || pythonCode.includes('file_manager');
+  structure.hasLogger = pythonCode.includes('logging') || pythonCode.includes('logger');
+
+  return structure;
+}
+
+// Advanced rounding analysis with line-specific issues
 function analyzeRoundingIssues(cobolCode: string, pythonCode: string): RoundingAnalysis {
   const analysis: RoundingAnalysis = {
     hasCobolRounded: false,
+    cobolRoundedVariables: [],
     pythonRoundingMethods: [],
     inconsistencies: [],
     missingRounding: [],
-    recommendations: []
+    recommendations: [],
+    calculationIssues: [],
+    autoFixCode: ''
   };
 
   if (!cobolCode || !pythonCode) return analysis;
 
-  // Detect COBOL ROUNDED keyword
-  const roundedMatches = cobolCode.match(/COMPUTE\s+[\w-]+\s+ROUNDED/gi) || [];
-  analysis.hasCobolRounded = roundedMatches.length > 0;
+  const pythonLines = pythonCode.split('\n');
+
+  // Detect COBOL ROUNDED keyword with variable names
+  const roundedMatches = cobolCode.matchAll(/COMPUTE\s+([\w-]+)\s+ROUNDED/gi);
+  for (const match of roundedMatches) {
+    analysis.hasCobolRounded = true;
+    const varName = match[1].toLowerCase().replace(/-/g, '_').replace(/^ws_/, '');
+    analysis.cobolRoundedVariables.push(varName);
+  }
 
   // Detect Python rounding methods
   const roundHalfUp = (pythonCode.match(/ROUND_HALF_UP/g) || []).length;
@@ -47,52 +129,111 @@ function analyzeRoundingIssues(cobolCode: string, pythonCode: string): RoundingA
   // Detect inconsistencies
   if (roundHalfUp > 0 && roundHalfEven > 0) {
     analysis.inconsistencies.push(
-      `Mixed rounding modes detected: ROUND_HALF_UP (${roundHalfUp}x) and ROUND_HALF_EVEN (${roundHalfEven}x). ` +
-      `This can cause penny differences in financial calculations.`
+      `Mixed rounding modes: ROUND_HALF_UP (${roundHalfUp}x) vs ROUND_HALF_EVEN (${roundHalfEven}x). This causes penny differences.`
     );
   }
 
-  // Detect missing rounding: COBOL has ROUNDED but Python may not have .quantize()
+  // Line-by-line analysis for calculations without rounding
+  const financialPatterns = [
+    /self\.(\w*(?:prime|total|montant|amount|sum|tax|rate|price|cost|fee|interest|balance|payment)\w*)\s*=\s*([^#\n]+)/gi,
+    /self\.(\w+)\s*=\s*self\.\w+\s*\*\s*\([^)]*Decimal[^)]*\)/gi,
+    /self\.(\w+)\s*=\s*\([^)]+\)\s*\*\s*\([^)]+\)/gi
+  ];
+
+  pythonLines.forEach((line, idx) => {
+    const lineNum = idx + 1;
+    
+    // Check for financial calculations without explicit rounding
+    for (const pattern of financialPatterns) {
+      pattern.lastIndex = 0;
+      const match = pattern.exec(line);
+      if (match && !line.includes('quantize') && !line.includes('cobol_round') && !line.includes('round(')) {
+        const varName = match[1];
+        // Check if this variable should be rounded (matches COBOL ROUNDED variable)
+        const shouldRound = analysis.cobolRoundedVariables.some(v => 
+          varName.toLowerCase().includes(v) || v.includes(varName.toLowerCase())
+        );
+        
+        if (shouldRound || line.includes('Decimal') || line.includes('* (')) {
+          analysis.calculationIssues.push({
+            lineNumber: lineNum,
+            code: line.trim(),
+            issue: `Financial calculation without explicit rounding`,
+            severity: shouldRound ? 'critical' : 'warning',
+            suggestedFix: `${line.trim().replace(/;?\s*$/, '')}).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)`
+          });
+        }
+      }
+    }
+
+    // Check for division without zero check
+    if (line.includes(' / ') && !line.includes('!= 0') && !line.includes('> 0') && !line.includes('if ')) {
+      const divMatch = line.match(/self\.(\w+)\s*=\s*[^/]+\/\s*([^#\n]+)/);
+      if (divMatch) {
+        analysis.calculationIssues.push({
+          lineNumber: lineNum,
+          code: line.trim(),
+          issue: `Division without zero check (COBOL ON SIZE ERROR equivalent)`,
+          severity: 'warning',
+          suggestedFix: `if ${divMatch[2].trim()} != 0: ${line.trim()} else: self.${divMatch[1]} = Decimal('0')`
+        });
+      }
+    }
+  });
+
+  // Missing rounding detection
   if (analysis.hasCobolRounded && quantize === 0 && cobolRound === 0) {
     analysis.missingRounding.push(
-      `COBOL uses ROUNDED (${roundedMatches.length}x) but Python code has no explicit rounding (.quantize() or cobol_round()). ` +
-      `This WILL cause precision differences.`
+      `COBOL uses ROUNDED for ${analysis.cobolRoundedVariables.length} variables but Python has NO explicit rounding.`
+    );
+    analysis.missingRounding.push(
+      `Variables needing rounding: ${analysis.cobolRoundedVariables.slice(0, 5).join(', ')}${analysis.cobolRoundedVariables.length > 5 ? '...' : ''}`
     );
   }
 
-  // Check for Decimal arithmetic without rounding
-  const decimalCalcs = pythonCode.match(/self\.\w+\s*=\s*self\.\w+\s*\*[^;\n]+Decimal/g) || [];
-  const calcWithoutRounding = decimalCalcs.filter(calc => !calc.includes('quantize') && !calc.includes('round'));
-  if (calcWithoutRounding.length > 0 && analysis.hasCobolRounded) {
-    analysis.missingRounding.push(
-      `Found ${calcWithoutRounding.length} Decimal calculations without explicit rounding that may need .quantize()`
-    );
+  // Generate auto-fix code
+  if (analysis.calculationIssues.length > 0) {
+    const criticalIssues = analysis.calculationIssues.filter(i => i.severity === 'critical');
+    if (criticalIssues.length > 0) {
+      analysis.autoFixCode = `# AUTO-FIX: Add this import at the top
+from decimal import Decimal, ROUND_HALF_EVEN
+
+# Wrap financial calculations with proper rounding:
+${criticalIssues.slice(0, 3).map(i => 
+  `# Line ${i.lineNumber}: ${i.suggestedFix}`
+).join('\n')}
+
+# Or use CobolRuntime helper:
+# result = CobolRuntime.cobol_round(calculation_result, "V99")`;
+    }
   }
 
   // Generate recommendations
   if (analysis.inconsistencies.length > 0) {
     analysis.recommendations.push(
-      'Standardize on ROUND_HALF_EVEN (banker\'s rounding) for all financial calculations to match COBOL ROUNDED behavior.'
+      'Standardize on ROUND_HALF_EVEN (banker\'s rounding) for COBOL ROUNDED compatibility.'
     );
   }
   if (analysis.missingRounding.length > 0) {
     analysis.recommendations.push(
-      'Add explicit rounding using: result.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)'
+      'Add .quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN) to all financial calculations.'
     );
+  }
+  if (analysis.calculationIssues.length > 0) {
     analysis.recommendations.push(
-      'Or use CobolRuntime.cobol_round(value, "V99") for consistent COBOL-style rounding'
+      `Fix ${analysis.calculationIssues.length} calculation issues detected (${analysis.calculationIssues.filter(i => i.severity === 'critical').length} critical).`
     );
   }
   if (analysis.hasCobolRounded) {
     analysis.recommendations.push(
-      'Create regression tests comparing COBOL vs Python results for boundary values like 1.005, 1.015, 2.5, 3.5'
+      'Create regression tests with boundary values: 1.005, 1.015, 2.5, 3.5, 4.5'
     );
   }
 
   return analysis;
 }
 
-// Detect CobolRuntime class configuration
+// Detect CobolRuntime class configuration  
 function analyzeCobolRuntime(pythonCode: string): string {
   const lines = pythonCode.split('\n');
   const runtimeInfo: string[] = [];
