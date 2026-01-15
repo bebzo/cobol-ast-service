@@ -54,13 +54,9 @@ function LoginForm() {
     setError('');
     setMessage('');
 
-    // Demo mode - allow login without Supabase
+    // Check if Supabase is configured
     if (!supabase) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setMessage('Demo mode: Redirecting to dashboard...');
-      setTimeout(() => {
-        window.location.href = redirectTo;
-      }, 500);
+      setError('Authentication service not configured. Please contact support.');
       setLoading(false);
       return;
     }
@@ -90,17 +86,15 @@ function LoginForm() {
 
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setError('');
+    setMessage('');
     
-    // Demo mode
     if (!supabase) {
-      setMessage(`Demo mode: Redirecting...`);
-      setTimeout(() => {
-        window.location.href = redirectTo;
-      }, 500);
+      setError('Authentication service not configured. Please use email/password or contact support.');
       return;
     }
 
     try {
+      setMessage(`Connecting to ${provider}...`);
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: { 
@@ -109,7 +103,8 @@ function LoginForm() {
       });
       if (error) throw error;
     } catch (err: any) {
-      setError(err.message || `${provider} login failed`);
+      setError(err.message || `${provider} login failed. Please try again.`);
+      setMessage('');
     }
   };
 
@@ -152,24 +147,6 @@ function LoginForm() {
           <h2 className="text-2xl font-bold text-white mb-6 text-center">
             {isSignUp ? 'Create Account' : 'Welcome Back'}
           </h2>
-
-          {/* Demo Access Button - Using direct link for reliable navigation */}
-          <a
-            href="/dashboard"
-            className="w-full mb-4 flex items-center justify-center gap-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white py-3 rounded-xl font-medium transition shadow-lg shadow-green-600/25 no-underline"
-          >
-            <ArrowRight className="w-5 h-5" />
-            Try Demo (No Login Required)
-          </a>
-
-          <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-600"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-3 bg-slate-800/50 text-slate-400">or sign in</span>
-            </div>
-          </div>
 
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-6">
