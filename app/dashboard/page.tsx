@@ -712,6 +712,7 @@ export default function Home() {
   const [correctionStatus, setCorrectionStatus] = useState("");
   const [correctionAttempt, setCorrectionAttempt] = useState(0);
   const [testResults, setTestResults] = useState<{running: boolean; total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}>({running: false, total: 0, passed: 0, failed: 0, details: []});
+  const [edgeCaseResults, setEdgeCaseResults] = useState<{running: boolean; total: number; passed: number; failed: number; coverage: number; details: {name: string; status: string; error?: string}[]}>({running: false, total: 0, passed: 0, failed: 0, coverage: 0, details: []});
   const [animatedMetrics, setAnimatedMetrics] = useState<{
     cobolLines: number;
     pythonLines: number;
@@ -1295,6 +1296,9 @@ export default function Home() {
         });
       });
 
+      // Run edge case tests automatically after analysis
+      runEdgeCaseTests(finalPythonCode, testStr);
+
     } catch (err: unknown) {
       // Ignore abort errors (user cancelled)
       if (err instanceof Error && err.name === 'AbortError') {
@@ -1345,6 +1349,47 @@ export default function Home() {
     deleteAnalysis(id).then(() => {
       setHistory(history.filter((h) => h.id !== id));
     });
+  };
+
+  // Run Edge Case Tests via API
+  const runEdgeCaseTests = async (pythonCodeToTest: string, testCodeToTest: string) => {
+    setEdgeCaseResults(prev => ({ ...prev, running: true }));
+    try {
+      const response = await fetch('/api/run_edge_tests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          python_code: pythonCodeToTest, 
+          test_code: testCodeToTest 
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setEdgeCaseResults({
+          running: false,
+          total: data.total || 0,
+          passed: data.passed || 0,
+          failed: data.failed || 0,
+          coverage: data.edge_case_coverage || 0,
+          details: data.details || []
+        });
+        
+        // Merge edge case test results into main testResults
+        if (data.details && data.details.length > 0) {
+          setTestResults(prev => ({
+            ...prev,
+            total: prev.total + data.total,
+            passed: prev.passed + data.passed,
+            failed: prev.failed + data.failed,
+            details: [...prev.details, ...data.details]
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Edge case tests failed:', err);
+      setEdgeCaseResults(prev => ({ ...prev, running: false }));
+    }
   };
 
   // Voice Assistant Functions
@@ -2966,6 +3011,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               cobolLines={(analyzedCobolCode || cobolCode).split('\n').length}
               pythonLines={analysis.python_lines || pythonCode.split('\n').length}
               onExportCertificate={handleExportCertificate}
+              edgeCaseResults={edgeCaseResults}
             />
           )}
 

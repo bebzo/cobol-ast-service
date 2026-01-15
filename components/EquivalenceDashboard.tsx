@@ -50,6 +50,15 @@ interface PerformanceBenchmark {
   status: "FASTER" | "SAME" | "SLOWER" | "CRITICAL";
 }
 
+interface EdgeCaseResultsType {
+  running: boolean;
+  total: number;
+  passed: number;
+  failed: number;
+  coverage: number;
+  details: { name: string; status: string; error?: string }[];
+}
+
 interface EquivalenceDashboardProps {
   testResults: {
     total: number;
@@ -61,6 +70,7 @@ interface EquivalenceDashboardProps {
   cobolLines: number;
   pythonLines: number;
   onExportCertificate: () => void;
+  edgeCaseResults?: EdgeCaseResultsType;
 }
 
 export default function EquivalenceDashboard({
@@ -69,6 +79,7 @@ export default function EquivalenceDashboard({
   cobolLines,
   pythonLines,
   onExportCertificate,
+  edgeCaseResults,
 }: EquivalenceDashboardProps) {
   const [metrics, setMetrics] = useState<EquivalenceMetrics>({
     numericalEquivalence: 0,
@@ -124,6 +135,12 @@ export default function EquivalenceDashboard({
     const perfData = analysis?.performance_metrics || {};
     const measuredDeviation = perfData.deviation_percent ?? 0;
 
+    // Use real edge case results from API if available
+    const realEdgeCoverage = edgeCaseResults && edgeCaseResults.total > 0 
+      ? edgeCaseResults.coverage 
+      : (edgeCaseTests.length > 0 ? (edgeCasePassed / edgeCaseTests.length) * 100 : 0);
+    const hasRealEdgeTests = (edgeCaseResults && edgeCaseResults.total > 0) || edgeCaseTests.length > 0;
+
     const newMetrics: EquivalenceMetrics = {
       // Numerical equivalence: based on numerical/calculation tests, fallback to overall pass rate
       numericalEquivalence: numericalTests.length > 0 
@@ -131,10 +148,8 @@ export default function EquivalenceDashboard({
         : passRate * 100,
       // Behavioral equivalence: based on all tests pass rate
       behavioralEquivalence: passRate * 100,
-      // Edge case coverage: based on edge case tests
-      edgeCaseCoverage: edgeCaseTests.length > 0 
-        ? (edgeCasePassed / edgeCaseTests.length) * 100 
-        : 0, // 0 if no edge case tests exist
+      // Edge case coverage: use real API results if available
+      edgeCaseCoverage: realEdgeCoverage,
       // Performance deviation: from analysis or 0 if not measured
       performanceDeviation: measuredDeviation,
       // Semantic coverage from backend analysis
@@ -142,7 +157,7 @@ export default function EquivalenceDashboard({
       propertyTestsPassed: propertyPassed,
       propertyTestsTotal: propertyTests.length,
       regressionSafety: testResults.failed === 0,
-      hasEdgeCaseTests: edgeCaseTests.length > 0,
+      hasEdgeCaseTests: hasRealEdgeTests,
     };
 
     setMetrics(newMetrics);
