@@ -157,8 +157,198 @@ Replacement code:`;
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// v8.5: Calculate Cyclomatic Complexity per paragraph
+// ═══════════════════════════════════════════════════════════════════════════
+function calculateCyclomaticComplexity(cobolCode: string): { paragraphs: any[], average: number, highest: any } {
+  const lines = cobolCode.split('\n');
+  const paragraphs: any[] = [];
+  
+  // Decision keywords that increase complexity
+  const decisionKeywords = ['IF ', 'EVALUATE ', 'WHEN ', 'PERFORM UNTIL', 'PERFORM VARYING', 'ON SIZE ERROR', 'AT END', 'INVALID KEY', 'NOT AT END', 'NOT INVALID KEY'];
+  
+  let currentParagraph: string | null = null;
+  let paragraphStart = 0;
+  let decisionCount = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].toUpperCase().trim();
+    
+    // Detect paragraph start (level 01 name ending with .)
+    const paragraphMatch = line.match(/^([A-Z0-9][A-Z0-9-]*)\.\s*$/);
+    if (paragraphMatch && !line.includes('PIC ') && !line.includes('VALUE ')) {
+      // Save previous paragraph
+      if (currentParagraph) {
+        const complexity = decisionCount + 1; // CC = decisions + 1
+        paragraphs.push({
+          name: currentParagraph,
+          line: paragraphStart + 1,
+          complexity,
+          risk: complexity > 10 ? 'HIGH' : complexity > 5 ? 'MEDIUM' : 'LOW'
+        });
+      }
+      currentParagraph = paragraphMatch[1];
+      paragraphStart = i;
+      decisionCount = 0;
+    }
+    
+    // Count decision points
+    for (const keyword of decisionKeywords) {
+      if (line.includes(keyword)) {
+        decisionCount++;
+      }
+    }
+  }
+  
+  // Save last paragraph
+  if (currentParagraph) {
+    const complexity = decisionCount + 1;
+    paragraphs.push({
+      name: currentParagraph,
+      line: paragraphStart + 1,
+      complexity,
+      risk: complexity > 10 ? 'HIGH' : complexity > 5 ? 'MEDIUM' : 'LOW'
+    });
+  }
+  
+  // Calculate stats
+  const totalComplexity = paragraphs.reduce((sum, p) => sum + p.complexity, 0);
+  const average = paragraphs.length > 0 ? Math.round(totalComplexity / paragraphs.length * 10) / 10 : 0;
+  const highest = paragraphs.length > 0 
+    ? paragraphs.reduce((max, p) => p.complexity > max.complexity ? p : max, paragraphs[0])
+    : { name: 'N/A', complexity: 0, risk: 'LOW' };
+  
+  return { paragraphs: paragraphs.slice(0, 20), average, highest };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v8.5: Generate Compliance Assessment (SOX, PCI-DSS, GDPR)
+// ═══════════════════════════════════════════════════════════════════════════
+function generateComplianceAssessment(cobolCode: string, securityWarnings: any[]): any {
+  const upper = cobolCode.toUpperCase();
+  const lower = cobolCode.toLowerCase();
+  
+  // Detect data types for compliance relevance
+  const hasFinancialData = upper.includes('ACCOUNT') || upper.includes('BALANCE') || upper.includes('TRANSACTION');
+  const hasPaymentData = lower.includes('card-number') || lower.includes('credit-card') || lower.includes('cvv');
+  const hasPII = lower.includes('ssn') || lower.includes('date-of-birth') || lower.includes('passport');
+  const hasHealthData = upper.includes('PATIENT') || upper.includes('DIAGNOSIS') || upper.includes('MEDICAL');
+  const hasAuditTrail = upper.includes('AUDIT') || upper.includes('LOG');
+  const hasEncryption = lower.includes('encrypt') || lower.includes('cipher') || lower.includes('aes');
+  const hasAccessControl = upper.includes('SECURITY') || upper.includes('AUTHORIZE') || upper.includes('PERMISSION');
+  
+  // Count security issues by severity
+  const criticalIssues = securityWarnings.filter(w => w.severity === 'CRITICAL').length;
+  const highIssues = securityWarnings.filter(w => w.severity === 'HIGH').length;
+  
+  // Build compliance assessment
+  const compliance: any = {
+    applicable_regulations: [],
+    sox: { applicable: false, status: 'N/A', findings: [] },
+    pci_dss: { applicable: false, status: 'N/A', findings: [] },
+    gdpr: { applicable: false, status: 'N/A', findings: [] },
+    hipaa: { applicable: false, status: 'N/A', findings: [] },
+    overall_risk: 'LOW',
+    recommendations: []
+  };
+  
+  // SOX Compliance (Financial data)
+  if (hasFinancialData) {
+    compliance.applicable_regulations.push('SOX (Sarbanes-Oxley)');
+    compliance.sox.applicable = true;
+    compliance.sox.findings = [];
+    
+    if (!hasAuditTrail) {
+      compliance.sox.findings.push('Missing audit trail for financial transactions');
+    }
+    if (!hasAccessControl) {
+      compliance.sox.findings.push('Insufficient access control documentation');
+    }
+    if (criticalIssues > 0) {
+      compliance.sox.findings.push(`${criticalIssues} critical security vulnerabilities detected`);
+    }
+    
+    compliance.sox.status = compliance.sox.findings.length === 0 ? 'COMPLIANT' 
+      : compliance.sox.findings.length <= 2 ? 'PARTIAL' : 'NON-COMPLIANT';
+  }
+  
+  // PCI-DSS Compliance (Payment data)
+  if (hasPaymentData) {
+    compliance.applicable_regulations.push('PCI-DSS v4.0');
+    compliance.pci_dss.applicable = true;
+    compliance.pci_dss.findings = [];
+    
+    if (!hasEncryption) {
+      compliance.pci_dss.findings.push('Req 3.4: Cardholder data must be encrypted at rest');
+    }
+    if (lower.includes('cvv') || lower.includes('cvc')) {
+      compliance.pci_dss.findings.push('Req 3.2: CVV/CVC must not be stored after authorization');
+    }
+    if (!hasAuditTrail) {
+      compliance.pci_dss.findings.push('Req 10: Audit trails required for all access to cardholder data');
+    }
+    
+    compliance.pci_dss.status = compliance.pci_dss.findings.length === 0 ? 'COMPLIANT' 
+      : compliance.pci_dss.findings.length <= 2 ? 'PARTIAL' : 'NON-COMPLIANT';
+  }
+  
+  // GDPR Compliance (PII data)
+  if (hasPII) {
+    compliance.applicable_regulations.push('GDPR (EU)');
+    compliance.gdpr.applicable = true;
+    compliance.gdpr.findings = [];
+    
+    if (!hasEncryption) {
+      compliance.gdpr.findings.push('Art 32: Personal data must be encrypted');
+    }
+    if (!hasAuditTrail) {
+      compliance.gdpr.findings.push('Art 30: Records of processing activities required');
+    }
+    if (!hasAccessControl) {
+      compliance.gdpr.findings.push('Art 25: Data protection by design required');
+    }
+    
+    compliance.gdpr.status = compliance.gdpr.findings.length === 0 ? 'COMPLIANT' 
+      : compliance.gdpr.findings.length <= 2 ? 'PARTIAL' : 'NON-COMPLIANT';
+  }
+  
+  // HIPAA Compliance (Health data)
+  if (hasHealthData) {
+    compliance.applicable_regulations.push('HIPAA');
+    compliance.hipaa.applicable = true;
+    compliance.hipaa.findings = [];
+    
+    if (!hasEncryption) {
+      compliance.hipaa.findings.push('PHI must be encrypted in transit and at rest');
+    }
+    if (!hasAuditTrail) {
+      compliance.hipaa.findings.push('Audit controls required for PHI access');
+    }
+    
+    compliance.hipaa.status = compliance.hipaa.findings.length === 0 ? 'COMPLIANT' 
+      : compliance.hipaa.findings.length <= 1 ? 'PARTIAL' : 'NON-COMPLIANT';
+  }
+  
+  // Overall risk
+  const nonCompliantCount = [compliance.sox, compliance.pci_dss, compliance.gdpr, compliance.hipaa]
+    .filter(c => c.status === 'NON-COMPLIANT').length;
+  const partialCount = [compliance.sox, compliance.pci_dss, compliance.gdpr, compliance.hipaa]
+    .filter(c => c.status === 'PARTIAL').length;
+  
+  compliance.overall_risk = nonCompliantCount > 0 ? 'HIGH' : partialCount > 0 ? 'MEDIUM' : 'LOW';
+  
+  // Recommendations
+  if (compliance.overall_risk !== 'LOW') {
+    if (!hasAuditTrail) compliance.recommendations.push('Implement comprehensive audit logging');
+    if (!hasEncryption) compliance.recommendations.push('Add encryption for sensitive data');
+    if (!hasAccessControl) compliance.recommendations.push('Implement role-based access controls');
+    compliance.recommendations.push('Conduct formal compliance assessment before production');
+  }
+  
+  return compliance;
+}
+
 // Generate security warnings
-function generateSecurityWarnings(cobolCode: string): any[] {
   const warnings: any[] = [];
   const lines = cobolCode.split('\n');
   const lower = cobolCode.toLowerCase();
@@ -858,6 +1048,12 @@ class Test${className}:
       security_warnings: securityWarnings,
       architecture_diagram: archDiagram,
       modules,
+      
+      // v8.5: Cyclomatic Complexity Analysis
+      cyclomatic_complexity: calculateCyclomaticComplexity(cobolCode),
+      
+      // v8.5: Compliance Assessment (SOX, PCI-DSS, GDPR, HIPAA)
+      compliance_assessment: generateComplianceAssessment(cobolCode, securityWarnings),
       
       // Business context (dynamically detected)
       business_context: {
