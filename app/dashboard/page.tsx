@@ -1911,14 +1911,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 >
                   <TestTube className="w-4 h-4" />Tests
                 </button>
-                <button
-                  onClick={() => setActiveTab("config")}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "config" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <FileCode className="w-4 h-4" />Config
-                </button>
+
                 <button
                   onClick={() => setActiveTab("diffv2")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
@@ -1927,64 +1920,19 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 >
                   <GitCompare className="w-4 h-4" />Diff
                 </button>
-                <button
-                  onClick={() => setActiveTab("arch")}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "arch" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <GitCompare className="w-4 h-4" />Architecture
-                </button>
-                <button
-                  onClick={() => startTransition(() => setActiveTab("modules"))}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "modules" ? "bg-pink-500/20 text-pink-400 border-b-2 border-pink-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <Layers className="w-4 h-4" />Modules
-                  <span className="px-1.5 py-0.5 bg-pink-500/30 text-pink-300 text-[10px] rounded">NEW</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("ddd")}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "ddd" ? "bg-emerald-500/20 text-emerald-400 border-b-2 border-emerald-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <Package className="w-4 h-4" />DDD
-                </button>
-                <button
-                  onClick={() => setActiveTab("impact")}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "impact" ? "bg-orange-500/20 text-orange-400 border-b-2 border-orange-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <TrendingUp className="w-4 h-4" />Impact
-                </button>
+
+
+
+
                 <button
                   onClick={() => setActiveTab("report")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
                     activeTab === "report" ? "bg-purple-500/20 text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <FileText className="w-4 h-4" />Security Report
+                  <Shield className="w-4 h-4" />Security
                 </button>
-                <span className="w-px h-6 bg-slate-600 mx-1"></span>
-                <button
-                  onClick={() => setActiveTab("dashboard")}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "dashboard" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <BarChart3 className="w-4 h-4" />Monitoring
-                </button>
-                <button
-                  onClick={() => setActiveTab("graph")}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "graph" ? "bg-teal-500/20 text-teal-400 border-b-2 border-teal-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <Network className="w-4 h-4" />Call Graph
-                </button>
+
                 <button
                   onClick={() => setActiveTab("export")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
@@ -1993,25 +1941,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 >
                   <FolderOutput className="w-4 h-4" />Export
                 </button>
-                <span className="w-px h-6 bg-slate-600 mx-1"></span>
-                <button
-                  onClick={() => setActiveTab("shadow")}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "shadow" ? "bg-amber-500/20 text-amber-400 border-b-2 border-amber-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <GitCompare className="w-4 h-4" />Shadow Test
-                  <span className="text-[10px] bg-amber-500/30 px-1.5 py-0.5 rounded">NEW</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("compliance")}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
-                    activeTab === "compliance" ? "bg-rose-500/20 text-rose-400 border-b-2 border-rose-400" : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  <Shield className="w-4 h-4" />Compliance
-                  <span className="text-[10px] bg-rose-500/30 px-1.5 py-0.5 rounded">NEW</span>
-                </button>
+
               </div>
               
               {activeTab === "code" && (
