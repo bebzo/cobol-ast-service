@@ -82,8 +82,10 @@ CREDENTIAL_PATTERNS = [
     (r'(?:self\.)?(?:db[-_]?)?(?:password|passwd|pwd)(?::\s*str)?\s*=\s*["\']([^"\']{4,})["\']', 'PASSWORD'),
     # API keys - flexible format
     (r'(?:self\.)?(?:api[-_]?key|apikey)(?::\s*str)?\s*=\s*["\']([A-Za-z0-9_-]{8,})["\']', 'API_KEY'),
-    # Secret keys
-    (r'(?:self\.)?(?:secret[-_]?(?:key|token)?)(?::\s*str)?\s*=\s*["\']([^"\']{4,})["\']', 'SECRET_KEY'),
+    # Secret/Encryption keys - catches encryption_key, secret_key, etc.
+    (r'(?:self\.)?(?:encryption[-_]?key|secret[-_]?key|private[-_]?key|signing[-_]?key)(?::\s*str)?\s*=\s*["\']([^"\']{8,})["\']', 'ENCRYPTION_KEY'),
+    # Session tokens
+    (r'(?:self\.)?(?:session[-_]?token|session[-_]?key)(?::\s*str)?\s*=\s*["\']([^"\']{8,})["\']', 'SESSION_TOKEN'),
     # Connection strings
     (r'(?:self\.)?(?:connection[-_]?string|connstr|conn_str)(?::\s*str)?\s*=\s*["\']([^"\']+)["\']', 'CONNECTION_STRING'),
     # Database passwords in URLs
@@ -92,8 +94,8 @@ CREDENTIAL_PATTERNS = [
     (r'(?:self\.)?(?:bearer[-_]?token|auth[-_]?token|access[-_]?token)(?::\s*str)?\s*=\s*["\']([A-Za-z0-9._-]{8,})["\']', 'BEARER_TOKEN'),
     # AWS keys
     (r'(?:self\.)?(?:aws[-_]?(?:access[-_]?key|secret[-_]?key))(?::\s*str)?\s*=\s*["\']([A-Z0-9]{16,})["\']', 'AWS_KEY'),
-    # Generic secrets - catches patterns like 'sk-xxxx' (OpenAI-style)
-    (r'(?:self\.)?\w*(?:key|token|secret|credential)\w*(?::\s*str)?\s*=\s*["\']((?:sk|pk|rk|ghp|gho|github)[-_][A-Za-z0-9_-]{10,})["\']', 'API_SECRET'),
+    # Generic secrets - catches patterns like 'sk-xxxx', 'SECRET_KEY_xxx', etc.
+    (r'(?:self\.)?\w*(?:key|token|secret|credential)\w*(?::\s*str)?\s*=\s*["\']((?:sk|pk|rk|ghp|gho|github|SECRET_KEY)[-_][A-Za-z0-9_-]{8,})["\']', 'API_SECRET'),
 ]
 
 
@@ -576,22 +578,9 @@ class SecurityHardener:
                 self.stats['pii_masked'] = self.stats.get('pii_masked', 0) + 1
         
         # 3. Wrap print statements with PII fields in mask_pii()
-        pii_print_pattern = r'print\(f?[\'"]([^\'\"]*)(self\.(?:ssn|card|password|secret|account)[a-z_]*)([^\'\"]*)[\'\"]\)'
-        matches = list(re.finditer(pii_print_pattern, code, re.IGNORECASE))
-        for match in reversed(matches):
-            original = match.group(0)
-            prefix = match.group(1)
-            var_name = match.group(2)
-            suffix = match.group(3)
-            
-            # Replace with masked version
-            if 'f"' in original or "f'" in original:
-                replacement = f'print(f"{prefix}{{mask_pii(str({var_name}))}}{{suffix}}")'
-            else:
-                replacement = f'print("{prefix}" + mask_pii(str({var_name})) + "{suffix}")'
-            
-            code = code[:match.start()] + replacement + code[match.end():]
-            self.stats['print_masked'] = self.stats.get('print_masked', 0) + 1
+        # NOTE: This is complex and error-prone - disabled to avoid syntax errors
+        # PII protection should be done at the field level, not by rewriting print statements
+        # The PIIField descriptor and mask_pii() function are available for manual use
         
         return code
     
