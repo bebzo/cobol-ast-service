@@ -153,14 +153,14 @@ function LoginForm() {
             {isSignUp ? 'Create Account' : 'Welcome Back'}
           </h2>
 
-          {/* Demo Access Button */}
-          <button
-            onClick={handleDemoAccess}
-            className="w-full mb-4 flex items-center justify-center gap-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white py-3 rounded-xl font-medium transition shadow-lg shadow-green-600/25"
+          {/* Demo Access Button - Using direct link for reliable navigation */}
+          <a
+            href="/dashboard"
+            className="w-full mb-4 flex items-center justify-center gap-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white py-3 rounded-xl font-medium transition shadow-lg shadow-green-600/25 no-underline"
           >
             <ArrowRight className="w-5 h-5" />
             Try Demo (No Login Required)
-          </button>
+          </a>
 
           <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
