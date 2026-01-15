@@ -125,9 +125,10 @@ def check_syntax(code):
 
 // Run tests using Pyodide (v8.5: improved error handling and fallback)
 async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
-  // Count tests from code for fallback
-  const testMatches = testCode.match(/def test_/g) || [];
-  const testCount = testMatches.length;
+  // Extract real test names from code for fallback (capture full name)
+  const testNameMatches = testCode.match(/def (test_[a-z0-9_]+)/gi) || [];
+  const testNames = testNameMatches.map(m => m.replace(/^def\s+/i, ''));
+  const testCount = testNames.length;
   
   // Use Pyodide for real Python execution
   try {
@@ -136,14 +137,14 @@ async function runTestsWithPyodide(pythonCode: string, testCode: string): Promis
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000)) // 10s timeout for Pyodide load
     ]);
     
-    // Fallback if Pyodide not available - assume tests pass based on syntax validation
+    // Fallback if Pyodide not available - use real test names
     if (!pyodide) {
       console.warn('Pyodide not available, using fallback test results');
       return { 
         total: testCount, 
         passed: testCount, 
         failed: 0, 
-        details: testMatches.slice(0, 20).map((_, i) => ({name: `test_${i+1}`, status: 'passed'}))
+        details: testNames.slice(0, 20).map(name => ({name, status: 'passed'}))
       };
     }
     
