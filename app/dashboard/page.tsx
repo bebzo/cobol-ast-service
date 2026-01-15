@@ -1920,10 +1920,14 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 >
                   <GitCompare className="w-4 h-4" />Diff
                 </button>
-
-
-
-
+                <button
+                  onClick={() => setActiveTab("arch")}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
+                    activeTab === "arch" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Network className="w-4 h-4" />Architecture
+                </button>
                 <button
                   onClick={() => setActiveTab("report")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
