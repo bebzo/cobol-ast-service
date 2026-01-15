@@ -7736,7 +7736,7 @@ def enrich_with_gemini(python_code: str, cobol_source: str, max_calls: int = 50)
             return python_code, stats
         
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-3-pro-preview')
         
         todo_pattern = re.compile(r"(    def ([a-z][a-z0-9_]*)\(self\)[^:]*:.*?(?=\n    def |\nclass |\nif __name__|$))", re.DOTALL)
         methods = todo_pattern.findall(python_code)

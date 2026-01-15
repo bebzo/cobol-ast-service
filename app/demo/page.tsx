@@ -156,7 +156,7 @@ interface Step {
 
 const STEPS: Step[] = [
   { id: 'upload', title: 'Upload COBOL', subtitle: 'Loading 10,000 lines...', duration: 3000, icon: <Code2 className="w-6 h-6" /> },
-  { id: 'analyze', title: 'AI Analysis', subtitle: 'Gemini 2.0 processing...', duration: 5000, icon: <Zap className="w-6 h-6" /> },
+  { id: 'analyze', title: 'AI Analysis', subtitle: 'Gemini 3 processing...', duration: 5000, icon: <Zap className="w-6 h-6" /> },
   { id: 'python', title: 'Python Generated', subtitle: 'Modern, type-safe code', duration: 4000, icon: <Sparkles className="w-6 h-6" /> },
   { id: 'tests', title: 'Tests Created', subtitle: '60 test cases, 92% coverage', duration: 3000, icon: <TestTube className="w-6 h-6" /> },
   { id: 'security', title: 'Security Scan', subtitle: '0 vulnerabilities found', duration: 2000, icon: <Shield className="w-6 h-6" /> },
@@ -389,7 +389,7 @@ export default function InteractiveDemoPage() {
                           <div className="w-16 h-16 border-4 border-blue-500/30 rounded-full"></div>
                           <div className="absolute top-0 left-0 w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                         </div>
-                        <p className="mt-4 text-slate-400">Analyzing with Gemini 2.0...</p>
+                        <p className="mt-4 text-slate-400">Analyzing with Gemini 3...</p>
                         <p className="text-xs text-slate-500 mt-2">Processing 10,006 lines</p>
                       </div>
                     ) : (

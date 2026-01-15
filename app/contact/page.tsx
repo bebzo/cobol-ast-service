@@ -175,7 +175,7 @@ export default function ContactPage() {
         {/* Hackathon Badge */}
         <div className="mt-20 text-center">
           <p className="text-slate-500 text-sm">
-            Powered by Google Gemini 2.0 | <span className="text-blue-400">Gemini API Developer Competition 2024</span>
+            Powered by Google Gemini 3 | <span className="text-blue-400">Gemini API Developer Competition 2024</span>
           </p>
         </div>
       </main>

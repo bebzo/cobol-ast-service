@@ -126,7 +126,7 @@ function applyQuickFixes(code: string): string {
 async function validateAndFixWithGemini(code: string, attempt: number): Promise<{ code: string; isValid: boolean }> {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ 
-    model: 'gemini-2.0-flash',
+    model: 'gemini-3-pro-preview',
     generationConfig: { maxOutputTokens: 65536 }
   });
   
@@ -172,7 +172,7 @@ Return the complete Python code:`;
 async function fixSpecificError(code: string, error: string, line: number): Promise<string> {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ 
-    model: 'gemini-2.0-flash',
+    model: 'gemini-3-pro-preview',
     generationConfig: { maxOutputTokens: 65536 }
   });
   

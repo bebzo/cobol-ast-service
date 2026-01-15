@@ -71,7 +71,7 @@ export default function LandingPage() {
       icon: <MessageSquare className="w-6 h-6" />,
       title: "AI Chat Assistant",
       desc: "Ask questions about your code in natural language",
-      highlight: "Gemini 2.0"
+      highlight: "Gemini 3"
     },
     {
       icon: <BarChart3 className="w-6 h-6" />,
@@ -139,7 +139,7 @@ export default function LandingPage() {
             </div>
             <div>
               <span className="text-xl font-bold">CodeSwitch</span>
-              <span className="text-xs text-slate-500 block -mt-1">by Gemini 2.0</span>
+              <span className="text-xs text-slate-500 block -mt-1">by Gemini 3</span>
             </div>
           </div>
           
@@ -167,7 +167,7 @@ export default function LandingPage() {
           <div className="flex justify-center mb-8">
             <div className="inline-flex items-center gap-3 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-full px-5 py-2">
               <Sparkles className="w-4 h-4 text-purple-400" />
-              <span className="text-sm text-slate-300">Powered by Google Gemini 2.0 Flash</span>
+              <span className="text-sm text-slate-300">Powered by Google Gemini 3 Pro</span>
               <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full font-medium">LIVE</span>
             </div>
           </div>
@@ -400,7 +400,7 @@ class EmployeeRecord:
             { 
               step: '02', 
               title: 'AI Analysis', 
-              desc: 'Gemini 2.0 Flash analyzes structure, transpiles code, generates tests, and scans for security issues.',
+              desc: 'Gemini 3 Pro analyzes structure, transpiles code, generates tests, and scans for security issues.',
               icon: <Sparkles className="w-8 h-8" />,
               color: 'from-purple-500 to-pink-500'
             },
@@ -558,7 +558,7 @@ class EmployeeRecord:
                 <div className="w-10 h-10 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center font-bold text-xl">C</div>
                 <span className="text-xl font-bold">CodeSwitch</span>
               </div>
-              <p className="text-slate-400 text-sm">AI-powered COBOL modernization for the enterprise. Built with Google Gemini 2.0.</p>
+              <p className="text-slate-400 text-sm">AI-powered COBOL modernization for the enterprise. Built with Google Gemini 3.</p>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Product</h4>
@@ -587,7 +587,7 @@ class EmployeeRecord:
             <p>&copy; 2024 CodeSwitch. All rights reserved.</p>
             <p className="flex items-center gap-2">
               <span>Powered by</span>
-              <span className="text-blue-400 font-medium">Google Gemini 2.0</span>
+              <span className="text-blue-400 font-medium">Google Gemini 3</span>
               <span className="text-slate-600">|</span>
               <span className="text-purple-400">Gemini API Developer Competition</span>
             </p>

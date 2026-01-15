@@ -266,7 +266,7 @@ export default function DocsPage() {
                 <FeatureCard 
                   icon={<MessageSquare className="w-6 h-6" />}
                   title="AI Chat Assistant"
-                  desc="Ask questions about your code in natural language, powered by Gemini 2.0."
+                  desc="Ask questions about your code in natural language, powered by Gemini 3."
                 />
                 <FeatureCard 
                   icon={<BarChart3 className="w-6 h-6" />}
@@ -706,7 +706,7 @@ def compute_balance(
                   },
                   { 
                     q: 'How does the AI chat work?', 
-                    a: 'The chat uses Gemini 2.0 with full context of your COBOL and Python code. Ask any question in natural language.' 
+                    a: 'The chat uses Gemini 3 with full context of your COBOL and Python code. Ask any question in natural language.' 
                   },
                 ].map((faq, i) => (
                   <details key={i} className="bg-slate-800/50 rounded-xl border border-slate-700 group">
@@ -728,7 +728,7 @@ def compute_balance(
         {/* Footer */}
         <div className="mt-16 pt-8 border-t border-slate-700 flex items-center justify-between">
           <p className="text-slate-500 text-sm">
-            Powered by Google Gemini 2.0 | <span className="text-blue-400">Gemini API Developer Competition</span>
+            Powered by Google Gemini 3 | <span className="text-blue-400">Gemini API Developer Competition</span>
           </p>
           <Link href="/dashboard" className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition">
             Try CodeSwitch Pro <ExternalLink className="w-4 h-4" />
