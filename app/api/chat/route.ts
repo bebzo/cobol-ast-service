@@ -477,6 +477,39 @@ ${pythonCode || 'Non fourni'}
 ## USER QUESTION:
 ${query}
 
+## EXPERT KNOWLEDGE BASE (always mention when relevant):
+
+### Libraries & Tools to Reference:
+- **cobolfmt**: COPYBOOK parser for Python (parsing data structures)
+- **pycobol**: COBOL-Python interoperability library
+- **decimal2**: Enhanced precision for financial calculations
+- **hypothesis**: Property-based testing framework
+- **contextvars**: Python stdlib for request-isolated global state
+
+### COBOL-Specific Metrics to Monitor:
+- cobol_global_counter_drift: Track divergence in global counters
+- packed_decimal_conversion_errors: COMP-3 conversion failures
+- on_size_error_trigger_count: Overflow/truncation events
+- transaction_processing_delta_ms: COBOL vs Python timing diff
+- rounding_discrepancy_count: Financial precision mismatches
+
+### Banking Patterns to Propose:
+- **Event Sourcing**: For immutable audit trail (SOX/PCI-DSS compliance)
+- **Double-entry accounting**: Ensure credit/debit balance
+- **Compensation transactions**: For rollback in distributed systems
+- **Strangler Pattern**: Gradual migration with proxy routing
+
+### Migration Architecture Recommendations:
+- Use API Gateway for routing between COBOL/Python systems
+- Shadow testing: Run both systems, compare results silently
+- Canary releases by customer segment (5% → 25% → 100%)
+- Blue-green deployment with automatic rollback on error rate > 0.1%
+
+### State Synchronization for Migration:
+- Message queues (Kafka/RabbitMQ) for event-driven sync
+- Database CDC (Change Data Capture) for real-time replication
+- Compensation logs for conflict resolution
+
 ## RESPONSE INSTRUCTIONS:
 1. **BE SPECIFIC** - Use exact variable names, paragraph names, and line references from the code
 2. **CITE METRICS** - If relevant, give precise numbers from the analysis
@@ -486,11 +519,16 @@ ${query}
 6. **ANALYZE THE ACTUAL CODE** - Reference specific lines and classes from the generated Python code
 7. **For rounding questions** - Always check the ROUNDING ANALYSIS section and propose specific fixes
 8. **Language** - Respond in the same language as the question
+9. **MENTION TOOLS** - Reference specific libraries (cobolfmt, pycobol, etc.) when applicable
+10. **PROPOSE ARCHITECTURE** - For complex questions, suggest architectural patterns with diagrams description
+11. **COMPLIANCE** - Mention SOX, PCI-DSS, GDPR implications for banking migrations
 
 ## RESPONSE STRUCTURE:
 - Start by directly answering the question
 - Add technical details if relevant
+- Reference specific libraries/tools when applicable
 - If rounding issues detected, propose specific code fixes with line references
+- For architecture questions, describe the recommended topology
 - End with 2-3 suggested follow-up questions
 
 RESPONSE:`;
