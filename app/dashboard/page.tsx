@@ -2747,21 +2747,28 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </div>
                 )}
               </div>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="Ask about this COBOL code..." 
-                  className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              <div className="flex gap-2 items-end">
+                <textarea 
+                  placeholder="Ask about this COBOL code... (Shift+Enter for new line)" 
+                  className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[42px] max-h-[200px] overflow-y-auto"
+                  rows={1}
+                  onInput={(e) => {
+                    const target = e.currentTarget;
+                    target.style.height = 'auto';
+                    target.style.height = Math.min(target.scrollHeight, 200) + 'px';
+                  }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.currentTarget.value) {
+                    if (e.key === 'Enter' && !e.shiftKey && e.currentTarget.value.trim()) {
+                      e.preventDefault();
                       handleVoiceQuery(e.currentTarget.value);
                       e.currentTarget.value = '';
+                      e.currentTarget.style.height = '42px';
                     }
                   }}
                 />
                 <button 
                   onClick={startVoiceAssistant}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center gap-2"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg flex items-center gap-2 h-[42px]"
                 >
                   <Mic className="w-4 h-4" />
                 </button>
