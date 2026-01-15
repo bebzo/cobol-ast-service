@@ -98,7 +98,9 @@ export default function EquivalenceDashboard({
 
     // Count edge case tests
     const edgeCaseTests = testResults.details.filter(
-      (t) => t.name.includes("edge") || t.name.includes("zero") || t.name.includes("negative") || t.name.includes("limit")
+      (t) => t.name.includes("edge") || t.name.includes("zero") || t.name.includes("negative") || t.name.includes("limit") ||
+             t.name.includes("boundary") || t.name.includes("max") || t.name.includes("min") || t.name.includes("overflow") ||
+             t.name.includes("empty") || t.name.includes("null") || t.name.includes("invalid") || t.name.includes("extreme")
     );
     const edgeCasePassed = edgeCaseTests.filter((t) => t.status === "passed").length;
 
@@ -293,10 +295,10 @@ export default function EquivalenceDashboard({
             <AlertTriangle className={`w-4 h-4 ${getStatusColor(animatedMetrics.edgeCaseCoverage, [60, 80])}`} />
             <span className="text-xs text-slate-400">Edge Cases</span>
           </div>
-          <p className={`text-2xl font-bold tabular-nums ${animatedMetrics.hasEdgeCaseTests ? getStatusColor(animatedMetrics.edgeCaseCoverage, [60, 80]) : 'text-slate-500'}`}>
-            {animatedMetrics.hasEdgeCaseTests ? `${animatedMetrics.edgeCaseCoverage.toFixed(1)}%` : 'N/A'}
+          <p className={`text-2xl font-bold tabular-nums ${animatedMetrics.hasEdgeCaseTests ? getStatusColor(animatedMetrics.edgeCaseCoverage, [60, 80]) : 'text-yellow-500'}`}>
+            {animatedMetrics.hasEdgeCaseTests ? `${animatedMetrics.edgeCaseCoverage.toFixed(1)}%` : 'Pending'}
           </p>
-          <p className="text-[10px] text-slate-500 mt-1">{animatedMetrics.hasEdgeCaseTests ? 'Boundary conditions' : 'No edge tests'}</p>
+          <p className="text-[10px] text-slate-500 mt-1">{animatedMetrics.hasEdgeCaseTests ? 'Boundary conditions' : 'Run property tests'}</p>
         </div>
 
         {/* Semantic Coverage */}
