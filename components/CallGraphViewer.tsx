@@ -181,16 +181,29 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
       <div className="flex">
         {/* Main Content */}
         <div className="flex-1 p-4 min-h-[400px]">
-          {viewMode === 'graph' && (
-            <div 
-              className="relative w-full h-[600px] bg-slate-950 rounded-lg overflow-auto"
-              style={{ cursor: 'grab' }}
-            >
-              {/* SVG Graph Visualization - larger viewBox for better scrolling */}
+          {viewMode === 'graph' && (() => {
+            // Calculate dynamic SVG size based on node count
+            const cols = 4;
+            const spacingX = 240;
+            const spacingY = 140;
+            const rows = Math.ceil(graph.nodes.length / cols);
+            const svgWidth = Math.max(1200, cols * spacingX + 200);
+            const svgHeight = Math.max(600, rows * spacingY + 150);
+            
+            return (
+            <div className="relative">
+              {/* Scroll indicator */}
+              <div className="absolute bottom-0 left-0 right-4 h-8 bg-gradient-to-t from-slate-950 to-transparent pointer-events-none z-10 rounded-b-lg" />
+              <div 
+                className="relative w-full h-[550px] bg-slate-950 rounded-lg overflow-auto border border-slate-700"
+                style={{ cursor: 'grab' }}
+              >
+              {/* SVG Graph Visualization - dynamic size */}
               <svg 
-                className="min-w-[1400px] min-h-[900px]" 
-                viewBox="0 0 1400 900"
-                style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
+                width={svgWidth * zoom}
+                height={svgHeight * zoom}
+                viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                style={{ minWidth: svgWidth, minHeight: svgHeight }}
               >
                 <defs>
                   <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
@@ -210,10 +223,10 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
                   const fromIdx = graph.nodes.indexOf(fromNode);
                   const toIdx = graph.nodes.indexOf(toNode);
                   
-                  const fromX = 120 + (fromIdx % 5) * 200;
-                  const fromY = 80 + Math.floor(fromIdx / 5) * 120;
-                  const toX = 120 + (toIdx % 5) * 200;
-                  const toY = 80 + Math.floor(toIdx / 5) * 120;
+                  const fromX = 140 + (fromIdx % cols) * spacingX;
+                  const fromY = 90 + Math.floor(fromIdx / cols) * spacingY;
+                  const toX = 140 + (toIdx % cols) * spacingX;
+                  const toY = 90 + Math.floor(toIdx / cols) * spacingY;
 
                   const inCycle = graph.cycles.some(c => 
                     c.cycle.includes(edge.from) && c.cycle.includes(edge.to)
@@ -238,8 +251,8 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
 
                 {/* Render nodes */}
                 {graph.nodes.map((node, idx) => {
-                  const x = 120 + (idx % 5) * 200;
-                  const y = 80 + Math.floor(idx / 5) * 120;
+                  const x = 140 + (idx % cols) * spacingX;
+                  const y = 90 + Math.floor(idx / cols) * spacingY;
                   const isSelected = selectedNode === node.id;
                   const inCycle = graph.cycles.some(c => c.cycle.includes(node.id));
 
@@ -302,8 +315,10 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
                   );
                 })}
               </svg>
+              </div>
             </div>
-          )}
+          );
+          })()}
 
           {viewMode === 'list' && (
             <div className="space-y-4">
