@@ -5,9 +5,7 @@
     "/usr/bin/node",
     "/tmp/.tool-cache/npm/_npx/69f9afb961c37556/node_modules/.bin/vc",
     "build",
-    "--prod",
-    "--token",
-    "REDACTED"
+    "--prod"
   ],
   "builds": [
     {
