@@ -49,11 +49,13 @@ interface RealTimeDashboardProps {
     linesProcessed: number;
     memoryUsage: number;
   };
+  hasAnalysis?: boolean; // New prop to track if analysis was performed
   onAlertDismiss?: (alertId: string) => void;
 }
 
 export default function RealTimeDashboard({ 
   transpilationMetrics,
+  hasAnalysis = false,
   onAlertDismiss 
 }: RealTimeDashboardProps) {
   const [isLive, setIsLive] = useState(true);
