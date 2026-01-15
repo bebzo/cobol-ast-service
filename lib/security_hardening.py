@@ -78,20 +78,22 @@ PII_PATTERNS = {
 # ============================================================
 
 CREDENTIAL_PATTERNS = [
-    # Hardcoded passwords
-    (r'(?:password|passwd|pwd)\s*[=:]\s*["\']([^"\']+)["\']', 'password'),
-    # API keys
-    (r'(?:api[-_]?key|apikey)\s*[=:]\s*["\']([A-Za-z0-9_-]{20,})["\']', 'api_key'),
+    # Hardcoded passwords - matches both `password = 'x'` and `self.password: str = 'x'`
+    (r'(?:self\.)?(?:db[-_]?)?(?:password|passwd|pwd)(?::\s*str)?\s*=\s*["\']([^"\']{4,})["\']', 'PASSWORD'),
+    # API keys - flexible format
+    (r'(?:self\.)?(?:api[-_]?key|apikey)(?::\s*str)?\s*=\s*["\']([A-Za-z0-9_-]{8,})["\']', 'API_KEY'),
     # Secret keys
-    (r'(?:secret[-_]?key|secretkey)\s*[=:]\s*["\']([^"\']+)["\']', 'secret_key'),
+    (r'(?:self\.)?(?:secret[-_]?(?:key|token)?)(?::\s*str)?\s*=\s*["\']([^"\']{4,})["\']', 'SECRET_KEY'),
     # Connection strings
-    (r'(?:connection[-_]?string|connstr)\s*[=:]\s*["\']([^"\']+)["\']', 'connection_string'),
+    (r'(?:self\.)?(?:connection[-_]?string|connstr|conn_str)(?::\s*str)?\s*=\s*["\']([^"\']+)["\']', 'CONNECTION_STRING'),
     # Database passwords in URLs
-    (r'(?:mysql|postgres|mongodb|redis)://[^:]+:([^@]+)@', 'db_password'),
+    (r'(?:mysql|postgres|mongodb|redis)://[^:]+:([^@]+)@', 'DB_PASSWORD'),
     # Bearer tokens
-    (r'(?:bearer|token)\s*[=:]\s*["\']([A-Za-z0-9._-]{20,})["\']', 'bearer_token'),
+    (r'(?:self\.)?(?:bearer[-_]?token|auth[-_]?token|access[-_]?token)(?::\s*str)?\s*=\s*["\']([A-Za-z0-9._-]{8,})["\']', 'BEARER_TOKEN'),
     # AWS keys
-    (r'(?:aws[-_]?(?:access[-_]?key|secret[-_]?key))\s*[=:]\s*["\']([A-Z0-9]{16,})["\']', 'aws_key'),
+    (r'(?:self\.)?(?:aws[-_]?(?:access[-_]?key|secret[-_]?key))(?::\s*str)?\s*=\s*["\']([A-Z0-9]{16,})["\']', 'AWS_KEY'),
+    # Generic secrets - catches patterns like 'sk-xxxx' (OpenAI-style)
+    (r'(?:self\.)?\w*(?:key|token|secret|credential)\w*(?::\s*str)?\s*=\s*["\']((?:sk|pk|rk|ghp|gho|github)[-_][A-Za-z0-9_-]{10,})["\']', 'API_SECRET'),
 ]
 
 
@@ -474,38 +476,42 @@ class SecurityHardener:
             matches = list(re.finditer(pattern, code, re.IGNORECASE))
             for match in reversed(matches):  # Reverse to preserve line numbers
                 original = match.group(0)
+                credential_value = match.group(1) if match.lastindex >= 1 else ''
                 env_var_name = cred_type.upper()
                 
-                # Create secure replacement
-                if 'password' in cred_type.lower():
-                    replacement = f"get_secure_credential('{env_var_name}')"
-                elif 'key' in cred_type.lower():
-                    replacement = f"get_secure_credential('{env_var_name}')"
-                else:
-                    replacement = f"os.getenv('{env_var_name}', '')"
+                # Build the replacement - keep the assignment structure
+                # Original: self.db_password: str = 'MySecretPass123!'
+                # Replace:  self.db_password: str = get_secure_credential('PASSWORD')
                 
-                # Replace the hardcoded value
+                # Find where the value starts and replace just the value
+                value_pattern = rf'["\']({re.escape(credential_value)})["\']'
+                secure_call = f"get_secure_credential('{env_var_name}')"
+                
+                replacement = re.sub(value_pattern, secure_call, original)
+                
+                # Replace in code
                 code = code[:match.start()] + replacement + code[match.end():]
                 
                 self.issues.append(SecurityIssue(
                     severity=SecuritySeverity.CRITICAL,
                     issue_type="HARDCODED_CREDENTIAL",
-                    description=f"Hardcoded {cred_type} detected",
+                    description=f"Hardcoded {cred_type} detected and replaced",
                     line_number=code[:match.start()].count('\n') + 1,
-                    original_code=original,
-                    fixed_code=replacement,
+                    original_code=original[:60] + "..." if len(original) > 60 else original,
+                    fixed_code=replacement[:60] + "..." if len(replacement) > 60 else replacement,
                     cvss_score=9.1,
                     cwe_id="CWE-798",
-                    fix_recommendation=f"Store {cred_type} in environment variable {env_var_name}"
+                    fix_recommendation=f"Set {env_var_name} environment variable in production"
                 ))
                 self.stats['credentials_fixed'] += 1
         
         return code
     
     def _protect_pii(self, code: str) -> str:
-        """Add protection for PII fields"""
+        """Add protection for PII fields and mask sensitive data in logs"""
+        
+        # 1. Detect PII fields
         for pii_type, pattern in PII_PATTERNS.items():
-            # Find variable assignments with PII names
             var_pattern = rf'self\.({pattern}[a-z_]*)\s*='
             matches = list(re.finditer(var_pattern, code, re.IGNORECASE))
             
@@ -525,6 +531,67 @@ class SecurityHardener:
                     fix_recommendation=f"Use PIIField descriptor or encrypt {var_name}"
                 ))
                 self.stats['pii_fields_protected'] += 1
+        
+        # 2. Mask hardcoded sensitive values (SSN, credit cards, etc.)
+        # NOTE: Patterns are specific to avoid false positives
+        sensitive_patterns = [
+            # SSN pattern: XXX-XX-XXXX (with dashes - very specific)
+            (r"['\"](\d{3}-\d{2}-\d{4})['\"]", 'SSN', '***-**-{last4}'),
+            # Credit card patterns (16 consecutive digits)
+            (r"['\"](\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4})['\"]", 'CARD', '****-****-****-{last4}'),
+            (r"['\"](\d{16})['\"]", 'CARD', '************{last4}'),
+            # CVV only when in context of cvv/cvc variable name
+            # Removed generic 3-4 digit pattern to avoid false positives
+        ]
+        
+        for pattern, data_type, mask_template in sensitive_patterns:
+            matches = list(re.finditer(pattern, code))
+            for match in reversed(matches):
+                value = match.group(1)
+                # For SSN and credit cards, we mask all but last 4
+                if '{last4}' in mask_template:
+                    clean_value = re.sub(r'[\s-]', '', value)
+                    if len(clean_value) >= 4:
+                        masked = mask_template.format(last4=clean_value[-4:])
+                    else:
+                        masked = '****'
+                else:
+                    masked = mask_template
+                
+                original = match.group(0)
+                replacement = f"'{masked}'"
+                code = code[:match.start()] + replacement + code[match.end():]
+                
+                self.issues.append(SecurityIssue(
+                    severity=SecuritySeverity.CRITICAL,
+                    issue_type=f"EXPOSED_{data_type}",
+                    description=f"Hardcoded {data_type} masked in output",
+                    line_number=code[:match.start()].count('\n') + 1,
+                    original_code=original,
+                    fixed_code=replacement,
+                    cvss_score=8.5,
+                    cwe_id="CWE-200",
+                    fix_recommendation=f"Never hardcode {data_type} values"
+                ))
+                self.stats['pii_masked'] = self.stats.get('pii_masked', 0) + 1
+        
+        # 3. Wrap print statements with PII fields in mask_pii()
+        pii_print_pattern = r'print\(f?[\'"]([^\'\"]*)(self\.(?:ssn|card|password|secret|account)[a-z_]*)([^\'\"]*)[\'\"]\)'
+        matches = list(re.finditer(pii_print_pattern, code, re.IGNORECASE))
+        for match in reversed(matches):
+            original = match.group(0)
+            prefix = match.group(1)
+            var_name = match.group(2)
+            suffix = match.group(3)
+            
+            # Replace with masked version
+            if 'f"' in original or "f'" in original:
+                replacement = f'print(f"{prefix}{{mask_pii(str({var_name}))}}{{suffix}}")'
+            else:
+                replacement = f'print("{prefix}" + mask_pii(str({var_name})) + "{suffix}")'
+            
+            code = code[:match.start()] + replacement + code[match.end():]
+            self.stats['print_masked'] = self.stats.get('print_masked', 0) + 1
         
         return code
     
