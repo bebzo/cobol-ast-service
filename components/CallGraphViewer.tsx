@@ -180,22 +180,22 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
 
       <div className="flex">
         {/* Main Content */}
-        <div className="flex-1 p-4 min-h-[400px]">
+        <div className="flex-1 p-3 min-h-[350px]">
           {viewMode === 'graph' && (() => {
-            // Calculate dynamic SVG size based on node count
-            const cols = 4;
-            const spacingX = 240;
-            const spacingY = 140;
+            // Calculate dynamic SVG size based on node count - RESPONSIVE
+            const cols = Math.min(5, Math.max(3, Math.ceil(Math.sqrt(graph.nodes.length))));
+            const spacingX = 160;
+            const spacingY = 80;
             const rows = Math.ceil(graph.nodes.length / cols);
-            const svgWidth = Math.max(1200, cols * spacingX + 200);
-            const svgHeight = Math.max(600, rows * spacingY + 150);
+            const svgWidth = Math.max(800, cols * spacingX + 120);
+            const svgHeight = Math.max(350, rows * spacingY + 100);
             
             return (
             <div className="relative">
               {/* Scroll indicator */}
               <div className="absolute bottom-0 left-0 right-4 h-8 bg-gradient-to-t from-slate-950 to-transparent pointer-events-none z-10 rounded-b-lg" />
               <div 
-                className="relative w-full h-[550px] bg-slate-950 rounded-lg overflow-auto border border-slate-700"
+                className="relative w-full h-[380px] md:h-[420px] bg-slate-950 rounded-lg overflow-auto border border-slate-700"
                 style={{ cursor: 'grab' }}
               >
               {/* SVG Graph Visualization - dynamic size */}
@@ -223,10 +223,10 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
                   const fromIdx = graph.nodes.indexOf(fromNode);
                   const toIdx = graph.nodes.indexOf(toNode);
                   
-                  const fromX = 140 + (fromIdx % cols) * spacingX;
-                  const fromY = 90 + Math.floor(fromIdx / cols) * spacingY;
-                  const toX = 140 + (toIdx % cols) * spacingX;
-                  const toY = 90 + Math.floor(toIdx / cols) * spacingY;
+                  const fromX = 80 + (fromIdx % cols) * spacingX;
+                  const fromY = 50 + Math.floor(fromIdx / cols) * spacingY;
+                  const toX = 80 + (toIdx % cols) * spacingX;
+                  const toY = 50 + Math.floor(toIdx / cols) * spacingY;
 
                   const inCycle = graph.cycles.some(c => 
                     c.cycle.includes(edge.from) && c.cycle.includes(edge.to)
@@ -251,8 +251,8 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
 
                 {/* Render nodes */}
                 {graph.nodes.map((node, idx) => {
-                  const x = 140 + (idx % cols) * spacingX;
-                  const y = 90 + Math.floor(idx / cols) * spacingY;
+                  const x = 80 + (idx % cols) * spacingX;
+                  const y = 50 + Math.floor(idx / cols) * spacingY;
                   const isSelected = selectedNode === node.id;
                   const inCycle = graph.cycles.some(c => c.cycle.includes(node.id));
 
@@ -277,37 +277,37 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
                         <circle
                           cx={x}
                           cy={y}
-                          r={isSelected ? 38 : 34}
+                          r={isSelected ? 22 : 18}
                           fill={color.fill}
                           stroke={inCycle ? '#ef4444' : isSelected ? '#fff' : color.stroke}
-                          strokeWidth={isSelected ? 3 : inCycle ? 3 : 2}
+                          strokeWidth={isSelected ? 2 : inCycle ? 2 : 1.5}
                         />
                       ) : (
                         <rect
-                          x={x - 70}
-                          y={y - 24}
-                          width={140}
-                          height={48}
-                          rx={node.type === 'copybook' ? 24 : 8}
+                          x={x - 48}
+                          y={y - 14}
+                          width={96}
+                          height={28}
+                          rx={node.type === 'copybook' ? 14 : 5}
                           fill={color.fill}
                           stroke={inCycle ? '#ef4444' : isSelected ? '#fff' : color.stroke}
-                          strokeWidth={isSelected ? 3 : inCycle ? 3 : 2}
+                          strokeWidth={isSelected ? 2 : inCycle ? 2 : 1.5}
                         />
                       )}
                       
                       {/* Node label */}
                       <text
                         x={x}
-                        y={y + 5}
+                        y={y + 4}
                         textAnchor="middle"
-                        className="fill-white text-[13px] font-semibold pointer-events-none"
+                        className="fill-white text-[9px] font-medium pointer-events-none"
                       >
-                        {node.name.length > 16 ? node.name.slice(0, 14) + '..' : node.name}
+                        {node.name.length > 12 ? node.name.slice(0, 10) + '..' : node.name}
                       </text>
 
                       {/* Cycle indicator */}
                       {inCycle && (
-                        <circle cx={x + 55} cy={y - 20} r={10} fill="#ef4444">
+                        <circle cx={x + 38} cy={y - 12} r={5} fill="#ef4444">
                           <title>Dans un cycle</title>
                         </circle>
                       )}
