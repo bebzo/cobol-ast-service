@@ -1930,7 +1930,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     activeTab === "report" ? "bg-purple-500/20 text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <Shield className="w-4 h-4" />Security
+                  <FileText className="w-4 h-4" />Security&nbsp;Report
                 </button>
 
                 <button
