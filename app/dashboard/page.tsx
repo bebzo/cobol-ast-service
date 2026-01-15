@@ -41,6 +41,8 @@ import {
   Network,
   FolderOutput,
   LogOut,
+  Settings,
+  ChevronDown,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
@@ -699,6 +701,7 @@ export default function Home() {
   // Chat expanded mode
   const [chatExpanded, setChatExpanded] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [diffStep, setDiffStep] = useState(0);
@@ -1575,20 +1578,47 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
           </div>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={startVoiceAssistant}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
-                isVoiceActive ? 'bg-green-600 hover:bg-green-700' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
-              }`}
-            >
-              <Mic className="w-4 h-4" />
-              <span className="hidden sm:inline">Voice Assistant</span>
-              {isVoiceActive && <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>}
-            </button>
+            {/* Tools Dropdown Menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowToolsMenu(!showToolsMenu)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg transition"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="hidden sm:inline">Tools</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showToolsMenu ? 'rotate-180' : ''}`} />
+              </button>
+              {showToolsMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50">
+                  <button
+                    onClick={() => { startVoiceAssistant(); setShowToolsMenu(false); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition text-left ${isVoiceActive ? 'text-green-400' : 'text-white'}`}
+                  >
+                    <Mic className="w-4 h-4" />
+                    Voice Assistant
+                    {isVoiceActive && <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse ml-auto"></span>}
+                  </button>
+                  <button
+                    onClick={() => { setShowGuide(true); setShowToolsMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition text-left text-emerald-300"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    Migration Guide
+                  </button>
+                  <button
+                    onClick={() => { setShowGlossary(true); setShowToolsMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition text-left text-purple-300 rounded-b-lg"
+                  >
+                    <Scroll className="w-4 h-4" />
+                    Glossary
+                  </button>
+                </div>
+              )}
+            </div>
 
             <button
               onClick={() => setShowHistory(!showHistory)}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
+              className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
             >
               <History className="w-4 h-4" />
               <span className="hidden sm:inline">History</span>
@@ -1601,30 +1631,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
             {user?.email === 'embebangon@gmail.com' && (
               <button
                 onClick={() => setShowAdminPanel(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 rounded-lg transition text-white font-medium"
+                className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 rounded-lg transition text-white font-medium"
               >
                 <Shield className="w-4 h-4" />
                 <span className="hidden sm:inline">Admin</span>
               </button>
             )}
-
-            <button
-              onClick={() => setShowGuide(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-300 rounded-lg transition"
-              title="Migration Guide"
-            >
-              <BookOpen className="w-4 h-4" />
-              <span className="hidden sm:inline">Guide</span>
-            </button>
-
-            <button
-              onClick={() => setShowGlossary(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 rounded-lg transition"
-              title="COBOL/Python Glossary"
-            >
-              <Scroll className="w-4 h-4" />
-              <span className="hidden sm:inline">Glossary</span>
-            </button>
             {user && (
               <div className="flex items-center gap-3">
                 <span className="text-sm text-slate-400 hidden md:block">{user.email}</span>
@@ -1639,9 +1651,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               </div>
             )}
 
-            <div className="flex items-center gap-2 px-3 py-2 bg-green-500/20 border border-green-500/50 rounded-lg">
-              <CheckCircle className="w-4 h-4 text-green-500" />
-              <span className="text-sm text-green-400">Gemini API Connected</span>
+            <div className="hidden lg:flex items-center gap-1 px-2 py-1 bg-green-500/20 border border-green-500/50 rounded-lg" title="Gemini API Connected">
+              <CheckCircle className="w-3 h-3 text-green-500" />
+              <span className="text-xs text-green-400">API</span>
             </div>
           </div>
         </div>
