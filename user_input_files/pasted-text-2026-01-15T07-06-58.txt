@@ -1,0 +1,261 @@
+Améliorations Visuelles & UX
+1. Diagramme Architecture Interactif
+html
+<div class="architecture-diagram">
+  <!-- Version actuelle -->
+  <div class="layer" data-layer="presentation">
+    <h4>🎨 Presentation Layer</h4>
+    <div class="components">
+      <span class="component" data-component="format_currency">format_currency()</span>
+      <span class="component" data-component="format_date">format_date_cobol()</span>
+    </div>
+  </div>
+  
+  <!-- Amélioration : -->
+  <div class="architecture-viz">
+    <!-- Graphique D3.js/SVG interactif -->
+    <svg class="arch-svg">
+      <g class="layer" data-layer="business">
+        <rect class="layer-box" x="100" y="50" width="200" height="150"/>
+        <text class="layer-title" x="200" y="70">Business Layer</text>
+        <circle class="component" cx="150" cy="100" r="20" data-component="calculate"/>
+        <circle class="component" cx="250" cy="100" r="20" data-component="validate"/>
+      </g>
+    </svg>
+  </div>
+2. Filtres & Navigation
+javascript
+// Filtres dynamiques
+const filters = {
+  showOnly: ['critical', 'external_calls', 'file_io'],
+  complexity: ['high', 'medium'],
+  testCoverage: '>80%'
+};
+
+// Navigation par couche
+const layerNavigation = {
+  'presentation': { color: '#4CAF50', components: 12 },
+  'business': { color: '#2196F3', components: 45 },
+  'data': { color: '#FF9800', components: 28 },
+  'infra': { color: '#9C27B0', components: 15 }
+};
+📊 Informations Architecturale à Ajouter
+3. Tableau de Bord d'Impact
+markdown
+## Impact Analysis
+┌─────────────────┬─────────┬─────────┬────────────┐
+│ Component       │ COBOL   │ Python  │ Change     │
+├─────────────────┼─────────┼─────────┼────────────┤
+│ File I/O        │ 45 LOC  │ 210 LOC │ +367%      │
+│ Calculations    │ 120 LOC │ 185 LOC │ +54%       │
+│ Error Handling  │ 30 LOC  │ 95 LOC  │ +217%      │
+│ Business Logic  │ 485 LOC │ 1455 LOC│ +200%      │
+└─────────────────┴─────────┴─────────┴────────────┘
+
+## Performance Projection
+• COBOL Batch: 2.5h @ 100% CPU
+• Python Batch: 3.1h @ 65% CPU (+24% time, -35% CPU)
+• Memory: 256MB → 890MB (+248%)
+4. Matrice de Dépendances
+yaml
+Dependency Matrix:
+  UltraAssurancesSystem:
+    depends_on:
+      - FileManager: [read_record, write_record, is_eof]
+      - CobolRuntime: [cobol_round, compute_rounded]
+      - ProductionConfig: [load]
+    used_by:
+      - main.py: [run, run_with_guidance]
+  
+  Circular Dependencies: 0
+  High Coupling: FileManager ↔ UltraAssurancesSystem
+  Low Cohesion: BusinessLayer (mixes validation + calculation)
+5. Analyse de Complexité Cyclomatique
+python
+# Metrics par méthode
+complexity_report = {
+    'p_300_process_request': {
+        'cyclomatic': 12,  # Élevé (IF/ELSE chain)
+        'cognitive': 18,   # Complexité cognitive
+        'halstead_volume': 245,
+        'maintainability': 65,  # Index (0-100)
+        'recommendation': 'Refactor into strategy pattern'
+    },
+    'p_312_calculate_initial_premium': {
+        'cyclomatic': 6,
+        'cognitive': 8,
+        'halstead_volume': 120,
+        'maintainability': 85,
+        'status': 'OK'
+    }
+}
+🔍 Visualisations Avancées
+6. Heatmap de Modifications
+javascript
+// Carte thermique des changements
+const changeHeatmap = {
+  'FileManager.py': { changes: 45, risk: 'medium', color: '#FFB74D' },
+  'UltraAssurancesSystem.py': { changes: 210, risk: 'high', color: '#F44336' },
+  'CobolRuntime.py': { changes: 18, risk: 'low', color: '#4CAF50' }
+};
+
+// Afficher comme :
+// █████████████████████  FileManager.py (45 modifications)
+// ████████████████████████████████████  UltraAssurancesSystem.py (210)
+7. Timeline d'Évolution Architecturale
+8. Analyse de Couplage/Cohesion
+json
+{
+  "module_cohesion": {
+    "UltraAssurancesSystem": {
+      "lcom4": 8,  // Lack of Cohesion Methods (élevé = mauvais)
+      "afferent": 3,  // Modules qui l'utilisent
+      "efferent": 7   // Modules qu'il utilise
+    },
+    "FileManager": {
+      "lcom4": 2,
+      "afferent": 5,
+      "efferent": 1
+    }
+  },
+  "coupling_issues": [
+    {
+      "type": "feature_envy",
+      "location": "p_314_apply_tariff",
+      "suggestion": "Move to TariffCalculator class"
+    }
+  ]
+}
+🎯 Fonctionnalités Interactives à Implémenter
+9. Simulateur de Refactoring
+javascript
+// "What-if" simulator
+const refactoringSimulator = {
+  current: {
+    performance: '100ms',
+    memory: '292KB',
+    loc: '1945'
+  },
+  simulate: (strategy) => {
+    // Ex: "Convert to async"
+    return {
+      performance: '85ms (-15%)',
+      memory: '310KB (+6%)',
+      loc: '2100 (+8%)',
+      complexity: '-2 points'
+    };
+  }
+};
+10. Recommandations Intelligentes
+yaml
+Architecture Recommendations:
+  - Priority: HIGH
+    Issue: "BusinessLayer mixes validation and calculation"
+    Fix: "Extract ValidationService class"
+    Impact: "-15% complexity, +20% testability"
+    
+  - Priority: MEDIUM  
+    Issue: "FileManager does too much (I/O + indexing)"
+    Fix: "Create IndexManager and AuditManager"
+    Impact: "Better SRP, easier mocking"
+    
+  - Priority: LOW
+    Issue: "Global config singleton"
+    Fix: "Use dependency injection"
+    Impact: "Improved test isolation"
+11. Comparaison avec Benchmarks Industry
+markdown
+## Industry Comparison
+┌────────────────────────┬──────────┬───────┬──────────┐
+│ Metric                 │ Your Code│ Avg   │ Status   │
+├────────────────────────┼──────────┼───────┼──────────┤
+│ Methods per Class      │ 42       │ 12    │ ⚠️ High   │
+│ Depth of Inheritance   │ 1        │ 3     │ ✅ Good   │
+│ Cyclomatic Complexity  │ 28       │ 15    │ ⚠️ High   │
+│ Test Coverage          │ 87%      │ 75%   │ ✅ Good   │
+│ Comment Ratio          │ 35%      │ 25%   │ ✅ Good   │
+└────────────────────────┴──────────┴───────┴──────────┘
+📱 UI/UX Améliorations
+12. Vue Responsive & Export
+html
+<div class="architecture-toolbar">
+  <button class="export-btn" data-format="png">
+    <i class="icon-download"></i> Export as PNG
+  </button>
+  <button class="export-btn" data-format="svg">
+    <i class="icon-code"></i> Export as SVG
+  </button>
+  <button class="export-btn" data-format="plantuml">
+    <i class="icon-diagram"></i> PlantUML
+  </button>
+  
+  <div class="view-options">
+    <label><input type="radio" name="view" value="layered"> Layered</label>
+    <label><input type="radio" name="view" value="dependency"> Dependency</label>
+    <label><input type="radio" name="view" value="dataflow"> Data Flow</label>
+  </div>
+</div>
+13. Search & Highlight
+javascript
+// Recherche intelligente
+const architectureSearch = {
+  search: (term) => {
+    // Recherche dans : noms, responsabilités, patterns
+    return {
+      components: [...],
+      layers: [...],
+      patterns: [...],
+      recommendations: [...]
+    };
+  },
+  
+  highlight: (elementId) => {
+    // Surligner dans tous les diagrammes
+    // Animer les dépendances
+    // Montrer les métriques associées
+  }
+};
+🚀 Implémentation Progressive
+Phase 1 (Quick Wins)
+Ajouter tooltips sur chaque composant
+
+Colorer par risque (rouge/orange/vert)
+
+Afficher les métriques LOC/Complexité/Coverage
+
+Bouton "Explain This" avec IA
+
+Phase 2 (Medium)
+Diagramme interactif (drag & drop)
+
+Simulateur de modifications
+
+Comparaison avec standards industry
+
+Export multiple formats
+
+Phase 3 (Advanced)
+AI-powered recommendations
+
+Refactoring preview (avant/après)
+
+Integration CI/CD (archi checks)
+
+Real-time collaboration
+
+📈 Résumé des Améliorations Clés
+Priorité	Fonctionnalité	Impact	Effort
+🔴 Haute	Heatmap modifications	+++	Faible
+🔴 Haute	Metrics par composant	+++	Moyen
+🟡 Moyenne	Diagramme interactif	++	Élevé
+🟡 Moyenne	Recommandations IA	++	Moyen
+🟢 Basse	Export multiple formats	+	Faible
+L'objectif est de transformer l'onglet Architecture d'une vue statique en un outil d'analyse et de décision qui aide les équipes à :
+
+Comprendre l'impact de la migration
+
+Prioriser les refactorings
+
+Simuler des améliorations
+
+Valider les décisions architecturales
