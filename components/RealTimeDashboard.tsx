@@ -58,7 +58,7 @@ export default function RealTimeDashboard({
   hasAnalysis = false,
   onAlertDismiss 
 }: RealTimeDashboardProps) {
-  const [isLive, setIsLive] = useState(true);
+  const [isLive, setIsLive] = useState(false); // Start paused until analysis
   const [alertsEnabled, setAlertsEnabled] = useState(true);
   const [alerts, setAlerts] = useState<AnomalyAlert[]>([]);
   const [metrics, setMetrics] = useState<MetricData[]>([
@@ -74,7 +74,7 @@ export default function RealTimeDashboard({
     {
       id: 'success-rate',
       name: 'Taux de Succès',
-      value: 100,
+      value: 0,
       unit: '%',
       history: [],
       trend: 'stable',
@@ -100,6 +100,35 @@ export default function RealTimeDashboard({
     }
   ]);
 
+  // Update metrics when real data arrives
+  useEffect(() => {
+    if (hasAnalysis && transpilationMetrics) {
+      setMetrics(prev => prev.map(metric => {
+        let newValue = 0;
+        switch (metric.id) {
+          case 'transpile-time':
+            newValue = transpilationMetrics.avgTime || 0;
+            break;
+          case 'success-rate':
+            newValue = transpilationMetrics.successRate || 0;
+            break;
+          case 'lines-per-sec':
+            newValue = transpilationMetrics.linesProcessed || 0;
+            break;
+          case 'memory':
+            newValue = transpilationMetrics.memoryUsage || 0;
+            break;
+        }
+        return {
+          ...metric,
+          value: Math.round(newValue * 10) / 10,
+          history: [...metric.history, { timestamp: Date.now(), value: newValue, label: metric.name }].slice(-50)
+        };
+      }));
+      setIsLive(true); // Start live updates after analysis
+    }
+  }, [hasAnalysis, transpilationMetrics]);
+
   const monitorsRef = useRef<Map<string, RealTimeAnomalyMonitor>>(new Map());
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -119,87 +148,56 @@ export default function RealTimeDashboard({
     });
   }, [metrics, alertsEnabled]);
 
-  // Simulate real-time data (in production, this would come from WebSocket)
+  // Real-time updates only when analysis has been performed
   useEffect(() => {
-    if (!isLive) {
+    if (!isLive || !hasAnalysis) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
       return;
     }
 
+    // Only do minor variations around the real values (not fake data)
     intervalRef.current = setInterval(() => {
       setMetrics(prev => prev.map(metric => {
-        // Generate simulated value or use actual metrics
-        let newValue: number;
-        let baseValue: number;
-
-        switch (metric.id) {
-          case 'transpile-time':
-            baseValue = transpilationMetrics?.avgTime || 150;
-            newValue = baseValue + (Math.random() - 0.5) * 50;
-            break;
-          case 'success-rate':
-            baseValue = transpilationMetrics?.successRate || 98;
-            newValue = Math.min(100, Math.max(90, baseValue + (Math.random() - 0.5) * 5));
-            break;
-          case 'lines-per-sec':
-            baseValue = transpilationMetrics?.linesProcessed || 500;
-            newValue = baseValue + (Math.random() - 0.5) * 100;
-            break;
-          case 'memory':
-            baseValue = transpilationMetrics?.memoryUsage || 128;
-            newValue = Math.max(50, baseValue + (Math.random() - 0.5) * 30);
-            break;
-          default:
-            newValue = metric.value;
-        }
-
-        const dataPoint: DataPoint = {
-          timestamp: Date.now(),
-          value: newValue,
-          label: metric.name
-        };
-
-        const newHistory = [...metric.history, dataPoint].slice(-50);
+        // Keep the real value, just analyze trends from history
+        const newHistory = metric.history;
         
         // Update monitor
         const monitor = monitorsRef.current.get(metric.id);
-        if (monitor) {
-          monitor.addDataPoint(dataPoint);
+        if (monitor && newHistory.length > 0) {
+          // No new data point, just keep existing
         }
 
-        // Analyze trend
+        // Analyze trend from history
         const trend = analyzeTrend(newHistory.slice(-10));
         const trendDirection = trend.direction === 'increasing' ? 'up' :
                               trend.direction === 'decreasing' ? 'down' : 'stable';
 
         // Determine status based on thresholds
         let status: 'normal' | 'warning' | 'critical' = 'normal';
-        if (metric.id === 'transpile-time' && newValue > 300) {
-          status = newValue > 500 ? 'critical' : 'warning';
-        } else if (metric.id === 'success-rate' && newValue < 95) {
-          status = newValue < 90 ? 'critical' : 'warning';
-        } else if (metric.id === 'memory' && newValue > 200) {
-          status = newValue > 300 ? 'critical' : 'warning';
+        if (metric.id === 'transpile-time' && metric.value > 5000) {
+          status = metric.value > 10000 ? 'critical' : 'warning';
+        } else if (metric.id === 'success-rate' && metric.value < 95) {
+          status = metric.value < 80 ? 'critical' : 'warning';
+        } else if (metric.id === 'memory' && metric.value > 500) {
+          status = metric.value > 1000 ? 'critical' : 'warning';
         }
 
         return {
           ...metric,
-          value: Math.round(newValue * 10) / 10,
-          history: newHistory,
           trend: trendDirection,
           status
         };
       }));
-    }, 1000);
+    }, 2000);
 
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [isLive, transpilationMetrics, alertsEnabled]);
+  }, [isLive, hasAnalysis, alertsEnabled]);
 
   const dismissAlert = useCallback((alertId: string) => {
     setAlerts(prev => prev.filter(a => a.id !== alertId));
@@ -209,6 +207,32 @@ export default function RealTimeDashboard({
   const clearAllAlerts = useCallback(() => {
     setAlerts([]);
   }, []);
+
+  // Show waiting state if no analysis performed
+  if (!hasAnalysis) {
+    return (
+      <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-3 border-b border-slate-700">
+          <div className="flex items-center gap-3">
+            <Activity className="w-5 h-5 text-slate-500" />
+            <h3 className="font-semibold text-white">Dashboard Temps Réel</h3>
+            <span className="px-2 py-0.5 bg-slate-700 text-slate-400 text-xs rounded-full">
+              EN ATTENTE
+            </span>
+          </div>
+        </div>
+        <div className="p-12 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center">
+            <Activity className="w-8 h-8 text-slate-600" />
+          </div>
+          <h4 className="text-lg font-medium text-slate-400 mb-2">Aucune analyse effectuée</h4>
+          <p className="text-sm text-slate-500 max-w-md mx-auto">
+            Chargez du code COBOL et lancez une analyse pour voir les métriques en temps réel.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
