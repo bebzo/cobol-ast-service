@@ -214,6 +214,16 @@ export default function FrameworkExporter({
     });
   };
 
+  // Guard: show empty state if no Python code
+  if (!pythonCode || !pythonCode.trim()) {
+    return (
+      <div className="bg-slate-900 rounded-xl border border-slate-700 p-8 text-center">
+        <Package className="w-12 h-12 text-slate-500 mx-auto mb-4" />
+        <p className="text-slate-400">Run a COBOL to Python conversion to export to a framework</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
       {/* Header */}

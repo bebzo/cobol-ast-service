@@ -183,13 +183,13 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
         <div className="flex-1 p-4 min-h-[400px]">
           {viewMode === 'graph' && (
             <div 
-              className="relative w-full h-[500px] bg-slate-950 rounded-lg overflow-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+              className="relative w-full h-[600px] bg-slate-950 rounded-lg overflow-auto"
               style={{ cursor: 'grab' }}
             >
               {/* SVG Graph Visualization - larger viewBox for better scrolling */}
               <svg 
-                className="min-w-[1200px] min-h-[800px]" 
-                viewBox="0 0 1200 800"
+                className="min-w-[1400px] min-h-[900px]" 
+                viewBox="0 0 1400 900"
                 style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
               >
                 <defs>
