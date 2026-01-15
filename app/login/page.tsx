@@ -22,22 +22,18 @@ function LoginForm() {
     const initSupabase = async () => {
       try {
         const { createClient } = await import('@supabase/supabase-js');
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        // Use environment variables with fallback to hardcoded values
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://jcizfxniwgwfdmubapyb.supabase.co';
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c';
         
-        if (url && key) {
-          const client = createClient(url, key);
-          setSupabase(client);
-          setSupabaseReady(true);
-          
-          // Check if already logged in
-          const { data: { session } } = await client.auth.getSession();
-          if (session) {
-            window.location.href = redirectTo;
-          }
-        } else {
-          console.log('Supabase not configured - demo mode');
-          setSupabaseReady(true);
+        const client = createClient(url, key);
+        setSupabase(client);
+        setSupabaseReady(true);
+        
+        // Check if already logged in
+        const { data: { session } } = await client.auth.getSession();
+        if (session) {
+          window.location.href = redirectTo;
         }
       } catch (err) {
         console.error('Failed to initialize Supabase:', err);
