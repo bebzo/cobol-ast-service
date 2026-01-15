@@ -53,6 +53,7 @@ const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { 
 const FrameworkExporter = dynamic(() => import("@/components/FrameworkExporter"), { ssr: false });
 const EquivalenceDashboard = dynamic(() => import("@/components/EquivalenceDashboard"), { ssr: false });
 const ArchitectureViewer = dynamic(() => import("@/components/ArchitectureViewer"), { ssr: false });
+const AdminPanel = dynamic(() => import("@/components/AdminPanel"), { ssr: false });
 
 const MigrationGuide = dynamic(() => import("@/components/MigrationGuide"), { ssr: false });
 const Glossary = dynamic(() => import("@/components/Glossary"), { ssr: false });
@@ -674,6 +675,7 @@ export default function Home() {
   const [chatExpanded, setChatExpanded] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [diffStep, setDiffStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showMagicDiff, setShowMagicDiff] = useState(false);
@@ -1568,6 +1570,17 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <span className="bg-indigo-500 text-xs px-2 py-0.5 rounded-full">{history.length}</span>
               )}
             </button>
+            
+            {/* Admin Button - visible only for super admin */}
+            {user?.email === 'embebangon@gmail.com' && (
+              <button
+                onClick={() => setShowAdminPanel(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 rounded-lg transition text-white font-medium"
+              >
+                <Shield className="w-4 h-4" />
+                <span className="hidden sm:inline">Admin</span>
+              </button>
+            )}
 
             <button
               onClick={() => setShowGuide(true)}
@@ -2921,6 +2934,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
       {/* Glossary Modal */}
       <Glossary isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
+
+      {/* Admin Panel Modal - only for super admin */}
+      {user?.email === 'embebangon@gmail.com' && (
+        <AdminPanel isOpen={showAdminPanel} onClose={() => setShowAdminPanel(false)} />
+      )}
 
       {/* Footer */}
       <footer className="bg-slate-800/50 border-t border-slate-700 px-6 py-4">
