@@ -81,6 +81,4 @@ title = "CodeSwitch v6.0.0 Coverage Report"
 line-length = 100
 target-version = ['py310', 'py311', 'py312']
 
-[[tool.uv.index]]
-url = "http://mirrors.cloud.aliyuncs.com/pypi/simple"
-default = true
+# Using default PyPI
