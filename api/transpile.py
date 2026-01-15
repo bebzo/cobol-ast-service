@@ -395,6 +395,20 @@ from datetime import datetime
 from contextlib import contextmanager
 import os
 
+# v8.5: CobolDecimal for safe COBOL numeric handling
+try:
+    from lib.cobol_decimal import CobolDecimal, round_cobol, OverflowError as CobolOverflowError
+    COBOL_DECIMAL_AVAILABLE = True
+except ImportError:
+    # Fallback: Use regular Decimal if CobolDecimal not available
+    COBOL_DECIMAL_AVAILABLE = False
+    CobolDecimal = Decimal
+    def round_cobol(value, decimal_places=2):
+        from decimal import ROUND_HALF_EVEN
+        d = Decimal(str(value))
+        quantizer = Decimal('0.' + '0' * decimal_places) if decimal_places > 0 else Decimal('1')
+        return d.quantize(quantizer, rounding=ROUND_HALF_EVEN)
+
 
 # ============================================================
 # v5.7.35: Production Configuration with YAML Support
@@ -649,10 +663,33 @@ class CobolRuntime:
     - Decimal arithmetic with proper precision
     - COBOL COMPUTE emulation
     - Array/table access with 1-based indexing
+    
+    v8.5: Now uses CobolDecimal for overflow checking and COMP-3 support.
     """
     
     # COBOL uses banker's rounding (ROUND_HALF_EVEN) by default
     DEFAULT_ROUNDING = ROUND_HALF_EVEN
+    
+    @staticmethod
+    def create_decimal(value, pic: str = None, decimal_places: int = 2):
+        """v8.5: Create a safe CobolDecimal with PIC-based constraints.
+        
+        Args:
+            value: Numeric value
+            pic: COBOL PIC clause (e.g., '9(7)V99', 'S9(5)V9(4)')
+            decimal_places: Fallback if no PIC provided
+            
+        Returns:
+            CobolDecimal if available, otherwise Decimal
+        """
+        if COBOL_DECIMAL_AVAILABLE and pic:
+            return CobolDecimal(value, pic=pic)
+        elif COBOL_DECIMAL_AVAILABLE:
+            # Generate PIC from decimal_places
+            pic_str = f"S9(15)V{'9' * decimal_places}" if decimal_places > 0 else "S9(15)"
+            return CobolDecimal(value, pic=pic_str)
+        else:
+            return Decimal(str(value))
     
     @staticmethod
     def compute_rounded(value: Decimal, decimal_places: int = 2, 
