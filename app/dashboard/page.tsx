@@ -314,7 +314,7 @@ async function correctPythonCode(
     if (currentError === lastError) {
       sameErrorCount++;
       if (sameErrorCount >= 5) {
-        onProgress(attempts, `Boucle détectée: ${validation.error}`, true);
+        onProgress(attempts, `Loop detected: ${validation.error}`, true);
         return { code: currentCode, success: false, attempts, stoppedReason: 'loop_detected' };
       }
     } else {
@@ -1333,7 +1333,7 @@ export default function Home() {
     
     setVoiceTranscript(query);
     setIsListening(false);
-    setVoiceResponse("🔄 Réflexion en cours...");
+    setVoiceResponse("🔄 Thinking...");
     setSuggestedQuestions([]); // Clear previous suggestions
     
     try {
@@ -1359,7 +1359,7 @@ export default function Home() {
         body: JSON.stringify(enhancedPayload)
       });
       const data = await res.json();
-      const response = data.response || "Désolé, je n'ai pas pu traiter votre demande.";
+      const response = data.response || "Sorry, I couldn't process your request.";
       setVoiceResponse(response);
       
       // Phase 3: Save to conversation history
@@ -1381,7 +1381,7 @@ export default function Home() {
       }
     } catch (err) {
       console.error(err);
-      setVoiceResponse("Désolé, je n'ai pas pu traiter votre demande. Veuillez réessayer.");
+      setVoiceResponse("Sorry, I couldn't process your request. Please try again.");
     }
   };
 
@@ -1585,7 +1585,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
             <button
               onClick={() => setShowGuide(true)}
               className="flex items-center gap-2 px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/40 border border-emerald-500/30 text-emerald-300 rounded-lg transition"
-              title="Guide de Migration"
+              title="Migration Guide"
             >
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Guide</span>
@@ -1594,10 +1594,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
             <button
               onClick={() => setShowGlossary(true)}
               className="flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 text-purple-300 rounded-lg transition"
-              title="Glossaire COBOL/Python"
+              title="COBOL/Python Glossary"
             >
               <Scroll className="w-4 h-4" />
-              <span className="hidden sm:inline">Glossaire</span>
+              <span className="hidden sm:inline">Glossary</span>
             </button>
             {user && (
               <div className="flex items-center gap-3">
@@ -1637,14 +1637,14 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
             <div className="bg-amber-500/20 border border-amber-500 rounded-lg p-4 flex items-center gap-3">
               <Package className="w-5 h-5 text-amber-500" />
               <div className="flex-1">
-                <span className="text-amber-200 font-medium">Copybooks requis : </span>
+                <span className="text-amber-200 font-medium">Required copybooks: </span>
                 <span className="text-amber-300">{missingCopybooks.join(', ')}</span>
                 <span className="text-amber-200/70 text-sm ml-2">
-                  (Uploadez-les via le bouton violet ou continuez sans)
+                  (Upload via the purple button or continue without)
                 </span>
               </div>
               <label className="px-3 py-1 bg-purple-600 hover:bg-purple-500 rounded cursor-pointer text-sm">
-                Ajouter
+                Add
                 <input type="file" accept=".cpy,.cbl,.cob,.txt" multiple onChange={handleCopybookUpload} className="hidden" />
               </label>
             </div>
@@ -1712,7 +1712,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     <button onClick={() => { exportMigrationPackage(); setShowExportMenu(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-slate-700 rounded-t-lg">📄 Full Report (.md)</button>
                     <button onClick={() => {
                       if (analysis?.code_valid === false) {
-                        if (!confirm('⚠️ Le code contient des erreurs de syntaxe. Exporter quand même?')) return;
+                        if (!confirm('⚠️ The code contains syntax errors. Export anyway?')) return;
                       }
                       const blob = new Blob([pythonCode || analysis.python_code], { type: 'text/python' });
                       const url = URL.createObjectURL(blob);
@@ -1940,7 +1940,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     activeTab === "report" ? "bg-purple-500/20 text-purple-400 border-b-2 border-purple-400" : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <FileText className="w-4 h-4" />Report
+                  <FileText className="w-4 h-4" />Security Report
                 </button>
                 <span className="w-px h-6 bg-slate-600 mx-1"></span>
                 <button
@@ -1949,7 +1949,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     activeTab === "dashboard" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <BarChart3 className="w-4 h-4" />Métriques
+                  <BarChart3 className="w-4 h-4" />Monitoring
                 </button>
                 <button
                   onClick={() => setActiveTab("graph")}
@@ -1976,7 +1976,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     <div className="flex items-center justify-end gap-2 px-3 py-2 bg-slate-700/50 border-b border-slate-600">
                       <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-lg text-xs font-medium">
                         <CheckCircle className="w-3 h-3" />
-                        <span>✓ Code Python validé - prêt à exporter</span>
+                        <span>✓ Python code validated - ready to export</span>
                       </div>
                     </div>
                   )}
@@ -2048,7 +2048,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       <div className="text-center">
                         <Link2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p className="text-lg font-medium">Interactive Diff v6.1</p>
-                        <p className="text-sm mt-2">Analyse du code requise pour activer les features:</p>
+                        <p className="text-sm mt-2">Code analysis required to enable features:</p>
                         <ul className="text-xs mt-3 space-y-1 text-slate-500">
                           <li>1. Line Mapping (click COBOL → highlight Python)</li>
                           <li>2. Sync Scroll (scroll synchronise)</li>
@@ -2456,7 +2456,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center cursor-help">
                     <p className="text-2xl font-bold text-green-400 tabular-nums">{analysis.python_lines || (analysis.python_code || '').split('\n').length}</p>
                     <p className="text-xs text-slate-400 mt-1">Python</p>
-                    <p className="text-[10px] text-slate-500">(lignes)</p>
+                    <p className="text-[10px] text-slate-500">(lines)</p>
                   </div>
                 </Tooltip>
                 {/* Tests */}
@@ -2561,7 +2561,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 )}
                 {testResults.running && (
                   <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-400">
-                    <Loader2 className="w-3 h-3 animate-spin" /> Exécution...
+                    <Loader2 className="w-3 h-3 animate-spin" /> Running...
                   </span>
                 )}
               </h3>
@@ -2679,7 +2679,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <button
                   onClick={() => setChatExpanded(!chatExpanded)}
                   className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-                  title={chatExpanded ? "Réduire" : "Agrandir"}
+                  title={chatExpanded ? "Minimize" : "Expand"}
                 >
                   {chatExpanded ? (
                     <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

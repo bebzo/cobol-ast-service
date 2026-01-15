@@ -111,14 +111,14 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
       if (data.error) {
         setMessage({ type: 'error', text: data.error });
       } else {
-        setMessage({ type: 'success', text: 'Utilisateur créé avec succès!' });
+        setMessage({ type: 'success', text: 'User created successfully!' });
         setNewUserEmail('');
         setNewUserPassword('');
         setShowAddUser(false);
         loadUsers();
       }
     } catch (err) {
-      setMessage({ type: 'error', text: 'Erreur lors de la création' });
+      setMessage({ type: 'error', text: 'Error creating user' });
     }
     setLoading(false);
     
@@ -126,7 +126,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   };
 
   const deleteUser = async (userId: string, email: string) => {
-    if (!confirm(`Supprimer l'utilisateur ${email} ?`)) return;
+    if (!confirm(`Delete user ${email}?`)) return;
     
     setLoading(true);
     try {
@@ -139,11 +139,11 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
       if (data.error) {
         setMessage({ type: 'error', text: data.error });
       } else {
-        setMessage({ type: 'success', text: 'Utilisateur supprimé!' });
+        setMessage({ type: 'success', text: 'User deleted!' });
         loadUsers();
       }
     } catch (err) {
-      setMessage({ type: 'error', text: 'Erreur lors de la suppression' });
+      setMessage({ type: 'error', text: 'Error deleting user' });
     }
     setLoading(false);
     
@@ -209,9 +209,9 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
         {/* Tabs */}
         <div className="flex border-b border-slate-700">
           {[
-            { id: 'users', label: 'Utilisateurs', icon: <Users className="w-4 h-4" /> },
-            { id: 'stats', label: 'Statistiques', icon: <BarChart3 className="w-4 h-4" /> },
-            { id: 'settings', label: 'Paramètres', icon: <Settings className="w-4 h-4" /> }
+            { id: 'users', label: 'Users', icon: <Users className="w-4 h-4" /> },
+            { id: 'stats', label: 'Statistics', icon: <BarChart3 className="w-4 h-4" /> },
+            { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> }
           ].map(tab => (
             <button
               key={tab.id}
@@ -248,7 +248,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input
                     type="text"
-                    placeholder="Rechercher un utilisateur..."
+                    placeholder="Search for a user..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
@@ -260,14 +260,14 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                     className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition"
                   >
                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    Actualiser
+                    Refresh
                   </button>
                   <button
                     onClick={() => setShowAddUser(true)}
                     className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg text-white transition"
                   >
                     <UserPlus className="w-4 h-4" />
-                    Ajouter
+                    Add
                   </button>
                 </div>
               </div>
