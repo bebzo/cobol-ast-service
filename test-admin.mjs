@@ -1,68 +1,68 @@
 import { chromium } from 'playwright';
 
-const APP_URL = 'https://codeswitch-pro.vercel.app';
+const APP_URL = 'https://cobol-ast-service-5s1pyrbvx-emmanuel-beb-a-ngons-projects.vercel.app';
 
 async function testAdminButton() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   
-  console.log('🔍 Testing Admin button visibility...\n');
+  console.log('🔍 Testing Admin button on:', APP_URL);
   
   try {
     // Go to login page
     await page.goto(`${APP_URL}/login`, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(2000);
     console.log('✅ Login page loaded');
     
-    // Login as super admin
-    await page.fill('input[type="email"]', 'embebangon@gmail.com');
-    await page.fill('input[type="password"]', 'EManu1231975@@');
-    await page.click('button[type="submit"]');
+    await page.screenshot({ path: 'login-page.png', fullPage: true });
     
-    // Wait for dashboard
-    await page.waitForURL('**/dashboard**', { timeout: 15000 });
-    console.log('✅ Logged in and redirected to dashboard');
+    // Find inputs
+    const emailInput = await page.locator('input[type="email"], input[name="email"], input[placeholder*="email" i]').first();
+    const passwordInput = await page.locator('input[type="password"]').first();
     
-    // Wait for page to fully load
-    await page.waitForTimeout(2000);
-    
-    // Check for Admin button
-    const adminButton = await page.locator('button:has-text("Admin")').first();
-    const isVisible = await adminButton.isVisible();
-    
-    if (isVisible) {
-      console.log('✅ Admin button is VISIBLE for super admin!');
+    if (await emailInput.isVisible({ timeout: 5000 })) {
+      console.log('✅ Found login form');
+      await emailInput.fill('embebangon@gmail.com');
+      await passwordInput.fill('EManu1231975@@');
       
-      // Take screenshot
-      await page.screenshot({ path: 'admin-button-visible.png', fullPage: false });
-      console.log('📸 Screenshot saved: admin-button-visible.png');
+      const submitBtn = await page.locator('button[type="submit"]').first();
+      await submitBtn.click();
+      console.log('✅ Login submitted');
       
-      // Click Admin button to test panel
-      await adminButton.click();
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(5000);
+      console.log('Current URL:', page.url());
       
-      // Check if panel opened
-      const panelTitle = await page.locator('text=Super Admin Panel').first();
-      const panelVisible = await panelTitle.isVisible();
+      await page.screenshot({ path: 'after-login.png', fullPage: true });
       
-      if (panelVisible) {
-        console.log('✅ Admin Panel opened successfully!');
-        await page.screenshot({ path: 'admin-panel-open.png', fullPage: false });
-        console.log('📸 Screenshot saved: admin-panel-open.png');
+      // Check for Admin button  
+      const adminButton = await page.locator('button:has-text("Admin")').first();
+      const historyButton = await page.locator('button:has-text("History")').first();
+      
+      console.log('History button visible:', await historyButton.isVisible().catch(() => false));
+      console.log('Admin button visible:', await adminButton.isVisible().catch(() => false));
+      
+      if (await adminButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+        console.log('✅ SUCCESS: Admin button is visible for super admin!');
+        await adminButton.click();
+        await page.waitForTimeout(1500);
+        await page.screenshot({ path: 'admin-panel.png', fullPage: true });
+        console.log('✅ Admin Panel opened - see admin-panel.png');
       } else {
-        console.log('⚠️ Admin Panel may not have opened');
+        console.log('⚠️ Admin button not visible');
+        const buttons = await page.locator('button').allTextContents();
+        console.log('All buttons:', buttons.filter(b => b.trim()).slice(0, 15));
       }
     } else {
-      console.log('❌ Admin button NOT visible');
-      await page.screenshot({ path: 'admin-button-missing.png', fullPage: false });
+      console.log('Login form not found - checking page...');
+      await page.screenshot({ path: 'page-debug.png', fullPage: true });
     }
     
   } catch (e) {
     console.log('❌ Error:', e.message);
-    await page.screenshot({ path: 'error-screenshot.png', fullPage: false });
+    await page.screenshot({ path: 'error.png', fullPage: true });
   }
   
   await browser.close();
-  console.log('\n✅ Test completed');
 }
 
 testAdminButton();
