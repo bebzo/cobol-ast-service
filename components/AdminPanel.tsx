@@ -195,7 +195,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">Administration</h2>
-              <p className="text-sm text-slate-400">Gestion des utilisateurs et statistiques</p>
+              <p className="text-sm text-slate-400">User management and statistics</p>
             </div>
           </div>
           <button
@@ -305,7 +305,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                         disabled={loading}
                         className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-white transition disabled:opacity-50"
                       >
-                        Créer
+                        Create
                       </button>
                       <button
                         onClick={() => setShowAddUser(false)}
@@ -326,7 +326,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                       <th className="text-left text-xs text-slate-400 font-medium p-3">Utilisateur</th>
                       <th className="text-left text-xs text-slate-400 font-medium p-3">Provider</th>
                       <th className="text-left text-xs text-slate-400 font-medium p-3">Inscrit le</th>
-                      <th className="text-left text-xs text-slate-400 font-medium p-3">Dernière connexion</th>
+                      <th className="text-left text-xs text-slate-400 font-medium p-3">Last login</th>
                       <th className="text-center text-xs text-slate-400 font-medium p-3">Statut</th>
                       <th className="text-center text-xs text-slate-400 font-medium p-3">Actions</th>
                     </tr>
@@ -342,7 +342,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                     ) : filteredUsers.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="text-center py-8 text-slate-400">
-                          Aucun utilisateur trouvé
+                          No users found
                         </td>
                       </tr>
                     ) : (
@@ -379,7 +379,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                           <td className="p-3 text-center">
                             {user.email_confirmed_at ? (
                               <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-green-500/20 text-green-400">
-                                <CheckCircle className="w-3 h-3" /> Confirmé
+                                <CheckCircle className="w-3 h-3" /> Confirmed
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-amber-500/20 text-amber-400">
@@ -392,7 +392,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                               <button
                                 onClick={() => deleteUser(user.id, user.email)}
                                 className="p-2 hover:bg-red-500/20 rounded-lg text-red-400 transition"
-                                title="Supprimer"
+                                title="Delete"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -426,7 +426,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                 <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 rounded-xl p-4 border border-purple-500/30">
                   <CheckCircle className="w-6 h-6 text-purple-400 mb-2" />
                   <div className="text-2xl font-bold text-white">{stats.confirmedUsers}</div>
-                  <div className="text-xs text-slate-400">Confirmés</div>
+                  <div className="text-xs text-slate-400">Confirmeds</div>
                 </div>
                 <div className="bg-gradient-to-br from-cyan-600/20 to-cyan-800/20 rounded-xl p-4 border border-cyan-500/30">
                   <Mail className="w-6 h-6 text-cyan-400 mb-2" />
@@ -448,7 +448,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
               {/* Charts placeholder */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                  <h3 className="text-white font-semibold mb-4">Inscriptions récentes</h3>
+                  <h3 className="text-white font-semibold mb-4">Recent signups</h3>
                   <div className="space-y-3">
                     {users.slice(0, 5).map(user => (
                       <div key={user.id} className="flex items-center justify-between p-2 bg-slate-700/50 rounded-lg">
@@ -465,7 +465,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                 </div>
 
                 <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-                  <h3 className="text-white font-semibold mb-4">Répartition par provider</h3>
+                  <h3 className="text-white font-semibold mb-4">Provider distribution</h3>
                   <div className="space-y-4">
                     <div>
                       <div className="flex justify-between text-sm mb-1">
@@ -512,11 +512,11 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
           {activeTab === 'settings' && (
             <div className="space-y-6">
               <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                <h3 className="text-white font-semibold mb-4">Paramètres de l'application</h3>
+                <h3 className="text-white font-semibold mb-4">Application settings</h3>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                     <div>
-                      <div className="text-white font-medium">Inscription ouverte</div>
+                      <div className="text-white font-medium">Open registration</div>
                       <div className="text-sm text-slate-400">Permettre aux nouveaux utilisateurs de s'inscrire</div>
                     </div>
                     <div className="w-12 h-6 bg-green-500 rounded-full relative cursor-pointer">
@@ -525,7 +525,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                   </div>
                   <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                     <div>
-                      <div className="text-white font-medium">Confirmation email requise</div>
+                      <div className="text-white font-medium">Email confirmation required</div>
                       <div className="text-sm text-slate-400">Les utilisateurs doivent confirmer leur email</div>
                     </div>
                     <div className="w-12 h-6 bg-green-500 rounded-full relative cursor-pointer">
@@ -535,7 +535,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                   <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                     <div>
                       <div className="text-white font-medium">OAuth Google</div>
-                      <div className="text-sm text-slate-400">Connexion via Google activée</div>
+                      <div className="text-sm text-slate-400">Google login enabled</div>
                     </div>
                     <div className="w-12 h-6 bg-green-500 rounded-full relative cursor-pointer">
                       <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
@@ -544,7 +544,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                   <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                     <div>
                       <div className="text-white font-medium">OAuth GitHub</div>
-                      <div className="text-sm text-slate-400">Connexion via GitHub activée</div>
+                      <div className="text-sm text-slate-400">GitHub login enabled</div>
                     </div>
                     <div className="w-12 h-6 bg-green-500 rounded-full relative cursor-pointer">
                       <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
@@ -554,7 +554,7 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
               </div>
 
               <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
-                <h3 className="text-white font-semibold mb-4">Export des données</h3>
+                <h3 className="text-white font-semibold mb-4">Data export</h3>
                 <div className="flex gap-4">
                   <button className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition">
                     <Download className="w-4 h-4" />

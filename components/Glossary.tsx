@@ -16,70 +16,70 @@ const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: "IDENTIFICATION DIVISION",
     category: "cobol",
-    definition: "Première division d'un programme COBOL contenant les métadonnées: nom du programme, auteur, date.",
+    definition: "First division of a COBOL program containing metadata: program name, author, date.",
     cobolExample: "IDENTIFICATION DIVISION.\nPROGRAM-ID. PAYROLL.",
-    pythonEquivalent: '"""Module docstring avec auteur et description"""'
+    pythonEquivalent: '"""Module docstring with author and description"""'
   },
   {
     term: "DATA DIVISION",
     category: "cobol",
-    definition: "Division contenant les définitions de toutes les variables et structures de données.",
+    definition: "Division containing all variable and data structure definitions.",
     cobolExample: "DATA DIVISION.\nWORKING-STORAGE SECTION.",
     pythonEquivalent: "@dataclass\nclass DataStructure:"
   },
   {
     term: "WORKING-STORAGE",
     category: "cobol",
-    definition: "Section pour les variables locales persistantes entre les appels de paragraphes.",
+    definition: "Section for local variables that persist between paragraph calls.",
     cobolExample: "01 WS-COUNTER PIC 9(5) VALUE 0.",
     pythonEquivalent: "self.counter: int = 0"
   },
   {
     term: "PROCEDURE DIVISION",
     category: "cobol",
-    definition: "Division contenant la logique exécutable du programme (équivalent du main).",
+    definition: "Division containing the executable program logic (equivalent to main).",
     cobolExample: "PROCEDURE DIVISION.\n  PERFORM 1000-INIT.",
     pythonEquivalent: "def main(self):\n    self.init()"
   },
   {
     term: "PIC / PICTURE",
     category: "cobol",
-    definition: "Clause définissant le format d'une variable: type, taille, décimales.",
+    definition: "Clause defining a variable's format: type, size, decimals.",
     cobolExample: "PIC S9(7)V99 COMP-3",
-    pythonEquivalent: "Decimal('0.00')  # avec precision"
+    pythonEquivalent: "Decimal('0.00')  # with precision"
   },
   {
     term: "COMP-3",
     category: "cobol",
-    definition: "Format de stockage packed-decimal utilisé pour les calculs financiers précis.",
+    definition: "Packed-decimal storage format used for precise financial calculations.",
     cobolExample: "01 WS-AMOUNT PIC S9(9)V99 COMP-3.",
     pythonEquivalent: "from decimal import Decimal"
   },
   {
     term: "PERFORM",
     category: "cobol",
-    definition: "Instruction pour appeler un paragraphe ou une section (équivalent d'un appel de fonction).",
+    definition: "Instruction to call a paragraph or section (equivalent to a function call).",
     cobolExample: "PERFORM 2000-CALCULATE THRU 2000-EXIT.",
     pythonEquivalent: "self.calculate()"
   },
   {
     term: "COMPUTE",
     category: "cobol",
-    definition: "Instruction pour effectuer des calculs arithmétiques avec expression.",
+    definition: "Instruction to perform arithmetic calculations with expressions.",
     cobolExample: "COMPUTE WS-TAX = WS-GROSS * WS-RATE.",
     pythonEquivalent: "tax = gross * rate"
   },
   {
     term: "COPYBOOK",
     category: "cobol",
-    definition: "Fichier réutilisable contenant des définitions de données, inclus via COPY statement.",
+    definition: "Reusable file containing data definitions, included via COPY statement.",
     cobolExample: "COPY CUSTOMER-RECORD.",
     pythonEquivalent: "from models import CustomerRecord"
   },
   {
     term: "88 Level",
     category: "cobol",
-    definition: "Condition-name: valeur booléenne liée à une variable parent.",
+    definition: "Condition-name: boolean value linked to a parent variable.",
     cobolExample: "01 WS-STATUS PIC X.\n   88 IS-ACTIVE VALUE 'A'.",
     pythonEquivalent: "@property\ndef is_active(self) -> bool:\n    return self.status == 'A'"
   },
@@ -88,59 +88,59 @@ const GLOSSARY_TERMS: GlossaryTerm[] = [
   {
     term: "dataclass",
     category: "python",
-    definition: "Décorateur Python qui génère automatiquement __init__, __repr__, etc. pour les classes de données.",
+    definition: "Python decorator that automatically generates __init__, __repr__, etc. for data classes.",
     pythonEquivalent: "@dataclass\nclass Employee:\n    name: str\n    salary: Decimal"
   },
   {
     term: "Decimal",
     category: "python",
-    definition: "Type Python pour les calculs décimaux précis, essentiel pour la finance.",
+    definition: "Python type for precise decimal calculations, essential for finance.",
     pythonEquivalent: "from decimal import Decimal, ROUND_HALF_UP"
   },
   {
     term: "typing",
     category: "python",
-    definition: "Module pour les annotations de type statiques en Python.",
+    definition: "Module for static type annotations in Python.",
     pythonEquivalent: "from typing import List, Optional, Dict"
   },
 
   // Migration Terms
   {
-    term: "Équivalence Numérique",
+    term: "Numerical Equivalence",
     category: "migration",
-    definition: "Validation que les calculs Python produisent exactement les mêmes résultats que COBOL."
+    definition: "Validation that Python calculations produce exactly the same results as COBOL."
   },
   {
-    term: "Équivalence Comportementale",
+    term: "Behavioral Equivalence",
     category: "migration",
-    definition: "Validation que le flux de contrôle et les transitions d'état sont identiques."
+    definition: "Validation that control flow and state transitions are identical."
   },
   {
     term: "Transpilation",
     category: "migration",
-    definition: "Conversion de code source d'un langage vers un autre en préservant la sémantique."
+    definition: "Conversion of source code from one language to another while preserving semantics."
   },
   {
     term: "Fallback",
     category: "migration",
-    definition: "Code générique utilisé quand une instruction COBOL n'a pas d'équivalent direct."
+    definition: "Generic code used when a COBOL instruction has no direct equivalent."
   },
 
   // Testing Terms
   {
     term: "Property-Based Testing",
     category: "testing",
-    definition: "Tests qui vérifient des propriétés mathématiques plutôt que des valeurs spécifiques."
+    definition: "Tests that verify mathematical properties rather than specific values."
   },
   {
     term: "Edge Case",
     category: "testing",
-    definition: "Cas limite: valeurs extrêmes (0, négatif, max) qui peuvent causer des bugs."
+    definition: "Boundary case: extreme values (0, negative, max) that may cause bugs."
   },
   {
     term: "Regression Safety",
     category: "testing",
-    definition: "Garantie que les modifications n'introduisent pas de nouveaux bugs."
+    definition: "Guarantee that modifications don't introduce new bugs."
   }
 ];
 
@@ -180,8 +180,8 @@ export default function Glossary({ isOpen, onClose }: GlossaryProps) {
           <div className="flex items-center gap-3">
             <BookOpen className="w-6 h-6 text-indigo-400" />
             <div>
-              <h2 className="text-lg font-bold text-white">Glossaire COBOL/Python</h2>
-              <p className="text-xs text-slate-400">{GLOSSARY_TERMS.length} termes documentés</p>
+              <h2 className="text-lg font-bold text-white">COBOL/Python Glossary</h2>
+              <p className="text-xs text-slate-400">{GLOSSARY_TERMS.length} documented terms</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-700 rounded-lg transition">
@@ -195,7 +195,7 @@ export default function Glossary({ isOpen, onClose }: GlossaryProps) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Rechercher un terme..."
+              placeholder="Search for a term..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -210,7 +210,7 @@ export default function Glossary({ isOpen, onClose }: GlossaryProps) {
                   : "bg-slate-700 text-slate-300 hover:bg-slate-600"
               }`}
             >
-              Tous
+              All
             </button>
             {categories.map(cat => (
               <button
@@ -233,7 +233,7 @@ export default function Glossary({ isOpen, onClose }: GlossaryProps) {
           {filteredTerms.length === 0 ? (
             <div className="text-center py-8 text-slate-400">
               <Search className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>Aucun terme trouvé pour "{searchTerm}"</p>
+              <p>No terms found for "{searchTerm}"</p>
             </div>
           ) : (
             filteredTerms.map((term, idx) => {

@@ -28,74 +28,74 @@ export default function MigrationGuide({ isOpen, onClose }: MigrationGuideProps)
   const steps = [
     {
       icon: Upload,
-      title: "1. Upload du Code COBOL",
-      description: "Importez votre fichier COBOL (.cbl, .cob) ou collez directement le code.",
+      title: "1. Upload COBOL Code",
+      description: "Import your COBOL file (.cbl, .cob) or paste the code directly.",
       details: [
-        "Formats supportés: COBOL-85, COBOL-2002, IBM Enterprise COBOL",
-        "Taille max recommandée: 5000 lignes par fichier",
-        "Les COPYBOOKS peuvent être uploadés séparément",
-        "Le code est analysé localement avant l'envoi à l'API"
+        "Supported formats: COBOL-85, COBOL-2002, IBM Enterprise COBOL",
+        "Recommended max size: 5000 lines per file",
+        "COPYBOOKS can be uploaded separately",
+        "Code is analyzed locally before sending to the API"
       ],
-      tip: "💡 Utilisez 'Load Demo' pour tester avec un exemple de code payroll."
+      tip: "💡 Use 'Load Demo' to test with a sample payroll code."
     },
     {
       icon: Cpu,
-      title: "2. Analyse & Transpilation",
-      description: "L'IA analyse la structure et génère le code Python équivalent.",
+      title: "2. Analysis & Transpilation",
+      description: "AI analyzes the structure and generates equivalent Python code.",
       details: [
-        "Parsing AST du code COBOL (paragraphes, variables, divisions)",
-        "Détection des patterns obsolètes et vulnérabilités",
-        "Génération de code Python avec dataclasses et typing",
-        "Création de tests unitaires automatiques"
+        "AST parsing of COBOL code (paragraphs, variables, divisions)",
+        "Detection of obsolete patterns and vulnerabilities",
+        "Python code generation with dataclasses and typing",
+        "Automatic unit test creation"
       ],
-      tip: "💡 L'analyse SSE montre la progression en temps réel."
+      tip: "💡 SSE analysis shows real-time progress."
     },
     {
       icon: TestTube,
-      title: "3. Validation des Tests",
-      description: "Les tests sont exécutés pour valider l'équivalence fonctionnelle.",
+      title: "3. Test Validation",
+      description: "Tests are executed to validate functional equivalence.",
       details: [
-        "Tests unitaires avec assertions numériques",
-        "Tests de cas limites (zéro, négatif, overflow)",
-        "Tests de propriétés (monotonie, identité)",
-        "Exécution via Pyodide dans le navigateur"
+        "Unit tests with numeric assertions",
+        "Edge case tests (zero, negative, overflow)",
+        "Property tests (monotonicity, identity)",
+        "Execution via Pyodide in the browser"
       ],
-      tip: "💡 Un taux de passage >95% indique une migration fiable."
+      tip: "💡 A pass rate >95% indicates reliable migration."
     },
     {
       icon: FileCheck,
       title: "4. Certification & Export",
-      description: "Générez un certificat d'équivalence et exportez le code.",
+      description: "Generate an equivalence certificate and export the code.",
       details: [
-        "Certificat PDF avec métriques détaillées",
-        "Export vers Django, FastAPI, ou module Python standard",
-        "Diagramme d'architecture Mermaid",
-        "Rapport de sécurité avec score CVSS"
+        "PDF certificate with detailed metrics",
+        "Export to Django, FastAPI, or standard Python module",
+        "Mermaid architecture diagram",
+        "Security report with CVSS score"
       ],
-      tip: "💡 Le certificat peut servir de preuve d'audit pour la conformité."
+      tip: "💡 The certificate can serve as audit proof for compliance."
     }
   ];
 
   const faqs = [
     {
-      q: "Le code Python est-il vraiment équivalent au COBOL?",
-      a: "Oui, dans la limite des différences de langage. Les calculs décimaux utilisent Decimal pour préserver la précision COMP-3. Les tests valident l'équivalence numérique."
+      q: "Is the Python code truly equivalent to the COBOL?",
+      a: "Yes, within the limits of language differences. Decimal calculations use Decimal to preserve COMP-3 precision. Tests validate numerical equivalence."
     },
     {
-      q: "Puis-je utiliser le code généré en production?",
-      a: "Le code est conçu pour être production-ready, mais nous recommandons une revue par un expert COBOL et des tests UAT avant déploiement."
+      q: "Can I use the generated code in production?",
+      a: "The code is designed to be production-ready, but we recommend review by a COBOL expert and UAT testing before deployment."
     },
     {
-      q: "Comment sont gérées les données sensibles?",
-      a: "Le code COBOL est envoyé à l'API Gemini pour analyse. Les données ne sont pas stockées. Pour les environnements réglementés, utilisez une instance privée."
+      q: "How is sensitive data handled?",
+      a: "COBOL code is sent to the Gemini API for analysis. Data is not stored. For regulated environments, use a private instance."
     },
     {
-      q: "Que faire si des tests échouent?",
-      a: "Les échecs peuvent indiquer des différences de comportement attendues (initialisation de variables). Utilisez le chat Gemini pour comprendre chaque échec."
+      q: "What to do if tests fail?",
+      a: "Failures may indicate expected behavioral differences (variable initialization). Use the Gemini chat to understand each failure."
     },
     {
-      q: "Les COPYBOOKS sont-ils supportés?",
-      a: "Oui! Uploadez vos fichiers COPYBOOK (.cpy) séparément. Ils seront automatiquement inclus dans l'analyse."
+      q: "Are COPYBOOKS supported?",
+      a: "Yes! Upload your COPYBOOK files (.cpy) separately. They will be automatically included in the analysis."
     }
   ];
 
@@ -108,8 +108,8 @@ export default function MigrationGuide({ isOpen, onClose }: MigrationGuideProps)
           <div className="flex items-center gap-3">
             <BookOpen className="w-6 h-6 text-white" />
             <div>
-              <h2 className="text-lg font-bold text-white">Guide de Migration COBOL → Python</h2>
-              <p className="text-xs text-indigo-200">CodeSwitch Pro - Documentation Interactive</p>
+              <h2 className="text-lg font-bold text-white">COBOL → Python Migration Guide</h2>
+              <p className="text-xs text-indigo-200">CodeSwitch Pro - Interactive Documentation</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition">
@@ -121,7 +121,7 @@ export default function MigrationGuide({ isOpen, onClose }: MigrationGuideProps)
           {/* Workflow Steps */}
           <div className="p-6 border-b border-slate-700">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">
-              Workflow de Migration
+              Migration Workflow
             </h3>
             
             {/* Step Progress */}
@@ -170,28 +170,28 @@ export default function MigrationGuide({ isOpen, onClose }: MigrationGuideProps)
           {/* Features Grid */}
           <div className="p-6 border-b border-slate-700">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4">
-              Fonctionnalités Clés
+              Key Features
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-slate-900/50 rounded-lg p-4 border border-emerald-500/30">
                 <Zap className="w-8 h-8 text-emerald-400 mb-2" />
-                <h4 className="font-semibold text-emerald-300 mb-1">Transpilation IA</h4>
+                <h4 className="font-semibold text-emerald-300 mb-1">AI Transpilation</h4>
                 <p className="text-xs text-slate-400">
-                  Gemini 2.0 analyse le contexte métier et génère du code Python idiomatique.
+                  Gemini 2.0 analyzes business context and generates idiomatic Python code.
                 </p>
               </div>
               <div className="bg-slate-900/50 rounded-lg p-4 border border-purple-500/30">
                 <TestTube className="w-8 h-8 text-purple-400 mb-2" />
-                <h4 className="font-semibold text-purple-300 mb-1">Tests Automatiques</h4>
+                <h4 className="font-semibold text-purple-300 mb-1">Automatic Tests</h4>
                 <p className="text-xs text-slate-400">
-                  Tests unitaires et property-based générés et exécutés dans le navigateur.
+                  Unit tests and property-based tests generated and executed in the browser.
                 </p>
               </div>
               <div className="bg-slate-900/50 rounded-lg p-4 border border-red-500/30">
                 <Shield className="w-8 h-8 text-red-400 mb-2" />
-                <h4 className="font-semibold text-red-300 mb-1">Analyse Sécurité</h4>
+                <h4 className="font-semibold text-red-300 mb-1">Security Analysis</h4>
                 <p className="text-xs text-slate-400">
-                  Détection des vulnérabilités avec scoring CVSS et recommandations.
+                  Vulnerability detection with CVSS scoring and recommendations.
                 </p>
               </div>
             </div>
@@ -201,7 +201,7 @@ export default function MigrationGuide({ isOpen, onClose }: MigrationGuideProps)
           <div className="p-6">
             <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-4 flex items-center gap-2">
               <HelpCircle className="w-4 h-4" />
-              Questions Fréquentes
+              Frequently Asked Questions
             </h3>
             <div className="space-y-3">
               {faqs.map((faq, idx) => (
@@ -222,13 +222,13 @@ export default function MigrationGuide({ isOpen, onClose }: MigrationGuideProps)
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-slate-400 text-sm">
                 <MessageSquare className="w-4 h-4" />
-                Des questions? Utilisez le chat Gemini pour de l'aide contextuelle.
+                Questions? Use the Gemini chat for contextual help.
               </div>
               <button
                 onClick={onClose}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm font-medium transition"
               >
-                Commencer la Migration
+                Start Migration
               </button>
             </div>
           </div>
