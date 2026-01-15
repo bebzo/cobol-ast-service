@@ -22,9 +22,14 @@ function LoginForm() {
     const initSupabase = async () => {
       try {
         const { createClient } = await import('@supabase/supabase-js');
-        // Use environment variables with fallback to hardcoded values
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://jcizfxniwgwfdmubapyb.supabase.co';
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpjaXpmeG5pd2d3ZmRtdWJhcHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY1Njk5MjgsImV4cCI6MjA4MjE0NTkyOH0.ZMReVdLgTRdV8MTWZ8yUBeknBuJAZZON_77OPoxp6-c';
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        
+        if (!url || !key) {
+          console.error('Supabase environment variables not configured');
+          setSupabaseReady(true);
+          return;
+        }
         
         const client = createClient(url, key);
         setSupabase(client);
