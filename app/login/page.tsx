@@ -33,7 +33,7 @@ function LoginForm() {
           // Check if already logged in
           const { data: { session } } = await client.auth.getSession();
           if (session) {
-            router.push(redirectTo);
+            window.location.href = redirectTo;
           }
         } else {
           console.log('Supabase not configured - demo mode');
@@ -56,9 +56,11 @@ function LoginForm() {
 
     // Demo mode - allow login without Supabase
     if (!supabase) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 500));
       setMessage('Demo mode: Redirecting to dashboard...');
-      setTimeout(() => router.push(redirectTo), 1500);
+      setTimeout(() => {
+        window.location.href = redirectTo;
+      }, 500);
       setLoading(false);
       return;
     }
@@ -77,7 +79,7 @@ function LoginForm() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push(redirectTo);
+        window.location.href = redirectTo;
       }
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
@@ -91,8 +93,10 @@ function LoginForm() {
     
     // Demo mode
     if (!supabase) {
-      setMessage(`Demo mode: ${provider} login would redirect here...`);
-      setTimeout(() => router.push(redirectTo), 1500);
+      setMessage(`Demo mode: Redirecting...`);
+      setTimeout(() => {
+        window.location.href = redirectTo;
+      }, 500);
       return;
     }
 
@@ -111,7 +115,9 @@ function LoginForm() {
 
   const handleDemoAccess = () => {
     setMessage('Accessing demo mode...');
-    setTimeout(() => router.push('/dashboard'), 1000);
+    setTimeout(() => {
+      window.location.href = '/dashboard';
+    }, 500);
   };
 
   if (!supabaseReady) {
