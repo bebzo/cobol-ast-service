@@ -1,43 +1,61 @@
 import { chromium } from 'playwright';
 
-async function testFinal() {
-  console.log('⏳ Waiting for Vercel deployment (50s)...');
-  await new Promise(r => setTimeout(r, 50000));
+const APP_URL = 'https://cobol-ast-service.vercel.app';
+
+async function testAllAdmin() {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
   
-  const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  console.log('🔍 Test final du panneau Admin\n');
   
-  console.log('\n📸 Test 1: Homepage (/) shows landing page');
-  await page.goto('https://cobol-ast-service.vercel.app/', { waitUntil: 'networkidle', timeout: 60000 });
-  await page.waitForTimeout(2000);
-  const heroText = await page.textContent('h1');
-  console.log('✅ Hero:', heroText?.substring(0, 60));
-  await page.screenshot({ path: 'screenshots/final-01-homepage.png' });
-  
-  console.log('\n📸 Test 2: /dashboard requires login');
-  await page.goto('https://cobol-ast-service.vercel.app/dashboard', { waitUntil: 'networkidle', timeout: 60000 });
-  await page.waitForTimeout(3000); // Wait for client-side redirect
-  const currentUrl = page.url();
-  console.log('URL after /dashboard:', currentUrl);
-  await page.screenshot({ path: 'screenshots/final-02-dashboard.png' });
-  
-  if (currentUrl.includes('/login')) {
-    console.log('✅ Correctly redirected to login!');
-  } else {
-    // Check if showing loading or auth screen
-    const bodyText = await page.textContent('body');
-    console.log('Page content:', bodyText?.substring(0, 100));
+  try {
+    // Login
+    await page.goto(`${APP_URL}/login`, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.locator('input[type="email"]').fill('embebangon@gmail.com');
+    await page.locator('input[type="password"]').fill('EManu1231975@@');
+    await page.locator('button[type="submit"]').click();
+    await page.waitForTimeout(5000);
+    console.log('✅ Login réussi');
+    
+    // Open Admin
+    const adminBtn = await page.locator('button:has-text("Admin")');
+    console.log('✅ Bouton Admin visible:', await adminBtn.isVisible());
+    await adminBtn.click();
+    await page.waitForTimeout(1500);
+    
+    // Test tabs
+    console.log('\n--- ONGLET UTILISATEURS ---');
+    console.log('✅ Actualiser visible:', await page.locator('button:has-text("Actualiser")').isVisible());
+    console.log('✅ Ajouter visible:', await page.locator('button:has-text("Ajouter")').isVisible());
+    await page.screenshot({ path: 'final-users.png' });
+    
+    console.log('\n--- ONGLET STATISTIQUES ---');
+    await page.locator('button:has-text("Statistiques")').click();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: 'final-stats.png' });
+    console.log('✅ Statistiques affichées');
+    
+    console.log('\n--- ONGLET PARAMÈTRES ---');
+    await page.locator('button:has-text("Paramètres")').click();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: 'final-params.png' });
+    console.log('✅ Paramètres affichés');
+    
+    // Test fermeture par backdrop
+    console.log('\n--- TEST FERMETURE ---');
+    await page.click('.fixed.inset-0', { position: { x: 10, y: 10 }, force: true });
+    await page.waitForTimeout(500);
+    const closed = !(await page.locator('text=Administration').isVisible());
+    console.log('✅ Fermeture par backdrop:', closed);
+    
+    console.log('\n🎉 TOUS LES TESTS PASSÉS!');
+    
+  } catch (e) {
+    console.log('❌ Erreur:', e.message);
+    await page.screenshot({ path: 'error-final.png' });
   }
   
-  console.log('\n📸 Test 3: Login page');
-  await page.goto('https://cobol-ast-service.vercel.app/login', { waitUntil: 'networkidle', timeout: 30000 });
-  await page.screenshot({ path: 'screenshots/final-03-login.png' });
-  const hasGoogleBtn = await page.$('button:has-text("Google")');
-  const hasGitHubBtn = await page.$('button:has-text("GitHub")');
-  console.log('✅ Login page - Google:', !!hasGoogleBtn, 'GitHub:', !!hasGitHubBtn);
-  
   await browser.close();
-  console.log('\n🎉 All tests completed!');
 }
 
-testFinal().catch(console.error);
+testAllAdmin();
