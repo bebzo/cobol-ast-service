@@ -1935,7 +1935,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     activeTab === "dashboard" ? "bg-cyan-500/20 text-cyan-400 border-b-2 border-cyan-400" : "text-slate-400 hover:text-white"
                   }`}
                 >
-                  <BarChart3 className="w-4 h-4" />Dashboard
+                  <BarChart3 className="w-4 h-4" />Métriques
                 </button>
                 <button
                   onClick={() => setActiveTab("graph")}
