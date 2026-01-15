@@ -939,9 +939,10 @@ export default function Home() {
     setAbortController(controller);
     setAnalysisProgress(0);
     setAnalysisStatus("Parsing COBOL structure...");
-    setVoiceResponse("");  // Reset chat for new analysis
-    setVoiceTranscript("");  // Reset user message too
-    setConversationHistory([]);  // Reset conversation history
+    // Keep chat history - user can reset manually with "Nouveau" button
+    // setVoiceResponse("");
+    // setVoiceTranscript("");
+    // setConversationHistory([]);
     setSuggestedQuestions([]);  // Reset suggested questions
     setChatExpanded(false);  // Collapse chat
     
@@ -3021,53 +3022,75 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <MessageSquare className="w-5 h-5 text-purple-400" />
                   Gemini Live Chat
                   <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">ONLINE</span>
-                </h3>
-                <button
-                  onClick={() => setChatExpanded(!chatExpanded)}
-                  className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-                  title={chatExpanded ? "Minimize" : "Expand"}
-                >
-                  {chatExpanded ? (
-                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
+                  {conversationHistory.length > 0 && (
+                    <span className="ml-1 px-2 py-0.5 bg-slate-600 text-slate-300 text-xs rounded-full">
+                      {conversationHistory.length} msg{conversationHistory.length > 1 ? 's' : ''}
+                    </span>
                   )}
-                </button>
+                </h3>
+                <div className="flex items-center gap-2">
+                  {/* New Chat Button */}
+                  {conversationHistory.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setConversationHistory([]);
+                        setVoiceResponse('');
+                        setVoiceTranscript('');
+                        setSuggestedQuestions([]);
+                      }}
+                      className="px-3 py-1.5 bg-slate-700 hover:bg-red-600/50 text-slate-300 hover:text-white text-xs rounded-lg transition-colors flex items-center gap-1"
+                      title="Nouveau chat"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Nouveau
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setChatExpanded(!chatExpanded)}
+                    className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+                    title={chatExpanded ? "Minimize" : "Expand"}
+                  >
+                    {chatExpanded ? (
+                      <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
-              <div className={`bg-slate-900/50 rounded-lg p-4 mb-4 overflow-y-auto ${
-                chatExpanded ? 'flex-1 max-h-none' : 'max-h-48'
-              }`}>
-                {/* Show full conversation history when expanded */}
-                {chatExpanded && conversationHistory.length > 1 && (
-                  <div className="space-y-3 mb-4 pb-4 border-b border-slate-700">
-                    {conversationHistory.slice(0, -1).map((msg, i) => (
-                      <div key={i} className="space-y-2 opacity-70">
+              <div className={`bg-slate-900/50 rounded-lg p-4 mb-4 overflow-y-auto scroll-smooth ${
+                chatExpanded ? 'flex-1 max-h-none' : 'max-h-72'
+              }`} id="chat-messages-container">
+                {/* Always show full conversation history */}
+                {conversationHistory.length > 0 ? (
+                  <div className="space-y-4">
+                    {conversationHistory.map((msg, i) => (
+                      <div key={i} className={`space-y-2 ${i < conversationHistory.length - 1 ? 'pb-4 border-b border-slate-700/50' : ''}`}>
                         <div className="flex items-start gap-2">
-                          <div className="w-6 h-6 rounded-full bg-indigo-500/50 flex items-center justify-center text-xs">U</div>
-                          <div className="bg-slate-700/50 rounded-lg p-2 text-sm text-slate-400">{msg.query}</div>
+                          <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs flex-shrink-0">U</div>
+                          <div className="bg-slate-700 rounded-lg p-2 text-sm text-slate-300 break-words max-w-[90%]">{msg.query}</div>
                         </div>
                         <div className="flex items-start gap-2">
-                          <div className="w-6 h-6 rounded-full bg-purple-500/50 flex items-center justify-center text-xs">G</div>
-                          <div className="bg-purple-500/10 rounded-lg p-2 text-sm text-slate-400 whitespace-pre-wrap">{msg.response.substring(0, 300)}{msg.response.length > 300 ? '...' : ''}</div>
+                          <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs flex-shrink-0">G</div>
+                          <div className={`bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200 whitespace-pre-wrap break-words max-w-[90%] ${
+                            !chatExpanded && i < conversationHistory.length - 1 ? 'max-h-24 overflow-hidden relative' : ''
+                          }`}>
+                            {msg.response}
+                            {!chatExpanded && i < conversationHistory.length - 1 && msg.response.length > 300 && (
+                              <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-purple-900/80 to-transparent flex items-end justify-center">
+                                <span className="text-purple-300 text-xs pb-1">... [expand]</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
-                  </div>
-                )}
-                {voiceResponse ? (
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2">
-                      <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-xs">U</div>
-                      <div className="bg-slate-700 rounded-lg p-2 text-sm text-slate-300">{voiceTranscript || "Ask me anything about this code..."}</div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs">G</div>
-                      <div className={`bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200 whitespace-pre-wrap ${chatExpanded ? '' : 'max-h-32 overflow-hidden'}`}>{voiceResponse}</div>
-                    </div>
                     {/* Phase 5: Suggested Questions */}
                     {suggestedQuestions.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-slate-700">
@@ -3088,8 +3111,8 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </div>
                 ) : (
                   <div className="flex items-start gap-2">
-                      <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs">G</div>
-                      <div className="bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200">Any questions about this analysis? I can help with security, migration strategy, or code details.</div>
+                      <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs flex-shrink-0">G</div>
+                      <div className="bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200">Posez-moi vos questions sur ce code. Je peux vous aider avec la securite, la strategie de migration, ou les details du code.</div>
                     </div>
                 )}
               </div>
