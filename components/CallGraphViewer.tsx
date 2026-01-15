@@ -183,11 +183,15 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
         <div className="flex-1 p-4 min-h-[400px]">
           {viewMode === 'graph' && (
             <div 
-              className="relative w-full h-[400px] bg-slate-950 rounded-lg overflow-auto"
-              style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
+              className="relative w-full h-[500px] bg-slate-950 rounded-lg overflow-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+              style={{ cursor: 'grab' }}
             >
-              {/* SVG Graph Visualization */}
-              <svg className="w-full h-full" viewBox="0 0 800 400">
+              {/* SVG Graph Visualization - larger viewBox for better scrolling */}
+              <svg 
+                className="min-w-[1200px] min-h-[800px]" 
+                viewBox="0 0 1200 800"
+                style={{ transform: `scale(${zoom})`, transformOrigin: 'top left' }}
+              >
                 <defs>
                   <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
                     <path d="M0,0 L0,6 L9,3 z" fill="#22d3ee" />
@@ -206,10 +210,10 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
                   const fromIdx = graph.nodes.indexOf(fromNode);
                   const toIdx = graph.nodes.indexOf(toNode);
                   
-                  const fromX = 100 + (fromIdx % 6) * 120;
-                  const fromY = 50 + Math.floor(fromIdx / 6) * 80;
-                  const toX = 100 + (toIdx % 6) * 120;
-                  const toY = 50 + Math.floor(toIdx / 6) * 80;
+                  const fromX = 120 + (fromIdx % 5) * 200;
+                  const fromY = 80 + Math.floor(fromIdx / 5) * 120;
+                  const toX = 120 + (toIdx % 5) * 200;
+                  const toY = 80 + Math.floor(toIdx / 5) * 120;
 
                   const inCycle = graph.cycles.some(c => 
                     c.cycle.includes(edge.from) && c.cycle.includes(edge.to)
@@ -234,8 +238,8 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
 
                 {/* Render nodes */}
                 {graph.nodes.map((node, idx) => {
-                  const x = 100 + (idx % 6) * 120;
-                  const y = 50 + Math.floor(idx / 6) * 80;
+                  const x = 120 + (idx % 5) * 200;
+                  const y = 80 + Math.floor(idx / 5) * 120;
                   const isSelected = selectedNode === node.id;
                   const inCycle = graph.cycles.some(c => c.cycle.includes(node.id));
 
@@ -260,18 +264,18 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
                         <circle
                           cx={x}
                           cy={y}
-                          r={isSelected ? 28 : 24}
+                          r={isSelected ? 38 : 34}
                           fill={color.fill}
                           stroke={inCycle ? '#ef4444' : isSelected ? '#fff' : color.stroke}
                           strokeWidth={isSelected ? 3 : inCycle ? 3 : 2}
                         />
                       ) : (
                         <rect
-                          x={x - 45}
-                          y={y - 16}
-                          width={90}
-                          height={32}
-                          rx={node.type === 'copybook' ? 16 : 4}
+                          x={x - 70}
+                          y={y - 24}
+                          width={140}
+                          height={48}
+                          rx={node.type === 'copybook' ? 24 : 8}
                           fill={color.fill}
                           stroke={inCycle ? '#ef4444' : isSelected ? '#fff' : color.stroke}
                           strokeWidth={isSelected ? 3 : inCycle ? 3 : 2}
@@ -281,16 +285,16 @@ export default function CallGraphViewer({ cobolCode, onNodeSelect }: CallGraphVi
                       {/* Node label */}
                       <text
                         x={x}
-                        y={y + 4}
+                        y={y + 5}
                         textAnchor="middle"
-                        className="fill-white text-[10px] font-medium pointer-events-none"
+                        className="fill-white text-[13px] font-semibold pointer-events-none"
                       >
-                        {node.name.length > 12 ? node.name.slice(0, 10) + '..' : node.name}
+                        {node.name.length > 16 ? node.name.slice(0, 14) + '..' : node.name}
                       </text>
 
                       {/* Cycle indicator */}
                       {inCycle && (
-                        <circle cx={x + 35} cy={y - 15} r={8} fill="#ef4444">
+                        <circle cx={x + 55} cy={y - 20} r={10} fill="#ef4444">
                           <title>Dans un cycle</title>
                         </circle>
                       )}
