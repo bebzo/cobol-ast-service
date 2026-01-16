@@ -203,7 +203,8 @@ export default function EquivalenceDashboard({
   };
 
   const getPerformanceStatus = (deviation: number) => {
-    if (deviation <= 0) return { color: "text-green-400", label: "Faster", icon: Zap };
+    if (deviation < 0) return { color: "text-green-400", label: "Faster", icon: Zap };
+    if (deviation === 0) return { color: "text-blue-400", label: "Equivalent", icon: Activity };
     if (deviation <= 15) return { color: "text-yellow-400", label: "Acceptable", icon: Activity };
     return { color: "text-red-400", label: "Slower", icon: AlertTriangle };
   };

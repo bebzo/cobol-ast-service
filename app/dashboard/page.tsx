@@ -3168,7 +3168,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 ) : (
                   <div className="flex items-start gap-2">
                       <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs flex-shrink-0">G</div>
-                      <div className="bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200">Posez-moi vos questions sur ce code. Je peux vous aider avec la securite, la strategie de migration, ou les details du code.</div>
+                      <div className="bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200">Ask me anything about this code. I can help with security, migration strategy, or code details.</div>
                     </div>
                 )}
               </div>
