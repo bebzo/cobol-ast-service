@@ -1196,11 +1196,11 @@ class Test${className}:
     const fallbackCount = transpileResult.stats?.fallback_count || 0;
     const stubCount = transpileResult.stats?.stub_count || 0;
     
-    // Security analysis
-    const securityWarnings = transpileResult.security_warnings || [];
-    const criticalCount = securityWarnings.filter((w: any) => w.severity === 'CRITICAL').length;
-    const highCount = securityWarnings.filter((w: any) => w.severity === 'HIGH').length;
-    const mediumCount = securityWarnings.filter((w: any) => w.severity === 'MEDIUM').length;
+    // Security analysis from transpile result
+    const transpileSecurityWarnings = transpileResult.security_warnings || [];
+    const criticalCount = transpileSecurityWarnings.filter((w: any) => w.severity === 'CRITICAL').length;
+    const highCount = transpileSecurityWarnings.filter((w: any) => w.severity === 'HIGH').length;
+    const mediumCount = transpileSecurityWarnings.filter((w: any) => w.severity === 'MEDIUM').length;
     
     // Calculate confidence score (0-100 scale)
     let confidenceScore = 50; // Start neutral
