@@ -1,25 +1,8 @@
-# Dependencies
-node_modules/
-
-# Test files
+tmp/
+.tmp/
+test-results/
+screenshots/
+preview-out/
+shell_output_save/
+*.spec.ts
 *.test.ts
-*.test.js
-tests/
-__tests__/
-test-*.mjs
-
-# Development
-.env.local
-.env.development
-*.log
-
-# Generated output
-clean-output/
-test-output.py
-
-# IDE
-.idea/
-.vscode/
-
-# Git
-.git/
