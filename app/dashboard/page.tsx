@@ -1655,20 +1655,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </button>
                   <button
                     onClick={() => { setShowGlossary(true); setShowToolsMenu(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition text-left text-purple-300"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition text-left text-purple-300 rounded-b-lg"
                   >
                     <Scroll className="w-4 h-4" />
                     Glossary
-                  </button>
-                  <div className="border-t border-slate-600 my-1" />
-                  <button
-                    onClick={() => { setShowAIInsights(true); setShowToolsMenu(false); }}
-                    disabled={!pythonCode}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition text-left rounded-b-lg ${pythonCode ? 'text-cyan-300' : 'text-gray-500 cursor-not-allowed'}`}
-                  >
-                    <Lightbulb className="w-4 h-4" />
-                    AI Insights
-                    <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">Gemini 3</span>
                   </button>
                 </div>
               )}
@@ -1683,6 +1673,21 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               {history.length > 0 && (
                 <span className="bg-indigo-500 text-xs px-2 py-0.5 rounded-full">{history.length}</span>
               )}
+            </button>
+
+            {/* AI Insights Button - Gemini 3 */}
+            <button
+              onClick={() => setShowAIInsights(true)}
+              disabled={!pythonCode}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition font-medium ${
+                pythonCode 
+                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white' 
+                  : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+              }`}
+            >
+              <Lightbulb className="w-4 h-4" />
+              <span className="hidden sm:inline">AI Insights</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-white/20 rounded">Gemini 3</span>
             </button>
             
             {/* Admin Button - visible only for super admin */}
