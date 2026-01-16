@@ -12,7 +12,13 @@ export default function PrivacyPage() {
 
       <main className="max-w-4xl mx-auto px-6 py-12 prose prose-invert prose-lg">
         <h1>Privacy Policy</h1>
-        <p className="text-slate-400">Last updated: January 2, 2025</p>
+        <p className="text-slate-400">Last updated: January 16, 2026</p>
+        
+        <div className="bg-blue-900/30 border border-blue-500/30 rounded-lg p-4 my-6">
+          <p className="text-sm text-blue-300 m-0">
+            <strong>GDPR & RGPD Compliant:</strong> This policy is designed to comply with the EU General Data Protection Regulation (GDPR) and French RGPD requirements.
+          </p>
+        </div>
 
         <h2>1. Introduction</h2>
         <p>
@@ -51,6 +57,15 @@ export default function PrivacyPage() {
           <li>To prevent fraud and abuse</li>
         </ul>
 
+        <h2>3.1 Legal Basis for Processing (GDPR Art. 6)</h2>
+        <p>We process your personal data based on the following legal grounds:</p>
+        <ul>
+          <li><strong>Contract Performance (Art. 6.1.b):</strong> Processing necessary to provide you with our services</li>
+          <li><strong>Legitimate Interest (Art. 6.1.f):</strong> Improving our services, security measures, fraud prevention</li>
+          <li><strong>Consent (Art. 6.1.a):</strong> Marketing communications (opt-in only)</li>
+          <li><strong>Legal Obligation (Art. 6.1.c):</strong> Tax records, fraud prevention as required by law</li>
+        </ul>
+
         <h2>4. Data Security</h2>
         <p>
           We implement industry-standard security measures including:
@@ -71,15 +86,23 @@ export default function PrivacyPage() {
           <li><strong>Stripe:</strong> Payment processing</li>
         </ul>
 
-        <h2>6. Your Rights</h2>
-        <p>You have the right to:</p>
+        <h2>6. Your Rights (GDPR/RGPD)</h2>
+        <p>Under the General Data Protection Regulation (GDPR) and French RGPD, you have the following rights:</p>
         <ul>
-          <li>Access your personal data</li>
-          <li>Correct inaccurate data</li>
-          <li>Delete your account and associated data</li>
-          <li>Export your data</li>
-          <li>Opt-out of marketing communications</li>
+          <li><strong>Right of Access (Art. 15):</strong> Request a copy of your personal data</li>
+          <li><strong>Right to Rectification (Art. 16):</strong> Correct inaccurate or incomplete data</li>
+          <li><strong>Right to Erasure (Art. 17):</strong> Request deletion of your personal data ("right to be forgotten")</li>
+          <li><strong>Right to Portability (Art. 20):</strong> Receive your data in a structured, machine-readable format</li>
+          <li><strong>Right to Object (Art. 21):</strong> Object to processing of your personal data</li>
+          <li><strong>Right to Restriction (Art. 18):</strong> Request limitation of processing</li>
+          <li><strong>Right to Withdraw Consent:</strong> Withdraw consent at any time</li>
         </ul>
+        <p>
+          To exercise these rights, contact our Data Protection Officer at: <a href="mailto:dpo@codeswitch.io" className="text-blue-400">dpo@codeswitch.io</a>
+        </p>
+        <p>
+          We will respond to your request within 30 days. If you are unsatisfied with our response, you have the right to lodge a complaint with your local supervisory authority (CNIL in France).
+        </p>
 
         <h2>7. Data Retention</h2>
         <p>

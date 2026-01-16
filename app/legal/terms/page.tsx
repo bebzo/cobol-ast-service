@@ -12,7 +12,13 @@ export default function TermsPage() {
 
       <main className="max-w-4xl mx-auto px-6 py-12 prose prose-invert prose-lg">
         <h1>Terms of Service</h1>
-        <p className="text-slate-400">Last updated: January 2, 2025</p>
+        <p className="text-slate-400">Last updated: January 16, 2026</p>
+        
+        <div className="bg-amber-900/30 border border-amber-500/30 rounded-lg p-4 my-6">
+          <p className="text-sm text-amber-300 m-0">
+            <strong>Important:</strong> These terms constitute a legally binding agreement. By using CodeSwitch, you acknowledge that you have read, understood, and agree to these terms.
+          </p>
+        </div>
 
         <h2>1. Acceptance of Terms</h2>
         <p>
@@ -112,10 +118,24 @@ export default function TermsPage() {
           Service after changes constitutes acceptance of the new Terms.
         </p>
 
-        <h2>11. Governing Law</h2>
+        <h2>11. Governing Law & Jurisdiction</h2>
         <p>
-          These Terms are governed by the laws of the State of Delaware, USA, without 
-          regard to conflict of law principles.
+          <strong>For EU/EEA Users:</strong> These Terms are governed by the laws of France. 
+          Any disputes shall be subject to the exclusive jurisdiction of the courts of Paris, France. 
+          You also have the right to use the EU Online Dispute Resolution platform at 
+          <a href="https://ec.europa.eu/consumers/odr" className="text-blue-400" target="_blank" rel="noopener">ec.europa.eu/consumers/odr</a>.
+        </p>
+        <p>
+          <strong>For Non-EU Users:</strong> These Terms are governed by the laws of the State of Delaware, USA, 
+          without regard to conflict of law principles.
+        </p>
+
+        <h2>11.1 Consumer Rights (EU)</h2>
+        <p>
+          If you are a consumer in the European Union, you benefit from mandatory provisions of consumer protection law in your country of residence. Nothing in these Terms affects your rights as a consumer.
+        </p>
+        <p>
+          <strong>Right of Withdrawal:</strong> For digital services, you have the right to withdraw from the contract within 14 days of purchase without giving any reason, unless you have expressly consented to the immediate performance of the service and acknowledged that you will lose your right of withdrawal.
         </p>
 
         <h2>12. Contact</h2>
