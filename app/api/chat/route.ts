@@ -457,6 +457,8 @@ ${roundingAnalysis.recommendations.length > 0 ? `### 💡 RECOMMENDATIONS:\n${ro
     const prompt = `You are an expert in COBOL to Python migration, specialized in banking and financial legacy systems.
 You have deep knowledge of CobolRuntime, decimal precision, and rounding differences between COBOL and Python.
 
+IMPORTANT: Always respond in the same language as the user's question. If they ask in French, respond in French. If they ask in English, respond in English. Adapt to any language.
+
 ${analysisContext}
 ${lineContext}
 ${errorContext}
