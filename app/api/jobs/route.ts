@@ -38,8 +38,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { cobol_code, file_name, webhook_url, webhook_secret } = body;
     
-    const userId = request.headers.get('x-user-id') || 'anonymous';
-    const userEmail = request.headers.get('x-user-email') || 'anonymous@demo.com';
+    const userId = request.headers.get('x-user-id');
+    const userEmail = request.headers.get('x-user-email');
+    
+    // Require authentication - no anonymous transpilation allowed
+    if (!userId || !userEmail) {
+      return NextResponse.json({
+        error: 'Authentication required',
+        message: 'Please sign in to use the transpilation service'
+      }, { status: 401, headers: corsHeaders });
+    }
     
     if (!cobol_code) {
       return NextResponse.json({
@@ -126,7 +134,14 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const jobId = searchParams.get('id');
-  const userId = request.headers.get('x-user-id') || 'anonymous';
+  const userId = request.headers.get('x-user-id');
+  
+  // Require authentication
+  if (!userId) {
+    return NextResponse.json({
+      error: 'Authentication required'
+    }, { status: 401, headers: corsHeaders });
+  }
   
   if (jobId) {
     const job = getJob(jobId);
