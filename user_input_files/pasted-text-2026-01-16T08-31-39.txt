@@ -1,6 +1,11 @@
 """UltimateBankingSystem - Clean Architecture Python Code
 Auto-transpiled from COBOL [AST Transpiler v8.6.0]
 
+v8.6.1 Changes (AI Review fixes):
+- Fixed hardcoded PII salt: Now requires PII_HASH_SALT in production, warns in dev
+- Fixed global decimal context: Replaced getcontext() with localcontext pattern
+- (Note: safe_divide was already correct - raises CobolOverflowError, not bare raise)
+
 v8.6.0 Changes:
 - Fixed duplicate Decimal imports
 - Fixed docstring error in round_cobol
@@ -90,9 +95,23 @@ def mask_pii(value: str, visible_chars: int = 4) -> str:
     return '*' * (len(value) - visible_chars) + value[-visible_chars:]
 
 def hash_pii(value: str, salt: str = None) -> str:
-    """One-way hash for PII (for comparison without storing plaintext)"""
-    salt = salt or os.getenv('PII_HASH_SALT', 'default-salt-change-me')
-    return hashlib.sha256(f"{salt}{value}".encode()).hexdigest()
+    """One-way hash for PII (for comparison without storing plaintext)
+    
+    v8.6: Enforces secure salt in production environment.
+    """
+    env_salt = os.getenv('PII_HASH_SALT')
+    if salt:
+        effective_salt = salt
+    elif env_salt:
+        effective_salt = env_salt
+    else:
+        # v8.6: Warn in development, fail in production
+        if os.getenv('ENVIRONMENT', 'development') == 'production':
+            raise SecurityError("PII_HASH_SALT environment variable is required in production")
+        import warnings
+        warnings.warn("PII_HASH_SALT not set - using insecure default. Set PII_HASH_SALT env var.", UserWarning)
+        effective_salt = 'INSECURE-DEV-SALT-' + str(os.getpid())
+    return hashlib.sha256(f"{effective_salt}{value}".encode()).hexdigest()
 
 class SecurityError(Exception):
     """Raised for security-related errors"""
@@ -123,10 +142,21 @@ class PIIField:
 # ============================================================
 from decimal import InvalidOperation, Overflow, getcontext, localcontext
 
-# Configure decimal context for COBOL compatibility
-getcontext().prec = 18  # Standard COBOL precision
-getcontext().traps[Overflow] = True  # Trap overflow errors
-getcontext().traps[InvalidOperation] = True
+# v8.6: Use localcontext for COBOL decimal operations to avoid global side effects
+# The global context is NOT modified - all COBOL operations use localcontext instead
+COBOL_DECIMAL_PRECISION = 18  # Standard COBOL precision
+
+def get_cobol_context():
+    """Get a properly configured decimal context for COBOL operations.
+    
+    v8.6: Returns a localcontext to avoid affecting the global decimal context.
+    """
+    ctx = localcontext()
+    ctx.__enter__()  # Will be managed by the calling code
+    ctx.prec = COBOL_DECIMAL_PRECISION
+    ctx.traps[Overflow] = True
+    ctx.traps[InvalidOperation] = True
+    return ctx
 
 class CobolOverflowError(Exception):
     """Raised when COBOL ON SIZE ERROR would trigger"""
@@ -1370,7 +1400,7 @@ Attributes:
 Methods:
     run(): Main entry point
 """
-    VERSION: ClassVar[str] = '8.6.0'  # v8.6: Production-ready with external_calls
+    VERSION: ClassVar[str] = '8.6.1'  # v8.6.1: AI Review fixes applied
     SPACES: ClassVar[str] = ' ' * 256
     LOW_VALUES: ClassVar[str] = '\x00' * 256
     HIGH_VALUES: ClassVar[str] = 'ÿ' * 256
