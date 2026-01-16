@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
     if (!userId || !userEmail) {
       return NextResponse.json({
         error: 'Veuillez vous connecter',
-        message: 'Please sign in to use the transpilation service'
+        message: 'Please sign in to use the transpilation service',
+        loginUrl: '/auth/login'
       }, { status: 401, headers: corsHeaders });
     }
     
@@ -139,7 +140,8 @@ export async function GET(request: NextRequest) {
   // Require authentication
   if (!userId) {
     return NextResponse.json({
-      error: 'Veuillez vous connecter'
+      error: 'Veuillez vous connecter',
+      loginUrl: '/auth/login'
     }, { status: 401, headers: corsHeaders });
   }
   
