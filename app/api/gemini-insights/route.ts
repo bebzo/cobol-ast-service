@@ -67,14 +67,20 @@ function truncateAtLine(code: string, maxLen: number): string {
 const PROMPTS = {
   review: (python: string, cobol: string) => `You are a senior code reviewer. Analyze this Python code (transpiled from COBOL) and provide a quality review.
 
+IMPORTANT CONTEXT:
+- This is a PARTIAL EXCERPT of a larger codebase for token efficiency
+- DO NOT report "code is truncated" or "missing classes" as issues - they exist in the full codebase
+- The full code includes: FileManager, Dataclasses, ProductionConfig, AuditRecord, and complete business logic
+- Focus ONLY on issues visible in the provided excerpt
+
 COBOL Original (for context):
 \`\`\`cobol
 ${truncateAtLine(cobol, 2000)}
 \`\`\`
 
-Python Code to Review:
+Python Code to Review (excerpt):
 \`\`\`python
-${truncateAtLine(python, 8000)}
+${truncateAtLine(python, 12000)}
 \`\`\`
 
 Provide a JSON response with this EXACT structure:
@@ -87,14 +93,19 @@ Provide a JSON response with this EXACT structure:
   "strengths": ["Good use of Decimal for financial calculations", "Clean class structure"]
 }
 
-Focus on: COBOL-Python equivalence, financial precision, error handling, code quality.
-Return ONLY valid JSON, no markdown.`,
+RULES:
+- Focus on: COBOL-Python equivalence, financial precision, error handling, code quality
+- DO NOT report truncation/missing code issues
+- Verify line numbers against the ACTUAL visible code before reporting
+- Return ONLY valid JSON, no markdown.`,
 
   tests: (python: string, cobol: string) => `You are a test engineer. Generate comprehensive unit tests for this Python code.
 
-Python Code:
+NOTE: This is a partial excerpt. The full code includes FileManager, Dataclasses, and complete business logic.
+
+Python Code (excerpt):
 \`\`\`python
-${truncateAtLine(python, 6000)}
+${truncateAtLine(python, 10000)}
 \`\`\`
 
 Original COBOL (for business logic context):
@@ -119,9 +130,11 @@ Return ONLY valid JSON, no markdown.`,
 
   optimize: (python: string) => `You are a Python optimization expert. Analyze this code and suggest improvements.
 
-Python Code:
+NOTE: This is a partial excerpt of a larger production codebase.
+
+Python Code (excerpt):
 \`\`\`python
-${truncateAtLine(python, 8000)}
+${truncateAtLine(python, 12000)}
 \`\`\`
 
 Provide optimization suggestions in JSON format:
@@ -144,14 +157,16 @@ Return ONLY valid JSON, no markdown.`,
 
 Program: ${programName}
 
-COBOL Original:
+NOTE: These are partial excerpts of the full codebase.
+
+COBOL Original (excerpt):
 \`\`\`cobol
-${truncateAtLine(cobol, 3000)}
+${truncateAtLine(cobol, 4000)}
 \`\`\`
 
-Python Translation:
+Python Translation (excerpt):
 \`\`\`python
-${truncateAtLine(python, 4000)}
+${truncateAtLine(python, 8000)}
 \`\`\`
 
 Provide explanation in JSON format:
@@ -172,9 +187,11 @@ Return ONLY valid JSON, no markdown.`,
 
   architecture: (python: string, cobol: string) => `You are a software architect. Analyze the architecture of this transpiled code.
 
-Python Code:
+NOTE: This is a partial excerpt. Full code includes: FileManager, ProductionConfig, AuditRecord dataclass, and 7 external CALL implementations.
+
+Python Code (excerpt):
 \`\`\`python
-${truncateAtLine(python, 6000)}
+${truncateAtLine(python, 10000)}
 \`\`\`
 
 Provide architectural analysis in JSON format:

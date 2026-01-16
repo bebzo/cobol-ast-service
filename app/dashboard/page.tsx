@@ -2398,9 +2398,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     ))}
                   </div>
                   <ul className="space-y-2">
-                    {activeReportTab === "issues" && (analysis.issues || []).map((item, i) => {
-                      const issueText = typeof item === 'string' ? item : (item.title || item.message || item.description || JSON.stringify(item));
-                      const severity = typeof item === 'object' && item.severity ? item.severity : 'INFO';
+                    {activeReportTab === "issues" && (analysis.issues || []).map((item: any, i: number) => {
+                      const issueText = typeof item === 'string' ? item : (item?.title || item?.message || item?.description || JSON.stringify(item));
+                      const severity = typeof item === 'object' && item?.severity ? item.severity : 'INFO';
                       const severityColors: Record<string, string> = {
                         'CRITICAL': 'bg-red-500/20 text-red-400 border-red-500/30',
                         'HIGH': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
