@@ -281,8 +281,8 @@ export default function EquivalenceDashboard({
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-        {/* Numerical Equivalence */}
-        <div className={`p-4 rounded-lg border ${getStatusBg(animatedMetrics.numericalEquivalence)}`}>
+        {/* Numerical Equivalence - with test details popup */}
+        <div className={`p-4 rounded-lg border ${getStatusBg(animatedMetrics.numericalEquivalence)} group relative`}>
           <div className="flex items-center gap-2 mb-2">
             <CheckCircle className={`w-4 h-4 ${getStatusColor(animatedMetrics.numericalEquivalence)}`} />
             <span className="text-xs text-slate-400">Numerical</span>
@@ -291,10 +291,36 @@ export default function EquivalenceDashboard({
             {animatedMetrics.numericalEquivalence.toFixed(1)}%
           </p>
           <p className="text-[10px] text-slate-500 mt-1">Calculation accuracy</p>
+          {/* Popup with numerical test details */}
+          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-72 max-h-56 overflow-y-auto">
+            <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl">
+              <p className="text-xs font-semibold text-green-400 mb-2 flex items-center gap-1">
+                <Zap className="w-3 h-3" /> Numerical Accuracy Tests:
+              </p>
+              <ul className="space-y-1">
+                {testResults.details
+                  .filter((t) => t.name.includes("calc") || t.name.includes("compute") || t.name.includes("interest") || 
+                                 t.name.includes("amount") || t.name.includes("rate") || t.name.includes("decimal") ||
+                                 t.name.includes("precision") || t.name.includes("total"))
+                  .slice(0, 6)
+                  .map((t, i) => (
+                    <li key={i} className="text-[10px] flex items-center gap-1">
+                      <span className={t.status === 'passed' ? 'text-green-400' : 'text-red-400'}>
+                        {t.status === 'passed' ? '✓' : '✗'}
+                      </span>
+                      <span className="text-slate-300">{t.name}</span>
+                    </li>
+                  ))}
+              </ul>
+              <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
+                Validates COBOL COMPUTE → Python Decimal equivalence
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Behavioral Equivalence */}
-        <div className={`p-4 rounded-lg border ${getStatusBg(animatedMetrics.behavioralEquivalence)}`}>
+        {/* Behavioral Equivalence - with test details popup */}
+        <div className={`p-4 rounded-lg border ${getStatusBg(animatedMetrics.behavioralEquivalence)} group relative`}>
           <div className="flex items-center gap-2 mb-2">
             <Activity className={`w-4 h-4 ${getStatusColor(animatedMetrics.behavioralEquivalence)}`} />
             <span className="text-xs text-slate-400">Behavioral</span>
@@ -303,6 +329,31 @@ export default function EquivalenceDashboard({
             {animatedMetrics.behavioralEquivalence.toFixed(1)}%
           </p>
           <p className="text-[10px] text-slate-500 mt-1">State transitions</p>
+          {/* Popup with behavioral test details */}
+          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-72 max-h-56 overflow-y-auto">
+            <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl">
+              <p className="text-xs font-semibold text-green-400 mb-2 flex items-center gap-1">
+                <Zap className="w-3 h-3" /> Behavioral Equivalence Tests:
+              </p>
+              <ul className="space-y-1">
+                {testResults.details
+                  .filter((t) => t.name.includes("test_") || t.name.includes("should") || t.name.includes("when") ||
+                                 t.name.includes("flow") || t.name.includes("state") || t.name.includes("logic"))
+                  .slice(0, 6)
+                  .map((t, i) => (
+                    <li key={i} className="text-[10px] flex items-center gap-1">
+                      <span className={t.status === 'passed' ? 'text-green-400' : 'text-red-400'}>
+                        {t.status === 'passed' ? '✓' : '✗'}
+                      </span>
+                      <span className="text-slate-300">{t.name}</span>
+                    </li>
+                  ))}
+              </ul>
+              <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
+                Validates IF/PERFORM → if/def control flow equivalence
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Edge Case Coverage - with proof of real tests and AI explanations */}
