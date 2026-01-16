@@ -718,6 +718,21 @@ export default function Home() {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showToolsMenu]);
+
+  // Export menu ref and click-outside handler
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportMenu]);
+
   const [showGlossary, setShowGlossary] = useState(false);
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
@@ -1814,7 +1829,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
             <div className="flex items-center gap-2 flex-wrap justify-end">
               {analysis && (
-                <div className="relative">
+                <div className="relative" ref={exportMenuRef}>
                   <button
                     onClick={() => setShowExportMenu(!showExportMenu)}
                     className="flex items-center gap-1.5 px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition whitespace-nowrap"
