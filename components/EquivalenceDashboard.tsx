@@ -315,6 +315,12 @@ export default function EquivalenceDashboard({
               <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
                 Validates COBOL COMPUTE → Python Decimal equivalence
               </p>
+              <button 
+                className="mt-2 w-full text-[10px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 py-1 px-2 rounded flex items-center justify-center gap-1 transition"
+                onClick={() => document.querySelector<HTMLInputElement>('[placeholder*="question"]')?.focus()}
+              >
+                <Zap className="w-3 h-3" /> Ask Gemini for more details
+              </button>
             </div>
           </div>
         </div>
@@ -352,6 +358,12 @@ export default function EquivalenceDashboard({
               <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
                 Validates IF/PERFORM → if/def control flow equivalence
               </p>
+              <button 
+                className="mt-2 w-full text-[10px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 py-1 px-2 rounded flex items-center justify-center gap-1 transition"
+                onClick={() => document.querySelector<HTMLInputElement>('[placeholder*="question"]')?.focus()}
+              >
+                <Zap className="w-3 h-3" /> Ask Gemini for more details
+              </button>
             </div>
           </div>
         </div>
@@ -409,6 +421,12 @@ export default function EquivalenceDashboard({
                 <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
                   Powered by Gemini edge case detection
                 </p>
+                <button 
+                  className="mt-2 w-full text-[10px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 py-1 px-2 rounded flex items-center justify-center gap-1 transition"
+                  onClick={() => document.querySelector<HTMLInputElement>('[placeholder*="question"]')?.focus()}
+                >
+                  <Zap className="w-3 h-3" /> Ask Gemini for more details
+                </button>
               </div>
             </div>
           )}
