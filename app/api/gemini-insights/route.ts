@@ -53,17 +53,28 @@ interface InsightResponse {
   };
 }
 
+// Helper: Truncate code at line boundary to avoid cutting words mid-way
+function truncateAtLine(code: string, maxLen: number): string {
+  if (code.length <= maxLen) return code;
+  const truncated = code.substring(0, maxLen);
+  const lastNewline = truncated.lastIndexOf('\n');
+  if (lastNewline > maxLen * 0.8) {
+    return truncated.substring(0, lastNewline);
+  }
+  return truncated;
+}
+
 const PROMPTS = {
   review: (python: string, cobol: string) => `You are a senior code reviewer. Analyze this Python code (transpiled from COBOL) and provide a quality review.
 
 COBOL Original (for context):
 \`\`\`cobol
-${cobol.substring(0, 2000)}
+${truncateAtLine(cobol, 2000)}
 \`\`\`
 
 Python Code to Review:
 \`\`\`python
-${python.substring(0, 8000)}
+${truncateAtLine(python, 8000)}
 \`\`\`
 
 Provide a JSON response with this EXACT structure:
@@ -83,12 +94,12 @@ Return ONLY valid JSON, no markdown.`,
 
 Python Code:
 \`\`\`python
-${python.substring(0, 6000)}
+${truncateAtLine(python, 6000)}
 \`\`\`
 
 Original COBOL (for business logic context):
 \`\`\`cobol
-${cobol.substring(0, 2000)}
+${truncateAtLine(cobol, 2000)}
 \`\`\`
 
 Generate tests that cover:
@@ -110,7 +121,7 @@ Return ONLY valid JSON, no markdown.`,
 
 Python Code:
 \`\`\`python
-${python.substring(0, 8000)}
+${truncateAtLine(python, 8000)}
 \`\`\`
 
 Provide optimization suggestions in JSON format:
@@ -135,12 +146,12 @@ Program: ${programName}
 
 COBOL Original:
 \`\`\`cobol
-${cobol.substring(0, 3000)}
+${truncateAtLine(cobol, 3000)}
 \`\`\`
 
 Python Translation:
 \`\`\`python
-${python.substring(0, 4000)}
+${truncateAtLine(python, 4000)}
 \`\`\`
 
 Provide explanation in JSON format:
@@ -163,7 +174,7 @@ Return ONLY valid JSON, no markdown.`,
 
 Python Code:
 \`\`\`python
-${python.substring(0, 6000)}
+${truncateAtLine(python, 6000)}
 \`\`\`
 
 Provide architectural analysis in JSON format:
