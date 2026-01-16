@@ -2398,13 +2398,24 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     ))}
                   </div>
                   <ul className="space-y-2">
-                    {activeReportTab === "issues" && (analysis.issues || []).map((item, i) => (
-                      <li key={i} className="flex items-start gap-3 p-3 bg-red-500/10 rounded-lg">
-                        <span className="text-red-400 font-bold">{i + 1}.</span>
-                        <span className="text-slate-300 flex-1">{typeof item === 'string' ? item : JSON.stringify(item)}</span>
-                        <HelpButton issueText={typeof item === 'string' ? item : JSON.stringify(item)} issueType="issue" />
-                      </li>
-                    ))}
+                    {activeReportTab === "issues" && (analysis.issues || []).map((item, i) => {
+                      const issueText = typeof item === 'string' ? item : (item.title || item.message || item.description || JSON.stringify(item));
+                      const severity = typeof item === 'object' && item.severity ? item.severity : 'INFO';
+                      const severityColors: Record<string, string> = {
+                        'CRITICAL': 'bg-red-500/20 text-red-400 border-red-500/30',
+                        'HIGH': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+                        'MEDIUM': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+                        'LOW': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+                        'INFO': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                      };
+                      return (
+                        <li key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${severityColors[severity] || 'bg-slate-500/10 border-slate-500/30'}`}>
+                          <span className="px-2 py-0.5 text-xs font-semibold rounded uppercase">{severity}</span>
+                          <span className="text-slate-300 flex-1">{issueText}</span>
+                          <HelpButton issueText={issueText} issueType="issue" />
+                        </li>
+                      );
+                    })}
                     {activeReportTab === "improvements" && (analysis.improvements || []).map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-amber-500/10 rounded-lg">
                         <span className="text-amber-400 font-bold">{i + 1}.</span>
