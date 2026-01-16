@@ -470,7 +470,7 @@ export async function POST(request: NextRequest) {
           else if (complexity === 'MEDIUM') confidence -= 5;
           
           // Deduct for fallbacks/stubs in transpilation
-          const fallbackCount = result.stats?.fallback_count || 0;
+          const fallbackCount = (result.stats as any)?.fallback_count || 0;
           confidence -= fallbackCount * 2;
           
           // Minimum 40, maximum 100
