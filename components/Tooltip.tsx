@@ -75,8 +75,8 @@ export const METRIC_TOOLTIPS: Record<string, { title: string; content: string }>
     content: "Number of unit tests automatically generated to validate functional equivalence between COBOL and Python."
   },
   issues: {
-    title: "Detected Issues",
-    content: "Anomalies, obsolete patterns, or potential problems identified in the original COBOL code requiring attention."
+    title: "Issues Auto-Corrected",
+    content: "Security vulnerabilities and code issues detected and automatically fixed during transpilation. No manual action required."
   },
   improvements: {
     title: "Improvements",
