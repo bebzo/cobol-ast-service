@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     // Require authentication - no anonymous transpilation allowed
     if (!userId || !userEmail) {
       return NextResponse.json({
-        error: 'Authentication required',
+        error: 'Veuillez vous connecter',
         message: 'Please sign in to use the transpilation service'
       }, { status: 401, headers: corsHeaders });
     }
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
   // Require authentication
   if (!userId) {
     return NextResponse.json({
-      error: 'Authentication required'
+      error: 'Veuillez vous connecter'
     }, { status: 401, headers: corsHeaders });
   }
   
