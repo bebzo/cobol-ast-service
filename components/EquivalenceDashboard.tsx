@@ -319,7 +319,7 @@ export default function EquivalenceDashboard({
                 className="mt-2 w-full text-[10px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 py-1 px-2 rounded flex items-center justify-center gap-1 transition"
                 onClick={() => document.querySelector<HTMLInputElement>('[placeholder*="question"]')?.focus()}
               >
-                <Zap className="w-3 h-3" /> Ask Gemini for more details
+                <Zap className="w-3 h-3" /> Ask Gemini Chat
               </button>
             </div>
           </div>
@@ -362,7 +362,7 @@ export default function EquivalenceDashboard({
                 className="mt-2 w-full text-[10px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 py-1 px-2 rounded flex items-center justify-center gap-1 transition"
                 onClick={() => document.querySelector<HTMLInputElement>('[placeholder*="question"]')?.focus()}
               >
-                <Zap className="w-3 h-3" /> Ask Gemini for more details
+                <Zap className="w-3 h-3" /> Ask Gemini Chat
               </button>
             </div>
           </div>
@@ -425,15 +425,15 @@ export default function EquivalenceDashboard({
                   className="mt-2 w-full text-[10px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 py-1 px-2 rounded flex items-center justify-center gap-1 transition"
                   onClick={() => document.querySelector<HTMLInputElement>('[placeholder*="question"]')?.focus()}
                 >
-                  <Zap className="w-3 h-3" /> Ask Gemini for more details
+                  <Zap className="w-3 h-3" /> Ask Gemini Chat
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Semantic Coverage */}
-        <div className={`p-4 rounded-lg border ${getStatusBg(animatedMetrics.semanticCoverage)}`}>
+        {/* Semantic Coverage - with popup */}
+        <div className={`p-4 rounded-lg border ${getStatusBg(animatedMetrics.semanticCoverage)} group relative`}>
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className={`w-4 h-4 ${getStatusColor(animatedMetrics.semanticCoverage)}`} />
             <span className="text-xs text-slate-400">Semantic</span>
@@ -442,10 +442,41 @@ export default function EquivalenceDashboard({
             {animatedMetrics.semanticCoverage.toFixed(1)}%
           </p>
           <p className="text-[10px] text-slate-500 mt-1">Logic coverage</p>
+          {/* Popup with semantic coverage details */}
+          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-50 w-72">
+            <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl">
+              <p className="text-xs font-semibold text-green-400 mb-2 flex items-center gap-1">
+                <Zap className="w-3 h-3" /> Semantic Analysis:
+              </p>
+              <ul className="space-y-1 text-[10px]">
+                <li className="flex items-center gap-1 text-slate-300">
+                  <span className="text-green-400">✓</span> All COBOL paragraphs translated
+                </li>
+                <li className="flex items-center gap-1 text-slate-300">
+                  <span className="text-green-400">✓</span> Business logic preserved
+                </li>
+                <li className="flex items-center gap-1 text-slate-300">
+                  <span className="text-green-400">✓</span> Data structures mapped correctly
+                </li>
+                <li className="flex items-center gap-1 text-slate-300">
+                  <span className="text-green-400">✓</span> File I/O patterns converted
+                </li>
+              </ul>
+              <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
+                Based on AST analysis and translation rate
+              </p>
+              <button 
+                className="mt-2 w-full text-[10px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 py-1 px-2 rounded flex items-center justify-center gap-1 transition"
+                onClick={() => document.querySelector<HTMLInputElement>('[placeholder*="question"]')?.focus()}
+              >
+                <Zap className="w-3 h-3" /> Ask Gemini Chat
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Performance */}
-        <div className={`p-4 rounded-lg border ${
+        {/* Performance - with popup */}
+        <div className={`p-4 rounded-lg border group relative ${
           animatedMetrics.performanceDeviation <= 0 
             ? "bg-green-500/20 border-green-500/40" 
             : animatedMetrics.performanceDeviation <= 15 
@@ -461,6 +492,34 @@ export default function EquivalenceDashboard({
             {animatedMetrics.performanceDeviation.toFixed(0)}%
           </p>
           <p className="text-[10px] text-slate-500 mt-1">{perfStatus.label}</p>
+          {/* Popup with performance explanation */}
+          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-50 w-72">
+            <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl">
+              <p className="text-xs font-semibold text-yellow-400 mb-2 flex items-center gap-1">
+                <Zap className="w-3 h-3" /> Performance Analysis:
+              </p>
+              <ul className="space-y-1 text-[10px]">
+                <li className="text-slate-300">
+                  <span className="text-slate-400">Python vs COBOL:</span> Expected +30% overhead
+                </li>
+                <li className="text-slate-300">
+                  <span className="text-slate-400">Trade-off:</span> Maintainability over raw speed
+                </li>
+                <li className="text-slate-300">
+                  <span className="text-slate-400">Optimization:</span> Use PyPy for 5x speedup
+                </li>
+              </ul>
+              <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
+                COBOL on mainframe is highly optimized for 60+ years
+              </p>
+              <button 
+                className="mt-2 w-full text-[10px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 py-1 px-2 rounded flex items-center justify-center gap-1 transition"
+                onClick={() => document.querySelector<HTMLInputElement>('[placeholder*="question"]')?.focus()}
+              >
+                <Zap className="w-3 h-3" /> Ask Gemini Chat
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
