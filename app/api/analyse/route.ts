@@ -1181,16 +1181,59 @@ class Test${className}:
     const yearMatch = cobolCode.match(/(?:19|20)\d{2}/) || cobolCode.match(/YEAR[\s-]*(\d{4})/);
     const detectedYear = yearMatch ? yearMatch[0] : 'Legacy';
     
-    // Calculate confidence based on code quality
+    // Professional confidence calculation based on multiple quality factors
+    // Industry-standard approach: start neutral, apply weighted factors
+    
+    // Code structure analysis
     const hasProperStructure = cobolCode.includes('IDENTIFICATION DIVISION') && cobolCode.includes('PROCEDURE DIVISION');
+    const hasDataDivision = cobolCode.includes('DATA DIVISION');
     const hasClearNaming = (cobolCode.match(/[A-Z0-9]+-[A-Z0-9]+/g) || []).length > 10;
     const hasComments = (cobolCode.match(/\*.*$/gm) || []).length > 5;
-    let confidenceScore = 85;
-    if (hasProperStructure) confidenceScore += 5;
-    if (hasClearNaming) confidenceScore += 5;
-    if (hasComments) confidenceScore += 3;
-    if (totalLines > 1000) confidenceScore += 2; // More code = more context
-    confidenceScore = Math.min(99, confidenceScore);
+    const commentRatio = ((cobolCode.match(/\*.*$/gm) || []).length / Math.max(1, totalLines)) * 100;
+    
+    // Transpilation quality metrics
+    const translationRate = transpileResult.stats?.translation_rate || 100;
+    const fallbackCount = transpileResult.stats?.fallback_count || 0;
+    const stubCount = transpileResult.stats?.stub_count || 0;
+    
+    // Security analysis
+    const securityWarnings = transpileResult.security_warnings || [];
+    const criticalCount = securityWarnings.filter((w: any) => w.severity === 'CRITICAL').length;
+    const highCount = securityWarnings.filter((w: any) => w.severity === 'HIGH').length;
+    const mediumCount = securityWarnings.filter((w: any) => w.severity === 'MEDIUM').length;
+    
+    // Calculate confidence score (0-100 scale)
+    let confidenceScore = 50; // Start neutral
+    
+    // Positive factors (max +40)
+    if (hasProperStructure) confidenceScore += 10;      // Good COBOL structure
+    if (hasDataDivision) confidenceScore += 5;          // Complete divisions
+    if (hasClearNaming) confidenceScore += 5;           // Readable code
+    if (hasComments) confidenceScore += 3;              // Documented code
+    if (commentRatio > 10) confidenceScore += 2;        // Well-documented
+    if (translationRate >= 95) confidenceScore += 10;   // High translation success
+    else if (translationRate >= 80) confidenceScore += 5;
+    if (totalLines > 500 && totalLines < 5000) confidenceScore += 5; // Optimal size
+    
+    // Negative factors (deductions)
+    confidenceScore -= criticalCount * 12;   // Critical security: -12 each
+    confidenceScore -= highCount * 6;        // High security: -6 each
+    confidenceScore -= mediumCount * 2;      // Medium security: -2 each
+    confidenceScore -= fallbackCount * 3;    // Fallbacks indicate untranslated code
+    confidenceScore -= stubCount * 2;        // Stubs indicate incomplete functions
+    
+    // Size penalties
+    if (totalLines > 10000) confidenceScore -= 10;      // Very large = harder to validate
+    else if (totalLines > 5000) confidenceScore -= 5;   // Large = more review needed
+    
+    // Complexity penalty (based on cyclomatic indicators)
+    const nestedIfs = (cobolCode.match(/IF\s+.*\s+IF\s+/gi) || []).length;
+    const performVarying = (cobolCode.match(/PERFORM\s+.*\s+VARYING/gi) || []).length;
+    if (nestedIfs > 20 || performVarying > 30) confidenceScore -= 8;
+    else if (nestedIfs > 10 || performVarying > 15) confidenceScore -= 4;
+    
+    // Clamp to valid range: minimum 35 (needs major review), maximum 98 (never 100%)
+    confidenceScore = Math.max(35, Math.min(98, confidenceScore));
 
     // Build modules list from quick parse
     const modules = quickParse.paragraphs.slice(0, 50).map(p => ({

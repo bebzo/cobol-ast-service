@@ -3256,15 +3256,43 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     <p className="text-xs text-slate-400 mb-1">Risk Level</p>
                     <p className={`font-semibold ${getRiskColor(analysis.migration_score.risk_level || analysis.migration_score.risk || 'N/A')}`}>{analysis.migration_score.risk_level || analysis.migration_score.risk || 'N/A'}</p>
                   </div>
-                  <div className="bg-slate-700/50 rounded-lg p-4" title="Includes migration, testing, security, docs & UAT">
+                  <div className="bg-slate-700/50 rounded-lg p-4 group relative cursor-help" title="Click to see breakdown">
                     <p className="text-xs text-slate-400 mb-1">Estimated Effort</p>
                     <p className="font-semibold text-white">{analysis.migration_score.estimated_effort || analysis.migration_score.effort || 'N/A'}</p>
-                    <p className="text-[10px] text-slate-500">Full cycle</p>
+                    <p className="text-[10px] text-slate-500">Full cycle ℹ️</p>
+                    {/* Effort breakdown tooltip */}
+                    <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-56">
+                      <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
+                        <p className="font-semibold text-white mb-2">Effort Breakdown:</p>
+                        {analysis.migration_score.effort_breakdown ? (
+                          <ul className="space-y-1 text-slate-300">
+                            <li className="flex justify-between"><span>Development:</span><span className="text-cyan-400">{analysis.migration_score.effort_breakdown.development}d</span></li>
+                            <li className="flex justify-between"><span>Testing:</span><span className="text-green-400">{analysis.migration_score.effort_breakdown.testing}d</span></li>
+                            <li className="flex justify-between"><span>Security review:</span><span className="text-orange-400">{analysis.migration_score.effort_breakdown.security_review}d</span></li>
+                            <li className="flex justify-between"><span>Docs & UAT:</span><span className="text-purple-400">{analysis.migration_score.effort_breakdown.documentation_uat}d</span></li>
+                          </ul>
+                        ) : (
+                          <p className="text-slate-400">Dev + Testing + Security + UAT</p>
+                        )}
+                        <p className="text-[10px] text-slate-500 mt-2 border-t border-slate-700 pt-2">Based on COCOMO model</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-slate-700/50 rounded-lg p-4" title="Lower = needs more validation">
+                  <div className="bg-slate-700/50 rounded-lg p-4" title="Confidence score based on code quality, security, and transpilation success">
                     <p className="text-xs text-slate-400 mb-1">Confidence</p>
-                    <p className="font-semibold text-indigo-400">{analysis.migration_score.confidence || 0}</p>
-                    <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score.confidence || '0').replace(/[^0-9]/g, ''))) < 70 ? 'Expert review needed' : 'Ready for UAT'}</p>
+                    {(() => {
+                      const conf = typeof analysis.migration_score.confidence === 'number' 
+                        ? analysis.migration_score.confidence 
+                        : parseInt(String(analysis.migration_score.confidence || '0').replace(/[^0-9]/g, ''));
+                      const color = conf >= 85 ? 'text-green-400' : conf >= 70 ? 'text-yellow-400' : conf >= 50 ? 'text-orange-400' : 'text-red-400';
+                      const status = conf >= 85 ? 'Production ready' : conf >= 70 ? 'Ready for UAT' : conf >= 50 ? 'Review recommended' : 'Expert review required';
+                      return (
+                        <>
+                          <p className={`font-semibold ${color}`}>{conf}%</p>
+                          <p className="text-[10px] text-slate-500">{status}</p>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
