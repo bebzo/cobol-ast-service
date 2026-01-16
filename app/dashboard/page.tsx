@@ -59,6 +59,7 @@ const AdminPanel = dynamic(() => import("@/components/AdminPanel"), { ssr: false
 
 const MigrationGuide = dynamic(() => import("@/components/MigrationGuide"), { ssr: false });
 const Glossary = dynamic(() => import("@/components/Glossary"), { ssr: false });
+const GeminiInsightsPanel = dynamic(() => import("@/components/GeminiInsightsPanel"), { ssr: false });
 import Tooltip, { METRIC_TOOLTIPS } from "@/components/Tooltip";
 import { HelpButton } from "@/components/HelpModal";
 
@@ -704,6 +705,7 @@ export default function Home() {
   const [showGuide, setShowGuide] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
   const [showGlossary, setShowGlossary] = useState(false);
+  const [showAIInsights, setShowAIInsights] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [diffStep, setDiffStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -1653,10 +1655,20 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </button>
                   <button
                     onClick={() => { setShowGlossary(true); setShowToolsMenu(false); }}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition text-left text-purple-300 rounded-b-lg"
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition text-left text-purple-300"
                   >
                     <Scroll className="w-4 h-4" />
                     Glossary
+                  </button>
+                  <div className="border-t border-slate-600 my-1" />
+                  <button
+                    onClick={() => { setShowAIInsights(true); setShowToolsMenu(false); }}
+                    disabled={!pythonCode}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-700 transition text-left rounded-b-lg ${pythonCode ? 'text-cyan-300' : 'text-gray-500 cursor-not-allowed'}`}
+                  >
+                    <Lightbulb className="w-4 h-4" />
+                    AI Insights
+                    <span className="ml-auto text-[10px] px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 rounded">Gemini 3</span>
                   </button>
                 </div>
               )}
@@ -3320,6 +3332,15 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
       {/* Glossary Modal */}
       <Glossary isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
+
+      {/* AI Insights Panel - Gemini 3 */}
+      <GeminiInsightsPanel
+        cobolCode={cobolCode}
+        pythonCode={pythonCode}
+        programName={filename || 'COBOL Program'}
+        isVisible={showAIInsights}
+        onClose={() => setShowAIInsights(false)}
+      />
 
       {/* Admin Panel Modal - only for super admin */}
       {user?.email === 'embebangon@gmail.com' && (
