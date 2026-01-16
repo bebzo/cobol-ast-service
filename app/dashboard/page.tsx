@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, startTransition } from "react";
+import { useState, useEffect, useCallback, useMemo, startTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
@@ -704,6 +704,20 @@ export default function Home() {
   const [chatExpanded, setChatExpanded] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close Tools menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (toolsMenuRef.current && !toolsMenuRef.current.contains(event.target as Node)) {
+        setShowToolsMenu(false);
+      }
+    };
+    if (showToolsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showToolsMenu]);
   const [showGlossary, setShowGlossary] = useState(false);
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
@@ -1627,7 +1641,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
           <div className="flex items-center gap-4">
             {/* Tools Dropdown Menu */}
-            <div className="relative">
+            <div className="relative" ref={toolsMenuRef}>
               <button
                 onClick={() => setShowToolsMenu(!showToolsMenu)}
                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg transition"
