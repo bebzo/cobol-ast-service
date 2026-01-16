@@ -1244,13 +1244,56 @@ class Test${className}:
         regulatory_context: `${detectedDomain} system modernization via Python transpiler`
       },
       
-      // Migration score (calculated)
-      migration_score: {
-        complexity: totalLines > 5000 ? 'HIGH' : totalLines > 1000 ? 'MEDIUM' : 'LOW',
-        risk_level: maxScore > 5 ? 'LOW' : maxScore > 2 ? 'MEDIUM' : 'LOW',
-        estimated_effort: `${Math.round(totalLines / 500)} person-days`,
-        confidence: confidenceScore
-      },
+      // Migration score (calculated with professional estimation model)
+      migration_score: (() => {
+        const complexity = totalLines > 5000 ? 'HIGH' : totalLines > 1000 ? 'MEDIUM' : 'LOW';
+        const riskLevel = maxScore > 5 ? 'LOW' : maxScore > 2 ? 'MEDIUM' : 'LOW';
+        
+        // Professional effort estimation model (COCOMO-inspired)
+        // Base: 500 lines/day for simple code, adjusted by factors
+        const baseDays = totalLines / 500;
+        
+        // Complexity multiplier: HIGH=1.8, MEDIUM=1.3, LOW=1.0
+        const complexityMultiplier = complexity === 'HIGH' ? 1.8 : complexity === 'MEDIUM' ? 1.3 : 1.0;
+        
+        // Risk multiplier: HIGH=1.5, MEDIUM=1.2, LOW=1.0
+        const riskMultiplier = riskLevel === 'HIGH' ? 1.5 : riskLevel === 'MEDIUM' ? 1.2 : 1.0;
+        
+        // Security overhead: +0.5 day per critical/high warning
+        const securityWarnings = transpileResult.security_warnings?.filter(
+          (w: any) => w.severity === 'CRITICAL' || w.severity === 'HIGH'
+        ).length || 0;
+        const securityOverhead = securityWarnings * 0.5;
+        
+        // Testing overhead: ~20% of development time
+        const testingOverhead = baseDays * 0.2;
+        
+        // Documentation & UAT: ~15% of development time
+        const docOverhead = baseDays * 0.15;
+        
+        // Confidence adjustment: lower confidence = more review time
+        const confidenceAdjustment = confidenceScore < 70 ? 1.3 : confidenceScore < 85 ? 1.1 : 1.0;
+        
+        // Calculate total effort
+        const totalEffort = Math.max(1, Math.round(
+          (baseDays * complexityMultiplier * riskMultiplier * confidenceAdjustment) + 
+          securityOverhead + testingOverhead + docOverhead
+        ));
+        
+        return {
+          complexity,
+          risk_level: riskLevel,
+          estimated_effort: `${totalEffort} person-days`,
+          confidence: confidenceScore,
+          // Breakdown for transparency
+          effort_breakdown: {
+            development: Math.round(baseDays * complexityMultiplier),
+            testing: Math.round(testingOverhead),
+            security_review: Math.round(securityOverhead),
+            documentation_uat: Math.round(docOverhead)
+          }
+        };
+      })(),
       
       // Next steps
       next_steps: [
