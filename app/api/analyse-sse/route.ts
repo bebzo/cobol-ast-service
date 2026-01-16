@@ -449,12 +449,63 @@ export async function POST(request: NextRequest) {
     COBOL[${quickParse.programId}] ==>|AST v4.4| Python[${className}]`,
         modules: quickParse.paragraphs.slice(0, 50).map(p => ({ name: p.name, type: 'PARAGRAPH' })),
         business_context: { domain: 'Enterprise', detected_year: 'Legacy' },
-        migration_score: { 
-          complexity: totalLines > 5000 ? 'HIGH' : 'MEDIUM', 
-          confidence: 100,
-          estimated_effort: `${Math.max(1, Math.round(totalLines / 500))} person-days`,
-          risk_level: 'LOW'
-        },
+        migration_score: (() => {
+          const complexity = totalLines > 5000 ? 'HIGH' : totalLines > 1000 ? 'MEDIUM' : 'LOW';
+          const riskLevel = securityWarnings.some((w: any) => w.severity === 'CRITICAL') ? 'HIGH' : 
+                           securityWarnings.some((w: any) => w.severity === 'HIGH') ? 'MEDIUM' : 'LOW';
+          
+          // Professional confidence calculation
+          // Start at 100, deduct for issues
+          let confidence = 100;
+          
+          // Deduct for security issues: CRITICAL=-15, HIGH=-8, MEDIUM=-3
+          securityWarnings.forEach((w: any) => {
+            if (w.severity === 'CRITICAL') confidence -= 15;
+            else if (w.severity === 'HIGH') confidence -= 8;
+            else if (w.severity === 'MEDIUM') confidence -= 3;
+          });
+          
+          // Deduct for complexity: HIGH=-10, MEDIUM=-5
+          if (complexity === 'HIGH') confidence -= 10;
+          else if (complexity === 'MEDIUM') confidence -= 5;
+          
+          // Deduct for fallbacks/stubs in transpilation
+          const fallbackCount = result.stats?.fallback_count || 0;
+          confidence -= fallbackCount * 2;
+          
+          // Minimum 40, maximum 100
+          confidence = Math.max(40, Math.min(100, confidence));
+          
+          // Professional effort estimation (COCOMO-inspired)
+          const baseDays = totalLines / 500;
+          const complexityMult = complexity === 'HIGH' ? 1.8 : complexity === 'MEDIUM' ? 1.3 : 1.0;
+          const riskMult = riskLevel === 'HIGH' ? 1.5 : riskLevel === 'MEDIUM' ? 1.2 : 1.0;
+          const criticalWarnings = securityWarnings.filter((w: any) => 
+            w.severity === 'CRITICAL' || w.severity === 'HIGH'
+          ).length;
+          const securityOverhead = criticalWarnings * 0.5;
+          const testingOverhead = baseDays * 0.2;
+          const docOverhead = baseDays * 0.15;
+          const confidenceAdj = confidence < 70 ? 1.3 : confidence < 85 ? 1.1 : 1.0;
+          
+          const totalEffort = Math.max(1, Math.round(
+            (baseDays * complexityMult * riskMult * confidenceAdj) + 
+            securityOverhead + testingOverhead + docOverhead
+          ));
+          
+          return {
+            complexity,
+            risk_level: riskLevel,
+            confidence,
+            estimated_effort: `${totalEffort} person-days`,
+            effort_breakdown: {
+              development: Math.round(baseDays * complexityMult),
+              testing: Math.round(testingOverhead),
+              security_review: Math.round(securityOverhead),
+              documentation_uat: Math.round(docOverhead)
+            }
+          };
+        })(),
         next_steps: [
           'Review generated Python code for business logic accuracy',
           'Run unit tests to validate transpilation',
