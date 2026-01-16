@@ -3264,12 +3264,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-50 w-56">
                       <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl text-xs">
                         <p className="font-semibold text-white mb-2">Effort Breakdown:</p>
-                        {analysis.migration_score.effort_breakdown ? (
+                        {(analysis.migration_score as any).effort_breakdown ? (
                           <ul className="space-y-1 text-slate-300">
-                            <li className="flex justify-between"><span>Development:</span><span className="text-cyan-400">{analysis.migration_score.effort_breakdown.development}d</span></li>
-                            <li className="flex justify-between"><span>Testing:</span><span className="text-green-400">{analysis.migration_score.effort_breakdown.testing}d</span></li>
-                            <li className="flex justify-between"><span>Security review:</span><span className="text-orange-400">{analysis.migration_score.effort_breakdown.security_review}d</span></li>
-                            <li className="flex justify-between"><span>Docs & UAT:</span><span className="text-purple-400">{analysis.migration_score.effort_breakdown.documentation_uat}d</span></li>
+                            <li className="flex justify-between"><span>Development:</span><span className="text-cyan-400">{(analysis.migration_score as any).effort_breakdown.development}d</span></li>
+                            <li className="flex justify-between"><span>Testing:</span><span className="text-green-400">{(analysis.migration_score as any).effort_breakdown.testing}d</span></li>
+                            <li className="flex justify-between"><span>Security review:</span><span className="text-orange-400">{(analysis.migration_score as any).effort_breakdown.security_review}d</span></li>
+                            <li className="flex justify-between"><span>Docs & UAT:</span><span className="text-purple-400">{(analysis.migration_score as any).effort_breakdown.documentation_uat}d</span></li>
                           </ul>
                         ) : (
                           <p className="text-slate-400">Dev + Testing + Security + UAT</p>

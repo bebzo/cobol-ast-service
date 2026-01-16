@@ -1192,12 +1192,13 @@ class Test${className}:
     const commentRatio = ((cobolCode.match(/\*.*$/gm) || []).length / Math.max(1, totalLines)) * 100;
     
     // Transpilation quality metrics
-    const translationRate = transpileResult.stats?.translation_rate || 100;
-    const fallbackCount = transpileResult.stats?.fallback_count || 0;
-    const stubCount = transpileResult.stats?.stub_count || 0;
+    const statsAny = transpileResult.stats as any;
+    const translationRate = statsAny?.translation_rate || 100;
+    const fallbackCount = statsAny?.fallback_count || 0;
+    const stubCount = statsAny?.stub_count || 0;
     
     // Security analysis from transpile result
-    const transpileSecurityWarnings = transpileResult.security_warnings || [];
+    const transpileSecurityWarnings = (transpileResult as any).security_warnings || [];
     const criticalCount = transpileSecurityWarnings.filter((w: any) => w.severity === 'CRITICAL').length;
     const highCount = transpileSecurityWarnings.filter((w: any) => w.severity === 'HIGH').length;
     const mediumCount = transpileSecurityWarnings.filter((w: any) => w.severity === 'MEDIUM').length;
@@ -1300,13 +1301,13 @@ class Test${className}:
         const complexityMultiplier = complexity === 'HIGH' ? 1.8 : complexity === 'MEDIUM' ? 1.3 : 1.0;
         
         // Risk multiplier: HIGH=1.5, MEDIUM=1.2, LOW=1.0
-        const riskMultiplier = riskLevel === 'HIGH' ? 1.5 : riskLevel === 'MEDIUM' ? 1.2 : 1.0;
+        const riskMultiplier = (riskLevel as string) === 'HIGH' ? 1.5 : (riskLevel as string) === 'MEDIUM' ? 1.2 : 1.0;
         
         // Security overhead: +0.5 day per critical/high warning
-        const securityWarnings = transpileResult.security_warnings?.filter(
+        const securityWarningsCount = ((transpileResult as any).security_warnings || []).filter(
           (w: any) => w.severity === 'CRITICAL' || w.severity === 'HIGH'
         ).length || 0;
-        const securityOverhead = securityWarnings * 0.5;
+        const securityOverhead = securityWarningsCount * 0.5;
         
         // Testing overhead: ~20% of development time
         const testingOverhead = baseDays * 0.2;
