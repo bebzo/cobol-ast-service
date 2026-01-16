@@ -569,9 +569,12 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                       <div className="text-white font-medium">OAuth GitHub</div>
                       <div className="text-sm text-slate-400">GitHub login enabled</div>
                     </div>
-                    <div className="w-12 h-6 bg-green-500 rounded-full relative cursor-pointer">
-                      <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
-                    </div>
+                    <button
+                      onClick={() => toggleSetting('oauthGithub')}
+                      className={`w-12 h-6 rounded-full relative transition-colors ${settings.oauthGithub ? 'bg-green-500' : 'bg-slate-600'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.oauthGithub ? 'right-1' : 'left-1'}`} />
+                    </button>
                   </div>
                 </div>
               </div>
