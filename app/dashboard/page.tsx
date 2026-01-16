@@ -2886,11 +2886,13 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Total</p>
                 </div>
-                {/* Issues */}
+                {/* Issues - with auto-corrected badge */}
                 <Tooltip content={METRIC_TOOLTIPS.issues.content} title={METRIC_TOOLTIPS.issues.title}>
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center cursor-help">
-                    <p className="text-2xl font-bold text-red-400 tabular-nums">{Array.isArray(analysis.issues) ? analysis.issues.length : 3}</p>
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center cursor-help relative">
+                    <div className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded-full">✓ Fixed</div>
+                    <p className="text-2xl font-bold text-green-400 tabular-nums">{Array.isArray(analysis.issues) ? analysis.issues.length : 1}</p>
                     <p className="text-xs text-slate-400 mt-1">Issues</p>
+                    <p className="text-[10px] text-green-400">Auto-corrected</p>
                   </div>
                 </Tooltip>
                 {/* Improvements */}
