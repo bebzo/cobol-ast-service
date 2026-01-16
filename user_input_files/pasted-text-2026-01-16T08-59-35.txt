@@ -1,0 +1,316 @@
+CodeSwitch
+Intelligent COBOL Refactoring
+
+
+Tools
+
+History
+10
+
+AI Insights
+Gemini 3
+
+Admin
+embebangon@gmail.com
+
+Logout
+API
+Upload .cbl
+
+Load Demo (10K LOC)
+MEGA-ENTERPRISE.CBL
+Export ▾
+Refactor with Gemini
+Enterprise
+Legacy
+Includes tax calculations, social security, and financial processing
+
+Risk: LOW
+100 confidence
+COBOL (Source)
+123456789101112131415161718
+Python
+Tests
+Diff
+Architecture
+Security Report
+Export
+✓ Python code validated - ready to export
+910111213141516171819202122232425262728
+Transformation Metrics
+LIVE
+10006
+
+COBOL
+
+25741
+
+Python
+
+(lines)
+
+72
+
+Tests
+
+25813
+
+Total
+
+1
+
+Issues
+
+5
+
+Improvements
+
+100%
+
+Confidence
+
+(validated)
+
+Test Oracle - Equivalence Validation
+8 FAILED
+72
+
+Tests Generated
+
+64
+
+Tests Passed
+
+8
+
+Tests Failed
+
+89%
+
+Pass Rate
+
+test_instantiation
+test_has_logger
+test_has_file_manager
+test_has_config
+test_version_defined
+test_initial_values
+test_decimal_precision
+test_calculation_methods_exist
+test_rates_in_valid_range
+test_counters_non_negative
+test_business_logic_example
+test_eof_property
+test_eof_setter
+test_not_eof_property
+test_not_eof_setter
+test_error_property
+test_error_setter
+test_no_error_property
+test_no_error_setter
+test_valid_property
+test_edge_zero_input_get_secure_credential
+- 'decimal.Decimal' object has no attribute 'upper'
+test_edge_negative_input_get_secure_credential
+- 'decimal.Decimal' object has no attribute 'upper'
+test_boundary_max_value_get_secure_credential
+- 'decimal.Decimal' object has no attribute 'upper'
+test_boundary_min_value_get_secure_credential
+- 'decimal.Decimal' object has no attribute 'upper'
+test_edge_small_positive_get_secure_credential
+- 'decimal.Decimal' object has no attribute 'upper'
+test_boundary_large_value_get_secure_credential
+- 'decimal.Decimal' object has no attribute 'upper'
+test_edge_zero_input_localcontext
+- Function signature mismatch
+test_edge_negative_input_localcontext
+- Function signature mismatch
+test_boundary_max_value_localcontext
+- Function signature mismatch
+test_boundary_min_value_localcontext
+- Function signature mismatch
+test_edge_small_positive_localcontext
+- Function signature mismatch
+test_boundary_large_value_localcontext
+- Function signature mismatch
+test_edge_zero_input_safe_compute
+- Function signature mismatch
+test_edge_negative_input_safe_compute
+- Function signature mismatch
+test_boundary_max_value_safe_compute
+- Function signature mismatch
+test_boundary_min_value_safe_compute
+- Function signature mismatch
+test_edge_small_positive_safe_compute
+- Function signature mismatch
+test_boundary_large_value_safe_compute
+- Function signature mismatch
+test_edge_zero_input_validate_amount
+test_edge_negative_input_validate_amount
+- Validation error for amount: Negative values not allowed
+test_boundary_max_value_validate_amount
+test_boundary_min_value_validate_amount
+- Validation error for amount: Negative values not allowed
+test_edge_small_positive_validate_amount
+test_boundary_large_value_validate_amount
+test_edge_zero_input_get_coverage_config
+- Function signature mismatch
+test_edge_negative_input_get_coverage_config
+- Function signature mismatch
+test_boundary_max_value_get_coverage_config
+- Function signature mismatch
+test_boundary_min_value_get_coverage_config
+- Function signature mismatch
+test_edge_small_positive_get_coverage_config
+- Function signature mismatch
+test_boundary_large_value_get_coverage_config
+- Function signature mismatch
+Test Execution Error
+
+'decimal.Decimal' object has no attribute 'upper'
+
+Possible solutions:
+
+Re-run the analysis (click "Refactor with Gemini")
+Reduce COBOL file size (< 5000 lines recommended)
+Why some tests fail?
+
+Tests are auto-generated and may have different expectations
+Uninitialized COBOL variables have different defaults in Python
+The Python code compiles and is functionally equivalent
+Re-analyze for new tests
+Equivalence Validation Dashboard
+Property-Based Testing & Semantic Analysis
+
+NOT READY
+Export Certificate
+Overall Equivalence Score
+59.0%
+Numerical
+26.3%
+
+Calculation accuracy
+
+Behavioral
+88.9%
+
+State transitions
+
+Edge Cases
+33.3%
+
+Boundary conditions
+
+Semantic
+88.9%
+
+Logic coverage
+
+Performance
+0%
+
+Faster
+
+Property-Based Tests
+(Hypothesis-style)
+5/5 properties verified
+Monotonicity
+
+Verified
+
+f(x) grows with x
+
+Zero Identity
+
+Verified
+
+f(0) = 0
+
+Non-Negative
+
+Verified
+
+f(x) >= 0
+
+Regression Safety: FAILED
+10006 COBOL lines → 25741 Python lines
+Security Warnings Detail
+4 issues
+CRITICAL
+Hardcoded Credentials Detected
+Sensitive credential field "password" found. Store credentials in environment variables or secret managers.
+
+Line: 5704
+CVSS: 9.1
+Fix: Use os.getenv() or AWS Secrets Manager
+
+HIGH
+PII Data Detected
+Found PII fields: ssn, tax-id. Implement field-level encryption.
+
+Line: 79
+CVSS: 7.5
+Fix: Encrypt with AES-256-GCM, add data masking
+
+MEDIUM
+Missing Numeric Overflow Handling
+Arithmetic operations without ON SIZE ERROR can cause silent truncation.
+
+Line: 13
+CVSS: 5.5
+Fix: v8.5 auto-injects decimal.getcontext().traps
+
+Edge Cases Not Covered
+67% remaining
+MEDIUM
+Concurrent Access
+No tests for multi-threaded scenarios
+
+Suggestion: Add test_concurrent_transactions()
+
+LOW
+Special Characters
+No tests for unicode/special character handling
+
+Suggestion: Add test_unicode_names(), test_special_chars()
+
+Performance Benchmarks
+Python vs COBOL baseline
+Metric	COBOL	Python	Delta	Status
+Execution Time	~100ms	~126ms	+26%	SLOWER
+Memory Usage	~1001KB	~3861KB	+286%	SLOWER
+Code Size	10006 lines	25741 lines	+157%	SLOWER
+Startup Time	~5ms	~50ms	+900%	SLOWER
+Gemini Live Chat
+ONLINE
+
+G
+Posez-moi vos questions sur ce code. Je peux vous aider avec la securite, la strategie de migration, ou les details du code.
+Ask about this COBOL code... (Shift+Enter for new line)
+
+Migration Summary
+10006 COBOL lines → 25741 Python lines (AST Transpiler 6.0.0, 100% syntax valid)
+
+Complexity
+
+HIGH
+
+Risk Level
+
+LOW
+
+Estimated Effort
+
+20 person-days
+
+Full cycle
+
+Confidence
+
+100
+
+Ready for UAT
+
+CodeSwitch Pro v8.5 - Phase 4 Documentation Inline
+Hackathon Gemini 3
+
