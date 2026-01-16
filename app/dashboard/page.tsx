@@ -1679,15 +1679,15 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
             <button
               onClick={() => setShowAIInsights(true)}
               disabled={!pythonCode}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition font-medium ${
+              title={pythonCode ? "AI-powered code insights" : "Run analysis first to enable AI Insights"}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
                 pythonCode 
                   ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white' 
-                  : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                  : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
               }`}
             >
               <Lightbulb className="w-4 h-4" />
               <span className="hidden sm:inline">AI Insights</span>
-              <span className="text-[10px] px-1.5 py-0.5 bg-white/20 rounded">Gemini 3</span>
             </button>
             
             {/* Admin Button - visible only for super admin */}
