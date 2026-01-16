@@ -49,6 +49,20 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
     confirmedUsers: 0
   });
 
+  // Settings toggles
+  const [settings, setSettings] = useState({
+    openRegistration: true,
+    emailConfirmation: true,
+    oauthGoogle: true,
+    oauthGithub: true
+  });
+
+  const toggleSetting = (key: keyof typeof settings) => {
+    setSettings(prev => ({ ...prev, [key]: !prev[key] }));
+    setMessage({ type: 'success', text: `Setting updated: ${key}` });
+    setTimeout(() => setMessage(null), 2000);
+  };
+
   useEffect(() => {
     if (isOpen) {
       loadUsers();
@@ -519,27 +533,36 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
                       <div className="text-white font-medium">Open registration</div>
                       <div className="text-sm text-slate-400">Permettre aux nouveaux utilisateurs de s'inscrire</div>
                     </div>
-                    <div className="w-12 h-6 bg-green-500 rounded-full relative cursor-pointer">
-                      <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
-                    </div>
+                    <button
+                      onClick={() => toggleSetting('openRegistration')}
+                      className={`w-12 h-6 rounded-full relative transition-colors ${settings.openRegistration ? 'bg-green-500' : 'bg-slate-600'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.openRegistration ? 'right-1' : 'left-1'}`} />
+                    </button>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                     <div>
                       <div className="text-white font-medium">Email confirmation required</div>
                       <div className="text-sm text-slate-400">Les utilisateurs doivent confirmer leur email</div>
                     </div>
-                    <div className="w-12 h-6 bg-green-500 rounded-full relative cursor-pointer">
-                      <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
-                    </div>
+                    <button
+                      onClick={() => toggleSetting('emailConfirmation')}
+                      className={`w-12 h-6 rounded-full relative transition-colors ${settings.emailConfirmation ? 'bg-green-500' : 'bg-slate-600'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.emailConfirmation ? 'right-1' : 'left-1'}`} />
+                    </button>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                     <div>
                       <div className="text-white font-medium">OAuth Google</div>
                       <div className="text-sm text-slate-400">Google login enabled</div>
                     </div>
-                    <div className="w-12 h-6 bg-green-500 rounded-full relative cursor-pointer">
-                      <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full" />
-                    </div>
+                    <button
+                      onClick={() => toggleSetting('oauthGoogle')}
+                      className={`w-12 h-6 rounded-full relative transition-colors ${settings.oauthGoogle ? 'bg-green-500' : 'bg-slate-600'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.oauthGoogle ? 'right-1' : 'left-1'}`} />
+                    </button>
                   </div>
                   <div className="flex items-center justify-between p-4 bg-slate-700/50 rounded-lg">
                     <div>
