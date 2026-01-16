@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface InsightData {
   review?: {
@@ -63,6 +63,47 @@ export default function GeminiInsightsPanel({
     review: false, tests: false, optimize: false, explain: false, architecture: false
   });
   const [loadedTabs, setLoadedTabs] = useState<Set<TabType>>(new Set());
+  
+  // Draggable state
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: position.x,
+      initialY: position.y
+    };
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !dragRef.current) return;
+      const deltaX = e.clientX - dragRef.current.startX;
+      const deltaY = e.clientY - dragRef.current.startY;
+      setPosition({
+        x: dragRef.current.initialX + deltaX,
+        y: dragRef.current.initialY + deltaY
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      dragRef.current = null;
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
 
   // Load insight when tab is selected (lazy loading)
   useEffect(() => {
@@ -103,6 +144,13 @@ export default function GeminiInsightsPanel({
     setInsights({});
     setLoadedTabs(new Set());
   }, [pythonCode]);
+
+  // Reset position when opening
+  useEffect(() => {
+    if (isVisible) {
+      setPosition({ x: 0, y: 0 });
+    }
+  }, [isVisible]);
 
   if (!isVisible) return null;
 
@@ -371,23 +419,38 @@ export default function GeminiInsightsPanel({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-gray-900 border-l border-gray-700 shadow-2xl z-50 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-700">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">✨</span>
-          <span className="font-semibold text-white">AI Insights</span>
-          <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">Gemini 3</span>
-        </div>
-        <button 
-          onClick={onClose}
-          className="p-1 hover:bg-gray-800 rounded transition-colors"
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
+      
+      {/* Modal */}
+      <div 
+        className="fixed w-[500px] h-[600px] bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 flex flex-col"
+        style={{
+          left: `calc(50% - 250px + ${position.x}px)`,
+          top: `calc(50% - 300px + ${position.y}px)`,
+        }}
+      >
+        {/* Header - Draggable */}
+        <div 
+          className="flex items-center justify-between p-4 border-b border-gray-700 cursor-move select-none"
+          onMouseDown={handleMouseDown}
         >
-          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xl">✨</span>
+            <span className="font-semibold text-white">AI Insights</span>
+            <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">Gemini 3</span>
+          </div>
+          <button 
+            onClick={onClose}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="p-1 hover:bg-gray-800 rounded transition-colors"
+          >
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       
       {/* Tabs */}
       <div className="flex border-b border-gray-700 overflow-x-auto">
@@ -419,7 +482,8 @@ export default function GeminiInsightsPanel({
           Powered by Gemini 3 Pro Preview
         </p>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
