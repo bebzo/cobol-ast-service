@@ -427,3 +427,60 @@ def get_audit_module() -> AuditModule:
     if _audit_module is None:
         _audit_module = AuditModule()
     return _audit_module
+
+
+# ============================================================
+# v8.6: Temp File Manager (DELETETEMP)
+# ============================================================
+class TempFileManager:
+    """Temp file management module - replaces DELETETEMP CALL stub."""
+    
+    def __init__(self, temp_dir: str = None):
+        self._temp_dir = temp_dir or os.getenv('COBOL_TEMP_DIR', '/tmp/cobol_banking')
+    
+    def delete_temp_files(self, job_id: str) -> bool:
+        """
+        Delete temporary files for a job.
+        
+        Args:
+            job_id: Job identifier
+            
+        Returns:
+            bool: True if cleanup was successful
+        """
+        import shutil
+        
+        job_id_clean = str(job_id).strip()
+        job_temp_dir = os.path.join(self._temp_dir, job_id_clean)
+        
+        logger.info(f"DELETETEMP: Cleaning up temp files for job {job_id_clean}")
+        
+        try:
+            if os.path.exists(job_temp_dir):
+                shutil.rmtree(job_temp_dir)
+                logger.info(f"DELETETEMP: Removed directory {job_temp_dir}")
+            else:
+                logger.debug(f"DELETETEMP: Directory {job_temp_dir} does not exist, nothing to clean")
+            return True
+        except Exception as e:
+            logger.error(f"DELETETEMP: Failed to clean up: {e}")
+            return False
+    
+    def create_temp_dir(self, job_id: str) -> str:
+        """Create a temporary directory for a job."""
+        job_id_clean = str(job_id).strip()
+        job_temp_dir = os.path.join(self._temp_dir, job_id_clean)
+        
+        os.makedirs(job_temp_dir, exist_ok=True)
+        logger.debug(f"DELETETEMP: Created temp directory {job_temp_dir}")
+        return job_temp_dir
+
+
+_temp_manager: Optional[TempFileManager] = None
+
+
+def get_temp_manager() -> TempFileManager:
+    global _temp_manager
+    if _temp_manager is None:
+        _temp_manager = TempFileManager()
+    return _temp_manager
