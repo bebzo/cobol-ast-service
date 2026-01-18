@@ -48,20 +48,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
-// Custom loading component for Monaco Editor
-const EditorLoadingPlaceholder = () => (
-  <div className="h-[400px] flex items-center justify-center bg-slate-900">
-    <div className="text-center text-slate-500">
-      <FileCode className="w-12 h-12 mx-auto mb-2 opacity-30 animate-pulse" />
-      <p className="text-sm">Initializing editor...</p>
-    </div>
-  </div>
-);
-
-const Editor = dynamic(() => import("@monaco-editor/react"), { 
-  ssr: false,
-  loading: EditorLoadingPlaceholder
-});
+const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
 const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard"), { ssr: false });
 const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
@@ -2006,7 +1993,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 onChange={(value) => setCobolCode(value || "")}
                 theme="vs-dark"
                 options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on" }}
-                loading={<EditorLoadingPlaceholder />}
+                
               />
             </div>
 
@@ -2108,7 +2095,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       value={pythonCode}
                       theme="vs-dark"
                       options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                      loading={<EditorLoadingPlaceholder />}
+                      
                     />
                   )}
                 </div>
@@ -2125,7 +2112,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   })()}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                  loading={<EditorLoadingPlaceholder />}
+                  
                 />
               )}
               
@@ -2148,7 +2135,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   })()}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                  loading={<EditorLoadingPlaceholder />}
+                  
                 />
               )}
 
