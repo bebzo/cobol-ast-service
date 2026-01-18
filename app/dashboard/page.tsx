@@ -47,14 +47,34 @@ import {
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
+import { loader } from "@monaco-editor/react";
 
-const Editor = dynamic(() => import("@monaco-editor/react"), { 
+// Configure Monaco to use faster CDN and initialize early
+if (typeof window !== 'undefined') {
+  loader.config({
+    paths: {
+      vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
+    }
+  });
+  // Pre-initialize Monaco in background
+  loader.init().then(() => {
+    console.log('[Monaco] Pre-loaded successfully');
+  }).catch((err) => {
+    console.warn('[Monaco] Pre-load failed, will retry on demand:', err);
+  });
+}
+
+const Editor = dynamic(() => import("@monaco-editor/react").then(mod => mod.Editor), { 
   ssr: false,
-  loading: () => null  // Don't show loading - we handle it ourselves
+  loading: () => (
+    <div className="h-[400px] flex items-center justify-center bg-slate-900">
+      <div className="text-center">
+        <Loader2 className="w-8 h-8 mx-auto mb-2 text-cyan-400 animate-spin" />
+        <p className="text-cyan-400 text-sm">Initializing code editor...</p>
+      </div>
+    </div>
+  )
 });
-
-// State to track Monaco load status
-const [monacoReady, setMonacoReady] = useState(false);
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
 const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard"), { ssr: false });
 const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
@@ -2092,24 +2112,22 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       </div>
                     </div>
                   ) : (
-                    <div className="relative h-[400px]">
-                      {/* Fallback: always show code as pre while Monaco loads */}
-                      <pre className="absolute inset-0 overflow-auto bg-slate-900 text-green-400 font-mono text-sm p-4 whitespace-pre-wrap" style={{ zIndex: 1 }}>
-                        {pythonCode || '# No Python code generated'}
-                      </pre>
-                      {/* Monaco Editor overlay - will cover pre once loaded */}
-                      <div className="absolute inset-0" style={{ zIndex: 2 }}>
-                        <Editor
-                          key={`python-editor-${pythonCode?.length || 0}`}
-                          height="400px"
-                          defaultLanguage="python"
-                          value={pythonCode}
-                          theme="vs-dark"
-                          options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                          onMount={() => console.log('[Monaco] Python editor mounted')}
-                        />
-                      </div>
-                    </div>
+                    <Editor
+                      key={`python-editor-${pythonCode?.length || 0}`}
+                      height="400px"
+                      defaultLanguage="python"
+                      value={pythonCode}
+                      theme="vs-dark"
+                      options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                      loading={
+                        <div className="h-full flex items-center justify-center bg-slate-900">
+                          <div className="text-center">
+                            <Loader2 className="w-8 h-8 mx-auto mb-2 text-green-400 animate-spin" />
+                            <p className="text-green-400 text-sm">Preparing Python code...</p>
+                          </div>
+                        </div>
+                      }
+                    />
                   )}
                 </div>
               )}
