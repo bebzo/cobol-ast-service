@@ -70,6 +70,7 @@ const AdminPanel = dynamic(() => import("@/components/AdminPanel"), { ssr: false
 const MigrationGuide = dynamic(() => import("@/components/MigrationGuide"), { ssr: false });
 const Glossary = dynamic(() => import("@/components/Glossary"), { ssr: false });
 const GeminiInsightsPanel = dynamic(() => import("@/components/GeminiInsightsPanel"), { ssr: false });
+const ErrorBoundary = dynamic(() => import("@/components/ErrorBoundary"), { ssr: false });
 import Tooltip, { METRIC_TOOLTIPS } from "@/components/Tooltip";
 import { HelpButton } from "@/components/HelpModal";
 
@@ -1717,6 +1718,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
   }
 
   return (
+    <ErrorBoundary>
     <div className="min-h-screen flex flex-col">
       {/* Header */}
       <header className="bg-slate-800/80 backdrop-blur border-b border-slate-700 px-6 py-4">
@@ -3629,6 +3631,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
         </div>
       </footer>
     </div>
+    </ErrorBoundary>
   );
 }
 // rebuild 1767170466

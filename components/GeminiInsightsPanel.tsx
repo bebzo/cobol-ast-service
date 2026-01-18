@@ -63,6 +63,8 @@ export default function GeminiInsightsPanel({
     review: false, tests: false, optimize: false, explain: false, architecture: false
   });
   const [loadedTabs, setLoadedTabs] = useState<Set<TabType>>(new Set());
+  const [analysisSteps, setAnalysisSteps] = useState<string[]>([]);
+  const [currentStep, setCurrentStep] = useState('');
   
   // Draggable state
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -105,12 +107,65 @@ export default function GeminiInsightsPanel({
     };
   }, [isDragging]);
 
+  // Analysis step messages for each tab
+  const STEP_MESSAGES: Record<TabType, string[]> = {
+    review: [
+      'Parsing Python code structure...',
+      'Analyzing code quality patterns...',
+      'Checking naming conventions...',
+      'Evaluating error handling...',
+      'Scoring maintainability...',
+      'Generating review report...'
+    ],
+    explain: [
+      'Extracting business logic...',
+      'Mapping COBOL to Python constructs...',
+      'Identifying data transformations...',
+      'Tracing variable flow...',
+      'Building explanation model...'
+    ],
+    tests: [
+      'Identifying testable functions...',
+      'Generating unit test cases...',
+      'Creating edge case scenarios...',
+      'Building mock data...',
+      'Calculating coverage estimate...'
+    ],
+    optimize: [
+      'Profiling code complexity...',
+      'Finding performance bottlenecks...',
+      'Analyzing memory patterns...',
+      'Generating optimization suggestions...',
+      'Scoring performance...'
+    ],
+    architecture: [
+      'Mapping module dependencies...',
+      'Identifying design patterns...',
+      'Analyzing layer separation...',
+      'Building architecture diagram...',
+      'Generating recommendations...'
+    ]
+  };
+
   // Load insight when tab is selected (lazy loading)
   useEffect(() => {
     if (!isVisible || !pythonCode || loadedTabs.has(activeTab)) return;
     
     const loadInsight = async () => {
       setLoading(prev => ({ ...prev, [activeTab]: true }));
+      setAnalysisSteps([]);
+      setCurrentStep('');
+      
+      // Simulate progressive steps for better UX
+      const steps = STEP_MESSAGES[activeTab];
+      let stepIndex = 0;
+      const stepInterval = setInterval(() => {
+        if (stepIndex < steps.length) {
+          setCurrentStep(steps[stepIndex]);
+          setAnalysisSteps(prev => [...prev, steps[stepIndex]]);
+          stepIndex++;
+        }
+      }, 800);
       
       try {
         const response = await fetch('/api/gemini-insights', {
@@ -124,13 +179,23 @@ export default function GeminiInsightsPanel({
           })
         });
         
+        clearInterval(stepInterval);
+        
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+        
         const data = await response.json();
         if (data.success && data.insights) {
           setInsights(prev => ({ ...prev, ...data.insights }));
           setLoadedTabs(prev => new Set([...prev, activeTab]));
+        } else if (data.error) {
+          console.error('API returned error:', data.error);
         }
       } catch (error) {
+        clearInterval(stepInterval);
         console.error('Failed to load insight:', error);
+        setCurrentStep('Analysis failed. Please try again.');
       } finally {
         setLoading(prev => ({ ...prev, [activeTab]: false }));
       }
@@ -401,9 +466,25 @@ export default function GeminiInsightsPanel({
   const renderContent = () => {
     if (loading[activeTab]) {
       return (
-        <div className="flex flex-col items-center justify-center py-12">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-gray-400 text-sm">Analyzing with Gemini 3...</p>
+        <div className="flex flex-col items-center justify-center py-8">
+          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-blue-400 text-sm font-medium mb-4">Analyzing with Gemini 3...</p>
+          
+          {/* Live analysis steps */}
+          <div className="w-full max-w-xs space-y-2">
+            {analysisSteps.map((step, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-xs">
+                <span className="text-green-400">✓</span>
+                <span className="text-gray-500">{step}</span>
+              </div>
+            ))}
+            {currentStep && !analysisSteps.includes(currentStep) && (
+              <div className="flex items-center gap-2 text-xs animate-pulse">
+                <span className="text-blue-400">→</span>
+                <span className="text-gray-300">{currentStep}</span>
+              </div>
+            )}
+          </div>
         </div>
       );
     }

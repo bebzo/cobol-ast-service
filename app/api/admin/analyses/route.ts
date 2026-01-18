@@ -1,14 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  { auth: { autoRefreshToken: false, persistSession: false } }
-);
+// Lazy-load admin client to avoid build-time errors
+let supabaseAdmin: SupabaseClient | null = null;
+
+function getSupabaseAdmin(): SupabaseClient | null {
+  if (supabaseAdmin) return supabaseAdmin;
+  
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!url || !key) {
+    console.warn('[Admin API] Supabase credentials not configured');
+    return null;
+  }
+  
+  supabaseAdmin = createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  
+  return supabaseAdmin;
+}
 
 // Verify admin access
 async function verifyAdmin(request: NextRequest): Promise<boolean> {
+  const client = getSupabaseAdmin();
+  if (!client) return false;
+  
   const authHeader = request.headers.get('cookie');
   if (!authHeader) return false;
   
@@ -19,7 +37,7 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
     const tokenData = JSON.parse(decodeURIComponent(tokenMatch[1]));
     const accessToken = tokenData[0] || tokenData.access_token;
     
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(accessToken);
+    const { data: { user }, error } = await client.auth.getUser(accessToken);
     if (error || !user) return false;
     
     return user.user_metadata?.role === 'admin' || 
@@ -31,13 +49,22 @@ async function verifyAdmin(request: NextRequest): Promise<boolean> {
 
 // GET: Export analyses data
 export async function GET(request: NextRequest) {
+  const client = getSupabaseAdmin();
+  if (!client) {
+    return NextResponse.json({ 
+      analyses: [],
+      message: 'Admin API not configured',
+      exported_at: new Date().toISOString()
+    });
+  }
+  
   if (!await verifyAdmin(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     // Try to fetch from analyses table if it exists
-    const { data: analyses, error } = await supabaseAdmin
+    const { data: analyses, error } = await client
       .from('analyses')
       .select('*')
       .order('created_at', { ascending: false })
