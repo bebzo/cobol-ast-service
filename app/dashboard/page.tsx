@@ -624,27 +624,9 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   
-  // Authentication check - requires login (bypass for localhost testing)
+  // Authentication check - requires login
   useEffect(() => {
     const checkAuth = async () => {
-      // Debug log
-      console.log('[Auth] Checking:', {
-        hostname: typeof window !== 'undefined' ? window.location.hostname : 'SSR',
-        search: typeof window !== 'undefined' ? window.location.search : 'SSR'
-      });
-      
-      // Bypass auth for localhost testing with ?test=1 query param
-      const isLocalhost = typeof window !== 'undefined' && 
-          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      const hasTestParam = typeof window !== 'undefined' && window.location.search.includes('test=1');
-      
-      if (isLocalhost && hasTestParam) {
-        console.log('[Auth] Localhost test mode - bypassing authentication');
-        setUser({ email: 'test@localhost', id: 'test-user' } as any);
-        setAuthLoading(false);
-        return;
-      }
-      
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -662,16 +644,7 @@ export default function Home() {
     };
     checkAuth();
     
-    // Listen for auth changes (skip in test mode)
-    const isTestMode = typeof window !== 'undefined' && 
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
-      window.location.search.includes('test=1');
-    
-    if (isTestMode) {
-      console.log('[Auth] Test mode - skipping auth state listener');
-      return () => {};
-    }
-    
+    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         router.push('/login');
