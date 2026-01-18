@@ -2177,9 +2177,21 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       </div>
                     </div>
                   ) : (
-                    <pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">
-                      {pythonCode || analysis?.python_code || '# No code generated'}
-                    </pre>
+                    <Editor
+                      height="400px"
+                      defaultLanguage="python"
+                      value={pythonCode || analysis?.python_code || '# No code generated'}
+                      theme="vs-dark"
+                      options={{ 
+                        minimap: { enabled: false }, 
+                        fontSize: 13, 
+                        lineNumbers: "on", 
+                        wordWrap: "on",
+                        readOnly: true,
+                        scrollBeyondLastLine: false
+                      }}
+                      loading={<div className="h-[400px] bg-slate-900 flex items-center justify-center text-slate-400">Loading editor...</div>}
+                    />
                   )}
                 </div>
               )}
