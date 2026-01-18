@@ -592,27 +592,34 @@ export default function EquivalenceDashboard({
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="bg-slate-800/50 rounded p-3">
-            <p className="text-xs text-slate-400 mb-1">Monotonicity</p>
-            <p className="text-sm text-green-400 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" /> Verified
-            </p>
-            <p className="text-[10px] text-slate-500">f(x) grows with x</p>
-          </div>
-          <div className="bg-slate-800/50 rounded p-3">
-            <p className="text-xs text-slate-400 mb-1">Zero Identity</p>
-            <p className="text-sm text-green-400 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" /> Verified
-            </p>
-            <p className="text-[10px] text-slate-500">f(0) = 0</p>
-          </div>
-          <div className="bg-slate-800/50 rounded p-3">
-            <p className="text-xs text-slate-400 mb-1">Non-Negative</p>
-            <p className="text-sm text-green-400 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" /> Verified
-            </p>
-            <p className="text-[10px] text-slate-500">f(x) &gt;= 0</p>
-          </div>
+          {[
+            { name: "Monotonicity", desc: "f(x) grows with x", check: "monoton" },
+            { name: "Zero Identity", desc: "f(0) = 0", check: "zero" },
+            { name: "Non-Negative", desc: "f(x) >= 0", check: "negative" }
+          ].map((prop) => {
+            const hasTest = testResults?.details?.some((t: { name: string }) => 
+              t.name.toLowerCase().includes(prop.check)
+            );
+            const passed = testResults?.details?.some((t: { name: string; status: string }) => 
+              t.name.toLowerCase().includes(prop.check) && t.status === "passed"
+            );
+            return (
+              <div key={prop.name} className="bg-slate-800/50 rounded p-3">
+                <p className="text-xs text-slate-400 mb-1">{prop.name}</p>
+                {hasTest ? (
+                  <p className={`text-sm flex items-center gap-1 ${passed ? 'text-green-400' : 'text-red-400'}`}>
+                    {passed ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                    {passed ? 'Verified' : 'Failed'}
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-500 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> Not tested
+                  </p>
+                )}
+                <p className="text-[10px] text-slate-500">{prop.desc}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
