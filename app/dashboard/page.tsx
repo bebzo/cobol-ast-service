@@ -1986,14 +1986,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </div>
                 </div>
               )}
-              <Editor
-                height="400px"
-                defaultLanguage="cobol"
+              <textarea
+                className="w-full h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500"
                 value={cobolCode}
-                onChange={(value) => setCobolCode(value || "")}
-                theme="vs-dark"
-                options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on" }}
-                
+                onChange={(e) => setCobolCode(e.target.value)}
+                placeholder="Paste your COBOL code here..."
+                spellCheck={false}
               />
             </div>
 
