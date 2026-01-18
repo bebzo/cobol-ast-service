@@ -2006,6 +2006,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 onChange={(value) => setCobolCode(value || "")}
                 theme="vs-dark"
                 options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on" }}
+                loading={<EditorLoadingPlaceholder />}
               />
             </div>
 
@@ -2107,6 +2108,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       value={pythonCode}
                       theme="vs-dark"
                       options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                      loading={<EditorLoadingPlaceholder />}
                     />
                   )}
                 </div>
@@ -2123,6 +2125,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   })()}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                  loading={<EditorLoadingPlaceholder />}
                 />
               )}
               
@@ -2145,6 +2148,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   })()}
                   theme="vs-dark"
                   options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                  loading={<EditorLoadingPlaceholder />}
                 />
               )}
 
