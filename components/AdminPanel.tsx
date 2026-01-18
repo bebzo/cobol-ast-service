@@ -164,6 +164,61 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
     setTimeout(() => setMessage(null), 3000);
   };
 
+  const exportUsersCSV = () => {
+    if (users.length === 0) {
+      setMessage({ type: 'error', text: 'No users to export' });
+      setTimeout(() => setMessage(null), 3000);
+      return;
+    }
+    
+    const headers = ['ID', 'Email', 'Provider', 'Created At', 'Last Sign In', 'Role', 'Confirmed'];
+    const rows = users.map(u => [
+      u.id,
+      u.email,
+      u.app_metadata?.providers?.join(';') || u.app_metadata?.provider || 'email',
+      u.created_at,
+      u.last_sign_in_at || '',
+      u.user_metadata?.role || 'user',
+      u.email_confirmed_at ? 'Yes' : 'No'
+    ]);
+    
+    const csvContent = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `users_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    
+    setMessage({ type: 'success', text: 'Users exported successfully!' });
+    setTimeout(() => setMessage(null), 3000);
+  };
+
+  const exportAnalysesJSON = async () => {
+    try {
+      const response = await fetch('/api/admin/analyses');
+      const data = await response.json();
+      
+      if (data.error) {
+        setMessage({ type: 'error', text: data.error });
+      } else {
+        const blob = new Blob([JSON.stringify(data.analyses || [], null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `analyses_export_${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        setMessage({ type: 'success', text: 'Analyses exported successfully!' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to export analyses' });
+    }
+    setTimeout(() => setMessage(null), 3000);
+  };
+
   const filteredUsers = users.filter(u => 
     u.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -582,11 +637,11 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
               <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
                 <h3 className="text-white font-semibold mb-4">Data export</h3>
                 <div className="flex gap-4">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition">
+                  <button onClick={exportUsersCSV} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition">
                     <Download className="w-4 h-4" />
                     Export utilisateurs (CSV)
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition">
+                  <button onClick={exportAnalysesJSON} className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition">
                     <Download className="w-4 h-4" />
                     Export analyses (JSON)
                   </button>
