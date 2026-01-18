@@ -712,6 +712,7 @@ export default function Home() {
   const [chatExpanded, setChatExpanded] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const [monacoReady, setMonacoReady] = useState(false);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
 
   // Close Tools menu when clicking outside
@@ -2165,41 +2166,73 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
 
               {activeTab === "tests" && (
-                <Editor
-                  height="400px"
-                  defaultLanguage="python"
-                  value={(() => {
-                    const t = analysis?.tests || analysis?.unit_tests;
-                    if (!t) return "# Run analysis to generate unit tests";
-                    return Array.isArray(t) ? t.join('\n') : t;
-                  })()}
-                  theme="vs-dark"
-                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                  
-                />
+                <div className="relative">
+                  {monacoReady ? (
+                    <Editor
+                      height="400px"
+                      defaultLanguage="python"
+                      value={(() => {
+                        const t = analysis?.tests || analysis?.unit_tests;
+                        if (!t) return "# Run analysis to generate unit tests";
+                        return Array.isArray(t) ? t.join('\n') : t;
+                      })()}
+                      theme="vs-dark"
+                      options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                      onMount={() => setMonacoReady(true)}
+                    />
+                  ) : (
+                    <pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">
+                      {(() => {
+                        const t = analysis?.tests || analysis?.unit_tests;
+                        if (!t) return "# Run analysis to generate unit tests";
+                        return Array.isArray(t) ? t.join('\n') : t;
+                      })()}
+                    </pre>
+                  )}
+                </div>
               )}
               
               {activeTab === "config" && (
-                <Editor
-                  height="400px"
-                  defaultLanguage="json"
-                  value={(() => {
-                    const cfg = analysis?.config_json || analysis?.config;
-                    if (!cfg) return "// Run analysis to generate configuration";
-                    if (typeof cfg === 'string') {
-                      if (cfg === '{}' || cfg.length < 5) return "// Run analysis to generate configuration";
-                      try {
-                        return JSON.stringify(JSON.parse(cfg), null, 2);
-                      } catch {
-                        return cfg;
-                      }
-                    }
-                    return JSON.stringify(cfg, null, 2);
-                  })()}
-                  theme="vs-dark"
-                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                  
-                />
+                <div className="relative">
+                  {monacoReady ? (
+                    <Editor
+                      height="400px"
+                      defaultLanguage="json"
+                      value={(() => {
+                        const cfg = analysis?.config_json || analysis?.config;
+                        if (!cfg) return "// Run analysis to generate configuration";
+                        if (typeof cfg === 'string') {
+                          if (cfg === '{}' || cfg.length < 5) return "// Run analysis to generate configuration";
+                          try {
+                            return JSON.stringify(JSON.parse(cfg), null, 2);
+                          } catch {
+                            return cfg;
+                          }
+                        }
+                        return JSON.stringify(cfg, null, 2);
+                      })()}
+                      theme="vs-dark"
+                      options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                      onMount={() => setMonacoReady(true)}
+                    />
+                  ) : (
+                    <pre className="h-[400px] bg-slate-900 text-yellow-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">
+                      {(() => {
+                        const cfg = analysis?.config_json || analysis?.config;
+                        if (!cfg) return "// Run analysis to generate configuration";
+                        if (typeof cfg === 'string') {
+                          if (cfg === '{}' || cfg.length < 5) return "// Run analysis to generate configuration";
+                          try {
+                            return JSON.stringify(JSON.parse(cfg), null, 2);
+                          } catch {
+                            return cfg;
+                          }
+                        }
+                        return JSON.stringify(cfg, null, 2);
+                      })()}
+                    </pre>
+                  )}
+                </div>
               )}
 
               {activeTab === "diffv2" && (
