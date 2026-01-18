@@ -1520,6 +1520,16 @@ export default function Home() {
     setVoiceResponse("🔄 Thinking...");
     setSuggestedQuestions([]); // Clear previous suggestions
     
+    // IMMEDIATELY add user message with "thinking" state for better UX
+    const tempId = Date.now();
+    setConversationHistory(prev => [...prev.slice(-9), { query, response: "🔄 _Thinking..._", isThinking: true, id: tempId }]);
+    
+    // Auto-scroll to show user's message immediately
+    setTimeout(() => {
+      const container = document.getElementById('chat-messages-container');
+      if (container) container.scrollTop = container.scrollHeight;
+    }, 50);
+    
     try {
       // Phase 1: Build enhanced context
       const enhancedPayload = { 
@@ -1533,8 +1543,8 @@ export default function Home() {
           failed: testResults.failed,
           details: testResults.details.slice(0, 10) // Include some test details
         },
-        // Phase 3: Include conversation history for context
-        conversationHistory: conversationHistory.slice(-5) // Last 5 exchanges
+        // Phase 3: Include conversation history for context (exclude the thinking message)
+        conversationHistory: conversationHistory.slice(-5)
       };
       
       const res = await fetch('/api/chat', {
@@ -1546,8 +1556,10 @@ export default function Home() {
       const response = data.response || "Sorry, I couldn't process your request.";
       setVoiceResponse(response);
       
-      // Phase 3: Save to conversation history
-      setConversationHistory(prev => [...prev.slice(-9), { query, response }]);
+      // Update the thinking message with the real response
+      setConversationHistory(prev => prev.map(msg => 
+        (msg as any).id === tempId ? { query, response, isThinking: false } : msg
+      ));
       
       // Phase 5: Set suggested questions from API
       if (data.suggestedQuestions && data.suggestedQuestions.length > 0) {
@@ -3370,15 +3382,30 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                           <div className="bg-slate-700 rounded-lg p-2 text-sm text-slate-300 break-words max-w-[90%]">{msg.query}</div>
                         </div>
                         <div className="flex items-start gap-2">
-                          <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs flex-shrink-0">G</div>
+                          <div className={`w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center text-xs flex-shrink-0 ${
+                            (msg as any).isThinking ? 'animate-pulse' : ''
+                          }`}>G</div>
                           <div className={`bg-purple-500/20 rounded-lg p-2 text-sm text-slate-200 whitespace-pre-wrap break-words max-w-[90%] ${
                             !chatExpanded && i < conversationHistory.length - 1 ? 'max-h-24 overflow-hidden relative' : ''
                           }`}>
-                            {msg.response}
-                            {!chatExpanded && i < conversationHistory.length - 1 && msg.response.length > 300 && (
-                              <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-purple-900/80 to-transparent flex items-end justify-center">
-                                <span className="text-purple-300 text-xs pb-1">... [expand]</span>
+                            {(msg as any).isThinking ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex gap-1">
+                                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                </div>
+                                <span className="text-purple-300 italic">Analyzing...</span>
                               </div>
+                            ) : (
+                              <>
+                                {msg.response}
+                                {!chatExpanded && i < conversationHistory.length - 1 && msg.response.length > 300 && (
+                                  <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-purple-900/80 to-transparent flex items-end justify-center">
+                                    <span className="text-purple-300 text-xs pb-1">... [expand]</span>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
