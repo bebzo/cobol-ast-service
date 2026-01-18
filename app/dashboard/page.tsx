@@ -48,6 +48,14 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
+// Configure Monaco loader before importing
+import { loader } from "@monaco-editor/react";
+loader.config({
+  paths: {
+    vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
+  }
+});
+
 const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
 const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard"), { ssr: false });
