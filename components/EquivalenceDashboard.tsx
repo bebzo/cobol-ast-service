@@ -639,54 +639,40 @@ export default function EquivalenceDashboard({
         </div>
       </div>
 
-      {/* v8.7: Security Warnings Detail - Only show if there are unfixed issues */}
+      {/* Security Warnings - Two cases: issues exist OR no issues */}
       {(() => {
-        const unfixedWarnings = analysis?.security_warnings?.filter((w: SecurityWarningDetail) => 
-          w.severity !== 'INFO' && w.severity !== 'LOW'
+        const securityIssues = analysis?.security_warnings?.filter((w: SecurityWarningDetail) => 
+          w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM'
         ) || [];
-        const fixedCount = analysis?.security_warnings?.filter((w: SecurityWarningDetail) => 
-          w.severity === 'INFO'
-        ).length || 0;
-        const securityScore = analysis?.security_warnings?.[0]?.summary?.score || analysis?.security_score || 100;
         
-        // Don't show section if score >= 90 and no critical/high issues
-        if (securityScore >= 90 && !unfixedWarnings.some((w: SecurityWarningDetail) => 
-          w.severity === 'CRITICAL' || w.severity === 'HIGH'
-        )) {
-          return fixedCount > 0 ? (
+        // Case 1: No security issues
+        if (securityIssues.length === 0) {
+          return (
             <div className="mt-4 p-4 rounded-lg bg-slate-900/50 border border-green-500/30">
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5 text-green-400" />
-                <span className="font-semibold text-green-300">Security: All Clear</span>
-                <span className="text-xs px-2 py-0.5 bg-green-500/20 rounded text-green-400">
-                  {fixedCount} auto-remediated
-                </span>
+                <span className="font-semibold text-green-300">No security issues detected in the transpiled code</span>
               </div>
             </div>
-          ) : null;
+          );
         }
         
-        return unfixedWarnings.length > 0 ? (
-          <div className="mt-4 p-4 rounded-lg bg-slate-900/50 border border-orange-500/30">
+        // Case 2: Security issues exist - show details
+        return (
+          <div className="mt-4 p-4 rounded-lg bg-slate-900/50 border border-red-500/30">
             <div className="flex items-center gap-2 mb-3">
-              <Shield className="w-5 h-5 text-orange-400" />
-              <span className="font-semibold text-orange-300">Security Attention Required</span>
-              <span className="text-xs px-2 py-0.5 bg-orange-500/20 rounded text-orange-400">
-                {unfixedWarnings.length} to review
+              <Shield className="w-5 h-5 text-red-400" />
+              <span className="font-semibold text-red-300">Security Issues Detected</span>
+              <span className="text-xs px-2 py-0.5 bg-red-500/20 rounded text-red-400">
+                {securityIssues.length} issue{securityIssues.length > 1 ? 's' : ''}
               </span>
-              {fixedCount > 0 && (
-                <span className="text-xs px-2 py-0.5 bg-green-500/20 rounded text-green-400">
-                  {fixedCount} auto-fixed
-                </span>
-              )}
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {unfixedWarnings.map((warning: SecurityWarningDetail, idx: number) => (
+              {securityIssues.map((warning: SecurityWarningDetail, idx: number) => (
                 <div key={idx} className={`p-3 rounded border ${
                   warning.severity === 'CRITICAL' ? 'bg-red-900/30 border-red-500/40' :
                   warning.severity === 'HIGH' ? 'bg-orange-900/30 border-orange-500/40' :
-                  warning.severity === 'MEDIUM' ? 'bg-yellow-900/30 border-yellow-500/40' :
-                  'bg-slate-800/50 border-slate-600/40'
+                  'bg-yellow-900/30 border-yellow-500/40'
                 }`}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -694,8 +680,7 @@ export default function EquivalenceDashboard({
                         <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
                           warning.severity === 'CRITICAL' ? 'bg-red-500 text-white' :
                           warning.severity === 'HIGH' ? 'bg-orange-500 text-white' :
-                          warning.severity === 'MEDIUM' ? 'bg-yellow-500 text-black' :
-                          'bg-slate-500 text-white'
+                          'bg-yellow-500 text-black'
                         }`}>{warning.severity}</span>
                         <span className="text-sm text-white font-medium">{warning.title}</span>
                       </div>
@@ -718,7 +703,7 @@ export default function EquivalenceDashboard({
               ))}
             </div>
           </div>
-        ) : null;
+        );
       })()}
 
       {/* v8.7: Edge Cases Gaps - Only show if coverage < 80% and there are HIGH risk gaps */}
