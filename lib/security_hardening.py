@@ -518,6 +518,12 @@ class SecurityHardener:
         for pattern, cred_type in CREDENTIAL_PATTERNS:
             matches = list(re.finditer(pattern, code, re.IGNORECASE))
             for match in reversed(matches):  # Reverse to preserve line numbers
+                # Skip if this is inside a comment (COBOL traceability)
+                line_start = code.rfind('\n', 0, match.start()) + 1
+                line_content = code[line_start:match.start()]
+                if '#' in line_content or line_content.strip().startswith('#'):
+                    continue  # Skip commented lines
+                
                 original = match.group(0)
                 credential_value = match.group(1) if match.lastindex >= 1 else ''
                 env_var_name = cred_type.upper()
@@ -548,7 +554,30 @@ class SecurityHardener:
                 ))
                 self.stats['credentials_fixed'] += 1
         
+        # v8.8: Also mask credentials in COBOL traceability comments
+        code = self._mask_credentials_in_comments(code)
+        
         return code
+    
+    def _mask_credentials_in_comments(self, code: str) -> str:
+        """Mask sensitive values in COBOL traceability comments"""
+        lines = code.split('\n')
+        result = []
+        
+        # Patterns for sensitive values in comments
+        sensitive_patterns = [
+            (r"'([A-Za-z0-9!@#$%^&*]{8,})'", "'***REDACTED***'"),  # Quoted strings 8+ chars
+            (r"(PASSWORD|SECRET|KEY|TOKEN)[-_\s:=]+['\"]?([A-Za-z0-9!@#$%^&*_-]{6,})['\"]?", r"\1=***REDACTED***"),
+        ]
+        
+        for line in lines:
+            if line.strip().startswith('#') and any(kw in line.upper() for kw in ['PASSWORD', 'SECRET', 'KEY', 'TOKEN', 'API-KEY']):
+                # Mask sensitive values in this comment
+                for pattern, replacement in sensitive_patterns:
+                    line = re.sub(pattern, replacement, line, flags=re.IGNORECASE)
+            result.append(line)
+        
+        return '\n'.join(result)
     
     def _protect_pii(self, code: str) -> str:
         """Add protection for PII fields and mask sensitive data in logs"""
