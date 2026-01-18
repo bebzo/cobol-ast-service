@@ -48,22 +48,17 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
-// Monaco Editor - dynamic import only (loader configured in useEffect)
-const Editor = dynamic(
-  () => import("@monaco-editor/react").then((mod) => {
-    // Configure loader when module loads (client-side only)
-    mod.loader.config({
-      paths: {
-        vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
-      }
-    });
-    return mod;
-  }),
-  { 
-    ssr: false,
-    loading: () => <div className="h-[400px] bg-slate-900 flex items-center justify-center text-slate-400">Loading editor...</div>
-  }
-);
+// Configure Monaco loader at module level (runs once on client)
+import { loader } from "@monaco-editor/react";
+if (typeof window !== 'undefined') {
+  loader.config({
+    paths: {
+      vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
+    }
+  });
+}
+
+const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
 const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard"), { ssr: false });
 const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
