@@ -1973,9 +1973,14 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* COBOL Editor */}
             <div className="bg-slate-800 rounded-lg overflow-hidden relative">
-              <div className="flex items-center gap-2 px-4 py-3 bg-amber-500/20 border-b border-slate-700">
-                <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
-                <span className="font-medium text-amber-400">COBOL (Source)</span>
+              <div className="flex items-center justify-between px-4 py-3 bg-amber-500/20 border-b border-slate-700">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+                  <span className="font-medium text-amber-400">COBOL (Source)</span>
+                </div>
+                {cobolCode && (
+                  <span className="text-xs text-slate-400 font-mono">{cobolCode.split('\n').length} lines</span>
+                )}
               </div>
               {!cobolCode && (
                 <div className="absolute inset-0 top-[52px] z-10 flex items-center justify-center bg-slate-900/80 pointer-events-none">
