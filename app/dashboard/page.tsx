@@ -48,22 +48,13 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
-const Editor = dynamic(() => import("@monaco-editor/react").then(mod => {
-  // Configure Monaco loader on first import (client-side only)
-  const { loader } = mod;
-  loader.config({
-    paths: {
-      vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
-    }
-  });
-  return mod.Editor;
-}), { 
+const Editor = dynamic(() => import("@monaco-editor/react"), { 
   ssr: false,
   loading: () => (
     <div className="h-[400px] flex items-center justify-center bg-slate-900">
       <div className="text-center">
         <Loader2 className="w-8 h-8 mx-auto mb-2 text-cyan-400 animate-spin" />
-        <p className="text-cyan-400 text-sm">Initializing code editor...</p>
+        <p className="text-cyan-400 text-sm">Loading editor...</p>
       </div>
     </div>
   )
