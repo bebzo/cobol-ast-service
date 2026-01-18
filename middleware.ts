@@ -66,14 +66,16 @@ export function middleware(request: NextRequest) {
     response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
   
-  // Content Security Policy
+  // Content Security Policy - v8.9: Allow Pyodide from jsdelivr CDN
   response.headers.set('Content-Security-Policy', [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://vercel.live https://*.vercel.live blob:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://*.supabase.co https://*.vercel.app wss://*.supabase.co https://generativelanguage.googleapis.com",
+    "connect-src 'self' https://cdn.jsdelivr.net https://*.supabase.co https://*.vercel.app wss://*.supabase.co https://generativelanguage.googleapis.com https://vercel.live wss://*.vercel.live",
+    "worker-src 'self' blob:",
+    "frame-src 'self' https://vercel.live",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'"
