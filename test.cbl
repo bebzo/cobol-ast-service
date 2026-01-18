@@ -1,18 +1,9 @@
        IDENTIFICATION DIVISION.
        PROGRAM-ID. TEST-PROGRAM.
-       
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-       01 WS-COUNTER PIC 9(3) VALUE 0.
-       01 WS-NAME PIC X(20) VALUE SPACES.
-       
+       01 WS-AMOUNT PIC 9(5)V99.
        PROCEDURE DIVISION.
-       MAIN-PARA.
-           MOVE 100 TO WS-COUNTER.
-           MOVE "HELLO WORLD" TO WS-NAME.
-           PERFORM DISPLAY-PARA.
+           MOVE 100.50 TO WS-AMOUNT.
+           DISPLAY WS-AMOUNT.
            STOP RUN.
-       
-       DISPLAY-PARA.
-           DISPLAY "Counter: " WS-COUNTER.
-           DISPLAY "Name: " WS-NAME.
