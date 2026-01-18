@@ -48,17 +48,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
-const Editor = dynamic(() => import("@monaco-editor/react"), { 
-  ssr: false,
-  loading: () => (
-    <div className="h-[400px] flex items-center justify-center bg-slate-900 text-slate-500">
-      <div className="text-center">
-        <Code2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-        <p>Initializing editor...</p>
-      </div>
-    </div>
-  )
-});
+const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
 const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard"), { ssr: false });
 const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
