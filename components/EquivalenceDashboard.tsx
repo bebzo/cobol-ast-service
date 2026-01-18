@@ -19,6 +19,7 @@ interface EquivalenceMetrics {
   edgeCaseCoverage: number;
   hasEdgeCaseTests: boolean;
   performanceDeviation: number;
+  performanceMeasured: boolean; // v8.8: Track if performance was actually measured
   semanticCoverage: number;
   propertyTestsPassed: number;
   propertyTestsTotal: number;
@@ -87,6 +88,7 @@ export default function EquivalenceDashboard({
     edgeCaseCoverage: 0,
     hasEdgeCaseTests: false,
     performanceDeviation: 0,
+    performanceMeasured: false,
     semanticCoverage: 0,
     propertyTestsPassed: 0,
     propertyTestsTotal: 0,
@@ -174,6 +176,8 @@ export default function EquivalenceDashboard({
     // Calculate performance deviation from analysis metadata if available
     const perfData = analysis?.performance_metrics || {};
     const measuredDeviation = perfData.deviation_percent ?? 0;
+    const wasPerformanceMeasured = perfData.deviation_percent !== undefined || 
+                                    (perfData.cobol_exec_time && perfData.python_exec_time);
 
     // Use real edge case results from API if available
     const realEdgeCoverage = edgeCaseResults && edgeCaseResults.total > 0 
@@ -220,6 +224,7 @@ export default function EquivalenceDashboard({
       edgeCaseCoverage: realEdgeCoverage,
       // Performance deviation: from analysis or 0 if not measured
       performanceDeviation: measuredDeviation,
+      performanceMeasured: wasPerformanceMeasured, // v8.8: honest tracking
       // Semantic coverage from backend analysis (translation rate)
       semanticCoverage: translationRate,
       propertyTestsPassed: propertyPassed,
@@ -246,6 +251,7 @@ export default function EquivalenceDashboard({
         edgeCaseCoverage: newMetrics.edgeCaseCoverage * eased,
         hasEdgeCaseTests: newMetrics.hasEdgeCaseTests,
         performanceDeviation: newMetrics.performanceDeviation * eased,
+        performanceMeasured: newMetrics.performanceMeasured,
         semanticCoverage: newMetrics.semanticCoverage * eased,
         propertyTestsPassed: Math.round(newMetrics.propertyTestsPassed * eased),
         propertyTestsTotal: newMetrics.propertyTestsTotal,
@@ -270,14 +276,15 @@ export default function EquivalenceDashboard({
     return "bg-red-500/20 border-red-500/40";
   };
 
-  const getPerformanceStatus = (deviation: number) => {
-    if (deviation < 0) return { color: "text-green-400", label: "Faster", icon: Zap };
-    if (deviation === 0) return { color: "text-blue-400", label: "Equivalent", icon: Activity };
-    if (deviation <= 15) return { color: "text-yellow-400", label: "Acceptable", icon: Activity };
-    return { color: "text-red-400", label: "Slower", icon: AlertTriangle };
+  const getPerformanceStatus = (deviation: number, measured: boolean) => {
+    if (!measured) return { color: "text-slate-400", label: "Not measured", icon: Activity, notMeasured: true };
+    if (deviation < 0) return { color: "text-green-400", label: "Faster", icon: Zap, notMeasured: false };
+    if (deviation === 0) return { color: "text-blue-400", label: "Equivalent", icon: Activity, notMeasured: false };
+    if (deviation <= 15) return { color: "text-yellow-400", label: "Acceptable", icon: Activity, notMeasured: false };
+    return { color: "text-red-400", label: "Slower", icon: AlertTriangle, notMeasured: false };
   };
 
-  const perfStatus = getPerformanceStatus(animatedMetrics.performanceDeviation);
+  const perfStatus = getPerformanceStatus(animatedMetrics.performanceDeviation, animatedMetrics.performanceMeasured);
 
   const overallScore = (
     animatedMetrics.numericalEquivalence * 0.3 +
@@ -545,47 +552,52 @@ export default function EquivalenceDashboard({
 
         {/* Performance - with popup */}
         <div className={`p-4 rounded-lg border group relative ${
-          animatedMetrics.performanceDeviation <= 0 
-            ? "bg-green-500/20 border-green-500/40" 
-            : animatedMetrics.performanceDeviation <= 15 
-              ? "bg-yellow-500/20 border-yellow-500/40" 
-              : "bg-red-500/20 border-red-500/40"
+          perfStatus.notMeasured 
+            ? "bg-slate-700/20 border-slate-500/40"
+            : animatedMetrics.performanceDeviation <= 0 
+              ? "bg-green-500/20 border-green-500/40" 
+              : animatedMetrics.performanceDeviation <= 15 
+                ? "bg-yellow-500/20 border-yellow-500/40" 
+                : "bg-red-500/20 border-red-500/40"
         }`}>
           <div className="flex items-center gap-2 mb-2">
             <perfStatus.icon className={`w-4 h-4 ${perfStatus.color}`} />
             <span className="text-xs text-slate-400">Performance</span>
           </div>
           <p className={`text-2xl font-bold tabular-nums ${perfStatus.color}`}>
-            {animatedMetrics.performanceDeviation > 0 ? "+" : ""}
-            {animatedMetrics.performanceDeviation.toFixed(0)}%
+            {perfStatus.notMeasured ? "—" : (
+              <>
+                {animatedMetrics.performanceDeviation > 0 ? "+" : ""}
+                {animatedMetrics.performanceDeviation.toFixed(0)}%
+              </>
+            )}
           </p>
           <p className="text-[10px] text-slate-500 mt-1">{perfStatus.label}</p>
           {/* Popup with performance explanation */}
           <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-50 w-72">
             <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl">
-              <p className="text-xs font-semibold text-yellow-400 mb-2 flex items-center gap-1">
-                <Zap className="w-3 h-3" /> Performance Analysis:
-              </p>
-              <ul className="space-y-1 text-[10px]">
-                <li className="text-slate-300">
-                  <span className="text-slate-400">Python vs COBOL:</span> Expected +30% overhead
-                </li>
-                <li className="text-slate-300">
-                  <span className="text-slate-400">Trade-off:</span> Maintainability over raw speed
-                </li>
-                <li className="text-slate-300">
-                  <span className="text-slate-400">Optimization:</span> Use PyPy for 5x speedup
-                </li>
-              </ul>
-              <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
-                COBOL on mainframe is highly optimized for 60+ years
-              </p>
-              <button 
-                className="mt-2 w-full text-[10px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 py-1 px-2 rounded flex items-center justify-center gap-1 transition"
-                onClick={() => document.querySelector<HTMLInputElement>('[placeholder*="question"]')?.focus()}
-              >
-                <Zap className="w-3 h-3" /> Ask Gemini Chat
-              </button>
+              {perfStatus.notMeasured ? (
+                <>
+                  <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1">
+                    <Activity className="w-3 h-3" /> Performance Not Measured
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Runtime performance comparison requires execution benchmarks that were not performed for this analysis.
+                  </p>
+                  <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
+                    Tip: Run actual performance tests in your environment
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold text-green-400 mb-2 flex items-center gap-1">
+                    <Zap className="w-3 h-3" /> Measured Performance:
+                  </p>
+                  <p className="text-[10px] text-slate-300">
+                    Deviation: {animatedMetrics.performanceDeviation > 0 ? "+" : ""}{animatedMetrics.performanceDeviation.toFixed(1)}%
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
