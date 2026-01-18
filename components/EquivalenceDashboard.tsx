@@ -181,18 +181,33 @@ export default function EquivalenceDashboard({
       : (edgeCaseTests.length > 0 ? (edgeCasePassed / edgeCaseTests.length) * 100 : 0);
     const hasRealEdgeTests = (edgeCaseResults && edgeCaseResults.total > 0) || edgeCaseTests.length > 0;
 
+    // Calculate behavioral score based on behavioral tests only, not global passRate
+    const behavioralScore = behavioralTests.length > 0 
+      ? (behavioralPassed / behavioralTests.length) * 100 
+      : 0;  // No behavioral tests = 0, not inflated
+
+    // Calculate true numerical score
+    const numericalScore = numericalTests.length > 0 
+      ? (numericalPassed / numericalTests.length) * 100 
+      : 0;  // No numerical tests = 0, not inflated
+
+    // If no specific tests found, use overall pass rate as baseline (marked as estimated)
+    const hasSpecificTests = numericalTests.length > 0 || behavioralTests.length > 0;
+
     const newMetrics: EquivalenceMetrics = {
-      // Numerical equivalence: based on numerical/calculation tests, fallback to overall pass rate
-      numericalEquivalence: numericalTests.length > 0 
-        ? (numericalPassed / numericalTests.length) * 100 
+      // Numerical equivalence: ONLY from numerical tests, or overall if no specific tests
+      numericalEquivalence: hasSpecificTests 
+        ? (numericalTests.length > 0 ? numericalScore : passRate * 100)
         : passRate * 100,
-      // Behavioral equivalence: based on all tests pass rate
-      behavioralEquivalence: passRate * 100,
-      // Edge case coverage: use real API results if available
+      // Behavioral equivalence: ONLY from behavioral tests, or overall if no specific tests  
+      behavioralEquivalence: hasSpecificTests
+        ? (behavioralTests.length > 0 ? behavioralScore : passRate * 100)
+        : passRate * 100,
+      // Edge case coverage: real API results or calculated from edge tests (0 if none)
       edgeCaseCoverage: realEdgeCoverage,
       // Performance deviation: from analysis or 0 if not measured
       performanceDeviation: measuredDeviation,
-      // Semantic coverage from backend analysis
+      // Semantic coverage from backend analysis (translation rate)
       semanticCoverage: translationRate,
       propertyTestsPassed: propertyPassed,
       propertyTestsTotal: propertyTests.length,

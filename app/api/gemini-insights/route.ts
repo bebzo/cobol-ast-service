@@ -136,13 +136,17 @@ PROVIDE JSON with this structure:
 }
 
 GRADING SCALE:
-- 90-100: A (Production Ready)
-- 80-89: B (Minor improvements needed)
-- 70-79: C (Review required)
-- 60-69: D (Significant issues)
-- <60: F (Major rework needed)
+- 90-100: A (Production Ready) - Only if ALL criteria fully met
+- 80-89: B (Minor improvements needed) - Good equivalence, minor issues
+- 70-79: C (Review required) - Functional but needs work
+- 60-69: D (Significant issues) - Missing implementations or errors
+- <60: F (Major rework needed) - Fundamental problems
 
-Be GENEROUS with scores when code is functionally correct. Prioritize EQUIVALENCE over Python style.
+OBJECTIVITY RULES:
+- Score ONLY what you can verify in the code
+- Deduct points for: TODO/pass methods, missing error handling, float for money
+- Do NOT inflate scores - be accurate and honest
+- If you cannot verify something, do not give points for it
 
 Return ONLY valid JSON, no markdown.`,
 

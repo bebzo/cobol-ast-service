@@ -8027,60 +8027,133 @@ def detect_business_patterns(cobol_source: str) -> Dict[str, List[str]]:
 
 def calculate_confidence_score(cobol_ast: 'CobolAST', python_code: str, 
                                 gemini_stats: Dict) -> Dict[str, Any]:
-    """Calculate a confidence score for the transpilation.
+    """Calculate an OBJECTIVE confidence score for the transpilation.
     
-    Score is based on:
-    - % of statements successfully transpiled
-    - Syntax validity
-    - Gemini enrichment success
-    - Complexity of the COBOL program
+    Score is based on MEASURABLE FACTS ONLY:
+    1. Syntax validity (25%): Python code compiles without errors
+    2. Implementation completeness (35%): Methods have real logic (no pass/TODO)
+    3. Statement coverage (25%): COBOL statements → Python statements ratio
+    4. Type safety (15%): Decimal usage for financial variables
+    
+    NO artificial bonuses - only measurable truth.
     """
-    # Count total COBOL statements
-    total_statements = sum(len(p.statements) for p in cobol_ast.paragraphs)
+    # ============================================================
+    # 1. SYNTAX VALIDITY (25 points) - Binary: valid or not
+    # ============================================================
+    syntax_valid = gemini_stats.get('syntax_valid', False)
+    syntax_score = 25.0 if syntax_valid else 0.0
     
-    # Count Python method bodies (excluding pass statements)
-    python_methods = re.findall(r'def \w+\(self\)[^:]*:\s*"""[^"]*"""(.*?)(?=def |\Z)', 
-                                 python_code, re.DOTALL)
-    non_empty_methods = sum(1 for m in python_methods if 'pass' not in m and m.strip())
+    # ============================================================
+    # 2. IMPLEMENTATION COMPLETENESS (35 points)
+    # ============================================================
+    # Count methods with real implementation vs empty/pass/TODO
+    method_pattern = r'def (\w+)\(self[^)]*\)[^:]*:(.*?)(?=\n    def |\n\nclass |\Z)'
+    methods = re.findall(method_pattern, python_code, re.DOTALL)
     
-    # Base score calculation
-    if total_statements == 0:
-        statement_coverage = 0.0
+    total_methods = len(methods)
+    empty_methods = 0
+    todo_methods = 0
+    
+    for method_name, method_body in methods:
+        body_stripped = method_body.strip()
+        # Check for empty implementations
+        if not body_stripped or body_stripped == 'pass':
+            empty_methods += 1
+        elif 'pass  # TODO' in method_body or 'raise NotImplementedError' in method_body:
+            todo_methods += 1
+        elif body_stripped.startswith('"""') and body_stripped.endswith('"""'):
+            # Only docstring, no code
+            empty_methods += 1
+    
+    implemented_methods = total_methods - empty_methods - todo_methods
+    implementation_rate = implemented_methods / max(total_methods, 1)
+    implementation_score = implementation_rate * 35.0
+    
+    # ============================================================
+    # 3. STATEMENT COVERAGE (25 points)
+    # ============================================================
+    total_cobol_statements = sum(len(p.statements) for p in cobol_ast.paragraphs)
+    
+    # Count actual Python statements (assignments, calls, returns, etc.)
+    python_statements = len(re.findall(r'^\s{8}(?!def |class |#|"""|\s*$).+$', python_code, re.MULTILINE))
+    
+    if total_cobol_statements == 0:
+        statement_coverage = 1.0  # No statements to translate
     else:
-        # Estimate transpiled statements by counting Python statements
-        python_statements = len(re.findall(r'self\.\w+', python_code))
-        statement_coverage = min(1.0, python_statements / max(total_statements, 1))
+        # Ratio of Python statements to COBOL statements
+        # A good transpilation typically has 0.8-1.5x the statements
+        ratio = python_statements / total_cobol_statements
+        # Score peaks at 1:1 ratio, decreases for too few or too many
+        if ratio < 0.5:
+            statement_coverage = ratio * 2  # 0-50% → 0-100%
+        elif ratio <= 1.5:
+            statement_coverage = 1.0  # Optimal range
+        else:
+            statement_coverage = max(0.5, 1.5 / ratio)  # Too verbose, slight penalty
     
-    # Syntax validity bonus
-    syntax_bonus = 0.2 if gemini_stats.get('syntax_valid', False) else 0.0
+    statement_score = statement_coverage * 25.0
     
-    # Gemini enrichment bonus
-    enrichment_bonus = 0.0
-    if gemini_stats.get('enrichment_mode') == 'gemini_safe':
-        enriched_count = gemini_stats.get('enriched', 0)
-        enrichment_bonus = min(0.15, enriched_count * 0.01)
+    # ============================================================
+    # 4. TYPE SAFETY (15 points) - Decimal usage for financial ops
+    # ============================================================
+    # Check for proper Decimal usage
+    decimal_imports = 'from decimal import' in python_code or 'import decimal' in python_code
+    decimal_usages = len(re.findall(r'Decimal\s*\(', python_code))
+    float_usages = len(re.findall(r'(?<!\w)float\s*\(', python_code))
     
-    # Penalty for rollback
-    rollback_penalty = 0.1 if gemini_stats.get('enrichment_mode') == 'ast_rollback' else 0.0
+    # Financial variables should use Decimal, not float
+    financial_keywords = len(re.findall(
+        r'(amount|balance|total|interest|fee|rate|price|cost|payment)',
+        python_code, re.IGNORECASE
+    ))
     
-    # Calculate final score (0-100)
-    raw_score = (statement_coverage * 0.65) + syntax_bonus + enrichment_bonus - rollback_penalty
-    confidence_score = round(min(1.0, max(0.0, raw_score)) * 100, 1)
+    if financial_keywords > 0:
+        # If there are financial operations, Decimal should be used
+        if decimal_usages > 0 and float_usages == 0:
+            type_safety_score = 15.0  # Perfect: Decimal only
+        elif decimal_usages > float_usages:
+            type_safety_score = 12.0  # Good: mostly Decimal
+        elif decimal_imports:
+            type_safety_score = 8.0   # OK: Decimal imported but mixed
+        else:
+            type_safety_score = 3.0   # Poor: no Decimal for financial ops
+    else:
+        # No financial operations detected
+        type_safety_score = 15.0 if syntax_valid else 10.0
+    
+    # ============================================================
+    # FINAL SCORE - Sum of objective components
+    # ============================================================
+    confidence_score = round(syntax_score + implementation_score + statement_score + type_safety_score, 1)
+    
+    # Ensure bounds
+    confidence_score = min(100.0, max(0.0, confidence_score))
     
     return {
         'confidence_score': confidence_score,
+        'breakdown': {
+            'syntax_validity': round(syntax_score, 1),
+            'implementation_completeness': round(implementation_score, 1),
+            'statement_coverage': round(statement_score, 1),
+            'type_safety': round(type_safety_score, 1)
+        },
         'coverage': {
-            'cobol_statements': total_statements,
+            'cobol_statements': total_cobol_statements,
             'cobol_paragraphs': len(cobol_ast.paragraphs),
             'cobol_variables': len(cobol_ast.variables),
-            'python_methods': len(python_methods),
-            'methods_with_logic': non_empty_methods,
-            'statement_coverage_pct': round(statement_coverage * 100, 1)
+            'python_methods': total_methods,
+            'methods_implemented': implemented_methods,
+            'methods_empty': empty_methods,
+            'methods_todo': todo_methods,
+            'python_statements': python_statements,
+            'statement_ratio': round(python_statements / max(total_cobol_statements, 1), 2)
         },
         'quality_factors': {
-            'syntax_valid': gemini_stats.get('syntax_valid', False),
-            'enrichment_mode': gemini_stats.get('enrichment_mode', 'unknown'),
-            'enriched_methods': gemini_stats.get('enriched', 0)
+            'syntax_valid': syntax_valid,
+            'decimal_imports': decimal_imports,
+            'decimal_usages': decimal_usages,
+            'float_usages': float_usages,
+            'financial_keywords': financial_keywords
         }
     }
 
