@@ -2075,7 +2075,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       </div>
                     </div>
                   )}
-                  {!pythonCode && !isLoading ? (
+                  {!pythonCode && !analysis?.python_code && !isLoading ? (
                     <div className="h-[400px] flex items-center justify-center bg-slate-900">
                       <div className="text-center text-slate-500">
                         <Code2 className="w-16 h-16 mx-auto mb-4 opacity-30" />
@@ -2091,21 +2091,10 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         <p className="text-slate-500 text-sm mt-2">{analysisStatus}</p>
                       </div>
                     </div>
-                  ) : pythonCode ? (
-                    <Editor
-                      height="400px"
-                      defaultLanguage="python"
-                      value={pythonCode}
-                      theme="vs-dark"
-                      options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                    />
                   ) : (
-                    <div className="h-[400px] flex items-center justify-center bg-slate-900">
-                      <div className="text-center text-slate-500">
-                        <Code2 className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                        <p className="text-lg font-medium">Waiting for code...</p>
-                      </div>
-                    </div>
+                    <pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">
+                      {pythonCode || analysis?.python_code || '# No code generated'}
+                    </pre>
                   )}
                 </div>
               )}
