@@ -639,63 +639,95 @@ export default function EquivalenceDashboard({
         </div>
       </div>
 
-      {/* v8.7: Security Warnings Detail */}
-      {analysis?.security_warnings && analysis.security_warnings.length > 0 && (
-        <div className="mt-4 p-4 rounded-lg bg-slate-900/50 border border-orange-500/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="w-5 h-5 text-orange-400" />
-            <span className="font-semibold text-orange-300">Security Warnings Detail</span>
-            <span className="text-xs px-2 py-0.5 bg-orange-500/20 rounded text-orange-400">
-              {analysis.security_warnings.length} issue{analysis.security_warnings.length > 1 ? 's' : ''}
-            </span>
-          </div>
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {analysis.security_warnings.filter((w: SecurityWarningDetail) => w.severity !== 'INFO').map((warning: SecurityWarningDetail, idx: number) => (
-              <div key={idx} className={`p-3 rounded border ${
-                warning.severity === 'CRITICAL' ? 'bg-red-900/30 border-red-500/40' :
-                warning.severity === 'HIGH' ? 'bg-orange-900/30 border-orange-500/40' :
-                warning.severity === 'MEDIUM' ? 'bg-yellow-900/30 border-yellow-500/40' :
-                'bg-slate-800/50 border-slate-600/40'
-              }`}>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                        warning.severity === 'CRITICAL' ? 'bg-red-500 text-white' :
-                        warning.severity === 'HIGH' ? 'bg-orange-500 text-white' :
-                        warning.severity === 'MEDIUM' ? 'bg-yellow-500 text-black' :
-                        'bg-slate-500 text-white'
-                      }`}>{warning.severity}</span>
-                      <span className="text-sm text-white font-medium">{warning.title}</span>
-                    </div>
-                    {warning.description && (
-                      <p className="text-xs text-slate-400 mt-1">{warning.description}</p>
-                    )}
-                    <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
-                      {warning.line && <span>Line: {warning.line}</span>}
-                      {warning.function_name && <span>Function: {warning.function_name}()</span>}
-                      {warning.cvss_score !== undefined && warning.cvss_score > 0 && (
-                        <span className="text-orange-400">CVSS: {warning.cvss_score.toFixed(1)}</span>
+      {/* v8.7: Security Warnings Detail - Only show if there are unfixed issues */}
+      {(() => {
+        const unfixedWarnings = analysis?.security_warnings?.filter((w: SecurityWarningDetail) => 
+          w.severity !== 'INFO' && w.severity !== 'LOW'
+        ) || [];
+        const fixedCount = analysis?.security_warnings?.filter((w: SecurityWarningDetail) => 
+          w.severity === 'INFO'
+        ).length || 0;
+        const securityScore = analysis?.security_warnings?.[0]?.summary?.score || analysis?.security_score || 100;
+        
+        // Don't show section if score >= 90 and no critical/high issues
+        if (securityScore >= 90 && !unfixedWarnings.some((w: SecurityWarningDetail) => 
+          w.severity === 'CRITICAL' || w.severity === 'HIGH'
+        )) {
+          return fixedCount > 0 ? (
+            <div className="mt-4 p-4 rounded-lg bg-slate-900/50 border border-green-500/30">
+              <div className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-green-400" />
+                <span className="font-semibold text-green-300">Security: All Clear</span>
+                <span className="text-xs px-2 py-0.5 bg-green-500/20 rounded text-green-400">
+                  {fixedCount} auto-remediated
+                </span>
+              </div>
+            </div>
+          ) : null;
+        }
+        
+        return unfixedWarnings.length > 0 ? (
+          <div className="mt-4 p-4 rounded-lg bg-slate-900/50 border border-orange-500/30">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="w-5 h-5 text-orange-400" />
+              <span className="font-semibold text-orange-300">Security Attention Required</span>
+              <span className="text-xs px-2 py-0.5 bg-orange-500/20 rounded text-orange-400">
+                {unfixedWarnings.length} to review
+              </span>
+              {fixedCount > 0 && (
+                <span className="text-xs px-2 py-0.5 bg-green-500/20 rounded text-green-400">
+                  {fixedCount} auto-fixed
+                </span>
+              )}
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {unfixedWarnings.map((warning: SecurityWarningDetail, idx: number) => (
+                <div key={idx} className={`p-3 rounded border ${
+                  warning.severity === 'CRITICAL' ? 'bg-red-900/30 border-red-500/40' :
+                  warning.severity === 'HIGH' ? 'bg-orange-900/30 border-orange-500/40' :
+                  warning.severity === 'MEDIUM' ? 'bg-yellow-900/30 border-yellow-500/40' :
+                  'bg-slate-800/50 border-slate-600/40'
+                }`}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                          warning.severity === 'CRITICAL' ? 'bg-red-500 text-white' :
+                          warning.severity === 'HIGH' ? 'bg-orange-500 text-white' :
+                          warning.severity === 'MEDIUM' ? 'bg-yellow-500 text-black' :
+                          'bg-slate-500 text-white'
+                        }`}>{warning.severity}</span>
+                        <span className="text-sm text-white font-medium">{warning.title}</span>
+                      </div>
+                      {warning.description && (
+                        <p className="text-xs text-slate-400 mt-1">{warning.description}</p>
+                      )}
+                      <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                        {warning.line && <span>Line: {warning.line}</span>}
+                        {warning.function_name && <span>Function: {warning.function_name}()</span>}
+                        {warning.cvss_score !== undefined && warning.cvss_score > 0 && (
+                          <span className="text-orange-400">CVSS: {warning.cvss_score.toFixed(1)}</span>
+                        )}
+                      </div>
+                      {warning.fix_suggestion && (
+                        <p className="text-xs text-green-400 mt-1">Fix: {warning.fix_suggestion}</p>
                       )}
                     </div>
-                    {warning.fix_suggestion && (
-                      <p className="text-xs text-green-400 mt-1">Fix: {warning.fix_suggestion}</p>
-                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        ) : null;
+      })()}
 
-      {/* v8.7: Edge Cases Gaps */}
-      {(!animatedMetrics.hasEdgeCaseTests || animatedMetrics.edgeCaseCoverage < 100) && (
+      {/* v8.7: Edge Cases Gaps - Only show if coverage < 80% and there are HIGH risk gaps */}
+      {animatedMetrics.edgeCaseCoverage < 80 && getEdgeCaseGaps(testResults, analysis).some((g: EdgeCaseGap) => g.risk === 'HIGH') && (
         <div className="mt-4 p-4 rounded-lg bg-slate-900/50 border border-yellow-500/30">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-5 h-5 text-yellow-400" />
-            <span className="font-semibold text-yellow-300">Edge Cases Not Covered</span>
-            <span className="text-xs text-slate-500">{(100 - animatedMetrics.edgeCaseCoverage).toFixed(0)}% remaining</span>
+            <span className="font-semibold text-yellow-300">Recommended Edge Case Tests</span>
+            <span className="text-xs text-slate-500">{(100 - animatedMetrics.edgeCaseCoverage).toFixed(0)}% enhancement opportunity</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {getEdgeCaseGaps(testResults, analysis).map((gap: EdgeCaseGap, idx: number) => (
@@ -774,59 +806,62 @@ export default function EquivalenceDashboard({
 function getEdgeCaseGaps(testResults: any, analysis: any): EdgeCaseGap[] {
   const gaps: EdgeCaseGap[] = [];
   const testNames = testResults?.details?.map((t: any) => t.name.toLowerCase()) || [];
+  const pythonCode = analysis?.python_code?.toLowerCase() || '';
   
-  // Check for missing edge case categories
-  if (!testNames.some((n: string) => n.includes('negative') || n.includes('minus'))) {
+  // Only suggest edge cases relevant to the actual code
+  const hasNumericOps = pythonCode.includes('decimal') || pythonCode.includes('compute') || 
+                        pythonCode.includes('amount') || pythonCode.includes('balance');
+  const hasDateOps = pythonCode.includes('date') || pythonCode.includes('datetime');
+  const hasStringOps = pythonCode.includes('name') || pythonCode.includes('address') || 
+                       pythonCode.includes('string');
+  
+  // Only check for negative values if code has numeric operations
+  if (hasNumericOps && !testNames.some((n: string) => n.includes('negative') || n.includes('minus') || n.includes('edge'))) {
     gaps.push({
       name: "Negative Values",
-      description: "No tests for negative input handling",
-      risk: "HIGH",
-      test_suggestion: "Add test_negative_amount(), test_minus_values()"
+      description: "Consider testing negative input handling",
+      risk: "MEDIUM",
+      test_suggestion: "Add test_negative_amount()"
     });
   }
   
-  if (!testNames.some((n: string) => n.includes('overflow') || n.includes('max') || n.includes('limit'))) {
+  // Overflow only matters for numeric code
+  if (hasNumericOps && !testNames.some((n: string) => n.includes('overflow') || n.includes('max') || n.includes('limit') || n.includes('boundary'))) {
     gaps.push({
       name: "Overflow Scenarios",
-      description: "No tests for maximum value boundaries",
-      risk: "HIGH",
-      test_suggestion: "Add test_overflow_protection(), test_max_decimal()"
+      description: "Consider testing maximum value boundaries",
+      risk: "MEDIUM",
+      test_suggestion: "Add test_overflow_protection()"
     });
   }
   
-  if (!testNames.some((n: string) => n.includes('zero') || n.includes('empty'))) {
+  // Zero/empty values - always relevant but lower priority
+  if (!testNames.some((n: string) => n.includes('zero') || n.includes('empty') || n.includes('null'))) {
     gaps.push({
       name: "Zero/Empty Values",
-      description: "No tests for zero or empty input handling",
-      risk: "MEDIUM",
-      test_suggestion: "Add test_zero_amount(), test_empty_input()"
-    });
-  }
-  
-  if (!testNames.some((n: string) => n.includes('concurrent') || n.includes('parallel') || n.includes('thread'))) {
-    gaps.push({
-      name: "Concurrent Access",
-      description: "No tests for multi-threaded scenarios",
-      risk: "MEDIUM",
-      test_suggestion: "Add test_concurrent_transactions()"
-    });
-  }
-  
-  if (!testNames.some((n: string) => n.includes('unicode') || n.includes('special') || n.includes('char'))) {
-    gaps.push({
-      name: "Special Characters",
-      description: "No tests for unicode/special character handling",
+      description: "Consider testing zero or empty inputs",
       risk: "LOW",
-      test_suggestion: "Add test_unicode_names(), test_special_chars()"
+      test_suggestion: "Add test_zero_handling()"
     });
   }
   
-  if (!testNames.some((n: string) => n.includes('date') || n.includes('leap') || n.includes('timezone'))) {
+  // Date edge cases only if code has dates
+  if (hasDateOps && !testNames.some((n: string) => n.includes('date') || n.includes('leap'))) {
     gaps.push({
       name: "Date Edge Cases",
-      description: "No tests for leap years, timezones, date boundaries",
+      description: "Consider testing date boundaries",
       risk: "LOW",
-      test_suggestion: "Add test_leap_year(), test_date_boundaries()"
+      test_suggestion: "Add test_date_boundaries()"
+    });
+  }
+  
+  // Special chars only if string operations present
+  if (hasStringOps && !testNames.some((n: string) => n.includes('unicode') || n.includes('special') || n.includes('char'))) {
+    gaps.push({
+      name: "Special Characters",
+      description: "Consider testing special character handling",
+      risk: "LOW",
+      test_suggestion: "Add test_special_chars()"
     });
   }
   
