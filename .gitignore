@@ -18,11 +18,8 @@
 **/downloads/
 **/eggs/
 **/.eggs/
-# **/lib/  # Disabled - conflicts with Next.js lib/ directory
+**/lib/
 **/lib64/
-
-# Allow Next.js lib folder
-!/lib/
 **/parts/
 **/sdist/
 **/var/
