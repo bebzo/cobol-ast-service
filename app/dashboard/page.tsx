@@ -1987,7 +1987,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
               )}
               <textarea
-                className="w-full h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500"
+                className="w-full h-[400px] bg-slate-900 text-white font-mono text-sm p-4 resize-none focus:outline-none focus:ring-1 focus:ring-amber-500"
                 value={cobolCode}
                 onChange={(e) => setCobolCode(e.target.value)}
                 placeholder="Paste your COBOL code here..."
