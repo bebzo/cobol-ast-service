@@ -7,11 +7,47 @@ import {
   AlertTriangle,
   TrendingUp,
   Shield,
+  ShieldCheck,
   Zap,
   FileCheck,
   Download,
   Activity,
 } from "lucide-react";
+
+// Validation error patterns - tests that correctly reject invalid input
+const VALIDATION_PATTERNS = [
+  'validation error', 'negative values not allowed', 'validationerror',
+  'not allowed', 'invalid input', 'must be positive', 'cannot be negative'
+];
+
+// Helper to determine test display status
+function getTestDisplayStatus(test: { status: string; error?: string }): {
+  type: 'passed' | 'validation' | 'failed';
+  icon: string;
+  color: string;
+  bgColor: string;
+  tooltip?: string;
+} {
+  if (test.status === 'passed') {
+    return { type: 'passed', icon: '✓', color: 'text-green-400', bgColor: 'bg-green-500/20' };
+  }
+  
+  // Check if this is a validation success (correctly rejected invalid input)
+  const errorLower = (test.error || '').toLowerCase();
+  const isValidationSuccess = VALIDATION_PATTERNS.some(p => errorLower.includes(p));
+  
+  if (isValidationSuccess) {
+    return { 
+      type: 'validation', 
+      icon: '🛡️', 
+      color: 'text-blue-400', 
+      bgColor: 'bg-blue-500/20',
+      tooltip: 'Validation correcte - entrée invalide rejetée'
+    };
+  }
+  
+  return { type: 'failed', icon: '✗', color: 'text-red-400', bgColor: 'bg-red-500/20' };
+}
 
 interface EquivalenceMetrics {
   numericalEquivalence: number;
@@ -370,14 +406,20 @@ export default function EquivalenceDashboard({
                                  t.name.includes("amount") || t.name.includes("rate") || t.name.includes("decimal") ||
                                  t.name.includes("precision") || t.name.includes("total"))
                   .slice(0, 6)
-                  .map((t, i) => (
-                    <li key={i} className="text-[10px] flex items-center gap-1">
-                      <span className={t.status === 'passed' ? 'text-green-400' : 'text-red-400'}>
-                        {t.status === 'passed' ? '✓' : '✗'}
-                      </span>
-                      <span className="text-slate-300">{t.name}</span>
-                    </li>
-                  ))}
+                  .map((t, i) => {
+                    const displayStatus = getTestDisplayStatus(t);
+                    return (
+                      <li key={i} className="text-[10px] flex items-center gap-1" title={displayStatus.tooltip}>
+                        <span className={displayStatus.color}>
+                          {displayStatus.icon}
+                        </span>
+                        <span className="text-slate-300">{t.name}</span>
+                        {displayStatus.type === 'validation' && (
+                          <span className="text-[8px] px-1 py-0.5 bg-blue-500/30 text-blue-300 rounded">VALIDATION</span>
+                        )}
+                      </li>
+                    );
+                  })}
               </ul>
               <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
                 Validates COBOL COMPUTE → Python Decimal equivalence
@@ -413,14 +455,20 @@ export default function EquivalenceDashboard({
                   .filter((t) => t.name.includes("test_") || t.name.includes("should") || t.name.includes("when") ||
                                  t.name.includes("flow") || t.name.includes("state") || t.name.includes("logic"))
                   .slice(0, 6)
-                  .map((t, i) => (
-                    <li key={i} className="text-[10px] flex items-center gap-1">
-                      <span className={t.status === 'passed' ? 'text-green-400' : 'text-red-400'}>
-                        {t.status === 'passed' ? '✓' : '✗'}
-                      </span>
-                      <span className="text-slate-300">{t.name}</span>
-                    </li>
-                  ))}
+                  .map((t, i) => {
+                    const displayStatus = getTestDisplayStatus(t);
+                    return (
+                      <li key={i} className="text-[10px] flex items-center gap-1" title={displayStatus.tooltip}>
+                        <span className={displayStatus.color}>
+                          {displayStatus.icon}
+                        </span>
+                        <span className="text-slate-300">{t.name}</span>
+                        {displayStatus.type === 'validation' && (
+                          <span className="text-[8px] px-1 py-0.5 bg-blue-500/30 text-blue-300 rounded">VALIDATION</span>
+                        )}
+                      </li>
+                    );
+                  })}
               </ul>
               <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
                 Validates IF/PERFORM → if/def control flow equivalence
@@ -460,6 +508,7 @@ export default function EquivalenceDashboard({
                                    t.name.includes("precision") || t.name.includes("decimal"))
                     .slice(0, 6)
                     .map((t, i) => {
+                      const displayStatus = getTestDisplayStatus(t);
                       // Generate contextual explanation based on test name
                       const getExplanation = (name: string) => {
                         if (name.includes("zero")) return "Tests zero-value handling (COBOL numeric field boundary)";
@@ -473,14 +522,19 @@ export default function EquivalenceDashboard({
                         return "Validates edge case behavior";
                       };
                       return (
-                        <li key={i} className="text-[10px] border-l-2 border-slate-600 pl-2">
-                          <div className="flex items-center gap-1">
-                            <span className={t.status === 'passed' ? 'text-green-400' : 'text-red-400'}>
-                              {t.status === 'passed' ? '✓' : '✗'}
+                        <li key={i} className={`text-[10px] border-l-2 pl-2 ${displayStatus.type === 'validation' ? 'border-blue-500' : 'border-slate-600'}`}>
+                          <div className="flex items-center gap-1" title={displayStatus.tooltip}>
+                            <span className={displayStatus.color}>
+                              {displayStatus.icon}
                             </span>
                             <span className="text-slate-200 font-medium">{t.name}</span>
+                            {displayStatus.type === 'validation' && (
+                              <span className="text-[8px] px-1 py-0.5 bg-blue-500/30 text-blue-300 rounded">VALIDATION</span>
+                            )}
                           </div>
-                          <p className="text-slate-400 mt-0.5">{getExplanation(t.name)}</p>
+                          <p className="text-slate-400 mt-0.5">
+                            {displayStatus.type === 'validation' ? displayStatus.tooltip : getExplanation(t.name)}
+                          </p>
                         </li>
                       );
                     })}
