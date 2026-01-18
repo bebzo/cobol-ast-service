@@ -624,9 +624,27 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   
-  // Authentication check - requires login
+  // Authentication check - requires login (bypass for localhost testing)
   useEffect(() => {
     const checkAuth = async () => {
+      // Debug log
+      console.log('[Auth] Checking:', {
+        hostname: typeof window !== 'undefined' ? window.location.hostname : 'SSR',
+        search: typeof window !== 'undefined' ? window.location.search : 'SSR'
+      });
+      
+      // Bypass auth for localhost testing with ?test=1 query param
+      const isLocalhost = typeof window !== 'undefined' && 
+          (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const hasTestParam = typeof window !== 'undefined' && window.location.search.includes('test=1');
+      
+      if (isLocalhost && hasTestParam) {
+        console.log('[Auth] Localhost test mode - bypassing authentication');
+        setUser({ email: 'test@localhost', id: 'test-user' } as any);
+        setAuthLoading(false);
+        return;
+      }
+      
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -644,7 +662,16 @@ export default function Home() {
     };
     checkAuth();
     
-    // Listen for auth changes
+    // Listen for auth changes (skip in test mode)
+    const isTestMode = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+      window.location.search.includes('test=1');
+    
+    if (isTestMode) {
+      console.log('[Auth] Test mode - skipping auth state listener');
+      return () => {};
+    }
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         router.push('/login');
@@ -1034,8 +1061,10 @@ export default function Home() {
       const decoder = new TextDecoder();
       let buffer = '';
       let data: any = null;
+      let completeDataBuffer = '';  // v8.7: Accumulate large complete event data
+      let isAccumulatingComplete = false;
       
-      // Read SSE stream
+      // Read SSE stream - v8.7: Handle large JSON responses that span multiple chunks
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -1046,38 +1075,93 @@ export default function Home() {
         
         let currentEventType = '';
         for (const line of lines) {
+          // v8.8: When accumulating complete event, also add non-prefixed lines (continuation of JSON)
+          if (isAccumulatingComplete && !line.startsWith('event: ') && !line.startsWith('data: ') && line.trim() !== '') {
+            completeDataBuffer += line;
+            // Try to parse
+            try {
+              const eventData = JSON.parse(completeDataBuffer);
+              data = eventData;
+              isAccumulatingComplete = false;
+              console.log('[SSE v8.8] Complete event parsed (continuation):', (eventData.python_code || '').length, 'chars');
+            } catch (e) {
+              // Still incomplete
+            }
+            continue;
+          }
+          
           if (line.startsWith('event: ')) {
             currentEventType = line.slice(7).trim();
+            if (currentEventType === 'complete') {
+              isAccumulatingComplete = true;
+              completeDataBuffer = '';
+            }
             continue;
           }
           if (line.startsWith('data: ')) {
-            try {
-              const eventData = JSON.parse(line.slice(6));
-              
-              if (eventData.percent !== undefined) {
-                // Progress event - cap at 100%
-                setAnalysisProgress(Math.min(100, eventData.percent));
-                setAnalysisStatus(eventData.message || 'Processing...');
-              }
-              
-              // Check for complete event by type OR by presence of python_code
-              if (currentEventType === 'complete' || eventData.python_code !== undefined) {
-                // Complete event - store data
+            const dataContent = line.slice(6);
+            
+            // v8.8: For complete events, accumulate data across chunks
+            if (isAccumulatingComplete || currentEventType === 'complete') {
+              completeDataBuffer += dataContent;
+              // Try to parse accumulated complete data
+              try {
+                const eventData = JSON.parse(completeDataBuffer);
+                // Success! We have the complete JSON
                 data = eventData;
-              }
-              
-              // Check for error event
-              if (currentEventType === 'error' || (eventData.message && !eventData.percent && eventData.python_code === undefined)) {
-                throw new Error(eventData.message);
-              }
-            } catch (e) {
-              // Re-throw actual errors, only ignore JSON parse errors
-              if (e instanceof SyntaxError) {
-                // Ignore JSON parse errors for incomplete chunks
+                isAccumulatingComplete = false;
+                completeDataBuffer = '';
+                console.log('[SSE v8.8] Complete event parsed:', (eventData.python_code || '').length, 'chars');
+              } catch (e) {
+                // JSON incomplete, keep accumulating
                 continue;
               }
-              throw e; // Propagate real errors
+            } else {
+              // Progress events - parse immediately
+              try {
+                const eventData = JSON.parse(dataContent);
+                
+                if (eventData.percent !== undefined) {
+                  // Progress event - cap at 100%
+                  setAnalysisProgress(Math.min(100, eventData.percent));
+                  setAnalysisStatus(eventData.message || 'Processing...');
+                }
+                
+                // Check for python_code in non-complete events (fallback)
+                if (eventData.python_code !== undefined && !data) {
+                  data = eventData;
+                  console.log('[SSE] Python code found in event:', (eventData.python_code || '').length, 'chars');
+                }
+                
+                // Check for error event
+                if (currentEventType === 'error' || (eventData.message && !eventData.percent && eventData.python_code === undefined)) {
+                  throw new Error(eventData.message);
+                }
+              } catch (e) {
+                // Re-throw actual errors, only ignore JSON parse errors
+                if (e instanceof SyntaxError) {
+                  // Ignore JSON parse errors for incomplete chunks
+                  continue;
+                }
+                throw e; // Propagate real errors
+              }
             }
+          }
+        }
+      }
+      
+      // v8.8: Final attempt to parse any remaining data (buffer + completeDataBuffer)
+      if (!data) {
+        // Add any remaining buffer content
+        if (buffer.trim()) {
+          completeDataBuffer += buffer;
+        }
+        if (completeDataBuffer) {
+          try {
+            data = JSON.parse(completeDataBuffer);
+            console.log('[SSE v8.8] Final parse of complete buffer:', (data?.python_code || '').length, 'chars');
+          } catch (e) {
+            console.error('[SSE v8.8] Failed to parse complete buffer:', completeDataBuffer.substring(0, 500));
           }
         }
       }
