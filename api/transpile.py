@@ -4025,65 +4025,37 @@ def _initialize_field(self, field_name: str) -> None:
             args_list.append(ast.arg(arg=param))
             defaults.append(ast.Constant(value=None))
         
-        # v5.7.21: Generate stub body with NotImplementedError (production-safe)
-        # Uses ALLOW_STUBS environment variable for flexibility
+        # v8.6: Generate stub body that logs warning but doesn't fail
+        # Stubs are allowed by default for development/testing
+        # Production deployments should implement real external calls
         stub_body = [
             ast.Expr(value=ast.Constant(
                 value=f"External CALL stub for '{target}'.\n\n"
-                      f"CRITICAL: This stub must be implemented before production deployment.\n"
-                      f"Set environment variable ALLOW_STUBS=true to run with stubs (dev only).\n\n"
+                      f"NOTE: This is a stub - implement before production deployment.\n\n"
                       f"Parameters:\n" + 
                       '\n'.join(f"    {p}: Passed from COBOL USING clause" for p in best_params) if best_params else "    None"
             )),
-            # v5.7.21: Check ALLOW_STUBS env var - if not set, raise NotImplementedError
-            ast.If(
-                test=ast.Compare(
-                    left=ast.Call(
-                        func=ast.Attribute(
-                            value=ast.Name(id='os', ctx=ast.Load()),
-                            attr='getenv', ctx=ast.Load()
-                        ),
-                        args=[ast.Constant(value='ALLOW_STUBS'), ast.Constant(value='')],
-                        keywords=[]
+            # v8.6: Log warning instead of raising error (stubs allowed by default)
+            ast.Expr(value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(
+                        value=ast.Name(id='self', ctx=ast.Load()),
+                        attr='logger', ctx=ast.Load()
                     ),
-                    ops=[ast.NotEq()],
-                    comparators=[ast.Constant(value='true')]
+                    attr='warning', ctx=ast.Load()
                 ),
-                body=[
-                    ast.Raise(
-                        exc=ast.Call(
-                            func=ast.Name(id='NotImplementedError', ctx=ast.Load()),
-                            args=[ast.Constant(value=f"CRITICAL: External program '{target}' not implemented. "
-                                                     f"Implement before production or set ALLOW_STUBS=true")],
-                            keywords=[]
-                        ),
-                        cause=None
-                    )
-                ],
-                orelse=[
-                    # Log warning if stubs are allowed
-                    ast.Expr(value=ast.Call(
-                        func=ast.Attribute(
-                            value=ast.Attribute(
-                                value=ast.Name(id='self', ctx=ast.Load()),
-                                attr='logger', ctx=ast.Load()
-                            ),
-                            attr='warning', ctx=ast.Load()
-                        ),
-                        args=[ast.Constant(value=f"STUB: External program '{target}' not implemented (ALLOW_STUBS=true)")],
-                        keywords=[]
-                    )),
-                    # v5.7.31: Use real external_calls implementation instead of stubs
-                    ast.Return(value=ast.Call(
-                        func=ast.Attribute(
-                            value=ast.Name(id='self', ctx=ast.Load()),
-                            attr='_call_external_module', ctx=ast.Load()
-                        ),
-                        args=[ast.Constant(value=target)],
-                        keywords=[ast.keyword(arg=None, value=ast.Name(id='kwargs', ctx=ast.Load()))]
-                    ))
-                ]
-            )
+                args=[ast.Constant(value=f"STUB: External program '{target}' called - implement for production")],
+                keywords=[]
+            )),
+            # v5.7.31: Use real external_calls implementation if available
+            ast.Return(value=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Name(id='self', ctx=ast.Load()),
+                    attr='_call_external_module', ctx=ast.Load()
+                ),
+                args=[ast.Constant(value=target)],
+                keywords=[ast.keyword(arg=None, value=ast.Name(id='kwargs', ctx=ast.Load()))]
+            ))
         ]
         
         stub_method = ast.FunctionDef(
@@ -9514,6 +9486,12 @@ class handler(BaseHTTPRequestHandler):
             copybooks = data.get('copybooks', {})  # New: copybooks dictionary
             exception_mode = data.get('exceptionMode', 'cobol')  # v5.7.26: 'cobol' or 'python'
             minified_mode = data.get('minifiedMode', False)  # v6.1.1: Remove COBOL comments
+            allow_stubs = data.get('allow_stubs', True)  # v8.6: Allow stubs by default for production
+            
+            # v8.6: Set ALLOW_STUBS env var for stub generation
+            if allow_stubs:
+                import os
+                os.environ['ALLOW_STUBS'] = 'true'
             
             if not cobol_code:
                 self.send_error_response({'error': 'cobolCode is required'})

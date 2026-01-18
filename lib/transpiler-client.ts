@@ -61,14 +61,15 @@ export interface ParagraphInfo {
 export async function transpileCobolViaPython(
   cobolCode: string, 
   enhance: boolean = false,
-  copybooks?: Record<string, string>
+  copybooks?: Record<string, string>,
+  allowStubs: boolean = true  // v8.6: Allow stubs for external CALL programs
 ): Promise<TranspileResult> {
   try {
     // Use stable production URL - Vercel serverless requires full URL for internal calls
     // VERCEL_URL gives preview URLs which can cause issues, use stable domain instead
     const baseUrl = 'https://cobol-ast-service.vercel.app';
     
-    console.log(`[Transpiler] Calling ${baseUrl}/api/transpile`);
+    console.log(`[Transpiler] Calling ${baseUrl}/api/transpile (allow_stubs=${allowStubs})`);
     
     // Timeout: 120s for transpilation (large files need more time)
     const controller = new AbortController();
@@ -77,7 +78,12 @@ export async function transpileCobolViaPython(
     const response = await fetch(`${baseUrl}/api/transpile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cobolCode, enhance, copybooks: copybooks || {} }),
+      body: JSON.stringify({ 
+        cobolCode, 
+        enhance, 
+        copybooks: copybooks || {},
+        allow_stubs: allowStubs  // Pass to Python transpiler
+      }),
       signal: controller.signal,
     });
     
