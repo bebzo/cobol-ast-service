@@ -2166,19 +2166,23 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
               )}
 
-              {activeTab === "tests" && (
-                <Editor
-                  height="400px"
-                  defaultLanguage="python"
-                  value={(() => {
-                    const t = analysis?.tests || analysis?.unit_tests;
-                    if (!t) return "# Run analysis to generate unit tests";
-                    return Array.isArray(t) ? t.join('\n') : t;
-                  })()}
-                  theme="vs-dark"
-                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                />
-              )}
+              {activeTab === "tests" && (() => {
+                const testContent = (() => {
+                  const t = analysis?.tests || analysis?.unit_tests;
+                  if (!t) return "# Run analysis to generate unit tests";
+                  return Array.isArray(t) ? t.join('\n') : t;
+                })();
+                return (
+                  <Editor
+                    height="400px"
+                    defaultLanguage="python"
+                    value={testContent}
+                    theme="vs-dark"
+                    options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                    loading={<pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">{testContent}</pre>}
+                  />
+                );
+              })()}
               
               {activeTab === "config" && (
                 <Editor

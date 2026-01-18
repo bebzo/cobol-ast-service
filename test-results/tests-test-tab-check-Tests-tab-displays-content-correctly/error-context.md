@@ -1,0 +1,77 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "CodeSwitch Pro" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img [ref=e7]
+          - generic [ref=e11]: CodeSwitch Pro
+        - generic [ref=e12]:
+          - generic [ref=e13]: Interactive Demo
+          - link "Try It Free →" [ref=e14] [cursor=pointer]:
+            - /url: /dashboard
+    - main [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - heading "Watch COBOL Transform to Python" [level=1] [ref=e18]
+          - paragraph [ref=e19]: See the complete migration workflow in action
+        - generic [ref=e20]:
+          - generic [ref=e21]:
+            - generic [ref=e22]:
+              - button [ref=e23]:
+                - img [ref=e24]
+              - button [ref=e26]:
+                - img [ref=e27]
+              - button [ref=e30]:
+                - img [ref=e31]
+              - button [ref=e33]:
+                - img [ref=e34]
+            - generic [ref=e45]:
+              - generic [ref=e46]: Upload COBOL
+              - generic [ref=e47]: Loading 10,000 lines...
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - generic [ref=e52]:
+                - generic [ref=e53]: COBOL Source
+                - generic [ref=e54]: banking_system.cbl
+              - generic [ref=e55]: IDENTIFICATION DIVISION. PROGRAM-ID. BANKING-SYSTEM. DATA DIVISION. WORKING-STORAGE SECTION. 01 WS-ACCOUNT-REC. 05 WS-ACCT-NO PIC 9(10). ...
+            - generic [ref=e56]:
+              - generic [ref=e57]:
+                - generic [ref=e58]: Python Output
+                - generic [ref=e59]: banking_system.py
+              - generic [ref=e61]: Waiting for analysis...
+          - generic [ref=e63]:
+            - button "Upload COBOL" [ref=e64]:
+              - img [ref=e66]
+              - generic [ref=e70]: Upload COBOL
+            - button "AI Analysis" [ref=e71]:
+              - img [ref=e73]
+              - generic [ref=e75]: AI Analysis
+            - button "Python Generated" [ref=e76]:
+              - img [ref=e78]
+              - generic [ref=e81]: Python Generated
+            - button "Tests Created" [ref=e82]:
+              - img [ref=e84]
+              - generic [ref=e86]: Tests Created
+            - button "Security Scan" [ref=e87]:
+              - img [ref=e89]
+              - generic [ref=e91]: Security Scan
+            - button "Migration Complete" [ref=e92]:
+              - img [ref=e94]
+              - generic [ref=e97]: Migration Complete
+        - generic [ref=e98]:
+          - heading "Ready to Transform Your COBOL?" [level=2] [ref=e99]
+          - generic [ref=e100]:
+            - link "Start Free Trial" [ref=e101] [cursor=pointer]:
+              - /url: /dashboard
+              - text: Start Free Trial
+              - img [ref=e102]
+            - link "Read Docs" [ref=e104] [cursor=pointer]:
+              - /url: /docs
+              - img [ref=e105]
+              - text: Read Docs
+  - alert [ref=e108]
+```
