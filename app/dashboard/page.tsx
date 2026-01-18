@@ -48,15 +48,22 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
-// Configure Monaco loader before importing
-import { loader } from "@monaco-editor/react";
-loader.config({
-  paths: {
-    vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
+// Monaco Editor - dynamic import only (loader configured in useEffect)
+const Editor = dynamic(
+  () => import("@monaco-editor/react").then((mod) => {
+    // Configure loader when module loads (client-side only)
+    mod.loader.config({
+      paths: {
+        vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
+      }
+    });
+    return mod;
+  }),
+  { 
+    ssr: false,
+    loading: () => <div className="h-[400px] bg-slate-900 flex items-center justify-center text-slate-400">Loading editor...</div>
   }
-});
-
-const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+);
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
 const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard"), { ssr: false });
 const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
@@ -712,7 +719,6 @@ export default function Home() {
   const [chatExpanded, setChatExpanded] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
-  const [monacoReady, setMonacoReady] = useState(false);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
 
   // Close Tools menu when clicking outside
@@ -2166,73 +2172,39 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
 
               {activeTab === "tests" && (
-                <div className="relative">
-                  {monacoReady ? (
-                    <Editor
-                      height="400px"
-                      defaultLanguage="python"
-                      value={(() => {
-                        const t = analysis?.tests || analysis?.unit_tests;
-                        if (!t) return "# Run analysis to generate unit tests";
-                        return Array.isArray(t) ? t.join('\n') : t;
-                      })()}
-                      theme="vs-dark"
-                      options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                      onMount={() => setMonacoReady(true)}
-                    />
-                  ) : (
-                    <pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">
-                      {(() => {
-                        const t = analysis?.tests || analysis?.unit_tests;
-                        if (!t) return "# Run analysis to generate unit tests";
-                        return Array.isArray(t) ? t.join('\n') : t;
-                      })()}
-                    </pre>
-                  )}
-                </div>
+                <Editor
+                  height="400px"
+                  defaultLanguage="python"
+                  value={(() => {
+                    const t = analysis?.tests || analysis?.unit_tests;
+                    if (!t) return "# Run analysis to generate unit tests";
+                    return Array.isArray(t) ? t.join('\n') : t;
+                  })()}
+                  theme="vs-dark"
+                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                />
               )}
               
               {activeTab === "config" && (
-                <div className="relative">
-                  {monacoReady ? (
-                    <Editor
-                      height="400px"
-                      defaultLanguage="json"
-                      value={(() => {
-                        const cfg = analysis?.config_json || analysis?.config;
-                        if (!cfg) return "// Run analysis to generate configuration";
-                        if (typeof cfg === 'string') {
-                          if (cfg === '{}' || cfg.length < 5) return "// Run analysis to generate configuration";
-                          try {
-                            return JSON.stringify(JSON.parse(cfg), null, 2);
-                          } catch {
-                            return cfg;
-                          }
-                        }
-                        return JSON.stringify(cfg, null, 2);
-                      })()}
-                      theme="vs-dark"
-                      options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                      onMount={() => setMonacoReady(true)}
-                    />
-                  ) : (
-                    <pre className="h-[400px] bg-slate-900 text-yellow-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">
-                      {(() => {
-                        const cfg = analysis?.config_json || analysis?.config;
-                        if (!cfg) return "// Run analysis to generate configuration";
-                        if (typeof cfg === 'string') {
-                          if (cfg === '{}' || cfg.length < 5) return "// Run analysis to generate configuration";
-                          try {
-                            return JSON.stringify(JSON.parse(cfg), null, 2);
-                          } catch {
-                            return cfg;
-                          }
-                        }
-                        return JSON.stringify(cfg, null, 2);
-                      })()}
-                    </pre>
-                  )}
-                </div>
+                <Editor
+                  height="400px"
+                  defaultLanguage="json"
+                  value={(() => {
+                    const cfg = analysis?.config_json || analysis?.config;
+                    if (!cfg) return "// Run analysis to generate configuration";
+                    if (typeof cfg === 'string') {
+                      if (cfg === '{}' || cfg.length < 5) return "// Run analysis to generate configuration";
+                      try {
+                        return JSON.stringify(JSON.parse(cfg), null, 2);
+                      } catch {
+                        return cfg;
+                      }
+                    }
+                    return JSON.stringify(cfg, null, 2);
+                  })()}
+                  theme="vs-dark"
+                  options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                />
               )}
 
               {activeTab === "diffv2" && (
