@@ -540,10 +540,20 @@ interface SecurityWarning {
   title: string;
   severity: string;
   cvss_score: number;
-  location: string;
-  description: string;
-  vulnerable_code: string;
-  fix: string;
+  location?: string;
+  description?: string;
+  vulnerable_code?: string;
+  fix?: string;
+  fix_suggestion?: string;
+  summary?: {
+    score: number;
+    grade: string;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    fixed: number;
+  };
 }
 
 interface CoverageMetrics {
@@ -2511,63 +2521,120 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         <HelpButton issueText={typeof item === 'string' ? item : JSON.stringify(item)} issueType="improvement" />
                       </li>
                     ))}
-                    {activeReportTab === "security" && (
-                      <>
-                        <div className="mb-4 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <Shield className="w-6 h-6 text-green-400" />
-                              <div>
-                                <p className="text-green-400 font-bold">Score après correction: 92/100</p>
-                                <p className="text-xs text-slate-400">Grade A - Les problèmes ci-dessous ont été corrigés automatiquement</p>
-                              </div>
-                            </div>
-                            <span className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-medium">✓ Sécurisé</span>
-                          </div>
-                        </div>
-                        {(analysis.security_warnings || []).map((item, i) => {
-                      const isStructured = typeof item === 'object';
-                      const warning = isStructured ? item as SecurityWarning : null;
-                      const severity = warning?.severity || (i === 0 ? 'CRITICAL' : i < 2 ? 'HIGH' : 'MEDIUM');
-                      const severityColor = severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border-red-500/50' : 
-                                           severity === 'HIGH' ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : 
-                                           'bg-yellow-500/20 text-yellow-400 border-yellow-500/50';
+                    {activeReportTab === "security" && (() => {
+                      const rawWarnings = analysis.security_warnings || [];
+                      const warnings = rawWarnings.filter((w): w is SecurityWarning => typeof w === 'object' && w !== null);
+                      const activeIssues = warnings.filter((w) => 
+                        w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM'
+                      );
+                      const fixedIssues = warnings.filter((w) => 
+                        w.severity === 'INFO' || w.severity === 'LOW'
+                      );
+                      const summaryItem = warnings.find((w) => w.summary);
+                      const score = summaryItem?.summary?.score || (activeIssues.length === 0 ? 100 : Math.max(0, 100 - activeIssues.length * 15));
+                      const grade = score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'D';
+                      const isSecure = activeIssues.length === 0;
+                      
                       return (
-                        <li key={i} className={`p-4 rounded-lg border ${severityColor}`}>
-                          <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0">
-                              <span className={`px-2 py-1 rounded text-xs font-bold ${severityColor}`}>{severity}</span>
-                              <span className="px-2 py-1 rounded text-xs font-bold bg-green-500/30 text-green-400 ml-1">✓ Corrigé</span>
+                        <>
+                          {/* Security Score Header */}
+                          <div className={`mb-4 p-4 rounded-lg border ${
+                            isSecure 
+                              ? 'bg-green-500/10 border-green-500/30' 
+                              : 'bg-red-500/10 border-red-500/30'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold ${
+                                  isSecure ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                                }`}>
+                                  {score}
+                                </div>
+                                <div>
+                                  <p className={`text-xl font-bold ${isSecure ? 'text-green-400' : 'text-red-400'}`}>
+                                    Security Score: {score}/100 (Grade {grade})
+                                  </p>
+                                  <p className="text-sm text-slate-400">
+                                    {isSecure 
+                                      ? `${fixedIssues.length} issues auto-remediated during transpilation`
+                                      : `${activeIssues.length} issue${activeIssues.length > 1 ? 's' : ''} require attention`
+                                    }
+                                  </p>
+                                </div>
+                              </div>
+                              <span className={`px-4 py-2 rounded-full text-sm font-bold ${
+                                isSecure 
+                                  ? 'bg-green-500/20 text-green-400' 
+                                  : 'bg-red-500/20 text-red-400'
+                              }`}>
+                                {isSecure ? '✓ Secure' : '⚠ Action Required'}
+                              </span>
                             </div>
-                            <div className="flex-1">
-                              <p className="text-slate-200 font-medium">{warning?.title || String(item)}</p>
-                              <p className="text-xs text-slate-400 mt-1">
-                                CVSS Score: {warning?.cvss_score?.toFixed(1) || (severity === 'CRITICAL' ? '9.1' : severity === 'HIGH' ? '7.5' : '5.3')}
-                                {warning?.location && ` • ${warning.location}`}
+                          </div>
+                          
+                          {/* Active Issues (if any) */}
+                          {activeIssues.length > 0 && (
+                            <div className="mb-4">
+                              <h4 className="text-red-400 font-semibold mb-2 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4" /> Active Security Issues
+                              </h4>
+                              {activeIssues.map((warning, i) => (
+                                <div key={i} className={`p-4 rounded-lg border mb-2 ${
+                                  warning.severity === 'CRITICAL' ? 'bg-red-500/10 border-red-500/40' :
+                                  warning.severity === 'HIGH' ? 'bg-orange-500/10 border-orange-500/40' :
+                                  'bg-yellow-500/10 border-yellow-500/40'
+                                }`}>
+                                  <div className="flex items-start gap-3">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                      warning.severity === 'CRITICAL' ? 'bg-red-500 text-white' :
+                                      warning.severity === 'HIGH' ? 'bg-orange-500 text-white' :
+                                      'bg-yellow-500 text-black'
+                                    }`}>{warning.severity}</span>
+                                    <div className="flex-1">
+                                      <p className="text-slate-200 font-medium">{warning.title}</p>
+                                      {warning.description && <p className="text-xs text-slate-400 mt-1">{warning.description}</p>}
+                                      {warning.fix_suggestion && (
+                                        <p className="text-xs text-green-400 mt-2">💡 Fix: {warning.fix_suggestion}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* No Issues Message */}
+                          {isSecure && (
+                            <div className="p-6 bg-green-500/5 border border-green-500/20 rounded-lg text-center">
+                              <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
+                              <p className="text-green-400 font-semibold text-lg">No security issues detected</p>
+                              <p className="text-slate-400 text-sm mt-1">
+                                The transpiled Python code has been hardened automatically
                               </p>
                             </div>
-                          </div>
-                          {warning && (
-                            <details className="mt-3 text-sm">
-                              <summary className="cursor-pointer text-indigo-400 hover:text-indigo-300">View Details</summary>
-                              <div className="mt-2 space-y-2 pl-4 border-l-2 border-slate-700">
-                                {warning.description && <p className="text-slate-300">{warning.description}</p>}
-                                {warning.vulnerable_code && (
-                                  <div className="bg-slate-900 p-2 rounded font-mono text-xs text-red-300">{warning.vulnerable_code}</div>
-                                )}
-                                {warning.fix && (
-                                  <div className="bg-green-900/30 p-2 rounded text-green-300 text-xs">
-                                    <strong>Fix:</strong> {warning.fix}
+                          )}
+                          
+                          {/* Auto-Fixed Issues (collapsible) */}
+                          {fixedIssues.length > 0 && (
+                            <details className="mt-4">
+                              <summary className="cursor-pointer text-slate-400 hover:text-slate-300 text-sm">
+                                View {fixedIssues.length} auto-remediated issue{fixedIssues.length > 1 ? 's' : ''}
+                              </summary>
+                              <div className="mt-2 space-y-2">
+                                {fixedIssues.filter((w) => w.title && !w.summary).map((warning, i) => (
+                                  <div key={i} className="p-3 rounded border bg-slate-800/30 border-slate-700/50">
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2 py-0.5 rounded text-xs bg-green-500/20 text-green-400">✓ Fixed</span>
+                                      <span className="text-slate-300 text-sm">{warning.title}</span>
+                                    </div>
                                   </div>
-                                )}
+                                ))}
                               </div>
                             </details>
                           )}
-                        </li>
+                        </>
                       );
-                    })}
-                      </>
-                    )}
+                    })()}
                     {activeReportTab === "next" && analysis.next_steps?.map((item, i) => (
                       <li key={i} className="flex items-start gap-3 p-3 bg-green-500/10 rounded-lg">
                         <span className="text-green-400 font-bold">{i + 1}.</span>
