@@ -47,24 +47,17 @@ import {
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
-import { loader } from "@monaco-editor/react";
 
-// Configure Monaco to use faster CDN and initialize early
-if (typeof window !== 'undefined') {
+const Editor = dynamic(() => import("@monaco-editor/react").then(mod => {
+  // Configure Monaco loader on first import (client-side only)
+  const { loader } = mod;
   loader.config({
     paths: {
       vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs'
     }
   });
-  // Pre-initialize Monaco in background
-  loader.init().then(() => {
-    console.log('[Monaco] Pre-loaded successfully');
-  }).catch((err) => {
-    console.warn('[Monaco] Pre-load failed, will retry on demand:', err);
-  });
-}
-
-const Editor = dynamic(() => import("@monaco-editor/react").then(mod => mod.Editor), { 
+  return mod.Editor;
+}), { 
   ssr: false,
   loading: () => (
     <div className="h-[400px] flex items-center justify-center bg-slate-900">
