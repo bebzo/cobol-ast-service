@@ -481,19 +481,50 @@ class SecurityHardener:
         # 2. Fix hardcoded credentials
         code = self._fix_credentials(code)
         
-        # 3. Protect PII fields
+        # 3. Secure sensitive field initializations (dataclass fields with empty values)
+        code = self._secure_sensitive_fields(code)
+        
+        # 4. Protect PII fields
         code = self._protect_pii(code)
         
-        # 4. Add overflow protection
+        # 5. Add overflow protection
         code = self._add_overflow_protection(code)
         
-        # 5. Standardize rounding
+        # 6. Standardize rounding
         code = self._standardize_rounding(code)
         
-        # 6. Add SQL injection protection
+        # 7. Add SQL injection protection
         code = self._protect_sql(code)
         
         return code, self.issues, self.stats
+    
+    def _secure_sensitive_fields(self, code: str) -> str:
+        """Secure sensitive field initializations even with empty/space values"""
+        # Patterns for sensitive field names that should use get_secure_credential
+        sensitive_field_patterns = [
+            (r"(self\.(?:api[_-]?key|apikey))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('API_KEY')"),
+            (r"(self\.(?:api[_-]?secret))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('API_SECRET')"),
+            (r"(self\.(?:bearer[_-]?token|auth[_-]?token))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('BEARER_TOKEN')"),
+            (r"(self\.(?:oauth[_-]?client[_-]?secret))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('OAUTH_SECRET')"),
+            (r"(self\.(?:aws[_-]?access[_-]?key))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('AWS_ACCESS_KEY')"),
+            (r"(self\.(?:aws[_-]?secret[_-]?key))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('AWS_SECRET_KEY')"),
+            (r"(self\.(?:stripe[_-]?key))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('STRIPE_KEY')"),
+            (r"(self\.(?:twilio[_-]?auth[_-]?token))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('TWILIO_TOKEN')"),
+            (r"(self\.(?:sendgrid[_-]?api[_-]?key))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('SENDGRID_KEY')"),
+            (r"(self\.(?:github[_-]?token))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('GITHUB_TOKEN')"),
+            (r"(self\.(?:signing[_-]?key))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('SIGNING_KEY')"),
+            (r"(self\.(?:encryption[_-]?iv))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('ENCRYPTION_IV')"),
+            (r"(self\.(?:rsa[_-]?private[_-]?key))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('RSA_PRIVATE_KEY')"),
+            (r"(self\.(?:aes[_-]?key))(?::\s*str)?\s*=\s*['\"](\s*)['\"]", r"\1 = get_secure_credential('AES_KEY')"),
+        ]
+        
+        for pattern, replacement in sensitive_field_patterns:
+            old_code = code
+            code = re.sub(pattern, replacement, code, flags=re.IGNORECASE)
+            if code != old_code:
+                self.stats['credentials_fixed'] = self.stats.get('credentials_fixed', 0) + 1
+        
+        return code
     
     def _inject_security_imports(self, code: str) -> str:
         """Inject security utility imports at the top of the file"""
