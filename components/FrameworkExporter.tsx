@@ -77,26 +77,40 @@ export default function FrameworkExporter({
   const [selectedFile, setSelectedFile] = useState<ExportedFile | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Generate export
   const handleExport = useCallback(() => {
-    const options: ExportOptions = {
-      framework: selectedFramework,
-      projectName,
-      includeTests,
-      includeDocker,
-      includeCI,
-      databaseType
-    };
+    console.log('[FrameworkExporter] handleExport called', { pythonCode: pythonCode?.slice(0, 100), className });
+    setIsGenerating(true);
+    setError(null);
     
-    const result = exportToFramework(pythonCode, className, options);
-    setExportResult(result);
-    
-    // Auto-select first Python file
-    const firstPy = result.files.find(f => f.type === 'python');
-    if (firstPy) setSelectedFile(firstPy);
-    
-    onExport?.(result);
+    try {
+      const options: ExportOptions = {
+        framework: selectedFramework,
+        projectName,
+        includeTests,
+        includeDocker,
+        includeCI,
+        databaseType
+      };
+      
+      const result = exportToFramework(pythonCode, className, options);
+      console.log('[FrameworkExporter] Export result:', result.files.length, 'files');
+      setExportResult(result);
+      
+      // Auto-select first Python file
+      const firstPy = result.files.find(f => f.type === 'python');
+      if (firstPy) setSelectedFile(firstPy);
+      
+      onExport?.(result);
+    } catch (err) {
+      console.error('[FrameworkExporter] Error:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setIsGenerating(false);
+    }
   }, [pythonCode, className, selectedFramework, projectName, includeTests, includeDocker, includeCI, databaseType, onExport]);
 
   // Copy to clipboard
@@ -345,12 +359,27 @@ export default function FrameworkExporter({
         {/* Export Button */}
         <button
           onClick={handleExport}
-          disabled={!pythonCode}
+          disabled={!pythonCode || isGenerating}
           className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Zap className="w-5 h-5" />
-          Generate Project {FRAMEWORK_INFO[selectedFramework].name}
+          {isGenerating ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Zap className="w-5 h-5" />
+              Generate Project {FRAMEWORK_INFO[selectedFramework].name}
+            </>
+          )}
         </button>
+        
+        {error && (
+          <div className="mt-2 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
+            Error: {error}
+          </div>
+        )}
       </div>
 
       {/* Export Result */}
