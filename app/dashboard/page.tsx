@@ -48,7 +48,17 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
-const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+const Editor = dynamic(() => import("@monaco-editor/react"), { 
+  ssr: false,
+  loading: () => (
+    <div className="h-[400px] flex items-center justify-center bg-slate-900 text-slate-500">
+      <div className="text-center">
+        <Code2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
+        <p>Initializing editor...</p>
+      </div>
+    </div>
+  )
+});
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
 const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard"), { ssr: false });
 const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
@@ -2071,14 +2081,31 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                       </div>
                     </div>
                   )}
-                  <Editor
-                    key={`python-editor-${pythonCode?.length || 0}`}
-                    height="400px"
-                    defaultLanguage="python"
-                    value={pythonCode || "# Refactored Python code will appear here..."}
-                    theme="vs-dark"
-                    options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: !pythonCode }}
-                  />
+                  {!pythonCode && !isLoading ? (
+                    <div className="h-[400px] flex items-center justify-center bg-slate-900">
+                      <div className="text-center text-slate-500">
+                        <Code2 className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                        <p className="text-lg font-medium">No Python code yet</p>
+                        <p className="text-sm mt-2">Load COBOL code and click "Refactor with Gemini"</p>
+                      </div>
+                    </div>
+                  ) : isLoading && !pythonCode ? (
+                    <div className="h-[400px] flex items-center justify-center bg-slate-900">
+                      <div className="text-center">
+                        <Loader2 className="w-12 h-12 mx-auto mb-4 text-green-400 animate-spin" />
+                        <p className="text-green-400 font-medium">Generating Python code...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <Editor
+                      key={`python-editor-${pythonCode?.length || 0}`}
+                      height="400px"
+                      defaultLanguage="python"
+                      value={pythonCode}
+                      theme="vs-dark"
+                      options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                    />
+                  )}
                 </div>
               )}
 
