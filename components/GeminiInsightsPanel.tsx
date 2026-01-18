@@ -228,11 +228,11 @@ export default function GeminiInsightsPanel({
         {/* Score Badge */}
         <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg">
           <div>
-            <span className="text-3xl font-bold text-white">{review.score}</span>
+            <span className="text-3xl font-bold text-white">{review.score ?? 'N/A'}</span>
             <span className="text-gray-400 text-lg">/100</span>
           </div>
           <div className={`text-4xl font-bold ${getGradeColor(review.grade)}`}>
-            {review.grade}
+            {review.grade || 'N/A'}
           </div>
         </div>
         
@@ -600,7 +600,8 @@ function ProgressBar({ value, color }: { value: number; color: string }) {
 }
 
 // Helper Functions
-function getGradeColor(grade: string): string {
+function getGradeColor(grade: string | undefined): string {
+  if (!grade) return 'text-slate-400';
   if (grade.startsWith('A')) return 'text-green-400';
   if (grade.startsWith('B')) return 'text-blue-400';
   if (grade.startsWith('C')) return 'text-yellow-400';
