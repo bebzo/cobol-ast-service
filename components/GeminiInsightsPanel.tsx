@@ -277,7 +277,7 @@ export default function GeminiInsightsPanel({
       <div className="space-y-4">
         {/* Summary */}
         <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-          <p className="text-gray-200 text-sm">{explain.summary}</p>
+          <p className="text-gray-200 text-sm">{explain.summary || 'Analysis in progress...'}</p>
         </div>
         
         {/* Business Logic */}
@@ -288,7 +288,7 @@ export default function GeminiInsightsPanel({
               {explain.businessLogic.map((step, i) => (
                 <li key={i} className="flex">
                   <span className="text-blue-400 mr-2 w-5">{i + 1}.</span>
-                  {step.replace(/^\d+\.\s*/, '')}
+                  {typeof step === 'string' ? step.replace(/^\d+\.\s*/, '') : String(step || '')}
                 </li>
               ))}
             </ol>
@@ -331,7 +331,7 @@ export default function GeminiInsightsPanel({
       <div className="space-y-4">
         {/* Coverage */}
         <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-          <p className="text-green-400 text-sm font-medium">{tests.coverage}</p>
+          <p className="text-green-400 text-sm font-medium">{tests.coverage || 'Coverage analysis pending'}</p>
         </div>
         
         {/* Edge Cases */}
@@ -370,7 +370,7 @@ export default function GeminiInsightsPanel({
       <div className="space-y-4">
         {/* Performance Score */}
         <div className="flex items-center gap-3 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-          <div className="text-2xl font-bold text-purple-400">{opt.performanceScore}</div>
+          <div className="text-2xl font-bold text-purple-400">{opt.performanceScore ?? 'N/A'}</div>
           <div className="text-sm text-gray-400">Performance Score</div>
           <div className="ml-auto">
             <ProgressBar value={opt.performanceScore} color="purple" />
@@ -384,8 +384,8 @@ export default function GeminiInsightsPanel({
               <div key={i} className="p-3 bg-gray-800/50 rounded-lg">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-200">{s.type}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded ${getImpactColor(s.impact)}`}>
-                    {s.impact.toUpperCase()}
+                  <span className={`text-xs px-2 py-0.5 rounded ${getImpactColor(s.impact || 'low')}`}>
+                    {(s.impact || 'low').toUpperCase()}
                   </span>
                 </div>
                 <p className="text-sm text-gray-400 mb-2">{s.description}</p>
@@ -489,13 +489,28 @@ export default function GeminiInsightsPanel({
       );
     }
     
-    switch (activeTab) {
-      case 'review': return renderReview();
-      case 'explain': return renderExplain();
-      case 'tests': return renderTests();
-      case 'optimize': return renderOptimize();
-      case 'architecture': return renderArchitecture();
-      default: return null;
+    try {
+      switch (activeTab) {
+        case 'review': return renderReview();
+        case 'explain': return renderExplain();
+        case 'tests': return renderTests();
+        case 'optimize': return renderOptimize();
+        case 'architecture': return renderArchitecture();
+        default: return null;
+      }
+    } catch (error) {
+      console.error('Error rendering insight:', error);
+      return (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <p className="text-red-400 text-sm">Failed to render analysis. Please try again.</p>
+          <button 
+            onClick={() => setLoadedTabs(prev => { const n = new Set(prev); n.delete(activeTab); return n; })}
+            className="mt-2 text-xs text-blue-400 hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      );
     }
   };
 
