@@ -66,15 +66,15 @@ export function middleware(request: NextRequest) {
     response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
   
-  // Content Security Policy - v8.9: Allow Pyodide from jsdelivr CDN
+  // Content Security Policy - v8.10: Allow Pyodide + Monaco Editor CDNs
   response.headers.set('Content-Security-Policy', [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://vercel.live https://*.vercel.live blob:",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com data:",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com https://vercel.live https://*.vercel.live blob:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com",
+    "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:",
     "img-src 'self' data: https: blob:",
-    "connect-src 'self' https://cdn.jsdelivr.net https://*.supabase.co https://*.vercel.app wss://*.supabase.co https://generativelanguage.googleapis.com https://vercel.live wss://*.vercel.live",
-    "worker-src 'self' blob:",
+    "connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com https://*.supabase.co https://*.vercel.app wss://*.supabase.co https://generativelanguage.googleapis.com https://vercel.live wss://*.vercel.live",
+    "worker-src 'self' blob: https://cdn.jsdelivr.net https://unpkg.com",
     "frame-src 'self' https://vercel.live",
     "frame-ancestors 'none'",
     "base-uri 'self'",
