@@ -48,17 +48,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
-const Editor = dynamic(() => import("@monaco-editor/react"), { 
-  ssr: false,
-  loading: () => (
-    <div className="h-[400px] flex items-center justify-center bg-slate-900">
-      <div className="text-center">
-        <Loader2 className="w-8 h-8 mx-auto mb-2 text-cyan-400 animate-spin" />
-        <p className="text-cyan-400 text-sm">Loading editor...</p>
-      </div>
-    </div>
-  )
-});
+const Editor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const DiffPanel = dynamic(() => import("@/components/DiffPanel"), { ssr: false });
 const RealTimeDashboard = dynamic(() => import("@/components/RealTimeDashboard"), { ssr: false });
 const CallGraphViewer = dynamic(() => import("@/components/CallGraphViewer"), { ssr: false });
@@ -2088,30 +2078,29 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         <p className="text-sm mt-2">Load COBOL code and click "Refactor with Gemini"</p>
                       </div>
                     </div>
-                  ) : isLoading && !pythonCode ? (
+                  ) : isLoading ? (
                     <div className="h-[400px] flex items-center justify-center bg-slate-900">
                       <div className="text-center">
                         <Loader2 className="w-12 h-12 mx-auto mb-4 text-green-400 animate-spin" />
                         <p className="text-green-400 font-medium">Generating Python code...</p>
+                        <p className="text-slate-500 text-sm mt-2">{analysisStatus}</p>
                       </div>
                     </div>
-                  ) : (
+                  ) : pythonCode ? (
                     <Editor
-                      key={`python-editor-${pythonCode?.length || 0}`}
                       height="400px"
                       defaultLanguage="python"
                       value={pythonCode}
                       theme="vs-dark"
                       options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                      loading={
-                        <div className="h-full flex items-center justify-center bg-slate-900">
-                          <div className="text-center">
-                            <Loader2 className="w-8 h-8 mx-auto mb-2 text-green-400 animate-spin" />
-                            <p className="text-green-400 text-sm">Preparing Python code...</p>
-                          </div>
-                        </div>
-                      }
                     />
+                  ) : (
+                    <div className="h-[400px] flex items-center justify-center bg-slate-900">
+                      <div className="text-center text-slate-500">
+                        <Code2 className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                        <p className="text-lg font-medium">Waiting for code...</p>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}
