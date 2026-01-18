@@ -107,11 +107,30 @@ export default function EquivalenceDashboard({
     );
     const propertyPassed = propertyTests.filter((t) => t.status === "passed").length;
 
-    // Count edge case tests
+    // Count edge case tests (comprehensive detection)
     const edgeCaseTests = testResults.details.filter(
-      (t) => t.name.includes("edge") || t.name.includes("zero") || t.name.includes("negative") || t.name.includes("limit") ||
-             t.name.includes("boundary") || t.name.includes("max") || t.name.includes("min") || t.name.includes("overflow") ||
-             t.name.includes("empty") || t.name.includes("null") || t.name.includes("invalid") || t.name.includes("extreme")
+      (t) => {
+        const name = t.name.toLowerCase();
+        return name.includes("edge") || 
+               name.includes("zero") || 
+               name.includes("negative") || 
+               name.includes("limit") ||
+               name.includes("boundary") || 
+               name.includes("max") || 
+               name.includes("min") || 
+               name.includes("overflow") ||
+               name.includes("empty") || 
+               name.includes("null") || 
+               name.includes("invalid") || 
+               name.includes("extreme") ||
+               name.includes("cent") ||
+               name.includes("eof") ||
+               name.includes("division") ||
+               name.includes("bounds") ||
+               name.includes("pic_") ||
+               name.includes("9999999") ||
+               name.includes("0.01");
+      }
     );
     const edgeCasePassed = edgeCaseTests.filter((t) => t.status === "passed").length;
 
@@ -119,15 +138,36 @@ export default function EquivalenceDashboard({
     const coverageMetrics = analysis?.coverage_metrics || {};
     const translationRate = coverageMetrics.translation_rate || (passRate * 100);
 
-    // Count numerical tests (tests with numbers, calculations, compute)
+    // Count numerical tests (calculations, precision, decimal, golden values)
     const numericalTests = testResults.details.filter(
-      (t) => t.name.includes("calc") || t.name.includes("compute") || t.name.includes("interest") || t.name.includes("amount")
+      (t) => t.name.toLowerCase().includes("calc") || 
+             t.name.toLowerCase().includes("compute") || 
+             t.name.toLowerCase().includes("interest") || 
+             t.name.toLowerCase().includes("amount") ||
+             t.name.toLowerCase().includes("decimal") ||
+             t.name.toLowerCase().includes("precision") ||
+             t.name.toLowerCase().includes("numeric") ||
+             t.name.toLowerCase().includes("golden") ||
+             t.name.toLowerCase().includes("round") ||
+             t.name.toLowerCase().includes("pic_") ||
+             t.name.toLowerCase().includes("fee") ||
+             t.name.toLowerCase().includes("rate")
     );
     const numericalPassed = numericalTests.filter((t) => t.status === "passed").length;
 
-    // Count behavioral tests (tests with behavior, flow, logic)
+    // Count behavioral tests (control flow, conditions, file operations)
     const behavioralTests = testResults.details.filter(
-      (t) => t.name.includes("test_") || t.name.includes("should") || t.name.includes("when")
+      (t) => t.name.toLowerCase().includes("behavioral") ||
+             t.name.toLowerCase().includes("condition") ||
+             t.name.toLowerCase().includes("88_level") ||
+             t.name.toLowerCase().includes("file_") ||
+             t.name.toLowerCase().includes("status") ||
+             t.name.toLowerCase().includes("control") ||
+             t.name.toLowerCase().includes("flow") ||
+             t.name.toLowerCase().includes("loop") ||
+             t.name.toLowerCase().includes("perform") ||
+             t.name.toLowerCase().includes("call") ||
+             t.name.toLowerCase().includes("method")
     );
     const behavioralPassed = behavioralTests.filter((t) => t.status === "passed").length;
 

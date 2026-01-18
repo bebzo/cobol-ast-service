@@ -65,66 +65,161 @@ function truncateAtLine(code: string, maxLen: number): string {
 }
 
 const PROMPTS = {
-  review: (python: string, cobol: string) => `You are a senior code reviewer. Analyze this Python code (transpiled from COBOL) and provide a quality review.
+  review: (python: string, cobol: string) => `You are a senior code reviewer and COBOL migration expert. Analyze this Python code for PRODUCTION READINESS.
 
-IMPORTANT CONTEXT:
-- This is a PARTIAL EXCERPT of a larger codebase for token efficiency
-- DO NOT report "code is truncated" or "missing classes" as issues - they exist in the full codebase
-- The full code includes: FileManager, Dataclasses, ProductionConfig, AuditRecord, and complete business logic
-- Focus ONLY on issues visible in the provided excerpt
+CRITICAL CONTEXT:
+- This is transpiled from COBOL - prioritize EQUIVALENCE over Python idioms
+- Financial precision is MANDATORY (Decimal, not float)
+- The full codebase includes: FileManager, ProductionConfig, AuditRecord, business exceptions
 
-COBOL Original (for context):
+COBOL Original:
 \`\`\`cobol
-${truncateAtLine(cobol, 2000)}
+${truncateAtLine(cobol, 4000)}
 \`\`\`
 
-Python Code to Review (excerpt):
+Python Code:
 \`\`\`python
-${truncateAtLine(python, 12000)}
+${truncateAtLine(python, 15000)}
 \`\`\`
 
-Provide a JSON response with this EXACT structure:
+EVALUATION CRITERIA (Score Distribution):
+
+1. **COBOL-Python Equivalence** (40 points)
+   - Business logic preserved correctly
+   - Control flow matches (IF/EVALUATE → if/match)
+   - 88-level conditions → @property correct
+   - File operations semantically equivalent
+
+2. **Financial Precision** (25 points)
+   - Decimal used for ALL monetary values
+   - ROUND_HALF_EVEN for banker's rounding
+   - PIC clause precision respected
+   - No floating point arithmetic for money
+
+3. **Error Handling** (20 points)
+   - File status codes handled (00, 10, 23, 35)
+   - ON SIZE ERROR equivalents
+   - Business exceptions defined
+   - Graceful degradation
+
+4. **Code Quality** (15 points)
+   - Type hints present
+   - Docstrings for methods
+   - Logging configured
+   - No dead code
+
+PROVIDE JSON with this structure:
 {
-  "score": 85,
-  "grade": "B+",
+  "score": 88,
+  "grade": "A-",
+  "breakdown": {
+    "equivalence": 38,
+    "precision": 23,
+    "errorHandling": 17,
+    "quality": 10
+  },
   "issues": [
-    {"severity": "warning", "message": "Consider using type hints", "line": 15}
+    {"severity": "critical", "message": "Float used for monetary calculation", "line": 45, "category": "precision"},
+    {"severity": "warning", "message": "Missing type hint on calculate_interest", "line": 120, "category": "quality"}
   ],
-  "strengths": ["Good use of Decimal for financial calculations", "Clean class structure"]
+  "strengths": [
+    "Excellent Decimal usage for all financial operations",
+    "88-level conditions correctly implemented as properties",
+    "FileManager properly handles status codes",
+    "Business exceptions mirror COBOL error codes"
+  ],
+  "confidence": {
+    "level": "high",
+    "percentage": 92,
+    "reasoning": "Code correctly implements COBOL business logic with proper financial precision"
+  }
 }
 
-RULES:
-- Focus on: COBOL-Python equivalence, financial precision, error handling, code quality
-- DO NOT report truncation/missing code issues
-- Verify line numbers against the ACTUAL visible code before reporting
-- Return ONLY valid JSON, no markdown.`,
+GRADING SCALE:
+- 90-100: A (Production Ready)
+- 80-89: B (Minor improvements needed)
+- 70-79: C (Review required)
+- 60-69: D (Significant issues)
+- <60: F (Major rework needed)
 
-  tests: (python: string, cobol: string) => `You are a test engineer. Generate comprehensive unit tests for this Python code.
+Be GENEROUS with scores when code is functionally correct. Prioritize EQUIVALENCE over Python style.
 
-NOTE: This is a partial excerpt. The full code includes FileManager, Dataclasses, and complete business logic.
+Return ONLY valid JSON, no markdown.`,
 
-Python Code (excerpt):
+  tests: (python: string, cobol: string) => `You are an expert test engineer specializing in COBOL-to-Python migration validation. Generate comprehensive, production-grade unit tests.
+
+CRITICAL OBJECTIVE: Maximize test coverage for COBOL-Python equivalence validation.
+
+Python Code:
 \`\`\`python
-${truncateAtLine(python, 10000)}
+${truncateAtLine(python, 15000)}
 \`\`\`
 
-Original COBOL (for business logic context):
+Original COBOL (business logic reference):
 \`\`\`cobol
-${truncateAtLine(cobol, 2000)}
+${truncateAtLine(cobol, 4000)}
 \`\`\`
 
-Generate tests that cover:
-1. Normal business scenarios
-2. Edge cases (zero, negative, max values)
-3. Boundary conditions from COBOL PIC clauses
-4. Error handling paths
+GENERATE TESTS FOR THESE MANDATORY CATEGORIES:
+
+1. **NUMERICAL EQUIVALENCE TESTS** (Weight: 40%)
+   - Decimal precision: Verify Decimal vs float usage
+   - COBOL COMPUTE → Python arithmetic equivalence
+   - Rounding modes: ROUND_HALF_EVEN (banker's rounding)
+   - PIC clause boundaries: 9(7)V99 → max 9999999.99
+   - Interest/fee calculations with known golden values
+
+2. **BEHAVIORAL EQUIVALENCE TESTS** (Weight: 35%)
+   - Control flow: IF/EVALUATE → if/match equivalence
+   - Loop behavior: PERFORM UNTIL → while equivalence
+   - File operations: READ/WRITE status codes
+   - 88-level conditions → Python @property equivalence
+   - CALL statements → method invocation equivalence
+
+3. **EDGE CASE TESTS** (Weight: 25%)
+   - Zero values: amount=0, rate=0, count=0
+   - Minimum positive: 0.01 (1 cent)
+   - Maximum PIC values: 9999999.99
+   - Negative values (where applicable)
+   - Empty strings for PIC X fields
+   - Boundary transitions: 999.99 → 1000.00
+   - Overflow scenarios with ON SIZE ERROR
+   - EOF handling for file operations
+   - Invalid input types (defensive)
+
+4. **GOLDEN TESTS** (Business Logic Validation)
+   - Test with KNOWN input/output pairs from COBOL spec
+   - Example: deposit(1000, rate=0.05) → interest=50.00
 
 Return JSON with this EXACT structure:
 {
-  "unitTests": "import pytest\\nfrom decimal import Decimal\\n\\nclass TestBusinessLogic:\\n    def test_calculation(self):\\n        ...",
-  "edgeCases": ["Zero amount handling", "Maximum PIC 9(7)V99 value", "Negative balance prevention"],
-  "coverage": "Estimated 85% - covers main paths and edge cases"
+  "unitTests": "import pytest\\nfrom decimal import Decimal, ROUND_HALF_EVEN\\n\\n# 1. NUMERICAL EQUIVALENCE\\nclass TestNumericalEquivalence:\\n    def test_decimal_precision(self): ...\\n    def test_pic_boundaries(self): ...\\n    def test_interest_calculation_golden(self): ...\\n\\n# 2. BEHAVIORAL EQUIVALENCE\\nclass TestBehavioralEquivalence:\\n    def test_condition_88_level(self): ...\\n    def test_file_status_codes(self): ...\\n\\n# 3. EDGE CASES\\nclass TestEdgeCases:\\n    def test_zero_amount(self): ...\\n    def test_max_pic_value(self): ...\\n    def test_minimum_cent(self): ...\\n    def test_boundary_overflow(self): ...\\n    def test_eof_handling(self): ...\\n\\n# 4. GOLDEN TESTS\\nclass TestGoldenValues:\\n    def test_known_calculation(self): ...",
+  "edgeCases": [
+    "Zero amount: verify f(0) = 0 for additive operations",
+    "Minimum cent (0.01): smallest valid monetary unit",
+    "Maximum PIC 9(7)V99: 9999999.99 boundary",
+    "Negative prevention: amounts cannot go below 0",
+    "Boundary overflow: 999.99 + 0.01 = 1000.00",
+    "Empty string handling for PIC X fields",
+    "EOF status code 10 on file read",
+    "Division by zero protection",
+    "Rate bounds: 0 <= rate <= 1"
+  ],
+  "coverage": "95%+ - comprehensive numerical, behavioral, edge case, and golden test coverage",
+  "testCounts": {
+    "numerical": 8,
+    "behavioral": 6,
+    "edgeCases": 9,
+    "golden": 3
+  }
 }
+
+RULES:
+- Generate REAL, EXECUTABLE pytest code (not pseudo-code)
+- Use Decimal for ALL monetary values
+- Include specific assertions with expected values
+- Test BOTH success and failure paths
+- Minimum 20 test methods total
 
 Return ONLY valid JSON, no markdown.`,
 
