@@ -2697,7 +2697,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
 
               {activeTab === "export" && (
-                <div className="h-[400px] overflow-hidden">
+                <div className="max-h-[800px] overflow-auto">
                   <FrameworkExporter 
                     pythonCode={pythonCode}
                     className={filename.replace(/\.(cbl|cob|cobol)$/i, '') || 'CobolProgram'}
