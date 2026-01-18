@@ -860,43 +860,55 @@ function getEdgeCaseGaps(testResults: any, analysis: any): EdgeCaseGap[] {
   return gaps;
 }
 
-// v8.7: Generate performance benchmarks
+// v8.7: Generate performance benchmarks - only real measurable data
 function getPerformanceBenchmarks(analysis: any, cobolLines: number, pythonLines: number): PerformanceBenchmark[] {
   const lineRatio = pythonLines / Math.max(cobolLines, 1);
   const perfData = analysis?.performance_metrics || {};
+  const testCount = analysis?.test_count || 0;
+  const passedCount = analysis?.passed_count || 0;
   
-  return [
-    {
-      metric: "Execution Time",
-      cobol_value: perfData.cobol_exec_time || "~100ms",
-      python_value: perfData.python_exec_time || `~${Math.round(100 * (1 + lineRatio * 0.1))}ms`,
-      deviation_percent: perfData.time_deviation || Math.round(lineRatio * 10),
-      status: (perfData.time_deviation || lineRatio * 10) <= 0 ? "FASTER" : 
-              (perfData.time_deviation || lineRatio * 10) <= 20 ? "SAME" : 
-              (perfData.time_deviation || lineRatio * 10) <= 50 ? "SLOWER" : "CRITICAL"
-    },
-    {
-      metric: "Memory Usage",
-      cobol_value: perfData.cobol_memory || `~${Math.round(cobolLines * 0.1)}KB`,
-      python_value: perfData.python_memory || `~${Math.round(pythonLines * 0.15)}KB`,
-      deviation_percent: perfData.memory_deviation || Math.round((pythonLines * 0.15 / Math.max(cobolLines * 0.1, 1) - 1) * 100),
-      status: (perfData.memory_deviation || 40) <= 0 ? "FASTER" : 
-              (perfData.memory_deviation || 40) <= 30 ? "SAME" : 
-              (perfData.memory_deviation || 40) <= 60 ? "SLOWER" : "CRITICAL"
-    },
+  const benchmarks: PerformanceBenchmark[] = [
+    // Code Size - always measurable
     {
       metric: "Code Size",
       cobol_value: `${cobolLines} lines`,
       python_value: `${pythonLines} lines`,
       deviation_percent: Math.round((lineRatio - 1) * 100),
-      status: lineRatio <= 1.5 ? "FASTER" : lineRatio <= 3 ? "SAME" : "EXPECTED" // Python is naturally more verbose (type hints, docstrings, imports)
+      status: lineRatio <= 1.5 ? "FASTER" : lineRatio <= 3 ? "SAME" : "EXPECTED"
     },
+    // Test Coverage - always measurable
     {
-      metric: "Startup Time",
-      cobol_value: perfData.cobol_startup || "~5ms",
-      python_value: perfData.python_startup || "~50ms",
-      deviation_percent: perfData.startup_deviation || 900,
-      status: "SLOWER" // Python always has longer startup due to interpreter
+      metric: "Test Coverage",
+      cobol_value: "N/A",
+      python_value: `${testCount} tests`,
+      deviation_percent: testCount > 0 ? Math.round((passedCount / testCount) * 100) - 100 : 0,
+      status: passedCount === testCount && testCount > 0 ? "FASTER" : testCount > 0 ? "SAME" : "SLOWER"
     }
   ];
+  
+  // Only add execution time if actually measured
+  if (perfData.cobol_exec_time && perfData.python_exec_time) {
+    benchmarks.push({
+      metric: "Execution Time",
+      cobol_value: perfData.cobol_exec_time,
+      python_value: perfData.python_exec_time,
+      deviation_percent: perfData.time_deviation || 0,
+      status: perfData.time_deviation <= 0 ? "FASTER" : 
+              perfData.time_deviation <= 20 ? "SAME" : "SLOWER"
+    });
+  }
+  
+  // Only add memory if actually measured
+  if (perfData.cobol_memory && perfData.python_memory) {
+    benchmarks.push({
+      metric: "Memory Usage",
+      cobol_value: perfData.cobol_memory,
+      python_value: perfData.python_memory,
+      deviation_percent: perfData.memory_deviation || 0,
+      status: perfData.memory_deviation <= 0 ? "FASTER" : 
+              perfData.memory_deviation <= 30 ? "SAME" : "SLOWER"
+    });
+  }
+  
+  return benchmarks;
 }
