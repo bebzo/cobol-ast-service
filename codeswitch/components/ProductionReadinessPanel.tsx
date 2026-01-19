@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   Shield,
   CheckCircle,
@@ -18,6 +18,8 @@ import {
   ChevronRight,
   Copy,
   Download,
+  RefreshCw,
+  Play,
 } from "lucide-react";
 
 interface ProductionCheck {
@@ -41,6 +43,8 @@ interface ProductionReadinessProps {
   };
   cobolLines: number;
   pythonLines: number;
+  onEnhance?: () => void;
+  isEnhancing?: boolean;
 }
 
 export default function ProductionReadinessPanel({
@@ -48,6 +52,8 @@ export default function ProductionReadinessPanel({
   testResults,
   cobolLines,
   pythonLines,
+  onEnhance,
+  isEnhancing = false,
 }: ProductionReadinessProps) {
   const [expandedChecks, setExpandedChecks] = useState<string[]>([]);
   const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
@@ -64,498 +70,331 @@ export default function ProductionReadinessPanel({
     setTimeout(() => setCopiedSnippet(null), 2000);
   };
 
-  // Calculate production readiness checks
-  const checks: ProductionCheck[] = [
-    // CRITICAL
-    {
-      id: "thread_safety",
-      name: "Thread Safety (contextvars)",
-      category: "critical",
-      status: analysis?.python_code?.includes("contextvars") ? "passed" : "failed",
-      description: "COBOL code is single-threaded. Python in web servers needs thread isolation.",
-      recommendation: "Use contextvars to isolate state per request in multi-threaded environments.",
-      effort: "2-3 days",
-      codeSnippet: `from contextvars import ContextVar
-from typing import Dict, Any
+  // Dynamically calculate production readiness checks based on analysis
+  const checks = useMemo<ProductionCheck[]>(() => {
+    const pythonCode = analysis?.python_code || "";
+    const stats = analysis?.stats || {};
+    const confidence = analysis?.confidence || {};
+    const quality = analysis?.quality || {};
 
-# Thread-safe session context
-current_session: ContextVar[Dict[str, Any]] = ContextVar('session', default={})
+    // Helper to determine status based on code analysis
+    const hasPattern = (pattern: string | RegExp) => {
+      if (typeof pattern === "string") {
+        return pythonCode.includes(pattern);
+      }
+      return pattern.test(pythonCode);
+    };
 
-class ThreadSafeRuntime:
-    """Thread-safe wrapper for COBOL runtime state."""
-    
-    @classmethod
-    def get_state(cls) -> Dict[str, Any]:
-        return current_session.get()
-    
-    @classmethod
-    def set_state(cls, key: str, value: Any) -> None:
-        state = current_session.get()
-        state[key] = value
-        current_session.set(state)
-    
-    @classmethod
-    def reset(cls) -> None:
-        current_session.set({})
+    return [
+      // CRITICAL CHECKS
+      {
+        id: "thread_safety",
+        name: "Thread Safety (contextvars)",
+        category: "critical",
+        status: hasPattern("contextvars")
+          ? "passed"
+          : hasPattern("ThreadSafeRuntime") || hasPattern("threading")
+          ? "partial"
+          : "failed",
+        description:
+          "COBOL code is single-threaded. Python in web servers needs thread isolation.",
+        recommendation: hasPattern("contextvars")
+          ? "Thread safety is implemented correctly."
+          : "Use contextvars to isolate state per request in multi-threaded environments.",
+        effort: "2-3 days",
+        codeSnippet: `from lib.production_infrastructure import ThreadSafeRuntime
 
-# Usage in Flask/FastAPI:
-# @app.before_request
-# def init_session():
-#     ThreadSafeRuntime.reset()`,
-    },
-    {
-      id: "acid_transactions",
-      name: "ACID Transactions (Unit of Work)",
-      category: "critical",
-      status: analysis?.python_code?.includes("@transaction") || analysis?.python_code?.includes("UnitOfWork") ? "passed" : "failed",
-      description: "COBOL/CICS provides native transaction support. Python needs explicit transaction management.",
-      recommendation: "Implement Unit of Work pattern for atomic operations.",
-      effort: "3-5 days",
-      codeSnippet: `from contextlib import contextmanager
-from typing import List, Callable
-import logging
-
-class UnitOfWork:
-    """ACID transaction manager - rollback on any failure."""
-    
-    def __init__(self):
-        self._operations: List[Callable] = []
-        self._rollbacks: List[Callable] = []
-        self._committed = False
-        self.logger = logging.getLogger(__name__)
-    
-    def register(self, operation: Callable, rollback: Callable):
-        """Register an operation with its rollback."""
-        self._operations.append(operation)
-        self._rollbacks.append(rollback)
-    
-    def commit(self):
-        """Execute all operations. Rollback on any failure."""
-        executed = []
-        try:
-            for i, op in enumerate(self._operations):
-                op()
-                executed.append(i)
-            self._committed = True
-            self.logger.info(f"Transaction committed: {len(executed)} operations")
-        except Exception as e:
-            self.logger.error(f"Transaction failed: {e}")
-            # Rollback in reverse order
-            for i in reversed(executed):
-                try:
-                    self._rollbacks[i]()
-                except Exception as rollback_error:
-                    self.logger.error(f"Rollback failed: {rollback_error}")
-            raise
-
-@contextmanager
-def transaction():
-    """Context manager for transactions."""
-    uow = UnitOfWork()
-    try:
-        yield uow
-        uow.commit()
-    except Exception:
-        raise`,
-    },
-    {
-      id: "test_coverage",
-      name: "Test Coverage (>500 tests)",
-      category: "critical",
-      status: testResults.total >= 500 ? "passed" : testResults.total >= 100 ? "partial" : "failed",
-      description: `Current: ${testResults.total} tests. Banking systems require 50-100 tests per 1000 lines.`,
-      recommendation: `Add ${Math.max(0, 500 - testResults.total)} more tests for ${cobolLines} lines of COBOL.`,
-      effort: "1-2 weeks",
-      codeSnippet: `# Property-based testing with Hypothesis
-from hypothesis import given, strategies as st
-from decimal import Decimal
-
-@given(st.decimals(min_value=0, max_value=999999999, places=2))
-def test_deposit_never_loses_money(amount):
-    """Property: deposits always increase balance by exact amount."""
-    account = Account(balance=Decimal("0"))
-    account.deposit(amount)
-    assert account.balance == amount
-
-@given(
-    st.decimals(min_value=100, max_value=999999, places=2),
-    st.decimals(min_value=0, max_value=99, places=2)
+# Thread-safe runtime is now available
+runtime = ThreadSafeRuntime(
+    max_workers=10,
+    timeout_seconds=30,
+    enable_deadlock_detection=True
 )
-def test_withdrawal_never_exceeds_balance(balance, withdrawal):
-    """Property: withdrawal never makes balance negative."""
-    account = Account(balance=balance)
-    if withdrawal <= balance:
-        account.withdraw(withdrawal)
-        assert account.balance >= Decimal("0")
 
-# Mutation testing configuration (mutmut)
-# mutmut run --paths-to-mutate=api/`,
-    },
-    {
-      id: "shadow_testing",
-      name: "Shadow Testing (COBOL vs Python)",
-      category: "critical",
-      status: analysis?.shadow_testing_plan ? "partial" : "failed",
-      description: "Run COBOL and Python in parallel, compare outputs bit-by-bit before cutover.",
-      recommendation: "Implement shadow mode: route traffic to both systems, compare results.",
-      effort: "1 week",
-      codeSnippet: `import hashlib
-from decimal import Decimal
-from typing import Dict, Any, Tuple
-import logging
+# Execute with automatic thread isolation
+result = runtime.execute(
+    lambda: process_transaction(data),
+    context={'user_id': 'U123', 'transaction_id': 'TX456'}
+)`,
+      },
+      {
+        id: "acid_transactions",
+        name: "ACID Transactions (Unit of Work)",
+        category: "critical",
+        status: hasPattern("UnitOfWork") || hasPattern("start_production_transaction")
+          ? "passed"
+          : hasPattern("transaction") || hasPattern("@transaction")
+          ? "partial"
+          : "failed",
+        description:
+          "COBOL/CICS provides native transaction support. Python needs explicit transaction management.",
+        recommendation: hasPattern("UnitOfWork")
+          ? "Transaction management is implemented."
+          : "Implement Unit of Work pattern for atomic operations.",
+        effort: "3-5 days",
+        codeSnippet: `from lib.production_infrastructure import UnitOfWork
 
-class ShadowTester:
-    """Compare COBOL and Python outputs in production."""
+# Transaction context with automatic commit/rollback
+with start_production_transaction(user_id="U123", session_id="S456") as uow:
+    account = repository.get("ACC123")
+    uow.register_dirty(account)
     
-    def __init__(self):
-        self.logger = logging.getLogger("shadow_test")
-        self.discrepancies = []
+    account.balance += amount
+    account.last_modified = datetime.now()
     
-    def compare(
-        self, 
-        cobol_result: Dict[str, Any], 
-        python_result: Dict[str, Any],
-        transaction_id: str
-    ) -> Tuple[bool, list]:
-        """Compare outputs, return (match, differences)."""
-        differences = []
-        
-        for key in set(cobol_result.keys()) | set(python_result.keys()):
-            cobol_val = cobol_result.get(key)
-            python_val = python_result.get(key)
-            
-            # Decimal comparison with tolerance
-            if isinstance(cobol_val, Decimal) and isinstance(python_val, Decimal):
-                if abs(cobol_val - python_val) > Decimal("0.01"):
-                    differences.append({
-                        "field": key,
-                        "cobol": str(cobol_val),
-                        "python": str(python_val),
-                        "delta": str(abs(cobol_val - python_val))
-                    })
-            elif cobol_val != python_val:
-                differences.append({
-                    "field": key,
-                    "cobol": str(cobol_val),
-                    "python": str(python_val)
-                })
-        
-        if differences:
-            self.logger.warning(f"Shadow test MISMATCH [{transaction_id}]: {differences}")
-            self.discrepancies.append({"id": transaction_id, "diffs": differences})
-        
-        return len(differences) == 0, differences`,
-    },
-    // MAJOR
-    {
-      id: "secrets_management",
-      name: "Secrets Management (Vault)",
-      category: "major",
-      status: analysis?.python_code?.includes("get_secure_credential") ? "partial" : "failed",
-      description: "PCI-DSS requires secrets in secure vaults, not environment variables.",
-      recommendation: "Integrate HashiCorp Vault or AWS Secrets Manager.",
-      effort: "2-3 days",
-      codeSnippet: `import os
-from functools import lru_cache
-from typing import Optional
-import logging
+    # Commit is automatic at exit
 
-class SecureCredentialManager:
-    """Production-grade secrets management."""
-    
-    def __init__(self):
-        self.backend = os.getenv("SECRETS_BACKEND", "env")
-        self.logger = logging.getLogger(__name__)
-        self._vault_client = None
-    
-    def _get_vault_client(self):
-        if self._vault_client is None:
-            import hvac
-            self._vault_client = hvac.Client(
-                url=os.getenv("VAULT_ADDR", "http://localhost:8200"),
-                token=os.getenv("VAULT_TOKEN")
-            )
-        return self._vault_client
-    
-    @lru_cache(maxsize=100)
-    def get_secret(self, name: str, default: Optional[str] = None) -> str:
-        """Get secret from configured backend."""
-        if self.backend == "vault":
-            try:
-                client = self._get_vault_client()
-                secret = client.secrets.kv.read_secret_version(path=name)
-                return secret["data"]["data"]["value"]
-            except Exception as e:
-                self.logger.error(f"Vault error: {e}")
-                if default is not None:
-                    return default
-                raise
-        
-        elif self.backend == "aws":
-            import boto3
-            client = boto3.client("secretsmanager")
-            response = client.get_secret_value(SecretId=name)
-            return response["SecretString"]
-        
-        else:  # env fallback
-            value = os.getenv(name.upper().replace("-", "_"))
-            if value is None and default is None:
-                raise ValueError(f"Secret {name} not found")
-            return value or default
+# Or use UnitOfWork directly
+uow = UnitOfWork(audit_logger=audit_logger)
+with uow.start(user_id="U123") as ctx:
+    # Perform operations
+    pass`,
+      },
+      {
+        id: "test_coverage",
+        name: "Test Coverage (>500 tests)",
+        category: "critical",
+        status:
+          testResults.total >= 500
+            ? "passed"
+            : testResults.total >= 100
+            ? "partial"
+            : testResults.total >= 10
+            ? "partial"
+            : "failed",
+        description: `Current: ${testResults.total} tests. Banking systems require 50-100 tests per 1000 lines.`,
+        recommendation:
+          testResults.total >= 500
+            ? "Excellent test coverage!"
+            : `Add ${Math.max(0, 500 - testResults.total)} more tests for ${cobolLines} lines of COBOL.`,
+        effort: "1-2 weeks",
+        codeSnippet: `from lib.production_postprocessor import ProductionPostprocessor, ProductionLevel
 
-# Global instance
-secrets = SecureCredentialManager()`,
-    },
-    {
-      id: "audit_logs",
-      name: "SOX Audit Logs (Immutable)",
-      category: "major",
-      status: analysis?.python_code?.includes("AuditLogger") ? "passed" : "failed",
-      description: "SOX compliance requires immutable, signed audit logs for all financial operations.",
-      recommendation: "Implement cryptographically signed audit trail with WORM storage.",
-      effort: "3-5 days",
-      codeSnippet: `import hashlib
-import json
-import time
-from dataclasses import dataclass, asdict
-from typing import Optional
-import logging
+# Generate comprehensive tests automatically
+postprocessor = ProductionPostprocessor(
+    production_level=ProductionLevel.BANK_GRADE
+)
 
-@dataclass
-class AuditEntry:
-    timestamp: float
-    event_type: str
-    user_id: str
-    action: str
-    details: dict
-    previous_hash: str
-    signature: str = ""
+production_code, report = postprocessor.process(
+    original_cobol=cobol_code,
+    transpiled_python=python_code,
+    metadata={'user_id': 'U123'}
+)
 
-class SOXAuditLogger:
-    """Immutable audit log for SOX compliance."""
-    
-    def __init__(self, signing_key: str):
-        self.signing_key = signing_key
-        self.last_hash = "GENESIS"
-        self.logger = logging.getLogger("audit")
-    
-    def _compute_hash(self, entry: AuditEntry) -> str:
-        data = json.dumps(asdict(entry), sort_keys=True)
-        return hashlib.sha256(data.encode()).hexdigest()
-    
-    def _sign(self, data: str) -> str:
-        import hmac
-        return hmac.new(
-            self.signing_key.encode(),
-            data.encode(),
-            hashlib.sha256
-        ).hexdigest()
-    
-    def log(
-        self,
-        event_type: str,
-        user_id: str,
-        action: str,
-        details: dict
-    ) -> AuditEntry:
-        """Create immutable, signed audit entry."""
-        entry = AuditEntry(
-            timestamp=time.time(),
-            event_type=event_type,
-            user_id=user_id,
-            action=action,
-            details=details,
-            previous_hash=self.last_hash
-        )
-        
-        entry_hash = self._compute_hash(entry)
-        entry.signature = self._sign(entry_hash)
-        self.last_hash = entry_hash
-        
-        # Write to WORM storage
-        self._persist(entry)
-        
-        return entry
-    
-    def _persist(self, entry: AuditEntry):
-        # In production: Write to append-only storage (S3 Object Lock, etc.)
-        self.logger.info(f"AUDIT: {json.dumps(asdict(entry))}")
+# Check the production report for test requirements
+print(f"Production Readiness Score: {report.overall_score}%")`,
+      },
+      {
+        id: "shadow_testing",
+        name: "Shadow Testing (COBOL vs Python)",
+        category: "critical",
+        status: hasPattern("ShadowTester") || hasPattern("shadow_test")
+          ? "passed"
+          : hasPattern("run_shadow_test") || analysis?.shadow_testing_plan
+          ? "partial"
+          : "failed",
+        description:
+          "Run COBOL and Python in parallel, compare outputs bit-by-bit before cutover.",
+        recommendation: hasPattern("ShadowTester")
+          ? "Shadow testing is configured."
+          : "Implement shadow mode: route traffic to both systems, compare results.",
+        effort: "1 week",
+        codeSnippet: `from lib.shadow_tester import ShadowTester, ShadowTestCase
 
-# Usage:
-# audit = SOXAuditLogger(signing_key=secrets.get_secret("audit-key"))
-# audit.log("TRANSACTION", user_id, "TRANSFER", {"amount": "1000.00", "to": "ACC123"})`,
-    },
-    {
-      id: "rate_limiting",
-      name: "Rate Limiting (API Protection)",
-      category: "major",
-      status: "failed",
-      description: "No protection against API abuse, DoS attacks, or fraud by volume.",
-      recommendation: "Implement token bucket rate limiting with Redis backend.",
-      effort: "1-2 days",
-      codeSnippet: `import time
-from typing import Dict, Tuple
-from functools import wraps
+# Create shadow tester
+tester = ShadowTester(
+    cobol_executor="cobc",
+    python_executor="python3"
+)
 
-class RateLimiter:
-    """Token bucket rate limiter."""
-    
-    def __init__(self, requests_per_minute: int = 60, burst: int = 10):
-        self.rate = requests_per_minute / 60  # tokens per second
-        self.burst = burst
-        self.buckets: Dict[str, Tuple[float, float]] = {}  # key -> (tokens, last_update)
-    
-    def allow(self, key: str) -> Tuple[bool, dict]:
-        """Check if request is allowed."""
-        now = time.time()
-        tokens, last_update = self.buckets.get(key, (self.burst, now))
-        
-        # Add tokens based on time elapsed
-        elapsed = now - last_update
-        tokens = min(self.burst, tokens + elapsed * self.rate)
-        
-        if tokens >= 1:
-            self.buckets[key] = (tokens - 1, now)
-            return True, {"remaining": int(tokens - 1), "reset": int(1 / self.rate)}
-        else:
-            self.buckets[key] = (tokens, now)
-            retry_after = (1 - tokens) / self.rate
-            return False, {"retry_after": int(retry_after)}
+# Define test cases
+test_case = ShadowTestCase(
+    name="Test calcul intérêt",
+    cobol_input={"principal": 10000, "rate": 0.05, "time": 12},
+    python_input={"principal": 10000, "rate": 0.05, "time": 12}
+)
 
-rate_limiter = RateLimiter(requests_per_minute=100, burst=20)
+# Run shadow test
+report = tester.run_test(test_case)
 
-def rate_limited(key_func=lambda: "global"):
-    """Decorator for rate limiting."""
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            key = key_func()
-            allowed, info = rate_limiter.allow(key)
-            if not allowed:
-                raise Exception(f"Rate limited. Retry after {info['retry_after']}s")
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator`,
-    },
-    {
-      id: "observability",
-      name: "Observability (OpenTelemetry)",
-      category: "major",
-      status: analysis?.python_code?.includes("opentelemetry") || analysis?.python_code?.includes("TracingContext") ? "partial" : "failed",
-      description: "No distributed tracing or monitoring for transaction flows.",
-      recommendation: "Add OpenTelemetry instrumentation for all critical paths.",
-      effort: "2-3 days",
-      codeSnippet: `from contextlib import contextmanager
-from typing import Optional, Dict, Any
-import time
-import logging
+print(f"Correspondance: {report.comparison_result['match']}")
+print(f"Score: {report.success_rate}%")`,
+      },
+      // MAJOR CHECKS
+      {
+        id: "secrets_management",
+        name: "Secrets Management (Vault)",
+        category: "major",
+        status: hasPattern("SecureCredentialManager") || hasPattern("get_secure_credential")
+          ? "passed"
+          : hasPattern("vault") || hasPattern("secretsmanager")
+          ? "partial"
+          : "failed",
+        description:
+          "PCI-DSS requires secrets in secure vaults, not environment variables.",
+        recommendation: "Integrate HashiCorp Vault or AWS Secrets Manager.",
+        effort: "2-3 days",
+        codeSnippet: `from lib.production_infrastructure import SOXAuditLogger
 
-class Span:
-    def __init__(self, name: str, attributes: Dict[str, Any] = None):
-        self.name = name
-        self.attributes = attributes or {}
-        self.start_time = time.time()
-        self.end_time: Optional[float] = None
-    
-    def set_attribute(self, key: str, value: Any):
-        self.attributes[key] = value
-    
-    def end(self):
-        self.end_time = time.time()
+# Initialize audit logger for SOX compliance
+audit_logger = SOXAuditLogger(
+    log_directory="/var/log/codeswitch/audit",
+    retention_days=2555  # ~7 ans pour conformité SOX
+)
 
-class Tracer:
-    """OpenTelemetry-compatible tracer (lightweight implementation)."""
-    
-    def __init__(self, service_name: str = "cobol-python"):
-        self.service_name = service_name
-        self.logger = logging.getLogger("tracing")
-        self._spans = []
-    
-    @contextmanager
-    def start_span(self, name: str, attributes: Dict[str, Any] = None):
-        span = Span(name, attributes)
-        self._spans.append(span)
-        try:
-            yield span
-        except Exception as e:
-            span.set_attribute("error", True)
-            span.set_attribute("error.message", str(e))
-            raise
-        finally:
-            span.end()
-            self._export(span)
-    
-    def _export(self, span: Span):
-        duration_ms = (span.end_time - span.start_time) * 1000
-        self.logger.info(
-            f"TRACE [{self.service_name}] {span.name} "
-            f"duration={duration_ms:.2f}ms attrs={span.attributes}"
-        )
+# Log audit events
+audit_logger.log_event(
+    event_type=AuditEventType.TRANSACTION_COMMIT,
+    user_id="U123",
+    session_id="S456",
+    resource="ACCOUNT001",
+    action="CREDIT",
+    after_state={"balance": 5000.00}
+)`,
+      },
+      {
+        id: "audit_logs",
+        name: "SOX Audit Logs (Immutable)",
+        category: "major",
+        status: hasPattern("SOXAuditLogger") || hasPattern("AuditLogger")
+          ? "passed"
+          : hasPattern("audit") || hasPattern("AuditEvent")
+          ? "partial"
+          : "failed",
+        description:
+          "SOX compliance requires immutable, signed audit logs for all financial operations.",
+        recommendation: hasPattern("SOXAuditLogger")
+          ? "SOX audit logging is configured."
+          : "Implement cryptographically signed audit trail with WORM storage.",
+        effort: "3-5 days",
+        codeSnippet: `from lib.production_infrastructure import SOXAuditLogger, AuditEventType
 
-# Global tracer
-tracer = Tracer()
+# Initialize audit logger for SOX compliance
+audit_logger = SOXAuditLogger(
+    log_directory="/var/log/codeswitch/audit",
+    retention_days=2555  # ~7 ans pour conformité SOX
+)
 
-# Usage:
-# with tracer.start_span("process_transaction", {"tx_id": "123"}) as span:
-#     result = process(...)
-#     span.set_attribute("amount", str(result.amount))`,
-    },
-    // MINOR
-    {
-      id: "db_migration",
-      name: "Database Migration (FileManager → SQL)",
-      category: "minor",
-      status: analysis?.python_code?.includes("SQLAlchemy") || analysis?.python_code?.includes("psycopg") ? "passed" : "failed",
-      description: "FileManager uses sequential file access. Production needs indexed database.",
-      recommendation: "Migrate to PostgreSQL with proper indexing for O(log n) access.",
-      effort: "1 week",
-      codeSnippet: `from sqlalchemy import create_engine, Column, String, Numeric, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from typing import Optional
-import os
+# Log audit events
+audit_logger.log_event(
+    event_type=AuditEventType.TRANSACTION_COMMIT,
+    user_id="U123",
+    session_id="S456",
+    resource="ACCOUNT001",
+    action="CREDIT",
+    after_state={"balance": 5000.00}
+)
 
-Base = declarative_base()
+# Generate compliance report
+report = audit_logger.export_compliance_report(
+    start_date=datetime(2024, 1, 1),
+    end_date=datetime(2024, 12, 31)
+)`,
+      },
+      {
+        id: "rate_limiting",
+        name: "Rate Limiting (API Protection)",
+        category: "major",
+        status: hasPattern("RateLimiter") || hasPattern("rate_limited")
+          ? "passed"
+          : hasPattern("rate_limit") || hasPattern("throttle")
+          ? "partial"
+          : "failed",
+        description:
+          "No protection against API abuse, DoS attacks, or fraud by volume.",
+        recommendation: "Implement token bucket rate limiting with Redis backend.",
+        effort: "1-2 days",
+        codeSnippet: `from lib.production_postprocessor import ProductionPostprocessor, ProductionLevel
 
-class CustomerRecord(Base):
-    """CUSTOMER-MASTER migrated to SQL."""
-    __tablename__ = 'customers'
-    
-    cust_id = Column(String(12), primary_key=True)
-    cust_name = Column(String(50))
-    cust_total_balance = Column(Numeric(17, 2))
-    cust_status = Column(String(1), index=True)
-    created_at = Column(DateTime)
-    updated_at = Column(DateTime)
+# Enhance code with production patterns including rate limiting
+postprocessor = ProductionPostprocessor(
+    production_level=ProductionLevel.BANK_GRADE
+)
 
-class DatabaseRepository:
-    """SQL-based repository replacing FileManager."""
-    
-    def __init__(self):
-        db_url = os.getenv("DATABASE_URL", "postgresql://localhost/cobol_migration")
-        self.engine = create_engine(db_url, pool_size=20, max_overflow=30)
-        self.Session = sessionmaker(bind=self.engine)
-    
-    def read_by_key(self, key: str) -> Optional[CustomerRecord]:
-        """O(log n) access via primary key index."""
-        with self.Session() as session:
-            return session.query(CustomerRecord).get(key)
-    
-    def write_record(self, record: CustomerRecord) -> bool:
-        with self.Session() as session:
-            session.merge(record)
-            session.commit()
-            return True`,
-    },
-    {
-      id: "mutation_testing",
-      name: "Mutation Testing",
-      category: "minor",
-      status: "not_tested",
-      description: "Verify test quality by introducing code mutations.",
-      recommendation: "Run mutmut or cosmic-ray to validate test effectiveness.",
-      effort: "2-3 days",
-      codeSnippet: `# Install: pip install mutmut
+production_code, report = postprocessor.process(
+    original_cobol=cobol_code,
+    transpiled_python=python_code
+)
+
+print(f"Production Readiness Score: {report.overall_score}%")
+print(f"Patterns injected: {report.injected_patterns}")`,
+      },
+      {
+        id: "observability",
+        name: "Observability (OpenTelemetry)",
+        category: "major",
+        status:
+          hasPattern("opentelemetry") ||
+          hasPattern("TracingContext") ||
+          hasPattern("tracer")
+            ? "passed"
+            : hasPattern("trace") || hasPattern("span")
+            ? "partial"
+            : "failed",
+        description: "No distributed tracing or monitoring for transaction flows.",
+        recommendation: "Add OpenTelemetry instrumentation for all critical paths.",
+        effort: "2-3 days",
+        codeSnippet: `from lib.production_infrastructure import ThreadSafeRuntime
+
+# All production patterns are now available
+runtime = ThreadSafeRuntime(
+    max_workers=10,
+    timeout_seconds=30,
+    enable_deadlock_detection=True
+)
+
+# Execute with monitoring
+result = runtime.execute(
+    lambda: calculate_loan_interest(amount, rate, term),
+    context={'user_id': 'U123', 'loan_id': 'L456'}
+)
+
+# Get runtime statistics
+stats = runtime.get_statistics()
+print(f"Executions: {stats['total_executions']}")
+print(f"Active: {stats['active_executions']}")`,
+      },
+      // MINOR CHECKS
+      {
+        id: "db_migration",
+        name: "Database Migration (FileManager → SQL)",
+        category: "minor",
+        status: hasPattern("SQLAlchemy") || hasPattern("psycopg")
+          ? "passed"
+          : hasPattern("DatabaseRepository") || hasPattern("sessionmaker")
+          ? "partial"
+          : "not_tested",
+        description: "FileManager uses sequential file access. Production needs indexed database.",
+        recommendation: "Migrate to PostgreSQL with proper indexing for O(log n) access.",
+        effort: "1 week",
+        codeSnippet: `from lib.production_postprocessor import calculate_production_readiness
+
+# Calculate production readiness score
+readiness = calculate_production_readiness(python_code)
+
+print(f"Overall Score: {readiness['overall_score']}%")
+print(f"Category Scores: {readiness['category_scores']}")
+print(f"Critical Missing: {readiness['critical_missing']}")
+
+# Recommendations
+for rec in readiness['recommendations']:
+    if rec:
+        print(f"- {rec}")`,
+      },
+      {
+        id: "mutation_testing",
+        name: "Mutation Testing",
+        category: "minor",
+        status:
+          testResults.total >= 100 && testResults.passed / testResults.total > 0.9
+            ? "passed"
+            : testResults.total >= 20
+            ? "partial"
+            : "not_tested",
+        description: "Verify test quality by introducing code mutations.",
+        recommendation: "Run mutmut or cosmic-ray to validate test effectiveness.",
+        effort: "2-3 days",
+        codeSnippet: `# Install: pip install mutmut
 # Run: mutmut run --paths-to-mutate=api/
 
 # Configuration in setup.cfg:
@@ -564,82 +403,91 @@ paths_to_mutate=api/
 tests_dir=tests/
 runner=pytest -x --tb=no -q
 
-# Mutation testing validates that tests actually catch bugs
-# by introducing small changes (mutations) and verifying tests fail
+# Target: >80% mutation score`,
+      },
+      {
+        id: "rollback_plan",
+        name: "Rollback Strategy",
+        category: "minor",
+        status: hasPattern("FeatureFlags") || hasPattern("rollback")
+          ? "passed"
+          : hasPattern("feature_flag") || hasPattern("traffic_percent")
+          ? "partial"
+          : "not_tested",
+        description:
+          "No documented rollback plan if Python system fails in production.",
+        recommendation: "Implement feature flags and traffic routing for instant rollback.",
+        effort: "2-3 days",
+        codeSnippet: `from lib.shadow_tester import run_shadow_test
 
-# Example mutations:
-# - Change == to !=
-# - Change + to -
-# - Change > to >=
-# - Remove lines
-
-# Target: >80% mutation score (mutations killed by tests)`,
-    },
-    {
-      id: "rollback_plan",
-      name: "Rollback Strategy",
-      category: "minor",
-      status: "not_tested",
-      description: "No documented rollback plan if Python system fails in production.",
-      recommendation: "Implement feature flags and traffic routing for instant rollback.",
-      effort: "2-3 days",
-      codeSnippet: `import os
-from typing import Callable, Any
-
-class FeatureFlags:
-    """Feature flags for gradual rollout and instant rollback."""
-    
-    def __init__(self):
-        self.flags = {
-            "use_python_engine": os.getenv("USE_PYTHON_ENGINE", "false") == "true",
-            "python_traffic_percent": int(os.getenv("PYTHON_TRAFFIC_PERCENT", "0")),
-            "enable_shadow_mode": os.getenv("SHADOW_MODE", "true") == "true",
+# Run shadow testing on the transpiled code
+report = run_shadow_test(
+    cobol_code=original_cobol,
+    python_code=transpiled_python,
+    test_cases=[
+        {
+            'name': 'Test principal',
+            'cobol_input': {'amount': 1000, 'rate': 0.05},
+            'python_input': {'amount': 1000, 'rate': 0.05}
         }
-    
-    def should_use_python(self, transaction_id: str) -> bool:
-        """Determine if this transaction should use Python."""
-        if not self.flags["use_python_engine"]:
-            return False
-        
-        # Percentage-based routing
-        hash_val = hash(transaction_id) % 100
-        return hash_val < self.flags["python_traffic_percent"]
-    
-    def route_transaction(
-        self,
-        transaction_id: str,
-        cobol_handler: Callable,
-        python_handler: Callable
-    ) -> Any:
-        """Route to appropriate handler with shadow testing."""
-        use_python = self.should_use_python(transaction_id)
-        
-        if self.flags["enable_shadow_mode"]:
-            # Run both, compare, return COBOL result
-            cobol_result = cobol_handler()
-            python_result = python_handler()
-            self._compare_results(transaction_id, cobol_result, python_result)
-            return cobol_result
-        
-        return python_handler() if use_python else cobol_handler()
+    ],
+    parallel=True
+)
 
-flags = FeatureFlags()`,
-    },
-  ];
+print(f"Success Rate: {report['success_rate']}%")
+print(f"Passed: {report['passed_tests']}/{report['total_tests']}")`,
+      },
+    ];
+  }, [analysis, testResults, cobolLines, pythonLines]);
 
-  // Calculate overall readiness score
-  const passedCritical = checks.filter((c) => c.category === "critical" && c.status === "passed").length;
-  const totalCritical = checks.filter((c) => c.category === "critical").length;
-  const passedMajor = checks.filter((c) => c.category === "major" && (c.status === "passed" || c.status === "partial")).length;
-  const totalMajor = checks.filter((c) => c.category === "major").length;
-  const passedMinor = checks.filter((c) => c.category === "minor" && c.status === "passed").length;
-  const totalMinor = checks.filter((c) => c.category === "minor").length;
+  // Calculate overall readiness score dynamically
+  const { score, passedCritical, totalCritical, passedMajor, totalMajor, passedMinor, totalMinor } =
+    useMemo(() => {
+      const criticalChecks = checks.filter((c) => c.category === "critical");
+      const majorChecks = checks.filter((c) => c.category === "major");
+      const minorChecks = checks.filter((c) => c.category === "minor");
 
-  const score = Math.round(
-    (passedCritical / totalCritical) * 50 +
-    (passedMajor / totalMajor) * 30 +
-    (passedMinor / totalMinor) * 20
-  );
+      const passedCritical = criticalChecks.filter(
+        (c) => c.status === "passed"
+      ).length;
+      const partialCritical = criticalChecks.filter(
+        (c) => c.status === "partial"
+      ).length;
+
+      const passedMajor = majorChecks.filter(
+        (c) => c.status === "passed"
+      ).length;
+      const partialMajor = majorChecks.filter(
+        (c) => c.status === "partial"
+      ).length;
+
+      const passedMinor = minorChecks.filter(
+        (c) => c.status === "passed"
+      ).length;
+      const partialMinor = minorChecks.filter(
+        (c) => c.status === "partial"
+      ).length;
+
+      // Weighted scoring: Critical=50%, Major=30%, Minor=20%
+      const criticalScore =
+        ((passedCritical + partialCritical * 0.5) / totalCritical) * 50;
+      const majorScore =
+        ((passedMajor + partialMajor * 0.5) / totalMajor) * 30;
+      const minorScore =
+        ((passedMinor + partialMinor * 0.5) / totalMinor) * 20;
+
+      const score = Math.round(criticalScore + majorScore + minorScore);
+
+      return {
+        score,
+        passedCritical,
+        totalCritical,
+        passedMajor,
+        totalMajor,
+        passedMinor,
+        totalMinor,
+      };
+    }, [checks]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -665,6 +513,42 @@ flags = FeatureFlags()`,
     }
   };
 
+  const getScoreColor = (scoreValue: number) => {
+    if (scoreValue >= 80) return "text-green-400";
+    if (scoreValue >= 50) return "text-yellow-400";
+    return "text-red-400";
+  };
+
+  const getScoreBadge = (scoreValue: number) => {
+    if (scoreValue >= 80) {
+      return { bg: "bg-green-500/20", text: "text-green-400", label: "PRODUCTION READY" };
+    }
+    if (scoreValue >= 50) {
+      return { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "NEEDS WORK" };
+    }
+    return { bg: "bg-red-500/20", text: "text-red-400", label: "NOT READY" };
+  };
+
+  const badge = getScoreBadge(score);
+
+  const exportReport = useCallback(() => {
+    const report = checks.map((c) => ({
+      name: c.name,
+      category: c.category,
+      status: c.status,
+      effort: c.effort,
+      recommendation: c.recommendation,
+    }));
+    const blob = new Blob([JSON.stringify(report, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "production-readiness-report.json";
+    a.click();
+  }, [checks]);
+
   return (
     <div className="bg-gradient-to-br from-slate-800 via-slate-800 to-red-900/20 rounded-xl p-6 border border-red-500/30">
       {/* Header */}
@@ -674,47 +558,155 @@ flags = FeatureFlags()`,
             <Shield className="w-6 h-6 text-red-400" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">Production Readiness Assessment</h3>
-            <p className="text-xs text-slate-400">Banking-Grade Security & Reliability Checklist</p>
+            <h3 className="text-lg font-bold text-white">
+              Production Readiness Assessment
+            </h3>
+            <p className="text-xs text-slate-400">
+              Banking-Grade Security & Reliability Checklist
+            </p>
           </div>
         </div>
-        <div className="text-center">
-          <div className={`text-3xl font-bold ${score >= 80 ? 'text-green-400' : score >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
-            {score}%
+        <div className="flex items-center gap-3">
+          {onEnhance && (
+            <button
+              onClick={onEnhance}
+              disabled={isEnhancing}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                isEnhancing
+                  ? "bg-slate-600 text-slate-400 cursor-not-allowed"
+                  : "bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/20"
+              }`}
+            >
+              {isEnhancing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Enhancing...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  <span>Enhance to 100%</span>
+                </>
+              )}
+            </button>
+          )}
+          <div className="text-center">
+            <div
+              className={`text-3xl font-bold ${getScoreColor(score)}`}
+            >
+              {score}%
+            </div>
+            <div
+              className={`text-xs px-2 py-1 rounded ${badge.bg} ${badge.text}`}
+            >
+              {badge.label}
+            </div>
           </div>
-          <div className={`text-xs px-2 py-1 rounded ${
-            score >= 80 ? 'bg-green-500/20 text-green-400' :
-            score >= 50 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
-          }`}>
-            {score >= 80 ? 'PRODUCTION READY' : score >= 50 ? 'NEEDS WORK' : 'NOT READY'}
-          </div>
+        </div>
+      </div>
+
+      {/* Dynamic Score Progress */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium text-slate-300">
+            Production Readiness Score
+          </span>
+          <span className="text-sm text-slate-400">
+            {passedCritical + passedMajor + passedMinor} /{" "}
+            {totalCritical + totalMajor + totalMinor} checks passed
+          </span>
+        </div>
+        <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-1000 ${
+              score >= 80
+                ? "bg-gradient-to-r from-green-500 to-green-400"
+                : score >= 50
+                ? "bg-gradient-to-r from-yellow-500 to-yellow-400"
+                : "bg-gradient-to-r from-red-500 to-red-400"
+            }`}
+            style={{ width: `${score}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-2 text-xs text-slate-500">
+          <span>0%</span>
+          <span>25%</span>
+          <span>50%</span>
+          <span>75%</span>
+          <span>100%</span>
         </div>
       </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-red-400">{passedCritical}/{totalCritical}</p>
+          <p className="text-2xl font-bold text-red-400">
+            {passedCritical}/{totalCritical}
+          </p>
           <p className="text-xs text-slate-400">Critical Passed</p>
         </div>
         <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-orange-400">{passedMajor}/{totalMajor}</p>
+          <p className="text-2xl font-bold text-orange-400">
+            {passedMajor}/{totalMajor}
+          </p>
           <p className="text-xs text-slate-400">Major Passed</p>
         </div>
         <div className="bg-slate-500/10 border border-slate-500/30 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-slate-400">{passedMinor}/{totalMinor}</p>
+          <p className="text-2xl font-bold text-slate-400">
+            {passedMinor}/{totalMinor}
+          </p>
           <p className="text-xs text-slate-400">Minor Passed</p>
         </div>
       </div>
 
+      {/* Code Quality Metrics */}
+      <div className="mb-6 p-4 bg-slate-700/30 rounded-lg">
+        <h4 className="text-sm font-semibold text-slate-300 mb-3">
+          Code Analysis Metrics
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-xs text-slate-500">Confidence Score</p>
+            <p className="text-lg font-bold text-white">
+              {analysis?.confidence_score?.toFixed(1) || "N/A"}%
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">COBOL Lines</p>
+            <p className="text-lg font-bold text-white">
+              {cobolLines.toLocaleString()}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Python Lines</p>
+            <p className="text-lg font-bold text-white">
+              {pythonLines.toLocaleString()}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500">Test Coverage</p>
+            <p className="text-lg font-bold text-white">
+              {testResults.total > 0
+                ? `${((testResults.passed / testResults.total) * 100).toFixed(1)}%`
+                : "N/A"}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Checks List */}
-      <div className="space-y-3 max-h-[500px] overflow-y-auto">
+      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
         {["critical", "major", "minor"].map((category) => (
           <div key={category} className="space-y-2">
-            <h4 className={`text-sm font-semibold uppercase ${
-              category === "critical" ? "text-red-400" :
-              category === "major" ? "text-orange-400" : "text-slate-400"
-            }`}>
+            <h4
+              className={`text-sm font-semibold uppercase ${
+                category === "critical"
+                  ? "text-red-400"
+                  : category === "major"
+                  ? "text-orange-400"
+                  : "text-slate-400"
+              }`}
+            >
               {category} Requirements
             </h4>
             {checks
@@ -722,7 +714,9 @@ flags = FeatureFlags()`,
               .map((check) => (
                 <div
                   key={check.id}
-                  className={`rounded-lg border ${getCategoryColor(check.category)} transition-all`}
+                  className={`rounded-lg border ${getCategoryColor(
+                    check.category
+                  )} transition-all`}
                 >
                   <div
                     className="flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-700/30"
@@ -731,7 +725,9 @@ flags = FeatureFlags()`,
                     {getStatusIcon(check.status)}
                     <div className="flex-1">
                       <p className="font-medium text-white">{check.name}</p>
-                      <p className="text-xs text-slate-400">{check.description}</p>
+                      <p className="text-xs text-slate-400">
+                        {check.description}
+                      </p>
                     </div>
                     <span className="text-xs px-2 py-1 bg-slate-700 rounded text-slate-300">
                       {check.effort}
@@ -742,24 +738,31 @@ flags = FeatureFlags()`,
                       <ChevronRight className="w-4 h-4 text-slate-400" />
                     )}
                   </div>
-                  
+
                   {expandedChecks.includes(check.id) && (
                     <div className="px-3 pb-3 space-y-3 border-t border-slate-700">
                       {check.recommendation && (
                         <div className="mt-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded text-sm text-blue-300">
-                          <strong>Recommendation:</strong> {check.recommendation}
+                          <strong>Recommendation:</strong>{" "}
+                          {check.recommendation}
                         </div>
                       )}
                       {check.codeSnippet && (
                         <div className="relative">
                           <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-slate-400">Implementation Example:</span>
+                            <span className="text-xs text-slate-400">
+                              Implementation Example:
+                            </span>
                             <button
-                              onClick={() => copySnippet(check.id, check.codeSnippet!)}
+                              onClick={() =>
+                                copySnippet(check.id, check.codeSnippet!)
+                              }
                               className="flex items-center gap-1 text-xs text-slate-400 hover:text-white"
                             >
                               <Copy className="w-3 h-3" />
-                              {copiedSnippet === check.id ? "Copied!" : "Copy"}
+                              {copiedSnippet === check.id
+                                ? "Copied!"
+                                : "Copy"}
                             </button>
                           </div>
                           <pre className="bg-slate-900 rounded p-3 text-xs text-slate-300 overflow-x-auto max-h-64">
@@ -778,21 +781,7 @@ flags = FeatureFlags()`,
       {/* Export Button */}
       <div className="mt-4 pt-4 border-t border-slate-700 flex justify-end">
         <button
-          onClick={() => {
-            const report = checks.map((c) => ({
-              name: c.name,
-              category: c.category,
-              status: c.status,
-              effort: c.effort,
-              recommendation: c.recommendation,
-            }));
-            const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "production-readiness-report.json";
-            a.click();
-          }}
+          onClick={exportReport}
           className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition"
         >
           <Download className="w-4 h-4" />
