@@ -1,0 +1,8 @@
+tmp/
+.tmp/
+test-results/
+screenshots/
+preview-out/
+shell_output_save/
+*.spec.ts
+*.test.ts

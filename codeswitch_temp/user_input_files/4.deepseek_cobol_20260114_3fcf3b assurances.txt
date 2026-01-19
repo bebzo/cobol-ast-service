@@ -1,0 +1,680 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. ULTRA-ASSURANCES-SYSTEM.
+       AUTHOR. ENTERPRISE-INSURANCE-CORP.
+       DATE-WRITTEN. 1985-11-23.
+       SECURITY. LEVEL-4 ENCRYPTED-AUDIT.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-Z15.
+       OBJECT-COMPUTER. IBM-Z15.
+       SPECIAL-NAMES.
+           CURRENCY SIGN IS '€'
+           DECIMAL-POINT IS COMMA
+           CLASS VALID-CHAR IS 'A' THRU 'Z', '0' THRU '9', '-', ' '
+           SYMBOLIC CHARACTERS NEWLINE IS 10.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT POLICE-FILE ASSIGN TO DA-POLICES
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS POL-KEY
+               ALTERNATE RECORD KEY IS POL-NUM-CLIENT
+               ALTERNATE RECORD KEY IS POL-NUM-CONTRAT
+               FILE STATUS IS WS-POL-STATUS.
+
+           SELECT SINISTRE-FILE ASSIGN TO DA-SINISTRES
+               ORGANIZATION IS RELATIVE
+               ACCESS MODE IS RANDOM
+               RELATIVE KEY IS SIN-REL-KEY
+               FILE STATUS IS WS-SIN-STATUS.
+
+           SELECT TARIFICATION-FILE ASSIGN TO DA-TARIFS
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS RANDOM
+               RECORD KEY IS TAR-CLASS
+               FILE STATUS IS WS-TAR-STATUS.
+
+           SELECT HISTORIQUE-FILE ASSIGN TO DA-HISTO
+               ORGANIZATION IS LINE SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL.
+
+           SELECT REASSURANCE-FILE ASSIGN TO DA-REASS
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS RANDOM
+               RECORD KEY IS REA-COMPAGNIE
+               ALTERNATE RECORD KEY IS REA-COUNTRY.
+
+           SELECT TEMP-WORK-FILE ASSIGN TO DA-TEMP.
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD  POLICE-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 300 CHARACTERS
+           RECORDING MODE IS F
+           BLOCK CONTAINS 10 RECORDS.
+       01  POLICE-RECORD.
+           05  POL-KEY.
+               10  POL-COMPAGNIE      PIC X(03).
+               10  POL-BRANCHE        PIC 9(02).
+               10  POL-NUMERO         PIC 9(12).
+           05  POL-NUM-CLIENT         PIC 9(10).
+           05  POL-NUM-CONTRAT        PIC X(20).
+           05  POL-DATA.
+               10  POL-EFFET-DATE.
+                   15  POL-EFFET-AAAA PIC 9(04).
+                   15  POL-EFFET-MM   PIC 9(02).
+                   15  POL-EFFET-JJ   PIC 9(02).
+               10  POL-ECHEANCE-DATE  PIC 9(08).
+               10  POL-RESILIATION    PIC 9(08).
+               10  POL-PROLONGATION   PIC 9(08).
+           05  POL-COUVERTURE.
+               10  POL-MONTANT-GARANTI
+                                      PIC 9(10)V99.
+               10  POL-FRANCHISE      PIC 9(07)V99.
+               10  POL-PLAFOND        PIC 9(10)V99.
+               10  POL-TAUX-COUVERT   PIC 9V9(4).
+               10  POL-EXCLUSIONS     PIC X(50).
+           05  POL-PRIME.
+               10  POL-PRIME-ANNUELLE PIC 9(08)V99.
+               10  POL-PRIME-MENSUEL  PIC 9(07)V99.
+               10  POL-PRIME-TRIM     PIC 9(08)V99.
+               10  POL-PRIME-REVISEE  PIC 9(08)V99.
+               10  POL-MAJORATION     PIC 9V9(3).
+               10  POL-REDUCTION      PIC 9V9(3).
+           05  POL-STATUT             PIC X.
+               88  POL-ACTIVE         VALUE 'A'.
+               88  POL-SUSPENDUE      VALUE 'S'.
+               88  POL-RESILIEE       VALUE 'R'.
+               88  POL-EN-ATTENTE     VALUE 'E'.
+               88  POL-FRAUDULEUSE    VALUE 'F'.
+           05  POL-RISQUE.
+               10  POL-CLASS-RISQUE   PIC X.
+                   88  RISQUE-FAIBLE  VALUE 'F'.
+                   88  RISQUE-MOYEN   VALUE 'M'.
+                   88  RISQUE-ELEVE   VALUE 'E'.
+                   88  RISQUE-CRITIQUE VALUE 'C'.
+               10  POL-SCORE-RISQUE   PIC 9(03).
+               10  POL-LAST-EVAL      PIC 9(08).
+           05  POL-REASSURANCE.
+               10  POL-REA-POURCENT   PIC 9(03).
+               10  POL-REA-MONTANT    PIC 9(10)V99.
+               10  POL-REA-COMPAGNIE  PIC X(10).
+           05  POL-CALCULS.
+               10  POL-SINISTRALITE   PIC 9V9(4).
+               10  POL-TECHNIQUE      PIC 9V9(4).
+               10  POL-CHARGE         PIC 9V9(4).
+               10  POL-BENEFICE       PIC 9V9(4).
+           05  FILLER                 PIC X(51).
+
+       FD  SINISTRE-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 250 CHARACTERS.
+       01  SINISTRE-RECORD.
+           05  SIN-NUMERO             PIC 9(12).
+           05  SIN-POLICE-REF         PIC 9(12).
+           05  SIN-TYPE               PIC X(03).
+               88  SIN-ACCIDENT       VALUE 'ACC'.
+               88  SIN-MALADIE        VALUE 'MAL'.
+               88  SIN-DECES          VALUE 'DEC'.
+               88  SIN-INVALIDITE     VALUE 'INV'.
+               88  SIN-RECOURS        VALUE 'REC'.
+               88  SIN-CATASTROPHE    VALUE 'CAT'.
+           05  SIN-DATA.
+               10  SIN-DATE-SURVENANCE PIC 9(08).
+               10  SIN-DATE-DECLARATION PIC 9(08).
+               10  SIN-DATE-REGLEMENT PIC 9(08).
+               10  SIN-DATE-CLOUTURE  PIC 9(08).
+           05  SIN-MONTANTS.
+               10  SIN-MONTANT-RECLAME PIC 9(10)V99.
+               10  SIN-MONTANT-EXPERTISE PIC 9(10)V99.
+               10  SIN-MONTANT-PAYE   PIC 9(10)V99.
+               10  SIN-MONTANT-RESERVE PIC 9(10)V99.
+               10  SIN-FRANCHISE-APPL PIC 9(07)V99.
+               10  SIN-PLAFOND-APPL   PIC 9(10)V99.
+           05  SIN-STATUT             PIC X.
+               88  SIN-ENCOURS        VALUE 'E'.
+               88  SIN-EXPERTISE      VALUE 'X'.
+               88  SIN-PAYE           VALUE 'P'.
+               88  SIN-REFUSE         VALUE 'R'.
+               88  SIN-RESERVE        VALUE 'S'.
+               88  SIN-RECOURS        VALUE 'C'.
+           05  SIN-EXPERT             PIC X(20).
+           05  SIN-CAUSE              PIC X(30).
+           05  SIN-LIEU               PIC X(40).
+           05  SIN-NOTE-RISQUE        PIC 9(03).
+           05  FILLER                 PIC X(19).
+
+       FD  TARIFICATION-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 100 CHARACTERS.
+       01  TARIFICATION-RECORD.
+           05  TAR-CLASS              PIC X(10).
+           05  TAR-ZONE               PIC X(03).
+           05  TAR-BASE               PIC 9V9(6).
+           05  TAR-MAJORATIONS OCCURS 5 TIMES.
+               10  TAR-MAJ-CAUSE      PIC X(20).
+               10  TAR-MAJ-TAUX       PIC 9V9(4).
+           05  TAR-REDUCTIONS OCCURS 3 TIMES.
+               10  TAR-RED-CAUSE      PIC X(20).
+               10  TAR-RED-TAUX       PIC 9V9(4).
+
+       FD  HISTORIQUE-FILE.
+       01  HISTORIQUE-RECORD          PIC X(200).
+
+       FD  REASSURANCE-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 150 CHARACTERS.
+       01  REASSURANCE-RECORD.
+           05  REA-COMPAGNIE          PIC X(10).
+           05  REA-COUNTRY            PIC X(03).
+           05  REA-CAPACITE           PIC 9(12)V99.
+           05  REA-TAUX               PIC 9V9(6).
+           05  REA-COMMISSION         PIC 9V9(4).
+           05  REA-SOLDE              PIC 9(12)V99.
+           05  REA-RATING             PIC X.
+               88  REA-AAA            VALUE 'A'.
+               88  REA-AA             VALUE 'B'.
+               88  REA-A              VALUE 'C'.
+               88  REA-BBB            VALUE 'D'.
+               88  REA-BB             VALUE 'E'.
+
+       FD  TEMP-WORK-FILE
+           LABEL RECORDS ARE OMITTED.
+       01  TEMP-RECORD                PIC X(500).
+
+       WORKING-STORAGE SECTION.
+
+       01  WS-CONTROLES.
+           05  WS-POL-STATUS          PIC XX.
+               88  POL-OK             VALUE '00'.
+               88  POL-EOF            VALUE '10'.
+               88  POL-DUPLICATE      VALUE '22'.
+               88  POL-NOT-FOUND      VALUE '23'.
+               88  POL-INVALID-KEY    VALUE '24'.
+           05  WS-SIN-STATUS          PIC XX.
+           05  WS-TAR-STATUS          PIC XX.
+           05  WS-REA-STATUS          PIC XX.
+           05  WS-EOF-FLAGS.
+               10  WS-POL-EOF         PIC X.
+                   88  POL-FIN        VALUE 'Y'.
+                   88  POL-NON-FIN    VALUE 'N'.
+               10  WS-SIN-EOF         PIC X.
+               10  WS-TAR-EOF         PIC X.
+           05  WS-VALIDATION-CODES.
+               10  WS-VALID-POLICE    PIC X.
+                   88  POL-VALIDE     VALUE 'V'.
+                   88  POL-INVALIDE   VALUE 'I'.
+               10  WS-VALID-SINISTRE  PIC X.
+               10  WS-VALID-CALCUL    PIC X.
+           05  WS-SECURITY-FLAGS.
+               10  WS-AUTH-LEVEL      PIC 9.
+                   88  AUTH-NONE      VALUE 0.
+                   88  AUTH-LECTURE   VALUE 1.
+                   88  AUTH-ECRITURE  VALUE 2.
+                   88  AUTH-ADMIN     VALUE 3.
+               10  WS-FRAUD-FLAG      PIC X.
+                   88  FRAUD-DETECTED VALUE 'Y'.
+               10  WS-AUDIT-LEVEL     PIC 9.
+
+       01  WS-CALCUL-COMPLEXE.
+           05  WS-PRIME-PURE          PIC 9(10)V9(6).
+           05  WS-PRIME-COMMERCIALE   PIC 9(10)V9(6).
+           05  WS-PRIME-NETTE         PIC 9(10)V9(6).
+           05  WS-PRIME-TOTALE        PIC 9(10)V9(6).
+           05  WS-TAUX-SINISTRALITE   PIC 9V9(6).
+           05  WS-TAUX-TECHNIQUE      PIC 9V9(6).
+           05  WS-TAUX-CHARGE         PIC 9V9(6).
+           05  WS-TAUX-BENEFICE       PIC 9V9(6).
+           05  WS-PROBABILITE         PIC 9V9(6).
+           05  WS-VARIANCE            PIC 9(12)V9(6).
+           05  WS-ECART-TYPE          PIC 9(10)V9(6).
+           05  WS-VALUE-AT-RISK       PIC 9(12)V99.
+           05  WS-CVAR                PIC 9(12)V99.
+           05  WS-RESERVE-MATHEMATIQUE PIC 9(12)V99.
+           05  WS-MARGIN-SOLVABILITE  PIC 9(12)V99.
+           05  WS-CAPITAL-RISQUE      PIC 9(12)V99.
+
+       01  WS-STATISTIQUES.
+           05  WS-STAT-POLICES        PIC 9(6).
+           05  WS-STAT-SINISTRES      PIC 9(6).
+           05  WS-STAT-MONTANT-SINISTRES PIC 9(12)V99.
+           05  WS-STAT-MOYENNE-SINISTRE PIC 9(8)V99.
+           05  WS-STAT-FREQUENCE      PIC 9V9(6).
+           05  WS-STAT-COUT-MOYEN     PIC 9(8)V99.
+           05  WS-STAT-SEVERITE       PIC 9V9(6).
+           05  WS-STAT-LOSS-RATIO     PIC 9V9(6).
+
+       01  WS-TABLES-COMPLEXES.
+           05  WS-TABLE-TARIFS.
+               10  WS-TARIF-ENTRY OCCURS 100 TIMES
+                   INDEXED BY IDX-TARIF.
+                   15  WS-TAR-CLASS   PIC X(10).
+                   15  WS-TAR-ZONE    PIC X(03).
+                   15  WS-TAR-BASE    PIC 9V9(6).
+                   15  WS-TAR-MAJ OCCURS 5 TIMES
+                       INDEXED BY IDX-MAJ.
+                       20  WS-MAJ-CAUSE PIC X(20).
+                       20  WS-MAJ-TAUX PIC 9V9(4).
+                   15  WS-TAR-RED OCCURS 3 TIMES
+                       INDEXED BY IDX-RED.
+                       20  WS-RED-CAUSE PIC X(20).
+                       20  WS-RED-TAUX PIC 9V9(4).
+           05  WS-TABLE-REASS OCCURS 50 TIMES
+               INDEXED BY IDX-REASS.
+               10  WS-REA-COMPAGNIE   PIC X(10).
+               10  WS-REA-CAPACITE    PIC 9(12)V99.
+               10  WS-REA-TAUX        PIC 9V9(6).
+               10  WS-REA-UTILISE     PIC 9(12)V99.
+
+       01  WS-DATES-TEMPS.
+           05  WS-DATE-COURANTE.
+               10  WS-AA              PIC 9(04).
+               10  WS-MM              PIC 9(02).
+               10  WS-JJ              PIC 9(02).
+           05  WS-HEURE-COURANTE.
+               10  WS-HH              PIC 9(02).
+               10  WS-MIN             PIC 9(02).
+               10  WS-SEC             PIC 9(02).
+           05  WS-TIMESTAMP           PIC 9(14).
+           05  WS-DATE-365            PIC 9(03).
+           05  WS-JOURS-ECOULE        PIC 9(05).
+
+       01  WS-FORMULAIRES.
+           05  WS-FORM-SINISTRE.
+               10  WS-FORM-NUM        PIC 9(12).
+               10  WS-FORM-POLICE     PIC 9(12).
+               10  WS-FORM-TYPE       PIC X(03).
+               10  WS-FORM-DATE-SURV  PIC 9(08).
+               10  WS-FORM-MONTANT    PIC 9(10)V99.
+               10  WS-FORM-CAUSE      PIC X(30).
+               10  WS-FORM-LIEU       PIC X(40).
+           05  WS-FORM-POLICE.
+               10  WS-FORM-CLIENT     PIC 9(10).
+               10  WS-FORM-CONTRAT    PIC X(20).
+               10  WS-FORM-EFFET      PIC 9(08).
+               10  WS-FORM-GARANTIE   PIC 9(10)V99.
+               10  WS-FORM-PRIME      PIC 9(08)V99.
+               10  WS-FORM-BRANCHE    PIC 9(02).
+
+       01  WS-BUFFERS.
+           05  WS-BUFFER-POLICE       PIC X(300).
+           05  WS-BUFFER-SINISTRE     PIC X(250).
+           05  WS-BUFFER-TEMP         PIC X(500).
+           05  WS-BUFFER-AUDIT        PIC X(200).
+           05  WS-BUFFER-REPORT       PIC X(132).
+
+       01  WS-CONSTANTES-ACTUARIELLES.
+           05  WS-TAUX-ACTUALISATION  PIC 9V9(6) VALUE 0.025000.
+           05  WS-TAUX-INFLATION      PIC 9V9(6) VALUE 0.020000.
+           05  WS-MARGIN-SECURITE     PIC 9V9(4) VALUE 0.1500.
+           05  WS-CHARGES-FIXES       PIC 9V9(4) VALUE 0.1000.
+           05  WS-COMMISSION-MAX      PIC 9V9(4) VALUE 0.3000.
+           05  WS-RESERVE-MIN         PIC 9(8)V99 VALUE 1000000.00.
+           05  WS-SEUIL-FRAUD         PIC 9(3) VALUE 750.
+           05  WS-VAR-95              PIC 9V9(6) VALUE 1.645000.
+           05  WS-VAR-99              PIC 9V9(6) VALUE 2.326000.
+
+       01  WS-VARIABLES-GLOBALES.
+           05  WS-RETURN-CODE         PIC 9(04).
+           05  WS-ERROR-CODE          PIC X(04).
+           05  WS-ERROR-MESSAGE       PIC X(100).
+           05  WS-TRANSACTION-ID      PIC X(32).
+           05  WS-SESSION-ID          PIC X(32).
+           05  WS-USER-ID             PIC X(20).
+           05  WS-IP-ADDRESS          PIC X(15).
+
+       01  WS-REDEFINITIONS.
+           05  WS-POLICE-ALPHA        PIC X(300).
+           05  WS-POLICE-NUMERIC REDEFINES WS-POLICE-ALPHA.
+               10  FILLER             PIC X(17).
+               10  WS-POL-MONTANT-NUM PIC 9(10)V99.
+               10  FILLER             PIC X(271).
+           05  WS-DATE-COMPACT        PIC 9(08).
+           05  WS-DATE-EXPAND REDEFINES WS-DATE-COMPACT.
+               10  WS-EXP-AAAA        PIC 9(04).
+               10  WS-EXP-MM          PIC 9(02).
+               10  WS-EXP-JJ          PIC 9(02).
+
+       01  WS-INDEX-VARIABLES.
+           05  WS-I                   PIC S9(4) COMP.
+           05  WS-J                   PIC S9(4) COMP.
+           05  WS-K                   PIC S9(4) COMP.
+           05  WS-IND1                PIC S9(8) COMP.
+           05  WS-IND2                PIC S9(8) COMP.
+           05  WS-IND3                PIC S9(8) COMP.
+
+       01  WS-POINTEURS.
+           05  WS-PTR-POLICE          USAGE IS POINTER.
+           05  WS-PTR-SINISTRE        USAGE IS POINTER.
+           05  WS-PTR-TEMP            USAGE IS POINTER.
+
+       01  WS-CONDITIONS-COMPLEXES.
+           05  WS-COND-PRIME.
+               10  WS-COND-1          PIC X.
+                   88  COND-OK-1      VALUE 'Y'.
+               10  WS-COND-2          PIC X.
+               10  WS-COND-3          PIC X.
+               10  WS-COND-4          PIC X.
+               10  WS-COND-5          PIC X.
+           05  WS-COND-SINISTRE.
+               10  WS-COND-A          PIC X.
+               10  WS-COND-B          PIC X.
+               10  WS-COND-C          PIC X.
+               10  WS-COND-D          PIC X.
+               10  WS-COND-E          PIC X.
+
+       77  WS-TEMP-VAR-1              PIC 9(12)V9(6).
+       77  WS-TEMP-VAR-2              PIC 9(12)V9(6).
+       77  WS-TEMP-VAR-3              PIC 9(12)V9(6).
+       77  WS-TEMP-VAR-4              PIC 9(12)V9(6).
+       77  WS-TEMP-VAR-5              PIC 9(12)V9(6).
+
+       LINKAGE SECTION.
+       01  LS-CONTROL-BLOCK.
+           05  LS-FUNCTION-CODE       PIC X(04).
+           05  LS-RETURN-CODE         PIC 9(04).
+           05  LS-ERROR-MESSAGE       PIC X(100).
+           05  LS-USER-DATA           PIC X(500).
+       01  LS-DATA-BLOCK.
+           05  LS-DATA-LENGTH         PIC 9(04).
+           05  LS-DATA-CONTENT        PIC X(5000).
+
+       PROCEDURE DIVISION
+           USING LS-CONTROL-BLOCK
+                 LS-DATA-BLOCK.
+
+       DECLARATIVES.
+
+       POLICE-FILE-ERROR SECTION.
+           USE AFTER ERROR PROCEDURE ON POLICE-FILE.
+       POL-ERR-PROC.
+           EVALUATE WS-POL-STATUS
+               WHEN '10'
+                   MOVE 'EOF POLICE FILE' TO WS-ERROR-MESSAGE
+               WHEN '22'
+                   MOVE 'DUPLICATE KEY' TO WS-ERROR-MESSAGE
+                   PERFORM LOG-AUDIT-ERROR
+               WHEN '23'
+                   MOVE 'KEY NOT FOUND' TO WS-ERROR-MESSAGE
+               WHEN '24'
+                   MOVE 'INVALID KEY' TO WS-ERROR-MESSAGE
+                   PERFORM LOG-SECURITY-EVENT
+               WHEN '30'
+                   MOVE 'PERMANENT ERROR' TO WS-ERROR-MESSAGE
+                   MOVE 9999 TO WS-RETURN-CODE
+               WHEN OTHER
+                   MOVE 'UNKNOWN FILE ERROR' TO WS-ERROR-MESSAGE
+           END-EVALUATE.
+           MOVE 'POL' TO WS-ERROR-CODE.
+
+       SINISTRE-FILE-ERROR SECTION.
+           USE AFTER ERROR PROCEDURE ON SINISTRE-FILE.
+       SIN-ERR-PROC.
+           EVALUATE WS-SIN-STATUS
+               WHEN '10'
+                   CONTINUE
+               WHEN '23'
+                   MOVE 'RELATIVE KEY ERROR' TO WS-ERROR-MESSAGE
+               WHEN OTHER
+                   MOVE 'SINISTRE FILE ERROR' TO WS-ERROR-MESSAGE
+           END-EVALUATE.
+
+       END DECLARATIVES.
+
+       MAIN-PROGRAM SECTION.
+       000-MAIN-CONTROL.
+           PERFORM 100-INITIALIZATION
+           PERFORM 200-AUTHENTICATION
+           IF WS-AUTH-LEVEL > 0
+               PERFORM 300-PROCESS-REQUEST
+               PERFORM 400-CALCULATIONS
+               PERFORM 500-UPDATE-DATABASE
+               PERFORM 600-GENERATE-REPORTS
+           ELSE
+               PERFORM 800-SECURITY-FAILURE
+           END-IF
+           PERFORM 900-TERMINATION
+           GOBACK.
+
+       100-INITIALIZATION.
+           MOVE FUNCTION CURRENT-DATE TO WS-DATE-COURANTE
+           MOVE FUNCTION TIME-OF-DAY TO WS-HEURE-COURANTE
+           MOVE FUNCTION WHEN-COMPILED TO WS-TIMESTAMP
+           
+           OPEN I-O POLICE-FILE
+           OPEN I-O SINISTRE-FILE
+           OPEN INPUT TARIFICATION-FILE
+           OPEN OUTPUT HISTORIQUE-FILE
+           OPEN I-O REASSURANCE-FILE
+           OPEN OUTPUT TEMP-WORK-FILE
+           
+           IF NOT POL-OK OR NOT WS-TAR-STATUS = '00'
+               MOVE 9001 TO WS-RETURN-CODE
+               PERFORM 900-TERMINATION
+               GOBACK
+           END-IF
+           
+           PERFORM 110-LOAD-TARIFF-TABLES
+           PERFORM 120-LOAD-REASSURANCE-TABLES
+           PERFORM 130-INIT-STATISTICS
+           MOVE 'N' TO WS-POL-EOF
+           MOVE 'V' TO WS-VALID-POLICE.
+
+       110-LOAD-TARIFF-TABLES.
+           MOVE 1 TO WS-I
+           MOVE '001' TO TAR-CLASS
+           START TARIFICATION-FILE KEY >= TAR-CLASS
+           PERFORM UNTIL WS-TAR-EOF = 'Y' OR WS-I > 100
+               READ TARIFICATION-FILE NEXT
+                   AT END MOVE 'Y' TO WS-TAR-EOF
+                   NOT AT END
+                       MOVE TAR-CLASS TO WS-TAR-CLASS(WS-I)
+                       MOVE TAR-ZONE TO WS-TAR-ZONE(WS-I)
+                       MOVE TAR-BASE TO WS-TAR-BASE(WS-I)
+                       PERFORM VARYING WS-J FROM 1 BY 1
+                               UNTIL WS-J > 5
+                           MOVE TAR-MAJ-CAUSE(WS-J)
+                             TO WS-MAJ-CAUSE(WS-I, WS-J)
+                           MOVE TAR-MAJ-TAUX(WS-J)
+                             TO WS-MAJ-TAUX(WS-I, WS-J)
+                       END-PERFORM
+                       PERFORM VARYING WS-J FROM 1 BY 1
+                               UNTIL WS-J > 3
+                           MOVE TAR-RED-CAUSE(WS-J)
+                             TO WS-RED-CAUSE(WS-I, WS-J)
+                           MOVE TAR-RED-TAUX(WS-J)
+                             TO WS-RED-TAUX(WS-I, WS-J)
+                       END-PERFORM
+                       ADD 1 TO WS-I
+               END-READ
+           END-PERFORM.
+
+       120-LOAD-REASSURANCE-TABLES.
+           MOVE 1 TO WS-I
+           MOVE LOW-VALUES TO REA-COMPAGNIE
+           START REASSURANCE-FILE KEY >= REA-COMPAGNIE
+           PERFORM UNTIL WS-REA-STATUS NOT = '00' OR WS-I > 50
+               READ REASSURANCE-FILE NEXT
+                   AT END CONTINUE
+                   NOT AT END
+                       MOVE REA-COMPAGNIE
+                         TO WS-REA-COMPAGNIE(WS-I)
+                       MOVE REA-CAPACITE
+                         TO WS-REA-CAPACITE(WS-I)
+                       MOVE REA-TAUX TO WS-REA-TAUX(WS-I)
+                       MOVE ZERO TO WS-REA-UTILISE(WS-I)
+                       ADD 1 TO WS-I
+               END-READ
+           END-PERFORM.
+
+       130-INIT-STATISTICS.
+           MOVE ZERO TO WS-STAT-POLICES
+                        WS-STAT-SINISTRES
+                        WS-STAT-MONTANT-SINISTRES
+                        WS-STAT-FREQUENCE
+                        WS-STAT-COUT-MOYEN
+                        WS-STAT-SEVERITE
+                        WS-STAT-LOSS-RATIO.
+
+       200-AUTHENTICATION.
+           MOVE LS-USER-DATA(1:20) TO WS-USER-ID
+           MOVE LS-USER-DATA(21:15) TO WS-IP-ADDRESS
+           
+           CALL 'AUTH-SYSTEM' USING WS-USER-ID
+                                    WS-IP-ADDRESS
+                                    WS-AUTH-LEVEL
+                                    WS-SESSION-ID
+           
+           EVALUATE WS-AUTH-LEVEL
+               WHEN 1 MOVE 'LECTURE' TO WS-BUFFER-AUDIT
+               WHEN 2 MOVE 'ECRITURE' TO WS-BUFFER-AUDIT
+               WHEN 3 MOVE 'ADMIN' TO WS-BUFFER-AUDIT
+               WHEN OTHER
+                   MOVE 0 TO WS-AUTH-LEVEL
+                   MOVE 'AUTH FAILED' TO WS-ERROR-MESSAGE
+           END-EVALUATE
+           
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'AUTHENTICATION' WS-USER-ID WS-AUTH-LEVEL.
+
+       300-PROCESS-REQUEST.
+           EVALUATE LS-FUNCTION-CODE
+               WHEN 'NEWP' PERFORM 310-NEW-POLICY
+               WHEN 'UPDT' PERFORM 320-UPDATE-POLICY
+               WHEN 'SINR' PERFORM 330-NEW-CLAIM
+               WHEN 'SINU' PERFORM 340-UPDATE-CLAIM
+               WHEN 'CALC' PERFORM 350-CALCULATE-PREMIUM
+               WHEN 'RAPP' PERFORM 360-GENERATE-REPORT
+               WHEN 'RISK' PERFORM 370-RISK-ANALYSIS
+               WHEN 'REAS' PERFORM 380-REINSURANCE-PROCESS
+               WHEN 'COMP' PERFORM 390-COMPLEX-CALCULATION
+               WHEN OTHER
+                   MOVE 9002 TO WS-RETURN-CODE
+                   MOVE 'INVALID FUNCTION' TO WS-ERROR-MESSAGE
+           END-EVALUATE.
+
+       310-NEW-POLICY.
+           PERFORM 311-VALIDATE-POLICY-DATA
+           IF POL-VALIDE
+               PERFORM 312-CALCULATE-INITIAL-PREMIUM
+               PERFORM 313-ASSESS-RISK
+               PERFORM 314-APPLY-TARIFF
+               PERFORM 315-CREATE-POLICY-RECORD
+               PERFORM 316-UPDATE-STATISTICS
+               PERFORM 317-GENERATE-CONTRACT
+               MOVE 0 TO WS-RETURN-CODE
+               MOVE 'POLICY CREATED' TO WS-ERROR-MESSAGE
+           ELSE
+               MOVE 9003 TO WS-RETURN-CODE
+           END-IF.
+
+       311-VALIDATE-POLICY-DATA.
+           MOVE 'V' TO WS-VALID-POLICE
+           MOVE LS-DATA-CONTENT(1:300) TO WS-FORM-POLICE
+           
+           IF WS-FORM-CLIENT = ZERO
+               MOVE 'I' TO WS-VALID-POLICE
+               MOVE 'INVALID CLIENT' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           IF WS-FORM-GARANTIE < 1000.00
+               MOVE 'I' TO WS-VALID-POLICE
+               MOVE 'GUARANTEE TOO LOW' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           IF WS-FORM-EFFET < WS-DATE-COMPACT
+               MOVE 'I' TO WS-VALID-POLICE
+               MOVE 'INVALID EFFECTIVE DATE' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           PERFORM CHECK-FRAUD-INDICATORS
+           IF FRAUD-DETECTED
+               MOVE 'I' TO WS-VALID-POLICE
+               MOVE 'FRAUD SUSPECTED' TO WS-ERROR-MESSAGE
+           END-IF.
+
+       312-CALCULATE-INITIAL-PREMIUM.
+           COMPUTE WS-PRIME-PURE =
+               WS-FORM-GARANTIE * WS-TAUX-BASE / 100
+           
+           COMPUTE WS-TAUX-SINISTRALITE =
+               (WS-STAT-MONTANT-SINISTRES / WS-STAT-POLICES)
+               / WS-FORM-GARANTIE
+           
+           COMPUTE WS-PRIME-COMMERCIALE =
+               WS-PRIME-PURE * (1 + WS-TAUX-SINISTRALITE
+                              + WS-TAUX-TECHNIQUE
+                              + WS-MARGIN-SECURITE)
+           
+           COMPUTE WS-PRIME-NETTE =
+               WS-PRIME-COMMERCIALE * (1 - WS-CHARGES-FIXES)
+           
+           COMPUTE WS-PRIME-TOTALE = WS-PRIME-NETTE
+           
+           PERFORM APPLY-MAJORATIONS-REDUCTIONS
+           PERFORM CALCULATE-VARIANCE.
+
+       313-ASSESS-RISK.
+           MOVE 50 TO POL-SCORE-RISQUE
+           
+           EVALUATE WS-FORM-BRANCHE
+               WHEN 01 ADD 10 TO POL-SCORE-RISQUE  *> Auto
+               WHEN 02 ADD 20 TO POL-SCORE-RISQUE  *> Santé
+               WHEN 03 ADD 15 TO POL-SCORE-RISQUE  *> Habitation
+               WHEN 04 ADD 30 TO POL-SCORE-RISQUE  *> Professionnelle
+               WHEN OTHER ADD 25 TO POL-SCORE-RISQUE
+           END-EVALUATE
+           
+           IF WS-FORM-GARANTIE > 1000000.00
+               ADD 20 TO POL-SCORE-RISQUE
+           END-IF
+           
+           EVALUATE TRUE
+               WHEN POL-SCORE-RISQUE < 50
+                   MOVE 'F' TO POL-CLASS-RISQUE
+               WHEN POL-SCORE-RISQUE < 75
+                   MOVE 'M' TO POL-CLASS-RISQUE
+               WHEN POL-SCORE-RISQUE < 90
+                   MOVE 'E' TO POL-CLASS-RISQUE
+               WHEN OTHER
+                   MOVE 'C' TO POL-CLASS-RISQUE
+           END-EVALUATE.
+
+       314-APPLY-TARIFF.
+           PERFORM VARYING IDX-TARIF FROM 1 BY 1
+                   UNTIL IDX-TARIF > 100
+               IF WS-TAR-CLASS(IDX-TARIF) =
+                  WS-FORM-BRANCHE OF WS-FORM-POLICE
+                   MOVE WS-TAR-BASE(IDX-TARIF)
+                     TO WS-TAUX-BASE
+                   PERFORM VARYING IDX-MAJ FROM 1 BY 1
+                           UNTIL IDX-MAJ > 5
+                       IF WS-MAJ-CAUSE(IDX-TARIF, IDX-MAJ) =
+                          POL-CLASS-RISQUE
+                           COMPUTE WS-PRIME-TOTALE =
+                               WS-PRIME-TOTALE *
+                               (1 + WS-MAJ-TAUX(IDX-TARIF, IDX-MAJ))
+                       END-IF
+                   END-PERFORM
+                   PERFORM VARYING IDX-RED FROM 1 BY 1
+                           UNTIL IDX-RED > 3
+                       IF WS-RED-CAUSE(IDX-TARIF, IDX-RED) =
+                          'LOYAL'
+                           COMPUTE WS-PRIME-TOTALE =
+                               WS-PRIME-TOTALE *
+                               (1 - WS-RED-TAUX(IDX-TARIF, IDX-RED))
+                       END-IF
+                   END-PERFORM
+               END-IF
+           END-PERFORM.
+
+       315-CREATE-POLICY-RECORD.
+           MOVE '001' TO POL-COMPAGNIE
+           MOVE WS-FORM-BRANCHE TO POL-BRANCHE
+           MOVE FUNCTION RANDOM(999999999999) TO POL-NUMERO
+           MOVE WS-FORM-CLIENT TO POL-NUM-CLIENT
+           MOVE WS-FORM-CONTRAT TO POL-NUM-C
