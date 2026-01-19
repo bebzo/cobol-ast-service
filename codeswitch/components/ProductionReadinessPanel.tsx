@@ -20,6 +20,9 @@ import {
   Download,
   RefreshCw,
   Play,
+  Terminal,
+  Calculator,
+  Layers,
 } from "lucide-react";
 
 interface ProductionCheck {
@@ -70,14 +73,10 @@ export default function ProductionReadinessPanel({
     setTimeout(() => setCopiedSnippet(null), 2000);
   };
 
-  // Dynamically calculate production readiness checks based on analysis
   const checks = useMemo<ProductionCheck[]>(() => {
     const pythonCode = analysis?.python_code || "";
     const stats = analysis?.stats || {};
-    const confidence = analysis?.confidence || {};
-    const quality = analysis?.quality || {};
 
-    // Helper to determine status based on code analysis
     const hasPattern = (pattern: string | RegExp) => {
       if (typeof pattern === "string") {
         return pythonCode.includes(pattern);
@@ -86,7 +85,165 @@ export default function ProductionReadinessPanel({
     };
 
     return [
-      // CRITICAL CHECKS
+      {
+        id: "database_layer",
+        name: "Database Layer (SQLAlchemy Repository)",
+        category: "critical",
+        status: hasPattern("from lib.database_layer") || hasPattern("DatabaseManager")
+          ? "passed"
+          : hasPattern("sqlalchemy") || hasPattern("repository")
+          ? "partial"
+          : "failed",
+        description:
+          "Remplace le FileManager abstrait par une vraie connexion PostgreSQL/Oracle avec Repository Pattern.",
+        recommendation: hasPattern("DatabaseManager")
+          ? "Database layer implemented with SQLAlchemy."
+          : "Use lib/database_layer.py for production database access.",
+        effort: "2-3 days",
+        codeSnippet: `from lib.database_layer import (
+    db, Customer, Account, Transaction,
+    CustomerRepository, AccountRepository, init_database
+)
+
+# Initialize database connection
+init_database("postgresql://user:pass@localhost/cobol_migration")
+
+# Use repositories for thread-safe data access
+with db.session() as session:
+    customer_repo = CustomerRepository(session)
+    customer = customer_repo.get_by_id("CUST123")
+    accounts = customer_repo.get_accounts_by_customer("CUST123")`,
+      },
+      {
+        id: "decimal_precision",
+        name: "Financial Precision (COMP-3 Compliance)",
+        category: "critical",
+        status: hasPattern("from lib.decimal_financial") || hasPattern("FinancialContext")
+          ? "passed"
+          : hasPattern("Decimal") && hasPattern("ROUND_HALF_EVEN")
+          ? "partial"
+          : "failed",
+        description:
+          "Précision financière conforme au COMP-3 IBM mainframe avec arrondi bancaire (ROUND_HALF_EVEN).",
+        recommendation: hasPattern("FinancialContext")
+          ? "Financial precision implemented correctly."
+          : "Use lib/decimal_financial.py for all monetary calculations.",
+        effort: "1-2 days",
+        codeSnippet: `from lib.decimal_financial import (
+    FinancialContext, parse_comp3, format_comp3,
+    calculate_interest, calculate_monthly_payment
+)
+
+# Use financial context for all money operations
+with FinancialContext.transaction():
+    interest = calculate_interest(
+        principal=Decimal("10000.00"),
+        rate=Decimal("0.035"),
+        periods=12,
+        compound=True
+    )
+    
+    cobol_balance = parse_comp3("00000123456789C", "9(14)V99")
+    
+    print(f"Interest: {interest}")`,
+      },
+      {
+        id: "thread_safe_services",
+        name: "Thread-Safe Services (Stateless)",
+        category: "critical",
+        status: hasPattern("from services.customer_service") || hasPattern("TransferService")
+          ? "passed"
+          : hasPattern("contextvars") || hasPattern("BaseService")
+          ? "partial"
+          : "failed",
+        description:
+          "Services métier stateless avec isolation par requête pour environnements web multi-utilisateurs.",
+        recommendation: hasPattern("TransferService")
+          ? "Thread-safe services implemented."
+          : "Use services/customer_service.py for business logic.",
+        effort: "3-5 days",
+        codeSnippet: `from services.customer_service import (
+    get_customer_service, get_transfer_service,
+    TransferService, TransferResult, TransferStatus
+)
+
+transfer_service = get_transfer_service()
+
+result: TransferResult = transfer_service.execute_transfer(
+    source_account="ACC001",
+    target_account="ACC002",
+    amount=Decimal("500.00"),
+    description="Virement test"
+)
+
+if result.status == TransferStatus.COMPLETED:
+    print(f"Transfert réussi: {result.transaction_id}")`,
+      },
+      {
+        id: "external_call_stubs",
+        name: "External CALL Stubs (CICS/VSAM)",
+        category: "major",
+        status: hasPattern("from lib.call_stubs") || hasPattern("stub_registry")
+          ? "passed"
+          : hasPattern("CALL") && pythonCode.includes("external")
+          ? "partial"
+          : "not_tested",
+        description:
+          "Implémentation des appels COBOL externes (CICS, VSAM, DATE/TIME, SECURITY) non transpilables.",
+        recommendation: hasPattern("stub_registry")
+          ? "External CALL stubs registered and configured."
+          : "Use lib/call_stubs.py for mainframe compatibility.",
+        effort: "1-2 weeks",
+        codeSnippet: `from lib.call_stubs import (
+    stub_registry, call_manager, init_external_calls,
+    stub_authenticate, stub_cics_receive, stub_vsam_read
+)
+
+init_external_calls()
+
+result = call_manager.execute_call(
+    program_name="SECAUTH",
+    username="admin",
+    password="secure123"
+)
+print(f"Authentification: {result.get('authenticated')}")`,
+      },
+      {
+        id: "shadow_testing_enhanced",
+        name: "Shadow Testing Enhanced (Strangler)",
+        category: "critical",
+        status: hasPattern("from lib.shadow_tester_enhanced") || hasPattern("ShadowTestRunner")
+          ? "passed"
+          : hasPattern("ShadowTester") || hasPattern("shadow_test")
+          ? "partial"
+          : "failed",
+        description:
+          "Test en ombre COBOL vs Python avec comparison intelligente et détection des divergences de précision.",
+        recommendation: hasPattern("ShadowTestRunner")
+          ? "Enhanced shadow testing configured."
+          : "Use lib/shadow_tester_enhanced.py for migration testing.",
+        effort: "1 week",
+        codeSnippet: `from lib.shadow_tester_enhanced import (
+    ShadowTestRunner, ShadowTestReport,
+    ResultComparator, ComparisonResult
+)
+
+runner = ShadowTestRunner(
+    cobol_executor=execute_cobol_logic,
+    python_executor=execute_python_logic,
+    tolerance=Decimal("0.01")
+)
+
+runner.create_test_case(
+    test_name="Calcul intérêt composé",
+    cobol_input={"principal": 10000, "rate": 0.035, "periods": 12},
+    python_input={"principal": 10000, "rate": 0.035, "periods": 12},
+    expected_output={"interest": 367.92}
+)
+
+report: ShadowTestReport = runner.run_all_tests()
+print(f"Parité: {report.parity_score:.1f}%")`,
+      },
       {
         id: "thread_safety",
         name: "Thread Safety (contextvars)",
@@ -104,14 +261,12 @@ export default function ProductionReadinessPanel({
         effort: "2-3 days",
         codeSnippet: `from lib.production_infrastructure import ThreadSafeRuntime
 
-# Thread-safe runtime is now available
 runtime = ThreadSafeRuntime(
     max_workers=10,
     timeout_seconds=30,
     enable_deadlock_detection=True
 )
 
-# Execute with automatic thread isolation
 result = runtime.execute(
     lambda: process_transaction(data),
     context={'user_id': 'U123', 'transaction_id': 'TX456'}
@@ -134,21 +289,10 @@ result = runtime.execute(
         effort: "3-5 days",
         codeSnippet: `from lib.production_infrastructure import UnitOfWork
 
-# Transaction context with automatic commit/rollback
 with start_production_transaction(user_id="U123", session_id="S456") as uow:
     account = repository.get("ACC123")
     uow.register_dirty(account)
-    
-    account.balance += amount
-    account.last_modified = datetime.now()
-    
-    # Commit is automatic at exit
-
-# Or use UnitOfWork directly
-uow = UnitOfWork(audit_logger=audit_logger)
-with uow.start(user_id="U123") as ctx:
-    # Perform operations
-    pass`,
+    account.balance += amount`,
       },
       {
         id: "test_coverage",
@@ -170,7 +314,6 @@ with uow.start(user_id="U123") as ctx:
         effort: "1-2 weeks",
         codeSnippet: `from lib.production_postprocessor import ProductionPostprocessor, ProductionLevel
 
-# Generate comprehensive tests automatically
 postprocessor = ProductionPostprocessor(
     production_level=ProductionLevel.BANK_GRADE
 )
@@ -179,48 +322,10 @@ production_code, report = postprocessor.process(
     original_cobol=cobol_code,
     transpiled_python=python_code,
     metadata={'user_id': 'U123'}
-)
+}
 
-# Check the production report for test requirements
 print(f"Production Readiness Score: {report.overall_score}%")`,
       },
-      {
-        id: "shadow_testing",
-        name: "Shadow Testing (COBOL vs Python)",
-        category: "critical",
-        status: hasPattern("ShadowTester") || hasPattern("shadow_test")
-          ? "passed"
-          : hasPattern("run_shadow_test") || analysis?.shadow_testing_plan
-          ? "partial"
-          : "failed",
-        description:
-          "Run COBOL and Python in parallel, compare outputs bit-by-bit before cutover.",
-        recommendation: hasPattern("ShadowTester")
-          ? "Shadow testing is configured."
-          : "Implement shadow mode: route traffic to both systems, compare results.",
-        effort: "1 week",
-        codeSnippet: `from lib.shadow_tester import ShadowTester, ShadowTestCase
-
-# Create shadow tester
-tester = ShadowTester(
-    cobol_executor="cobc",
-    python_executor="python3"
-)
-
-# Define test cases
-test_case = ShadowTestCase(
-    name="Test calcul intérêt",
-    cobol_input={"principal": 10000, "rate": 0.05, "time": 12},
-    python_input={"principal": 10000, "rate": 0.05, "time": 12}
-)
-
-# Run shadow test
-report = tester.run_test(test_case)
-
-print(f"Correspondance: {report.comparison_result['match']}")
-print(f"Score: {report.success_rate}%")`,
-      },
-      // MAJOR CHECKS
       {
         id: "secrets_management",
         name: "Secrets Management (Vault)",
@@ -236,20 +341,9 @@ print(f"Score: {report.success_rate}%")`,
         effort: "2-3 days",
         codeSnippet: `from lib.production_infrastructure import SOXAuditLogger
 
-# Initialize audit logger for SOX compliance
 audit_logger = SOXAuditLogger(
     log_directory="/var/log/codeswitch/audit",
     retention_days=2555  # ~7 ans pour conformité SOX
-)
-
-# Log audit events
-audit_logger.log_event(
-    event_type=AuditEventType.TRANSACTION_COMMIT,
-    user_id="U123",
-    session_id="S456",
-    resource="ACCOUNT001",
-    action="CREDIT",
-    after_state={"balance": 5000.00}
 )`,
       },
       {
@@ -269,26 +363,17 @@ audit_logger.log_event(
         effort: "3-5 days",
         codeSnippet: `from lib.production_infrastructure import SOXAuditLogger, AuditEventType
 
-# Initialize audit logger for SOX compliance
 audit_logger = SOXAuditLogger(
     log_directory="/var/log/codeswitch/audit",
-    retention_days=2555  # ~7 ans pour conformité SOX
+    retention_days=2555
 )
 
-# Log audit events
 audit_logger.log_event(
     event_type=AuditEventType.TRANSACTION_COMMIT,
     user_id="U123",
-    session_id="S456",
     resource="ACCOUNT001",
     action="CREDIT",
     after_state={"balance": 5000.00}
-)
-
-# Generate compliance report
-report = audit_logger.export_compliance_report(
-    start_date=datetime(2024, 1, 1),
-    end_date=datetime(2024, 12, 31)
 )`,
       },
       {
@@ -297,210 +382,181 @@ report = audit_logger.export_compliance_report(
         category: "major",
         status: hasPattern("RateLimiter") || hasPattern("rate_limited")
           ? "passed"
-          : hasPattern("rate_limit") || hasPattern("throttle")
+          : hasPattern("rate") || hasPattern("limiter")
           ? "partial"
           : "failed",
         description:
-          "No protection against API abuse, DoS attacks, or fraud by volume.",
-        recommendation: "Implement token bucket rate limiting with Redis backend.",
+          "Prevent DDoS and brute force attacks with configurable rate limits per endpoint.",
+        recommendation: hasPattern("RateLimiter")
+          ? "Rate limiting is configured."
+          : "Implement rate limiting (e.g., 100 req/min for reads, 10 req/min for writes).",
         effort: "1-2 days",
-        codeSnippet: `from lib.production_postprocessor import ProductionPostprocessor, ProductionLevel
+        codeSnippet: `from lib.production_infrastructure import RateLimiter
 
-# Enhance code with production patterns including rate limiting
-postprocessor = ProductionPostprocessor(
-    production_level=ProductionLevel.BANK_GRADE
-)
-
-production_code, report = postprocessor.process(
-    original_cobol=cobol_code,
-    transpiled_python=python_code
-)
-
-print(f"Production Readiness Score: {report.overall_score}%")
-print(f"Patterns injected: {report.injected_patterns}")`,
+limiter = RateLimiter(
+    rates={
+        "/api/transpile": {"rate": 10, "window": 60},
+        "/api/analyze": {"rate": 30, "window": 60},
+    }
+)`,
       },
       {
-        id: "observability",
-        name: "Observability (OpenTelemetry)",
-        category: "major",
-        status:
-          hasPattern("opentelemetry") ||
-          hasPattern("TracingContext") ||
-          hasPattern("tracer")
-            ? "passed"
-            : hasPattern("trace") || hasPattern("span")
-            ? "partial"
-            : "failed",
-        description: "No distributed tracing or monitoring for transaction flows.",
-        recommendation: "Add OpenTelemetry instrumentation for all critical paths.",
-        effort: "2-3 days",
-        codeSnippet: `from lib.production_infrastructure import ThreadSafeRuntime
-
-# All production patterns are now available
-runtime = ThreadSafeRuntime(
-    max_workers=10,
-    timeout_seconds=30,
-    enable_deadlock_detection=True
-)
-
-# Execute with monitoring
-result = runtime.execute(
-    lambda: calculate_loan_interest(amount, rate, term),
-    context={'user_id': 'U123', 'loan_id': 'L456'}
-)
-
-# Get runtime statistics
-stats = runtime.get_statistics()
-print(f"Executions: {stats['total_executions']}")
-print(f"Active: {stats['active_executions']}")`,
-      },
-      // MINOR CHECKS
-      {
-        id: "db_migration",
-        name: "Database Migration (FileManager → SQL)",
+        id: "error_handling",
+        name: "Graceful Error Handling",
         category: "minor",
-        status: hasPattern("SQLAlchemy") || hasPattern("psycopg")
+        status: hasPattern("ExceptionHandler") || hasPattern("error_boundary")
           ? "passed"
-          : hasPattern("DatabaseRepository") || hasPattern("sessionmaker")
+          : hasPattern("try") && hasPattern("except")
           ? "partial"
-          : "not_tested",
-        description: "FileManager uses sequential file access. Production needs indexed database.",
-        recommendation: "Migrate to PostgreSQL with proper indexing for O(log n) access.",
-        effort: "1 week",
-        codeSnippet: `from lib.production_postprocessor import calculate_production_readiness
-
-# Calculate production readiness score
-readiness = calculate_production_readiness(python_code)
-
-print(f"Overall Score: {readiness['overall_score']}%")
-print(f"Category Scores: {readiness['category_scores']}")
-print(f"Critical Missing: {readiness['critical_missing']}")
-
-# Recommendations
-for rec in readiness['recommendations']:
-    if rec:
-        print(f"- {rec}")`,
-      },
-      {
-        id: "mutation_testing",
-        name: "Mutation Testing",
-        category: "minor",
-        status:
-          testResults.total >= 100 && testResults.passed / testResults.total > 0.9
-            ? "passed"
-            : testResults.total >= 20
-            ? "partial"
-            : "not_tested",
-        description: "Verify test quality by introducing code mutations.",
-        recommendation: "Run mutmut or cosmic-ray to validate test effectiveness.",
-        effort: "2-3 days",
-        codeSnippet: `# Install: pip install mutmut
-# Run: mutmut run --paths-to-mutate=api/
-
-# Configuration in setup.cfg:
-[mutmut]
-paths_to_mutate=api/
-tests_dir=tests/
-runner=pytest -x --tb=no -q
-
-# Target: >80% mutation score`,
-      },
-      {
-        id: "rollback_plan",
-        name: "Rollback Strategy",
-        category: "minor",
-        status: hasPattern("FeatureFlags") || hasPattern("rollback")
-          ? "passed"
-          : hasPattern("feature_flag") || hasPattern("traffic_percent")
-          ? "partial"
-          : "not_tested",
+          : "failed",
         description:
-          "No documented rollback plan if Python system fails in production.",
-        recommendation: "Implement feature flags and traffic routing for instant rollback.",
-        effort: "2-3 days",
-        codeSnippet: `from lib.shadow_tester import run_shadow_test
+          "Never expose raw Python errors to users. Use structured error responses.",
+        recommendation: hasPattern("ExceptionHandler")
+          ? "Error handling is configured."
+          : "Implement exception handlers that return user-friendly error codes.",
+        effort: "1-2 days",
+        codeSnippet: `from lib.production_infrastructure import ExceptionHandler
 
-# Run shadow testing on the transpiled code
-report = run_shadow_test(
-    cobol_code=original_cobol,
-    python_code=transpiled_python,
-    test_cases=[
-        {
-            'name': 'Test principal',
-            'cobol_input': {'amount': 1000, 'rate': 0.05},
-            'python_input': {'amount': 1000, 'rate': 0.05}
-        }
-    ],
-    parallel=True
+handler = ExceptionHandler(
+    production_mode=True,
+    log_level="WARNING",
+    notify_sentry=True
 )
 
-print(f"Success Rate: {report['success_rate']}%")
-print(f"Passed: {report['passed_tests']}/{report['total_tests']}")`,
+try:
+    result = transpile(code)
+except Exception as e:
+    logger.error(f"Transpilation failed: {e}")
+    return handler.handle(e)`,
+      },
+      {
+        id: "timeout_protection",
+        name: "Timeout Protection (>10s)",
+        category: "minor",
+        status: hasPattern("TimeoutException") || hasPattern("timeout")
+          ? "passed"
+          : "partial",
+        description:
+          "Set explicit timeouts for all external calls to prevent hanging requests.",
+        recommendation: hasPattern("TimeoutException")
+          ? "Timeouts are configured."
+          : "Add timeout=30s to all external API calls and database queries.",
+        effort: "1 day",
+        codeSnippet: `import asyncio
+from async_timeout import timeout
+
+async def transpile_with_timeout(code: str) -> str:
+    try:
+        async with timeout(120):
+            return await transpile_service.transpile(code)
+    except asyncio.TimeoutError:
+        logger.error("Transpilation timeout after 120s")
+        raise TimeoutException("Processing took too long")`,
+      },
+      {
+        id: "idempotency",
+        name: "Idempotency Keys",
+        category: "minor",
+        status: hasPattern("IdempotencyKey") || hasPattern("idempotent")
+          ? "passed"
+          : "partial",
+        description:
+          "Prevent duplicate processing when clients retry requests (critical for payments).",
+        recommendation: hasPattern("IdempotencyKey")
+          ? "Idempotency is implemented."
+          : "Require Idempotency-Key header for all state-changing operations.",
+        effort: "2-3 days",
+        codeSnippet: `from lib.production_infrastructure import idempotency_check
+
+@app.post("/api/transfer")
+async def transfer(
+    request: TransferRequest,
+    idempotency_key: str = Header(None)
+):
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Key required")
+    
+    return await idempotency_check(
+        key=idempotency_key,
+        user_id=request.user_id,
+        operation=lambda: execute_transfer(request)
+    )`,
+      },
+      {
+        id: "monitoring",
+        name: "Monitoring (Health + Metrics)",
+        category: "minor",
+        status: hasPattern("HealthEndpoint") || hasPattern("/api/health")
+          ? "passed"
+          : "partial",
+        description:
+          "Expose health, readiness, and metrics endpoints for Kubernetes/orchestration.",
+        recommendation: hasPattern("HealthEndpoint")
+          ? "Monitoring endpoints are configured."
+          : "Implement /health, /ready, and /metrics endpoints.",
+        effort: "1-2 days",
+        codeSnippet: `from lib.production_monitoring import (
+    HealthEndpoint, MetricsExporter, HealthStatus
+)
+
+health = HealthEndpoint(
+    checks=[
+        database_check,
+        cache_check,
+        external_api_check
+    ]
+)
+
+@app.get("/health")
+async def health_check() -> HealthStatus:
+    return await health.check()`,
       },
     ];
   }, [analysis, testResults, cobolLines, pythonLines]);
 
-  // Calculate overall readiness score dynamically
-  const { score, passedCritical, totalCritical, passedMajor, totalMajor, passedMinor, totalMinor } =
+  const { score, passedChecks, totalChecks, criticalPassed, criticalTotal } =
     useMemo(() => {
-      const criticalChecks = checks.filter((c) => c.category === "critical");
-      const majorChecks = checks.filter((c) => c.category === "major");
-      const minorChecks = checks.filter((c) => c.category === "minor");
-
-      const _totalCritical = criticalChecks.length;
-      const _totalMajor = majorChecks.length;
-      const _totalMinor = minorChecks.length;
-
-      const passedCritical = criticalChecks.filter(
-        (c) => c.status === "passed"
-      ).length;
-      const partialCritical = criticalChecks.filter(
-        (c) => c.status === "partial"
-      ).length;
-
-      const passedMajor = majorChecks.filter(
-        (c) => c.status === "passed"
-      ).length;
-      const partialMajor = majorChecks.filter(
-        (c) => c.status === "partial"
-      ).length;
-
-      const passedMinor = minorChecks.filter(
-        (c) => c.status === "passed"
-      ).length;
-      const partialMinor = minorChecks.filter(
-        (c) => c.status === "partial"
-      ).length;
-
-      // Weighted scoring: Critical=50%, Major=30%, Minor=20%
-      const criticalScore =
-        _totalCritical > 0 ? ((passedCritical + partialCritical * 0.5) / _totalCritical) * 50 : 0;
-      const majorScore =
-        _totalMajor > 0 ? ((passedMajor + partialMajor * 0.5) / _totalMajor) * 30 : 0;
-      const minorScore =
-        _totalMinor > 0 ? ((passedMinor + partialMinor * 0.5) / _totalMinor) * 20 : 0;
-
-      const _score = Math.round(criticalScore + majorScore + minorScore);
-
+      const total = checks.length;
+      const passed = checks.filter((c) => c.status === "passed").length;
+      const critical = checks.filter((c) => c.category === "critical");
+      const criticalPassed = critical.filter((c) => c.status === "passed").length;
+      const criticalTotal = critical.length;
+      
+      const weightedScore =
+        (criticalPassed / criticalTotal) * 60 +
+        ((passed - criticalPassed) / (total - criticalTotal)) * 40;
+      
       return {
-        score: _score,
-        passedCritical,
-        totalCritical: _totalCritical,
-        passedMajor,
-        totalMajor: _totalMajor,
-        passedMinor,
-        totalMinor: _totalMinor,
+        score: Math.round(weightedScore),
+        passedChecks: passed,
+        totalChecks: total,
+        criticalPassed,
+        criticalTotal,
       };
     }, [checks]);
+
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return "text-green-400";
+    if (score >= 70) return "text-yellow-400";
+    if (score >= 50) return "text-orange-400";
+    return "text-red-400";
+  };
+
+  const getScoreBg = (score: number) => {
+    if (score >= 90) return "bg-green-500/20 border-green-500";
+    if (score >= 70) return "bg-yellow-500/20 border-yellow-500";
+    if (score >= 50) return "bg-orange-500/20 border-orange-500";
+    return "bg-red-500/20 border-red-500";
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "passed":
         return <CheckCircle className="w-5 h-5 text-green-400" />;
-      case "partial":
-        return <AlertTriangle className="w-5 h-5 text-yellow-400" />;
       case "failed":
         return <XCircle className="w-5 h-5 text-red-400" />;
+      case "partial":
+        return <AlertTriangle className="w-5 h-5 text-yellow-400" />;
       default:
         return <Clock className="w-5 h-5 text-slate-400" />;
     }
@@ -509,196 +565,125 @@ print(f"Passed: {report['passed_tests']}/{report['total_tests']}")`,
   const getCategoryColor = (category: string) => {
     switch (category) {
       case "critical":
-        return "border-red-500/50 bg-red-500/10";
+        return "border-red-500/50 bg-slate-800/50";
       case "major":
-        return "border-orange-500/50 bg-orange-500/10";
+        return "border-orange-500/50 bg-slate-800/50";
       default:
-        return "border-slate-500/50 bg-slate-500/10";
+        return "border-slate-600/50 bg-slate-800/50";
     }
   };
-
-  const getScoreColor = (scoreValue: number) => {
-    if (scoreValue >= 80) return "text-green-400";
-    if (scoreValue >= 50) return "text-yellow-400";
-    return "text-red-400";
-  };
-
-  const getScoreBadge = (scoreValue: number) => {
-    if (scoreValue >= 80) {
-      return { bg: "bg-green-500/20", text: "text-green-400", label: "PRODUCTION READY" };
-    }
-    if (scoreValue >= 50) {
-      return { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "NEEDS WORK" };
-    }
-    return { bg: "bg-red-500/20", text: "text-red-400", label: "NOT READY" };
-  };
-
-  const badge = getScoreBadge(score);
 
   const exportReport = useCallback(() => {
-    const report = checks.map((c) => ({
-      name: c.name,
-      category: c.category,
-      status: c.status,
-      effort: c.effort,
-      recommendation: c.recommendation,
-    }));
-    const blob = new Blob([JSON.stringify(report, null, 2)], {
-      type: "application/json",
-    });
+    const report = {
+      generatedAt: new Date().toISOString(),
+      score,
+      checksPassed: passedChecks,
+      totalChecks,
+      details: checks.map((check) => ({
+        id: check.id,
+        name: check.name,
+        category: check.category,
+        status: check.status,
+        description: check.description,
+        recommendation: check.recommendation,
+      })),
+    };
+    
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "production-readiness-report.json";
+    a.download = `production-readiness-${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
     a.click();
-  }, [checks]);
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [score, passedChecks, totalChecks, checks]);
 
   return (
-    <div className="bg-gradient-to-br from-slate-800 via-slate-800 to-red-900/20 rounded-xl p-6 border border-red-500/30">
-      {/* Header */}
+    <div className="bg-slate-900 rounded-xl border border-slate-700 p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+          <div className="p-2 bg-red-500/20 rounded-lg">
             <Shield className="w-6 h-6 text-red-400" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white">
-              Production Readiness Assessment
-            </h3>
-            <p className="text-xs text-slate-400">
-              Banking-Grade Security & Reliability Checklist
+            <h2 className="text-xl font-bold text-white">
+              Production Readiness
+            </h2>
+            <p className="text-sm text-slate-400">
+              {passedChecks}/{totalChecks} requirements met
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {onEnhance && (
-            <button
-              onClick={onEnhance}
-              disabled={isEnhancing}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                isEnhancing
-                  ? "bg-slate-600 text-slate-400 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/20"
-              }`}
-            >
-              {isEnhancing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Enhancing...</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4" />
-                  <span>Enhance to 100%</span>
-                </>
-              )}
-            </button>
-          )}
-          <div className="text-center">
-            <div
-              className={`text-3xl font-bold ${getScoreColor(score)}`}
-            >
+        
+        <div
+          className={`px-4 py-2 rounded-lg border-2 ${getScoreBg(
+            score
+          )} flex items-center gap-3`}
+        >
+          <div className="text-right">
+            <p className={`text-2xl font-bold ${getScoreColor(score)}`}>
               {score}%
-            </div>
-            <div
-              className={`text-xs px-2 py-1 rounded ${badge.bg} ${badge.text}`}
-            >
-              {badge.label}
-            </div>
+            </p>
+            <p className="text-xs text-slate-400">
+              {criticalPassed}/{criticalTotal} critical passed
+            </p>
+          </div>
+          <Activity className={`w-8 h-8 ${getScoreColor(score)}`} />
+        </div>
+      </div>
+
+      <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+        <div className="flex items-center gap-2 mb-2">
+          <Zap className="w-5 h-5 text-blue-400" />
+          <h3 className="font-semibold text-blue-400">
+            Production-Ready Modules Available
+          </h3>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
+          <div className="flex items-center gap-2 text-slate-300">
+            <Database className="w-4 h-4 text-green-400" />
+            Database Layer
+          </div>
+          <div className="flex items-center gap-2 text-slate-300">
+            <Calculator className="w-4 h-4 text-green-400" />
+            Decimal Precision
+          </div>
+          <div className="flex items-center gap-2 text-slate-300">
+            <Layers className="w-4 h-4 text-green-400" />
+            Thread-Safe Services
+          </div>
+          <div className="flex items-center gap-2 text-slate-300">
+            <Terminal className="w-4 h-4 text-green-400" />
+            CALL Stubs
+          </div>
+          <div className="flex items-center gap-2 text-slate-300">
+            <GitCompare className="w-4 h-4 text-green-400" />
+            Shadow Testing
           </div>
         </div>
       </div>
 
-      {/* Dynamic Score Progress */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-slate-300">
-            Production Readiness Score
-          </span>
-          <span className="text-sm text-slate-400">
-            {passedCritical + passedMajor + passedMinor} /{" "}
-            {totalCritical + totalMajor + totalMinor} checks passed
-          </span>
+      <div className="flex items-center gap-6 mb-4 text-sm">
+        <div className="flex items-center gap-2">
+          <CheckCircle className="w-4 h-4 text-green-400" />
+          <span className="text-slate-300">Passed</span>
         </div>
-        <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-1000 ${
-              score >= 80
-                ? "bg-gradient-to-r from-green-500 to-green-400"
-                : score >= 50
-                ? "bg-gradient-to-r from-yellow-500 to-yellow-400"
-                : "bg-gradient-to-r from-red-500 to-red-400"
-            }`}
-            style={{ width: `${score}%` }}
-          />
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-yellow-400" />
+          <span className="text-slate-300">Partial</span>
         </div>
-        <div className="flex justify-between mt-2 text-xs text-slate-500">
-          <span>0%</span>
-          <span>25%</span>
-          <span>50%</span>
-          <span>75%</span>
-          <span>100%</span>
+        <div className="flex items-center gap-2">
+          <XCircle className="w-4 h-4 text-red-400" />
+          <span className="text-slate-300">Failed</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Clock className="w-4 h-4 text-slate-400" />
+          <span className="text-slate-300">Not Tested</span>
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-red-400">
-            {passedCritical}/{totalCritical}
-          </p>
-          <p className="text-xs text-slate-400">Critical Passed</p>
-        </div>
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-orange-400">
-            {passedMajor}/{totalMajor}
-          </p>
-          <p className="text-xs text-slate-400">Major Passed</p>
-        </div>
-        <div className="bg-slate-500/10 border border-slate-500/30 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-slate-400">
-            {passedMinor}/{totalMinor}
-          </p>
-          <p className="text-xs text-slate-400">Minor Passed</p>
-        </div>
-      </div>
-
-      {/* Code Quality Metrics */}
-      <div className="mb-6 p-4 bg-slate-700/30 rounded-lg">
-        <h4 className="text-sm font-semibold text-slate-300 mb-3">
-          Code Analysis Metrics
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-xs text-slate-500">Confidence Score</p>
-            <p className="text-lg font-bold text-white">
-              {analysis?.confidence_score?.toFixed(1) || "N/A"}%
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">COBOL Lines</p>
-            <p className="text-lg font-bold text-white">
-              {cobolLines.toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Python Lines</p>
-            <p className="text-lg font-bold text-white">
-              {pythonLines.toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Test Coverage</p>
-            <p className="text-lg font-bold text-white">
-              {testResults.total > 0
-                ? `${((testResults.passed / testResults.total) * 100).toFixed(1)}%`
-                : "N/A"}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Checks List */}
       <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
         {["critical", "major", "minor"].map((category) => (
           <div key={category} className="space-y-2">
@@ -782,7 +767,6 @@ print(f"Passed: {report['passed_tests']}/{report['total_tests']}")`,
         ))}
       </div>
 
-      {/* Export Button */}
       <div className="mt-4 pt-4 border-t border-slate-700 flex justify-end">
         <button
           onClick={exportReport}
