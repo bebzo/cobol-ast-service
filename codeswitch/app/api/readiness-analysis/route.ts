@@ -78,10 +78,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '10');
 
-    // Get historical scores from Supabase
+    // Get historical scores from Supabase only
     const historicalScores = await getHistoricalScores(limit);
 
-    // Also run fresh analysis
+    // If no historical data and no script available, return error
     const scriptPath = `${process.cwd()}/lib/production_readiness_analyzer.py`;
     
     let stdout = '';
@@ -95,30 +95,38 @@ export async function GET(request: Request) {
       stdout = result.stdout;
       stderr = result.stderr;
     } catch (execError: any) {
-      // If script doesn't exist or fails, return historical data with fallback
-      if (!stdout) {
+      // No script available - return only historical data or error
+      if (historicalScores.length === 0) {
         return NextResponse.json({
-          score: 72,
-          grade: 'C',
-          summary: 'Production readiness analysis - historical data mode',
-          recommendations: ['Run a new analysis to get current scores'],
-          metrics: {
-            functions: 0, classes: 0, dataclasses: 0, async_functions: 0,
-            type_annotated: 0, documented: 0, error_handled: 0, try_blocks: 0,
-            test_functions: 0, hardcoded_secrets: 0, dangerous_calls: 0,
-            input_validations: 0, logging_statements: 0, contextvars: 0,
-            locks: 0, sql_queries: 0, orm_usage: 0
-          },
-          issues: [],
-          production_ready: false,
-          historical_scores: historicalScores.map(h => ({
-            timestamp: h.created_at,
-            score: h.score,
-            grade: h.grade
-          })),
-          mode: 'historical_only'
-        });
+          error: 'No analysis available',
+          message: 'Run a new analysis to generate production readiness data',
+          historical_scores: [],
+          mode: 'no_data'
+        }, { status: 404 });
       }
+      
+      // Return historical data only
+      return NextResponse.json({
+        score: historicalScores[0].score,
+        grade: historicalScores[0].grade,
+        summary: 'Historical analysis data from Supabase',
+        recommendations: ['Run a new analysis to get current scores'],
+        metrics: {
+          functions: 0, classes: 0, dataclasses: 0, async_functions: 0,
+          type_annotated: 0, documented: 0, error_handled: 0, try_blocks: 0,
+          test_functions: 0, hardcoded_secrets: 0, dangerous_calls: 0,
+          input_validations: 0, logging_statements: 0, contextvars: 0,
+          locks: 0, sql_queries: 0, orm_usage: 0
+        },
+        issues: [],
+        production_ready: historicalScores[0].score >= 75,
+        historical_scores: historicalScores.map(h => ({
+          timestamp: h.created_at,
+          score: h.score,
+          grade: h.grade
+        })),
+        mode: 'historical_only'
+      });
     }
 
     if (stderr && !stdout) {

@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
-  Shield, CheckCircle, XCircle, AlertTriangle, 
+  Shield, CheckCircle, AlertTriangle, 
   Activity, Lock, Database, Cpu, FileText,
-  ChevronRight, RefreshCw, Zap, Target, TrendingUp,
-  Eye, EyeOff, Play, Loader2, BarChart3
+  ChevronRight, RefreshCw, Target, TrendingUp,
+  Loader2, BarChart3, XCircle
 } from 'lucide-react';
 
 interface AnalysisResult {
@@ -80,6 +80,7 @@ interface ReadinessData {
     score: number;
     grade: string;
   }[];
+  mode?: string;
 }
 
 type Category = 'all' | 'security' | 'error_handling' | 'testing' | 'architecture' | 'performance';
@@ -93,7 +94,216 @@ export default function ProductionReadinessPanel({
   const [activeCategory, setActiveCategory] = useState<Category>('all');
   const [error, setError] = useState<string | null>(null);
 
-  // Analyse réelle du code Python via l'API Supabase
+  // Analyse statique réelle du code Python
+  const performStaticAnalysis = useCallback((code: string): ReadinessData => {
+    const lines = code.split('\n');
+    const codeLines = lines.filter(l => l.trim() && !l.trim().startsWith('#'));
+    
+    // Métriques calculées réellement depuis le code
+    const functionMatches = code.match(/def\s+\w+/g) || [];
+    const classMatches = code.match(/class\s+\w+/g) || [];
+    const dataclassMatches = code.match(/@dataclass/g) || [];
+    const asyncMatches = code.match(/async\s+def/g) || [];
+    const typeMatches = code.match(/:\s*\w+[:=]/g) || [];
+    const docMatches = code.match(/"""[\s\S]*?"""/g) || [];
+    const tryMatches = code.match(/try:/g) || [];
+    const exceptMatches = code.match(/except\s+/g) || [];
+    const testMatches = code.match(/def\s+test_/g) || [];
+    const loggingMatches = code.match(/logger\.|logging\./g) || [];
+    const contextMatches = code.match(/contextvars/g) || [];
+    const lockMatches = code.match(/threading\.(Lock|RLock)/g) || [];
+    const sqlMatches = code.match(/execute\(|cursor\./g) || [];
+    const ormMatches = code.match(/\.filter\(|\.query\(/g) || [];
+    const evalExecMatches = code.match(/eval\(|exec\(/g) || [];
+    
+    // Détection des secrets codés en dur
+    const secretPattern = /(password|secret|api_key|token)\s*[:=]\s*['"][^'"]+['"]/gi;
+    const secretMatches = code.match(secretPattern) || [];
+    
+    // Métriques détaillées
+    const metrics = {
+      functions: functionMatches.length,
+      classes: classMatches.length,
+      dataclasses: dataclassMatches.length,
+      async_functions: asyncMatches.length,
+      type_annotated: typeMatches.length,
+      documented: docMatches.length,
+      error_handled: exceptMatches.length,
+      try_blocks: tryMatches.length,
+      test_functions: testMatches.length,
+      hardcoded_secrets: secretMatches.length,
+      dangerous_calls: evalExecMatches.length,
+      input_validations: 0,
+      logging_statements: loggingMatches.length,
+      contextvars: contextMatches.length,
+      locks: lockMatches.length,
+      sql_queries: sqlMatches.length,
+      orm_usage: ormMatches.length,
+    };
+
+    // Calcul du score basé sur les métriques réelles
+    let score = 40;
+    
+    // Couverture de typage
+    if (metrics.functions > 0) {
+      score += Math.min(15, (metrics.type_annotated / metrics.functions) * 15);
+    }
+    
+    // Documentation
+    if (metrics.functions > 0) {
+      score += Math.min(10, (metrics.documented / metrics.functions) * 10);
+    }
+    
+    // Gestion d'erreurs
+    if (metrics.functions > 0) {
+      score += Math.min(15, (metrics.error_handled / metrics.functions) * 15);
+    }
+    
+    // Tests
+    if (metrics.test_functions > 0) {
+      score += Math.min(15, (metrics.test_functions / metrics.functions) * 15);
+    }
+    
+    // Logging
+    if (metrics.logging_statements > 0) {
+      score += 5;
+    }
+    
+    // Concurrence
+    if (metrics.contextvars > 0 || metrics.locks > 0) {
+      score += 3;
+    }
+    
+    // Malus pour problèmes de sécurité
+    score -= metrics.hardcoded_secrets * 8;
+    score -= metrics.dangerous_calls * 5;
+    
+    // Bonus pour architecture moderne
+    if (metrics.async_functions > 0) score += 3;
+    if (metrics.dataclasses > 0) score += 3;
+    if (metrics.orm_usage > 0) score += 2;
+    
+    // Normaliser le score entre 0 et 100
+    score = Math.round(Math.min(100, Math.max(0, score)));
+    
+    // Calculer le grade
+    const grade = score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F';
+
+    // Générer les issues réels
+    const issues: ReadinessData['issues'] = [];
+    
+    if (metrics.dangerous_calls > 0) {
+      issues.push({
+        severity: 'HIGH',
+        category: 'Security',
+        line_number: 0,
+        message: `Dangerous code execution detected (${metrics.dangerous_calls} eval/exec calls)`,
+        suggestion: 'Avoid using eval() or exec() with user input. Use safer alternatives like ast.literal_eval()',
+        code_snippet: 'eval(...) or exec(...)'
+      });
+    }
+    
+    if (metrics.hardcoded_secrets > 0) {
+      secretMatches.forEach((secret: string, idx: number) => {
+        issues.push({
+          severity: 'CRITICAL',
+          category: 'Security',
+          line_number: idx + 1,
+          message: 'Hardcoded secret detected in source code',
+          suggestion: 'Move secrets to environment variables or use a secrets manager (AWS Secrets Manager, HashiCorp Vault)',
+          code_snippet: secret.substring(0, 50)
+        });
+      });
+    }
+    
+    if (metrics.functions > metrics.try_blocks) {
+      issues.push({
+        severity: 'MEDIUM',
+        category: 'Error Handling',
+        line_number: 0,
+        message: `${metrics.functions - metrics.try_blocks} functions lack error handling`,
+        suggestion: 'Add try-except blocks to all functions that can fail',
+        code_snippet: 'def function(...):  # Missing try-except'
+      });
+    }
+    
+    if (metrics.logging_statements === 0 && metrics.functions > 3) {
+      issues.push({
+        severity: 'LOW',
+        category: 'Architecture',
+        line_number: 0,
+        message: 'No logging statements detected',
+        suggestion: 'Add logging for production monitoring and debugging',
+        code_snippet: 'logger = logging.getLogger(__name__)'
+      });
+    }
+    
+    if (metrics.test_functions === 0 && metrics.functions > 0) {
+      issues.push({
+        severity: 'MEDIUM',
+        category: 'Testing',
+        line_number: 0,
+        message: 'No unit tests detected',
+        suggestion: 'Add pytest unit tests for better code quality assurance',
+        code_snippet: 'def test_function(): ...'
+      });
+    }
+    
+    if (metrics.type_annotated < metrics.functions * 0.5 && metrics.functions > 5) {
+      issues.push({
+        severity: 'LOW',
+        category: 'Type Safety',
+        line_number: 0,
+        message: `Low type annotation coverage (${metrics.functions > 0 ? Math.round((metrics.type_annotated / metrics.functions) * 100) : 0}%)`,
+        suggestion: 'Add type hints to improve code quality and enable better IDE support',
+        code_snippet: 'def function(param: str) -> bool: ...'
+      });
+    }
+
+    // Générer les recommandations
+    const recommendations: string[] = [];
+    
+    if (metrics.try_blocks === 0 && metrics.functions > 0) {
+      recommendations.push('Add try-except blocks for comprehensive error handling');
+    }
+    if (metrics.logging_statements === 0) {
+      recommendations.push('Add logging statements using the logging module');
+    }
+    if (metrics.test_functions === 0) {
+      recommendations.push('Create unit tests using pytest framework');
+    }
+    if (metrics.type_annotated < metrics.functions * 0.5) {
+      recommendations.push('Increase type annotation coverage for better maintainability');
+    }
+    if (metrics.hardcoded_secrets > 0) {
+      recommendations.push('Move all secrets to environment variables');
+    }
+    if (metrics.dangerous_calls > 0) {
+      recommendations.push('Replace eval/exec with safer alternatives');
+    }
+    if (metrics.contextvars === 0 && metrics.locks === 0 && metrics.functions > 20) {
+      recommendations.push('Consider adding thread safety mechanisms for concurrent access');
+    }
+
+    // Générer le résumé
+    const summary = `Codebase with ${metrics.functions} functions, ${metrics.classes} classes. ` +
+                    `Type coverage: ${metrics.functions > 0 ? Math.round((metrics.type_annotated / metrics.functions) * 100) : 0}%. ` +
+                    `Error handling: ${metrics.error_handled}/${metrics.functions} functions. ` +
+                    `Tests: ${metrics.test_functions} test functions.`;
+
+    return {
+      score,
+      grade,
+      summary,
+      recommendations,
+      metrics,
+      issues,
+      production_ready: score >= 75,
+      mode: 'static_analysis'
+    };
+  }, []);
+
+  // Analyse via l'API Supabase
   const analyzeReadiness = useCallback(async () => {
     if (!analysis?.python_code) {
       setError('No Python code available for analysis');
@@ -104,7 +314,6 @@ export default function ProductionReadinessPanel({
     setError(null);
     
     try {
-      // Appel API vers notre route qui utilise Supabase
       const response = await fetch('/api/readiness-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,26 +329,31 @@ export default function ProductionReadinessPanel({
 
       const result = await response.json();
       
-      setData({
-        score: result.score || calculateScoreFromAnalysis(analysis),
-        grade: result.grade || calculateGrade(result.score || 70),
-        summary: result.summary || generateSummary(analysis),
-        recommendations: result.recommendations || generateRecommendations(analysis),
-        metrics: result.metrics || calculateMetricsFromCode(analysis.python_code),
-        issues: result.issues || generateIssuesFromAnalysis(analysis),
-        production_ready: result.production_ready !== undefined ? result.production_ready : (result.score || 70) >= 75,
-        historical_scores: result.historical_scores || []
-      });
+      // Si l'API retourne des données valides, les utiliser
+      if (result.score !== undefined) {
+        setData({
+          score: result.score,
+          grade: result.grade,
+          summary: result.summary,
+          recommendations: result.recommendations || [],
+          metrics: result.metrics,
+          issues: result.issues || [],
+          production_ready: result.production_ready,
+          historical_scores: result.historical_scores || [],
+          mode: result.mode
+        });
+      } else {
+        // Fallback à l'analyse statique locale
+        setData(performStaticAnalysis(analysis.python_code));
+      }
     } catch (err: any) {
       console.error('Analysis error:', err);
-      setError(err.message);
-      
-      // Fallback avec analyse réelle du code (pas de fake data)
-      setData(generateRealAnalysis(analysis));
+      // Erreur - utiliser l'analyse statique locale au lieu de fake data
+      setData(performStaticAnalysis(analysis.python_code));
     } finally {
       setLoading(false);
     }
-  }, [analysis]);
+  }, [analysis, performStaticAnalysis]);
 
   // Recalculer quand l'analyse change
   useEffect(() => {
@@ -147,196 +361,6 @@ export default function ProductionReadinessPanel({
       analyzeReadiness();
     }
   }, [analysis?.python_code, analyzeReadiness]);
-
-  // Fonctions de calcul réel (pas de placeholders)
-  function calculateScoreFromAnalysis(analysis: AnalysisResult): number {
-    let score = 50; // Score de base
-    
-    // Bonus pour les tests
-    if (testResults) {
-      const passRate = testResults.total > 0 ? testResults.passed / testResults.total : 0;
-      score += Math.round(passRate * 20);
-    }
-    
-    // Bonus pour la couverture de traduction
-    if (analysis.coverage_metrics?.translation_rate) {
-      score += Math.round((analysis.coverage_metrics.translation_rate / 100) * 15);
-    }
-    
-    // Bonus pour la confiance
-    const confidence = typeof analysis.migration_score?.confidence === 'number' 
-      ? analysis.migration_score.confidence 
-      : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0;
-    score += Math.round((confidence / 100) * 10);
-    
-    // Malus pour les issues de sécurité
-    const securityCount = Array.isArray(analysis.security_warnings) ? analysis.security_warnings.length : 0;
-    score -= securityCount * 5;
-    
-    // Malus pour les improvements recommandées
-    const improvementsCount = Array.isArray(analysis.improvements) ? analysis.improvements.length : 0;
-    score -= improvementsCount * 2;
-    
-    return Math.min(100, Math.max(0, Math.round(score)));
-  }
-
-  function calculateGrade(score: number): string {
-    if (score >= 90) return 'A';
-    if (score >= 80) return 'B';
-    if (score >= 70) return 'C';
-    if (score >= 60) return 'D';
-    return 'F';
-  }
-
-  function generateSummary(analysis: AnalysisResult): string {
-    const pythonCode = analysis.python_code || '';
-    const functions = (pythonCode.match(/def\s+\w+/g) || []).length;
-    const classes = (pythonCode.match(/class\s+\w+/g) || []).length;
-    
-    return `Codebase with ${functions} functions and ${classes} classes. ` +
-           `Migration complexity: ${analysis.migration_score?.complexity || 'Unknown'}. ` +
-           `Translation coverage: ${analysis.coverage_metrics?.translation_rate || 0}%.`;
-  }
-
-  function generateRecommendations(analysis: AnalysisResult): string[] {
-    const recommendations: string[] = [];
-    const pythonCode = analysis.python_code || '';
-    
-    if (!pythonCode.includes('try:')) {
-      recommendations.push('Add try-except blocks for error handling');
-    }
-    if (!pythonCode.includes('logging')) {
-      recommendations.push('Add logging statements for production monitoring');
-    }
-    if (!pythonCode.includes('@pytest') && !pythonCode.includes('def test_')) {
-      recommendations.push('Add unit tests using pytest');
-    }
-    if (!pythonCode.match(/:\s*\w+:/)) {
-      recommendations.push('Add type annotations for better code quality');
-    }
-    
-    if (Array.isArray(analysis.improvements)) {
-      recommendations.push(...analysis.improvements.slice(0, 3));
-    }
-    
-    return recommendations;
-  }
-
-  function calculateMetricsFromCode(code: string): ReadinessData['metrics'] {
-    const metrics = {
-      functions: (code.match(/def\s+\w+/g) || []).length,
-      classes: (code.match(/class\s+\w+/g) || []).length,
-      dataclasses: (code.match(/@dataclass/g) || []).length,
-      async_functions: (code.match(/async\s+def/g) || []).length,
-      type_annotated: (code.match(/:\s*\w+:/g) || []).length,
-      documented: (code.match(/"""[\s\S]*?"""/g) || []).length,
-      error_handled: (code.match(/except\s+/g) || []).length,
-      try_blocks: (code.match(/try:/g) || []).length,
-      test_functions: (code.match(/def\s+test_/g) || []).length,
-      hardcoded_secrets: (code.match(/(password|secret|api_key|token)\s*=\s*['"][^'"]+['"]/gi) || []).length,
-      dangerous_calls: (code.match(/eval\(|exec\(/g) || []).length,
-      input_validations: (code.match(/if\s+.*isinstance|if\s+.*>=\s*0|if\s+.*\.strip\(\)/g) || []).length,
-      logging_statements: (code.match(/logger\.|logging\./g) || []).length,
-      contextvars: (code.match(/contextvars/g) || []).length,
-      locks: (code.match(/threading\.(Lock|RLock)/g) || []).length,
-      sql_queries: (code.match(/execute\(|cursor\./g) || []).length,
-      orm_usage: (code.match(/\.filter\(|\.query\(/g) || []).length,
-    };
-    return metrics;
-  }
-
-  function generateIssuesFromAnalysis(analysis: AnalysisResult): ReadinessData['issues'] {
-    const issues: ReadinessData['issues'] = [];
-    const code = analysis.python_code || '';
-    
-    // Détecter les problèmes de sécurité
-    if (code.includes('eval(') || code.includes('exec(')) {
-      issues.push({
-        severity: 'HIGH',
-        category: 'Security',
-        line_number: code.indexOf('eval(') || code.indexOf('exec('),
-        message: 'Dangerous code execution detected (eval/exec)',
-        suggestion: 'Avoid using eval() or exec() with user input',
-        code_snippet: code.includes('eval(') ? 'eval(...)' : 'exec(...)'
-      });
-    }
-    
-    // Vérifier les secrets codés en dur
-    const secretPattern = /(password|secret|api_key|token)\s*=\s*['"][^'"]+['"]/gi;
-    let match;
-    while ((match = secretPattern.exec(code)) !== null) {
-      issues.push({
-        severity: 'CRITICAL',
-        category: 'Security',
-        line_number: code.substring(0, match.index).split('\n').length,
-        message: 'Hardcoded secret detected',
-        suggestion: 'Use environment variables or secrets manager',
-        code_snippet: match[0]
-      });
-    }
-    
-    // Vérifier le manque de gestion d'erreurs
-    const functions = code.match(/def\s+\w+/g) || [];
-    const tryBlocks = (code.match(/try:/g) || []).length;
-    if (functions.length > tryBlocks) {
-      issues.push({
-        severity: 'MEDIUM',
-        category: 'Error Handling',
-        line_number: 0,
-        message: `${functions.length - tryBlocks} functions lack error handling`,
-        suggestion: 'Add try-except blocks to all functions',
-        code_snippet: 'def function(...):  # No try-except'
-      });
-    }
-    
-    // Ajouter les warnings de sécurité de l'analyse
-    if (Array.isArray(analysis.security_warnings)) {
-      analysis.security_warnings.forEach((warning: any) => {
-        issues.push({
-          severity: warning.severity || 'MEDIUM',
-          category: 'Security',
-          line_number: warning.location?.split(':')[0] || 0,
-          message: warning.title || warning.description || 'Security issue detected',
-          suggestion: warning.fix || 'Review and fix this security issue',
-          code_snippet: warning.vulnerable_code || ''
-        });
-      });
-    }
-    
-    return issues;
-  }
-
-  function generateRealAnalysis(analysis: AnalysisResult): ReadinessData {
-    if (!analysis?.python_code) {
-      return {
-        score: 0,
-        grade: 'N/A',
-        summary: 'No code available for analysis',
-        recommendations: ['Please generate Python code first'],
-        metrics: {
-          functions: 0, classes: 0, dataclasses: 0, async_functions: 0,
-          type_annotated: 0, documented: 0, error_handled: 0, try_blocks: 0,
-          test_functions: 0, hardcoded_secrets: 0, dangerous_calls: 0,
-          input_validations: 0, logging_statements: 0, contextvars: 0,
-          locks: 0, sql_queries: 0, orm_usage: 0
-        },
-        issues: [],
-        production_ready: false
-      };
-    }
-
-    const score = calculateScoreFromAnalysis(analysis);
-    
-    return {
-      score,
-      grade: calculateGrade(score),
-      summary: generateSummary(analysis),
-      recommendations: generateRecommendations(analysis),
-      metrics: calculateMetricsFromCode(analysis.python_code),
-      issues: generateIssuesFromAnalysis(analysis),
-      production_ready: score >= 75
-    };
-  }
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return 'text-green-400';
@@ -387,14 +411,14 @@ export default function ProductionReadinessPanel({
     {
       title: 'Functions',
       value: data.metrics.functions,
-      subtitle: `${data.metrics.type_annotated} typed`,
+      subtitle: `${data.metrics.type_annotated} typed (${data.metrics.functions > 0 ? Math.round((data.metrics.type_annotated / data.metrics.functions) * 100) : 0}%)`,
       icon: <Cpu className="w-5 h-5" />,
       color: 'blue'
     },
     {
       title: 'Classes',
       value: data.metrics.classes,
-      subtitle: `${data.metrics.dataclasses} dataclasses`,
+      subtitle: `${data.metrics.dataclasses} @dataclass`,
       icon: <Shield className="w-5 h-5" />,
       color: 'purple'
     },
@@ -408,21 +432,21 @@ export default function ProductionReadinessPanel({
     {
       title: 'Error Handling',
       value: data.metrics.try_blocks,
-      subtitle: `${data.metrics.error_handled} handled`,
+      subtitle: `${data.metrics.error_handled} exceptions caught`,
       icon: <AlertTriangle className="w-5 h-5" />,
       color: 'yellow'
     },
     {
       title: 'Security',
       value: data.metrics.dangerous_calls + data.metrics.hardcoded_secrets,
-      subtitle: `${data.metrics.hardcoded_secrets} secrets found`,
+      subtitle: `${data.metrics.hardcoded_secrets} secrets, ${data.metrics.dangerous_calls} dangerous calls`,
       icon: <Lock className="w-5 h-5" />,
       color: 'red'
     },
     {
       title: 'Logging',
       value: data.metrics.logging_statements,
-      subtitle: 'statements',
+      subtitle: 'logger/logging statements',
       icon: <Activity className="w-5 h-5" />,
       color: 'cyan'
     },
@@ -436,7 +460,7 @@ export default function ProductionReadinessPanel({
     {
       title: 'Database',
       value: data.metrics.sql_queries,
-      subtitle: `${data.metrics.orm_usage} ORM`,
+      subtitle: `${data.metrics.orm_usage} ORM queries`,
       icon: <Database className="w-5 h-5" />,
       color: 'indigo'
     },
@@ -461,22 +485,8 @@ export default function ProductionReadinessPanel({
           <div className="text-center">
             <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto mb-4" />
             <p className="text-slate-400">Analyzing production readiness...</p>
-            <p className="text-xs text-slate-500 mt-2">Evaluating security, error handling, tests, and architecture</p>
+            <p className="text-xs text-slate-500 mt-2">Static code analysis in progress</p>
           </div>
-        </div>
-      ) : error ? (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-          <div className="flex items-center gap-2 text-red-400">
-            <AlertTriangle className="w-5 h-5" />
-            <span className="font-medium">Analysis Error</span>
-          </div>
-          <p className="text-sm text-slate-300 mt-2">{error}</p>
-          <button
-            onClick={analyzeReadiness}
-            className="mt-4 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-sm font-medium transition"
-          >
-            Retry Analysis
-          </button>
         </div>
       ) : data ? (
         <div className="space-y-6">
@@ -514,7 +524,7 @@ export default function ProductionReadinessPanel({
                 </span>
               )}
               <span className="text-xs text-slate-400">
-                Based on {data.metrics.functions} functions, {data.metrics.test_functions} tests, and {data.issues.length} checks
+                Based on {data.metrics.functions} functions, {data.metrics.test_functions} tests, and {data.issues.length} security/quality checks
               </span>
             </div>
           </div>
@@ -571,6 +581,7 @@ export default function ProductionReadinessPanel({
                 <div className="p-8 text-center">
                   <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
                   <p className="text-slate-300">No issues found in this category</p>
+                  <p className="text-xs text-slate-500 mt-1">Code passes all static analysis checks</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-700">
@@ -583,11 +594,11 @@ export default function ProductionReadinessPanel({
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             {getCategoryIcon(issue.category)}
-                            <span className="text-xs text-slate-500">Line {issue.line_number}</span>
+                            <span className="text-xs text-slate-500">Line {issue.line_number || 'N/A'}</span>
                           </div>
                           <p className="text-sm text-white font-medium">{issue.message}</p>
                           {issue.code_snippet && (
-                            <code className="text-xs text-slate-400 bg-slate-900 px-2 py-1 rounded mt-1 block">
+                            <code className="text-xs text-slate-400 bg-slate-900 px-2 py-1 rounded mt-1 block font-mono">
                               {issue.code_snippet}
                             </code>
                           )}
@@ -616,6 +627,28 @@ export default function ProductionReadinessPanel({
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Historical Data from Supabase */}
+          {data.historical_scores && data.historical_scores.length > 0 && (
+            <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+              <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-cyan-400" />
+                Historical Scores (Supabase)
+              </h4>
+              <div className="space-y-2">
+                {data.historical_scores.slice(0, 5).map((h, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">
+                      {new Date(h.timestamp).toLocaleDateString()} {new Date(h.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className={`font-bold ${getScoreColor(h.score)}`}>
+                      {h.score}/100 ({h.grade})
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
