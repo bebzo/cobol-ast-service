@@ -447,6 +447,10 @@ print(f"Passed: {report['passed_tests']}/{report['total_tests']}")`,
       const majorChecks = checks.filter((c) => c.category === "major");
       const minorChecks = checks.filter((c) => c.category === "minor");
 
+      const _totalCritical = criticalChecks.length;
+      const _totalMajor = majorChecks.length;
+      const _totalMinor = minorChecks.length;
+
       const passedCritical = criticalChecks.filter(
         (c) => c.status === "passed"
       ).length;
@@ -470,22 +474,22 @@ print(f"Passed: {report['passed_tests']}/{report['total_tests']}")`,
 
       // Weighted scoring: Critical=50%, Major=30%, Minor=20%
       const criticalScore =
-        ((passedCritical + partialCritical * 0.5) / totalCritical) * 50;
+        _totalCritical > 0 ? ((passedCritical + partialCritical * 0.5) / _totalCritical) * 50 : 0;
       const majorScore =
-        ((passedMajor + partialMajor * 0.5) / totalMajor) * 30;
+        _totalMajor > 0 ? ((passedMajor + partialMajor * 0.5) / _totalMajor) * 30 : 0;
       const minorScore =
-        ((passedMinor + partialMinor * 0.5) / totalMinor) * 20;
+        _totalMinor > 0 ? ((passedMinor + partialMinor * 0.5) / _totalMinor) * 20 : 0;
 
-      const score = Math.round(criticalScore + majorScore + minorScore);
+      const _score = Math.round(criticalScore + majorScore + minorScore);
 
       return {
-        score,
+        score: _score,
         passedCritical,
-        totalCritical,
+        totalCritical: _totalCritical,
         passedMajor,
-        totalMajor,
+        totalMajor: _totalMajor,
         passedMinor,
-        totalMinor,
+        totalMinor: _totalMinor,
       };
     }, [checks]);
 

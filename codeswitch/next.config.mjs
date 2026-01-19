@@ -7,9 +7,7 @@ const nextConfig = {
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   
   // Vercel-compatible settings
-  experimental: {
-    serverComponentsExternalPackages: ['antlr4'],
-  },
+  serverExternalPackages: ['antlr4'],
 };
 
 export default nextConfig;
