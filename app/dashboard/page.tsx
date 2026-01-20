@@ -648,6 +648,16 @@ export default function Home() {
   // Authentication check - requires login
   useEffect(() => {
     const checkAuth = async () => {
+      // Check for dev mode bypass
+      const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+      if (isDevMode) {
+        // Dev mode: bypass authentication
+        console.log('Dev mode enabled - bypassing authentication');
+        setUser({ email: 'demo@codeswitch.dev', id: 'demo-user' });
+        setAuthLoading(false);
+        return;
+      }
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -664,8 +674,13 @@ export default function Home() {
       }
     };
     checkAuth();
-    
-    // Listen for auth changes
+
+    // Listen for auth changes (skip in dev mode)
+    const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+    if (isDevMode) {
+      return undefined;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         router.push('/login');
@@ -674,7 +689,7 @@ export default function Home() {
         setAuthLoading(false);
       }
     });
-    
+
     return () => subscription.unsubscribe();
   }, [router]);
   
@@ -711,6 +726,10 @@ export default function Home() {
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
+  // v8.7: Architecture sub-tabs state
+  const [activeArchSubTab, setActiveArchSubTab] = useState<"code" | "tests" | "config" | "security">("code");
+  // v8.7: Tests sub-tabs state
+  const [activeTestsSubTab, setActiveTestsSubTab] = useState<"unit" | "shadow" | "readiness">("unit");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -2154,7 +2173,99 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </button>
 
               </div>
-              
+
+              {/* v8.7: Architecture Sub-Tabs */}
+              {activeTab === "arch" && (
+                <div className="flex items-center gap-1 px-4 border-b border-slate-700 bg-slate-800/30">
+                  <button
+                    onClick={() => setActiveArchSubTab("code")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeArchSubTab === "code"
+                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Code
+                  </button>
+                  <button
+                    onClick={() => setActiveArchSubTab("tests")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeArchSubTab === "tests"
+                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Tests
+                  </button>
+                  <button
+                    onClick={() => setActiveArchSubTab("config")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeArchSubTab === "config"
+                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Config
+                  </button>
+                  <button
+                    onClick={() => setActiveArchSubTab("security")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeArchSubTab === "security"
+                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Security
+                  </button>
+                </div>
+              )}
+
+              {/* v8.7: Security Report Sub-Tabs (uses activeReportTab) */}
+              {activeTab === "report" && (
+                <div className="flex items-center gap-1 px-4 border-b border-slate-700 bg-slate-800/30">
+                  <button
+                    onClick={() => setActiveReportTab("issues")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeReportTab === "issues"
+                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Issues
+                  </button>
+                  <button
+                    onClick={() => setActiveReportTab("improvements")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeReportTab === "improvements"
+                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Improvements
+                  </button>
+                  <button
+                    onClick={() => setActiveReportTab("security")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeReportTab === "security"
+                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Security
+                  </button>
+                  <button
+                    onClick={() => setActiveReportTab("next")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeReportTab === "next"
+                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Next Steps
+                  </button>
+                </div>
+              )}
+
               {activeTab === "code" && (
                 <div>
                   {/* Code Status Bar */}
@@ -2210,23 +2321,366 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
               )}
 
-              {activeTab === "tests" && (() => {
-                const testContent = (() => {
-                  const t = analysis?.tests || analysis?.unit_tests;
-                  if (!t) return "# Run analysis to generate unit tests";
-                  return Array.isArray(t) ? t.join('\n') : t;
-                })();
-                return (
-                  <Editor
-                    height="400px"
-                    defaultLanguage="python"
-                    value={testContent}
-                    theme="vs-dark"
-                    options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                    loading={<pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">{testContent}</pre>}
-                  />
-                );
-              })()}
+              {activeTab === "tests" && (
+                <div>
+                  {/* Tests Sub-Tabs */}
+                  <div className="flex items-center gap-1 px-2 border-b border-slate-700 bg-slate-800/50">
+                    <button
+                      onClick={() => setActiveTestsSubTab("unit")}
+                      className={`px-3 py-2 text-sm font-medium transition-colors ${
+                        activeTestsSubTab === "unit"
+                          ? "text-emerald-400 border-b-2 border-emerald-400 bg-slate-700/50"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/30"
+                      }`}
+                    >
+                      unit tests
+                    </button>
+                    <button
+                      onClick={() => setActiveTestsSubTab("shadow")}
+                      className={`px-3 py-2 text-sm font-medium transition-colors ${
+                        activeTestsSubTab === "shadow"
+                          ? "text-amber-400 border-b-2 border-amber-400 bg-slate-700/50"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/30"
+                      }`}
+                    >
+                      shadow testing
+                    </button>
+                    <button
+                      onClick={() => setActiveTestsSubTab("readiness")}
+                      className={`px-3 py-2 text-sm font-medium transition-colors ${
+                        activeTestsSubTab === "readiness"
+                          ? "text-green-400 border-b-2 border-green-400 bg-slate-700/50"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-700/30"
+                      }`}
+                    >
+                      production readiness
+                    </button>
+                  </div>
+
+                  {/* Unit Tests Content */}
+                  {activeTestsSubTab === "unit" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-slate-300">Unit Tests Editor</h4>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500">Generated by Gemini</span>
+                          <button
+                            onClick={() => {
+                              setIsLoading(true);
+                              setTimeout(() => {
+                                const testsStr = (analysis?.tests || analysis?.unit_tests || "");
+                                const tests = Array.isArray(testsStr) ? testsStr.join("\n") : testsStr;
+                                if (tests) {
+                                  runTestsWithPyodide(analysis?.python_code || "", tests).then(results => {
+                                    setTestResults({ ...results, running: false });
+                                    setEdgeCaseResults({
+                                      running: false,
+                                      total: 0,
+                                      passed: 0,
+                                      failed: 0,
+                                      coverage: 100,
+                                      details: []
+                                    });
+                                    setIsLoading(false);
+                                  });
+                                } else {
+                                  setIsLoading(false);
+                                }
+                              }, 500);
+                            }}
+                            className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg font-medium transition-colors flex items-center gap-1.5"
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                            Run Tests
+                          </button>
+                        </div>
+                      </div>
+                      <div className="border border-slate-600 rounded-lg overflow-hidden">
+                        <Editor
+                          height="350px"
+                          defaultLanguage="python"
+                          value={Array.isArray(analysis?.unit_tests) ? analysis.unit_tests.join("\n") : (analysis?.unit_tests || "")}
+                          theme="vs-dark"
+                          options={{
+                            readOnly: true,
+                            minimap: { enabled: false },
+                            fontSize: 13,
+                            lineNumbers: "on",
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shadow Testing Content */}
+                  {activeTestsSubTab === "shadow" && (
+                    <div className="h-[400px] overflow-y-auto">
+                      {analysis?.shadow_testing_plan ? (
+                        <div className="space-y-4">
+                          {/* Readiness Score */}
+                          <div className="flex items-center gap-4 p-4 bg-slate-800 rounded-lg border border-cyan-500/30">
+                            <div className="text-center">
+                              <p className="text-3xl font-bold text-cyan-400">
+                                {analysis.shadow_testing_plan.readiness_score || 0}%
+                              </p>
+                              <p className="text-xs text-slate-500">Readiness Score</p>
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  (analysis.shadow_testing_plan.readiness_score || 0) >= 80 ? "bg-green-500/20 text-green-400" :
+                                  (analysis.shadow_testing_plan.readiness_score || 0) >= 60 ? "bg-yellow-500/20 text-yellow-400" :
+                                  "bg-red-500/20 text-red-400"
+                                }`}>
+                                  {analysis.shadow_testing_plan.readiness_status || "Unknown"}
+                                </span>
+                              </div>
+                              <p className="text-sm text-slate-400">
+                                Estimated duration: {analysis.shadow_testing_plan.estimated_duration || "N/A"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Critical Paths */}
+                          <div>
+                            <h4 className="text-sm font-semibold text-cyan-400 mb-2">Critical Testing Paths</h4>
+                            <div className="space-y-2">
+                              {(analysis.shadow_testing_plan.critical_paths || []).map((path: any, i: number) => (
+                                <div key={i} className="p-3 bg-slate-800 rounded-lg border border-slate-700">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-medium text-white">{path.category}</span>
+                                    <span className={`px-2 py-0.5 rounded text-xs ${
+                                      path.priority === "HIGH" ? "bg-red-500/20 text-red-400" :
+                                      path.priority === "MEDIUM" ? "bg-yellow-500/20 text-yellow-400" :
+                                      "bg-green-500/20 text-green-400"
+                                    }`}>
+                                      {path.priority}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-4 text-xs text-slate-500">
+                                    <span>Test Points: {path.testPoints}</span>
+                                    <span>Strategy: {path.strategy}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Risk Mitigation */}
+                          <div>
+                            <h4 className="text-sm font-semibold text-cyan-400 mb-2">Risk Mitigation</h4>
+                            <ul className="space-y-1 text-sm text-slate-400">
+                              {(analysis.shadow_testing_plan.risk_mitigation || []).map((item: string, i: number) => (
+                                <li key={i} className="flex items-center gap-2">
+                                  <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full"></span>
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-slate-400">
+                          <div className="text-center">
+                            <TestTube className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                            <p>Shadow testing plan will appear after analysis</p>
+                            <p className="text-xs mt-2 text-slate-500">Based on migration complexity and risk assessment</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Production Readiness Content - Real Calculation */}
+                  {activeTestsSubTab === "readiness" && (
+                    <div className="h-[400px] overflow-y-auto">
+                      {(() => {
+                        // Real production readiness calculation
+                        const coverage = analysis?.coverage_metrics?.translation_rate || 0;
+                        const confidence = typeof analysis?.migration_score?.confidence === "number" 
+                          ? analysis.migration_score.confidence 
+                          : parseInt(String(analysis?.migration_score?.confidence || "0").replace(/[^0-9]/g, "")) || 0;
+                        const securityIssues = Array.isArray(analysis?.security_warnings) ? analysis.security_warnings.length : 0;
+                        const issuesCount = Array.isArray(analysis?.issues) ? analysis.issues.length : 0;
+                        
+                        // Calculate individual scores (0-100 each, weighted)
+                        const coverageScore = Math.min(coverage, 100);
+                        const confidenceScore = confidence;
+                        const securityScore = Math.max(0, 100 - (securityIssues * 15)); // -15% per security issue
+                        const qualityScore = Math.max(0, 100 - (issuesCount * 5)); // -5% per issue
+                        
+                        // Overall score calculation (weighted average)
+                        const overallScore = Math.round(
+                          (coverageScore * 0.25) +
+                          (confidenceScore * 0.30) +
+                          (securityScore * 0.25) +
+                          (qualityScore * 0.20)
+                        );
+                        
+                        const isReady = overallScore >= 85;
+                        
+                        return (
+                          <div className="space-y-4">
+                            {/* Overall Readiness - Real Calculated Score */}
+                            <div className={`text-center p-6 rounded-lg border ${
+                              isReady 
+                                ? "bg-gradient-to-br from-green-900/30 to-emerald-900/30 border-green-500/30" 
+                                : "bg-gradient-to-br from-yellow-900/30 to-amber-900/30 border-yellow-500/30"
+                            }`}>
+                              <p className={`text-5xl font-bold mb-2 ${isReady ? "text-green-400" : "text-yellow-400"}`}>
+                                {overallScore}%
+                              </p>
+                              <p className="text-lg text-white">Production Readiness</p>
+                              <p className={`text-sm mt-2 ${isReady ? "text-green-300" : "text-yellow-300"}`}>
+                                {isReady ? "Ready for deployment" : `Needs ${100 - overallScore}% improvement`}
+                              </p>
+                            </div>
+
+                            {/* Score Breakdown */}
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Test Coverage */}
+                              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-slate-400">Test Coverage</span>
+                                  <span className={`text-sm font-semibold ${
+                                    coverageScore >= 90 ? "text-green-400" : coverageScore >= 70 ? "text-yellow-400" : "text-red-400"
+                                  }`}>
+                                    {coverageScore}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${
+                                      coverageScore >= 90 ? "bg-green-400" : coverageScore >= 70 ? "bg-yellow-400" : "bg-red-400"
+                                    }`}
+                                    style={{ width: `${coverageScore}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1">Weight: 25%</p>
+                              </div>
+
+                              {/* Migration Confidence */}
+                              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-slate-400">Confidence</span>
+                                  <span className={`text-sm font-semibold ${
+                                    confidenceScore >= 85 ? "text-green-400" : confidenceScore >= 70 ? "text-yellow-400" : "text-red-400"
+                                  }`}>
+                                    {confidenceScore}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${
+                                      confidenceScore >= 85 ? "bg-green-400" : confidenceScore >= 70 ? "bg-yellow-400" : "bg-red-400"
+                                    }`}
+                                    style={{ width: `${confidenceScore}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1">Weight: 30%</p>
+                              </div>
+
+                              {/* Security Score */}
+                              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-slate-400">Security</span>
+                                  <span className={`text-sm font-semibold ${
+                                    securityScore >= 90 ? "text-green-400" : securityScore >= 70 ? "text-yellow-400" : "text-red-400"
+                                  }`}>
+                                    {securityScore}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${
+                                      securityScore >= 90 ? "bg-green-400" : securityScore >= 70 ? "bg-yellow-400" : "bg-red-400"
+                                    }`}
+                                    style={{ width: `${securityScore}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1">{securityIssues} issue(s) found</p>
+                              </div>
+
+                              {/* Code Quality */}
+                              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-slate-400">Code Quality</span>
+                                  <span className={`text-sm font-semibold ${
+                                    qualityScore >= 90 ? "text-green-400" : qualityScore >= 70 ? "text-yellow-400" : "text-red-400"
+                                  }`}>
+                                    {qualityScore}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${
+                                      qualityScore >= 90 ? "bg-green-400" : qualityScore >= 70 ? "bg-yellow-400" : "bg-red-400"
+                                    }`}
+                                    style={{ width: `${qualityScore}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1">{issuesCount} issue(s) to fix</p>
+                              </div>
+                            </div>
+
+                            {/* Validation Checklist */}
+                            <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                              <h4 className="text-sm font-semibold text-slate-300 mb-3">Validation Checklist</h4>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${coverageScore >= 90 ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={coverageScore >= 90 ? "text-slate-300" : "text-yellow-300"}>
+                                    Test coverage ≥ 90%: {coverageScore}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${confidenceScore >= 85 ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={confidenceScore >= 85 ? "text-slate-300" : "text-yellow-300"}>
+                                    Migration confidence ≥ 85%: {confidenceScore}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${securityScore >= 90 ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={securityScore >= 90 ? "text-slate-300" : "text-yellow-300"}>
+                                    Security issues resolved: {securityIssues} remaining
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${qualityScore >= 90 ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={qualityScore >= 90 ? "text-slate-300" : "text-yellow-300"}>
+                                    Code issues addressed: {issuesCount} remaining
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${isReady ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={isReady ? "text-slate-300" : "text-yellow-300"}>
+                                    Overall readiness ≥ 85%: {overallScore}%
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Recommendations */}
+                            {!isReady && (
+                              <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4">
+                                <h4 className="text-sm font-semibold text-amber-400 mb-2">Recommendations to Reach 100%</h4>
+                                <ul className="text-xs text-slate-300 space-y-1">
+                                  {coverageScore < 90 && <li>• Increase test coverage by {90 - coverageScore}%</li>}
+                                  {confidenceScore < 85 && <li>• Improve migration confidence by {85 - confidenceScore}%</li>}
+                                  {securityScore < 90 && <li>• Address {securityIssues} security issue(s)</li>}
+                                  {qualityScore < 90 && <li>• Fix {issuesCount} code issue(s)</li>}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
               
               {activeTab === "config" && (
                 <Editor

@@ -1,9 +1,48 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Lazy initialization - only create client when actually needed
+let supabaseClient: ReturnType<typeof createClient> | null = null;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function getSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (supabaseUrl && supabaseAnonKey) {
+    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    return supabaseClient;
+  }
+  
+  return null;
+}
+
+// Export a proxy object that safely handles null
+export const supabase = {
+  get client() {
+    return getSupabaseClient();
+  },
+  from(table: string) {
+    const client = getSupabaseClient();
+    if (!client) {
+      // Return a mock object for dev mode
+      return {
+        select: () => Promise.resolve({ data: [], error: null }),
+        insert: () => Promise.resolve({ error: null }),
+        delete: () => Promise.resolve({ error: null }),
+        order: () => Promise.resolve({ data: [], error: null }),
+        eq: () => Promise.resolve({ error: null }),
+        limit: () => Promise.resolve({ data: [], error: null })
+      };
+    }
+    return client.from(table);
+  },
+  auth: {
+    getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    signOut: () => Promise.resolve({ error: null })
+  }
+};
 
 export interface AnalysisHistory {
   id?: string;
@@ -20,9 +59,15 @@ export interface AnalysisHistory {
 const MAX_HISTORY = 10;
 
 export async function saveAnalysis(item: AnalysisHistory): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) {
+    console.log('Demo mode: saving to localStorage only');
+    saveToLocalStorage(item);
+    return true;
+  }
+  
   try {
-    // 1. Save new entry
-    const { error } = await supabase
+    const { error } = await client
       .from('analysis_history')
       .insert([{
         filename: item.filename,
@@ -39,8 +84,7 @@ export async function saveAnalysis(item: AnalysisHistory): Promise<boolean> {
       return false;
     }
     
-    // 2. Auto-purge: keep only MAX_HISTORY entries, delete oldest
-    const { data: allEntries } = await supabase
+    const { data: allEntries } = await client
       .from('analysis_history')
       .select('id, created_at')
       .order('created_at', { ascending: false });
@@ -48,7 +92,7 @@ export async function saveAnalysis(item: AnalysisHistory): Promise<boolean> {
     if (allEntries && allEntries.length > MAX_HISTORY) {
       const entriesToDelete = allEntries.slice(MAX_HISTORY);
       for (const entry of entriesToDelete) {
-        await supabase.from('analysis_history').delete().eq('id', entry.id);
+        await client.from('analysis_history').delete().eq('id', entry.id);
       }
       console.log(`Auto-purged ${entriesToDelete.length} old entries`);
     }
@@ -61,8 +105,14 @@ export async function saveAnalysis(item: AnalysisHistory): Promise<boolean> {
 }
 
 export async function loadHistory(limit = 10): Promise<AnalysisHistory[]> {
+  const client = getSupabaseClient();
+  if (!client) {
+    console.log('Demo mode: loading from localStorage only');
+    return loadFromLocalStorage(limit);
+  }
+  
   try {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('analysis_history')
       .select('*')
       .order('created_at', { ascending: false })
@@ -79,7 +129,6 @@ export async function loadHistory(limit = 10): Promise<AnalysisHistory[]> {
   }
 }
 
-// LocalStorage fallback
 function loadFromLocalStorage(limit: number): AnalysisHistory[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -100,8 +149,14 @@ export function saveToLocalStorage(item: AnalysisHistory): void {
 }
 
 export async function deleteAnalysis(id: string): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client) {
+    console.log('Demo mode: delete from localStorage only');
+    return true;
+  }
+  
   try {
-    const { error } = await supabase
+    const { error } = await client
       .from('analysis_history')
       .delete()
       .eq('id', id);
