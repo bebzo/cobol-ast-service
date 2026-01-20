@@ -347,77 +347,37 @@ export default function ShadowTestingPanel({
     setReport(null);
     
     const startTime = Date.now();
-    const results: TestExecutionResult[] = [];
     
     try {
-      // Exécution RÉELLE des tests shadow - pas de simulation
-      for (const testCase of testCases) {
-        const testStartTime = performance.now();
-        let testResult: TestExecutionResult = {
-          test_id: testCase.id,
-          test_name: testCase.name,
-          passed: false,
-          timestamp: new Date().toISOString()
-        };
-        
-        try {
-          // Exécuter le code Python avec les données d'entrée
-          const execResult = await executePythonCode(pythonCode, testCase.python_input);
-          testResult.execution_time_python = (performance.now() - testStartTime) / 1000;
-          testResult.python_result = execResult;
-          
-          // Simuler le résultat COBOL (comparaison directe)
-          // Dans une vraie implémentation, cela exécuterait le code COBOL
-          const cobolResult = execResult; // Les entrées sont identiques
-          testResult.cobol_result = cobolResult;
-          
-          // Comparaison réelle des résultats
-          const comparison = compareResults(cobolResult, execResult, testCase.tolerance);
-          testResult.comparison_result = comparison;
-          testResult.passed = comparison.match;
-          
-        } catch (execError) {
-          testResult.error = execError instanceof Error ? execError.message : String(execError);
-          testResult.execution_time_python = (performance.now() - testStartTime) / 1000;
-        }
-        
-        results.push(testResult);
+      // Appel à l'API backend pour exécuter les tests shadow
+      const response = await fetch('/api/shadow-test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cobol_code: cobolCode,
+          python_code: pythonCode,
+          test_cases: testCases,
+          settings: {
+            tolerance: settings.tolerance,
+            timeout: settings.timeout,
+            comparison_mode: settings.comparisonMode
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erreur API: ${response.status} ${response.statusText}`);
       }
       
-      // Générer le rapport réel
-      const endTime = Date.now();
-      const passedTests = results.filter(r => r.passed && !r.error).length;
-      const failedTests = results.filter(r => !r.passed && !r.error).length;
-      const errorTests = results.filter(r => r.error).length;
+      const apiReport = await response.json();
       
+      // Le rapport retourné par l'API est directement utilisable
       const report: ShadowTestReport = {
-        session_id: `REAL-${Date.now()}`,
+        ...apiReport,
         start_time: new Date(startTime).toISOString(),
-        end_time: new Date().toISOString(),
-        duration_seconds: (endTime - startTime) / 1000,
-        total_tests: results.length,
-        passed_tests: passedTests,
-        failed_tests: failedTests,
-        error_tests: errorTests,
-        success_rate: results.length > 0 ? (passedTests / results.length) * 100 : 0,
-        summary: {
-          avg_time_cobol: 0,
-          avg_time_python: results.reduce((sum, r) => sum + (r.execution_time_python || 0), 0) / results.length,
-          min_time_cobol: 0,
-          max_time_cobol: 0,
-          min_time_python: Math.min(...results.map(r => r.execution_time_python || Infinity)) || 0,
-          max_time_python: Math.max(...results.map(r => r.execution_time_python || 0)) || 0,
-          total_execution_time: (endTime - startTime) / 1000
-        },
-        results: results,
-        recommendations: (failedTests > 0 || errorTests > 0) ? [
-          errorTests > 0 ? `Corriger ${errorTests} erreur(s) d'exécution` : '',
-          failedTests > 0 ? `Analyser ${failedTests} test(s) échoué(s)` : '',
-          'Vérifier la logique de conversion COBOL vers Python'
-        ].filter(r => r !== '') : [
-          'Excellent! Tous les tests passent avec succès.',
-          'Le code Python maintient une fidélité parfaite avec le code COBOL.'
-        ]
+        end_time: new Date().toISOString()
       };
       
       setReport(report);
@@ -428,7 +388,6 @@ export default function ShadowTestingPanel({
       
     } catch (error) {
       console.error('Erreur shadow testing:', error);
-      // Ne plus générer de données factices - montrer l'erreur
       setReport({
         session_id: `ERROR-${Date.now()}`,
         start_time: new Date(startTime).toISOString(),
@@ -451,7 +410,8 @@ export default function ShadowTestingPanel({
         results: [],
         recommendations: [
           'Erreur lors de l\'exécution des tests shadow',
-          error instanceof Error ? error.message : 'Erreur inconnue'
+          error instanceof Error ? error.message : 'Erreur inconnue',
+          'Vérifiez que le serveur backend est en cours d\'exécution'
         ]
       });
     } finally {
@@ -459,133 +419,9 @@ export default function ShadowTestingPanel({
     }
   };
 
-  // Fonction pour exécuter du code Python réel
-  const executePythonCode = async (code: string, inputData: Record<string, unknown>): Promise<Record<string, unknown>> => {
-    return new Promise((resolve, reject) => {
-      try {
-        // Parser les entrées pour les convertir en variables
-        const inputVars = Object.entries(inputData)
-          .map(([key, value]) => {
-            if (typeof value === 'string') return `${key} = "${value}"`;
-            return `${key} = ${JSON.stringify(value)}`;
-          })
-          .join('\n');
-        
-        // Créer une fonction de traitement qui retourne le résultat
-        const wrapperCode = `
-${inputVars}
 
-# Trouver et exécuter les fonctions du code
-_results = {}
 
-# Chercher les fonctions dans le code
-import re
-_func_pattern = r'def\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\('
-_funcs = re.findall(_func_pattern, '''${code}''')
 
-# Exécuter le code utilisateur
-_exec_globals = {}
-exec('''${code.replace(/'/g, "\\'")}''', _exec_globals)
-
-# Exécuter chaque fonction trouvée avec les données d'entrée
-for _func_name in _funcs:
-    try:
-        _func = _exec_globals.get(_func_name)
-        if callable(_func) and not _func_name.startswith('_'):
-            try:
-                _result = _func(**inputData)
-                _results[_func_name] = _result
-            except TypeError:
-                # La fonction ne prend pas les bons arguments
-                try:
-                    _result = _func()
-                    _results[_func_name] = _result
-                except:
-                    pass
-    except Exception as e:
-        pass
-
-# Retourner le premier résultat trouvé ou un résultat par défaut
-if _results:
-    _output = list(_results.values())[0]
-    if isinstance(_output, (int, float, str, bool)):
-        {'output': _output, 'status': 'SUCCESS'}
-    elif isinstance(_output, dict):
-        _output
-    else:
-        {'output': str(_output), 'status': 'SUCCESS'}
-else:
-    # Calcul par défaut basé sur les entrées
-    _sum = sum(inputData.values()) if isinstance(inputData, dict) and all(isinstance(v, (int, float)) for v in inputData.values()) else 100
-    {'output': _sum, 'status': 'SUCCESS'}
-`;
-        
-        // Évaluer le code (simulé pour le navigateur)
-        const result = eval(wrapperCode);
-        resolve(result);
-        
-      } catch (error) {
-        reject(error);
-      }
-    });
-  };
-
-  // Fonction de comparaison réelle des résultats
-  const compareResults = (
-    cobolResult: Record<string, unknown> | null,
-    pythonResult: Record<string, unknown>,
-    tolerance: number
-  ): { match: boolean; exact_match: boolean; semantic_match: boolean; difference_count: number; differences: Array<{key: string; cobol: unknown; python: unknown; type: string}> } => {
-    const differences: Array<{key: string; cobol: unknown; python: unknown; type: string}> = [];
-    let exact_match = true;
-    let semantic_match = true;
-    
-    if (!pythonResult) {
-      return { match: false, exact_match: false, semantic_match: false, difference_count: 1, differences: [{key: 'result', cobol: cobolResult, python: pythonResult, type: 'missing_result'}] };
-    }
-    
-    // Comparer les clés
-    const allKeys = new Set([
-      ...Object.keys(cobolResult || {}),
-      ...Object.keys(pythonResult || {})
-    ]);
-    
-    for (const key of allKeys) {
-      const cobolValue = cobolResult?.[key];
-      const pythonValue = pythonResult?.[key];
-      
-      if (cobolValue === undefined && pythonValue === undefined) continue;
-      
-      if (cobolValue === undefined || pythonValue === undefined) {
-        differences.push({ key, cobol: cobolValue, python: pythonValue, type: 'missing_value' });
-        exact_match = false;
-        semantic_match = false;
-        continue;
-      }
-      
-      // Comparaison numérique avec tolérance
-      if (typeof cobolValue === 'number' && typeof pythonValue === 'number') {
-        const diff = Math.abs(cobolValue - pythonValue);
-        if (diff > tolerance) {
-          differences.push({ key, cobol: cobolValue, python: pythonValue, type: 'numeric_difference' });
-          exact_match = false;
-          if (diff > tolerance * 10) semantic_match = false;
-        }
-      } else if (String(cobolValue) !== String(pythonValue)) {
-        differences.push({ key, cobol: cobolValue, python: pythonValue, type: 'value_difference' });
-        exact_match = false;
-        semantic_match = false;
-      }
-    }
-    
-    return {
-      match: semantic_match,
-      exact_match,
-      semantic_match,
-      difference_count: differences.length,
-      differences
-    };
-  };
 
   const toggleTestExpanded = (testId: string) => {
     const newExpanded = new Set(expandedTests);
