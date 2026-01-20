@@ -5,7 +5,7 @@ async function checkTabs() {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  console.log('🔍 Checking tabs and sub-tabs...\n');
+  console.log('🔍 Checking Tests sub-tabs...\n');
 
   try {
     // Login
@@ -19,24 +19,8 @@ async function checkTabs() {
     await page.waitForTimeout(2000);
     console.log('   ✓ Logged in');
 
-    // Check main tabs
-    console.log('\n2. Checking main tabs...');
-    const mainTabs = await page.$$eval('button', buttons =>
-      buttons
-        .filter(b => {
-          const text = b.textContent?.trim() || '';
-          return text === 'Python' || text === 'Tests' || text === 'Diff' ||
-                 text === 'Architecture' || text === 'Security Report' || text === 'Export';
-        })
-        .map(b => ({
-          text: b.textContent?.trim(),
-          class: b.className?.substring(0, 100)
-        }))
-    );
-    console.log('   Main tabs:', mainTabs.map(t => t.text).join(', '));
-
     // Click Tests tab
-    console.log('\n3. Clicking Tests tab...');
+    console.log('\n2. Clicking Tests tab...');
     const testsTab = await page.$('button:has-text("Tests")');
     if (testsTab) {
       await testsTab.click();
@@ -44,72 +28,28 @@ async function checkTabs() {
       console.log('   ✓ Clicked Tests');
 
       // Check for sub-tabs
-      console.log('\n4. Checking Tests sub-tabs...');
+      console.log('\n3. Checking Tests sub-tabs...');
       const subTabs = await page.$$eval('button', buttons =>
         buttons
           .filter(b => {
             const text = b.textContent?.trim() || '';
-            return text === 'Coverage' || text === 'Mock' || text === 'Assert';
+            return text === 'unit tests' || text === 'shadow testing' || text === 'production readiness';
           })
           .map(b => ({
             text: b.textContent?.trim(),
             class: b.className?.substring(0, 100)
           }))
       );
-      console.log('   Tests sub-tabs found:', subTabs.map(t => t.text).join(', ') || 'NONE');
+      console.log('   Sub-tabs found:', subTabs.map(t => t.text).join(', ') || 'NONE');
 
-      // Click Architecture tab
-      console.log('\n5. Clicking Architecture tab...');
-      const archTab = await page.$('button:has-text("Architecture")');
-      if (archTab) {
-        await archTab.click();
-        await page.waitForTimeout(2000);
-        console.log('   ✓ Clicked Architecture');
-
-        // Check for Architecture sub-tabs
-        console.log('\n6. Checking Architecture sub-tabs...');
-        const archSubTabs = await page.$$eval('button', buttons =>
-          buttons
-            .filter(b => {
-              const text = b.textContent?.trim() || '';
-              return text === 'Code' || text === 'Tests' || text === 'Config' || text === 'Security';
-            })
-            .map(b => ({
-              text: b.textContent?.trim(),
-              class: b.className?.substring(0, 100)
-            }))
-        );
-        console.log('   Architecture sub-tabs found:', archSubTabs.map(t => t.text).join(', ') || 'NONE');
-      }
-
-      // Click Security Report tab
-      console.log('\n7. Clicking Security Report tab...');
-      const securityTab = await page.$('button:has-text("Security Report")');
-      if (securityTab) {
-        await securityTab.click();
-        await page.waitForTimeout(2000);
-        console.log('   ✓ Clicked Security Report');
-
-        // Check for Security Report sub-tabs
-        console.log('\n8. Checking Security Report sub-tabs...');
-        const securitySubTabs = await page.$$eval('button', buttons =>
-          buttons
-            .filter(b => {
-              const text = b.textContent?.trim() || '';
-              return text === 'Issues' || text === 'Improvements' || text === 'Security' || text === 'Next Steps';
-            })
-            .map(b => ({
-              text: b.textContent?.trim(),
-              class: b.className?.substring(0, 100)
-            }))
-        );
-        console.log('   Security Report sub-tabs found:', securitySubTabs.map(t => t.text).join(', ') || 'NONE');
+      if (subTabs.length === 3) {
+        console.log('\n✓ SUCCESS: All 3 sub-tabs are displayed!');
+      } else {
+        console.log(`\n✗ PARTIAL: Found ${subTabs.length}/3 sub-tabs`);
       }
     }
 
     console.log('\n=== RESULT ===');
-    console.log('Check complete!');
-
     await browser.close();
     return { success: true };
 
