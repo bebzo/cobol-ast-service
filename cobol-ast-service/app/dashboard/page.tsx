@@ -3658,19 +3658,8 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         ? 'bg-green-500/10 border border-green-500/30' 
                         : 'bg-red-500/10 border border-red-500/30'
                     }`}>
-                      <div className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl font-bold mx-auto ${
-                        isSecure ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        {score}
-                      </div>
-                      <p className={`text-lg font-bold mt-2 ${isSecure ? 'text-green-400' : 'text-red-400'}`}>
+                      <p className={`text-sm font-bold ${isSecure ? 'text-green-400' : 'text-red-400'}`}>
                         Security Score: {score}/100 (Grade {grade})
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        {isSecure 
-                          ? `${fixedIssues.length} issues auto-remediated`
-                          : `${activeIssues.length} issue${activeIssues.length > 1 ? 's' : ''} require attention`
-                        }
                       </p>
                       <div className={`mt-2 px-3 py-1 rounded text-sm font-bold inline-block ${
                         isSecure 
