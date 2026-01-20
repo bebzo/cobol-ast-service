@@ -90,6 +90,10 @@ export async function saveAnalysis(item: AnalysisHistory): Promise<boolean> {
   }
   
   try {
+    console.log('[DEBUG] saveAnalysis - analysis keys:', item.analysis ? Object.keys(item.analysis) : 'N/A');
+    console.log('[DEBUG] saveAnalysis - shadow_testing_plan present:', !!item.analysis?.shadow_testing_plan);
+    console.log('[DEBUG] saveAnalysis - shadow_testing_plan value:', JSON.stringify(item.analysis?.shadow_testing_plan, null, 2));
+    
     const { error } = await client
       .from('analysis_history')
       .insert([{
@@ -148,11 +152,56 @@ export async function loadHistory(limit = 10): Promise<AnalysisHistory[]> {
       console.error('Supabase load error, trying localStorage:', error);
       return loadFromLocalStorage(limit);
     }
+    
     return data || [];
   } catch (e) {
     console.error('Load failed, using localStorage:', e);
     return loadFromLocalStorage(limit);
   }
+}
+
+// Helper to parse COBOL code quickly (simplified version for frontend)
+function parseCobolQuick(cobolCode: string): { workingStorageVariables: any[]; paragraphs: any[]; programId: string } {
+  const lines = cobolCode.split('\n');
+  const workingStorageVariables: any[] = [];
+  const paragraphs: any[] = [];
+  let programId = 'UNKNOWN';
+  
+  // Extract program ID
+  const programIdMatch = cobolCode.match(/PROGRAM-ID\.?\s*\.?\s*([A-Z0-9][A-Z0-9-]*)/i);
+  if (programIdMatch) {
+    programId = programIdMatch[1].toUpperCase();
+  }
+  
+  // Simple paragraph detection
+  const paragraphPattern = /^([A-Z0-9][A-Z0-9-]*)\.\s*$/;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const match = line.match(paragraphPattern);
+    if (match && !line.includes('PIC ') && !line.includes('VALUE ') && !line.includes('FD ') && !line.includes('SD ')) {
+      paragraphs.push({ name: match[1], line: i + 1 });
+    }
+  }
+  
+  return { workingStorageVariables, paragraphs, programId };
+}
+
+// Export helper for frontend use
+export function getAnalysisWithShadowTest(cobolCode: string, pythonCode: string, analysis: any): any {
+  // If shadow_testing_plan already exists, return as-is
+  if (analysis?.shadow_testing_plan) {
+    return analysis;
+  }
+  
+  // Regenerate shadow_testing_plan for historical data
+  console.log('[DEBUG] Regenerating shadow_testing_plan for historical analysis');
+  const quickParse = parseCobolQuick(cobolCode);
+  const shadowTestingPlan = generateShadowTestingPlanFrontend(cobolCode, pythonCode, quickParse);
+  
+  return {
+    ...analysis,
+    shadow_testing_plan: shadowTestingPlan
+  };
 }
 
 function loadFromLocalStorage(limit: number): AnalysisHistory[] {

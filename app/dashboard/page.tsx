@@ -45,7 +45,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory } from "@/lib/supabase";
+import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory, getAnalysisWithShadowTest } from "@/lib/supabase";
 import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
 
 // Configure Monaco loader at module level (runs once on client)
@@ -133,6 +133,174 @@ def check_syntax(code):
     console.error('Pyodide validation error:', e);
     return { valid: true }; // Assume valid if Pyodide fails
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v8.5: Generate Shadow Testing Plan (frontend version for historical data)
+// ═══════════════════════════════════════════════════════════════════════════
+function generateShadowTestingPlanFrontend(cobolCode: string, pythonCode: string, quickParse: any): any {
+  const upper = cobolCode.toUpperCase();
+  const criticalPaths: any[] = [];
+
+  // 1. Financial calculations
+  if (upper.includes('COMPUTE') || upper.includes('MULTIPLY') || upper.includes('DIVIDE')) {
+    const computeCount = (upper.match(/COMPUTE/g) || []).length;
+    criticalPaths.push({
+      category: 'Financial Calculations',
+      priority: 'CRITICAL',
+      testPoints: computeCount,
+      description: 'All arithmetic operations must produce identical results',
+      strategy: 'Compare floating-point outputs with Decimal precision (6+ decimal places)',
+      sample_inputs: ['boundary values (0, MAX, MIN)', 'negative amounts', 'fractional cents']
+    });
+  }
+
+  // 2. Date/Time processing
+  if (upper.includes('DATE') || upper.includes('CURRENT-DATE') || upper.includes('YYYYMMDD')) {
+    criticalPaths.push({
+      category: 'Date Processing',
+      priority: 'HIGH',
+      testPoints: (upper.match(/DATE/g) || []).length,
+      description: 'Date formats and calculations must match exactly',
+      strategy: 'Test leap years, timezone edge cases, century boundaries',
+      sample_inputs: ['2000-02-29', '1999-12-31', '2100-03-01']
+    });
+  }
+
+  // 3. File I/O operations
+  if (upper.includes('READ ') || upper.includes('WRITE ') || upper.includes('REWRITE')) {
+    const ioCount = (upper.match(/READ |WRITE |REWRITE/g) || []).length;
+    criticalPaths.push({
+      category: 'File I/O',
+      priority: 'HIGH',
+      testPoints: ioCount,
+      description: 'Record formats and field alignments must be byte-identical',
+      strategy: 'Compare binary output files byte-by-byte',
+      sample_inputs: ['empty file', 'single record', 'max capacity file']
+    });
+  }
+
+  // 4. Conditional logic
+  if (upper.includes('IF ') || upper.includes('EVALUATE ')) {
+    const branchCount = (upper.match(/IF |WHEN /g) || []).length;
+    criticalPaths.push({
+      category: 'Business Logic Branches',
+      priority: 'MEDIUM',
+      testPoints: branchCount,
+      description: 'All conditional paths must execute identically',
+      strategy: 'Use decision table testing to cover all branches',
+      sample_inputs: ['all boundary conditions', 'null/empty values', 'maximum string lengths']
+    });
+  }
+
+  // 5. Database operations
+  if (upper.includes('EXEC SQL')) {
+    const sqlCount = (upper.match(/EXEC SQL/g) || []).length;
+    criticalPaths.push({
+      category: 'Database Operations',
+      priority: 'CRITICAL',
+      testPoints: sqlCount,
+      description: 'SQL queries must return identical result sets',
+      strategy: 'Compare row counts, checksums, and data integrity',
+      sample_inputs: ['empty tables', 'NULL values', 'concurrent transactions']
+    });
+  }
+
+  // Test data recommendations
+  const testDataRecommendations: any[] = [];
+  const workingStorage = quickParse?.workingStorageVariables || [];
+  const numericVars = workingStorage.filter((v: any) => v.picture?.includes('9') || v.picture?.includes('V'));
+  const alphaVars = workingStorage.filter((v: any) => v.picture?.includes('X') || v.picture?.includes('A'));
+
+  if (numericVars.length > 0) {
+    testDataRecommendations.push({
+      type: 'Numeric Fields',
+      count: numericVars.length,
+      examples: numericVars.slice(0, 5).map((v: any) => v.name),
+      testValues: ['0', 'MAX_VALUE', 'MIN_VALUE', '-1 (if signed)', 'fractional values']
+    });
+  }
+
+  if (alphaVars.length > 0) {
+    testDataRecommendations.push({
+      type: 'Alphanumeric Fields',
+      count: alphaVars.length,
+      examples: alphaVars.slice(0, 5).map((v: any) => v.name),
+      testValues: ['empty string', 'max length', 'special characters', 'unicode (if applicable)']
+    });
+  }
+
+  // Readiness score
+  const hasTests = pythonCode.includes('def test_') || pythonCode.includes('pytest');
+  const hasDecimal = pythonCode.includes('Decimal');
+  const hasErrorHandling = pythonCode.includes('try:') || pythonCode.includes('except');
+
+  let readinessScore = 50;
+  if (hasTests) readinessScore += 20;
+  if (hasDecimal) readinessScore += 15;
+  if (hasErrorHandling) readinessScore += 15;
+
+  return {
+    readiness_score: readinessScore,
+    readiness_status: readinessScore >= 80 ? 'READY' : readinessScore >= 60 ? 'NEEDS_WORK' : 'NOT_READY',
+    critical_paths: criticalPaths,
+    test_data_recommendations: testDataRecommendations,
+    execution_plan: {
+      phase1_setup: {
+        name: 'Environment Setup',
+        duration: '1-2 days',
+        tasks: [
+          'Deploy Python version to shadow environment',
+          'Configure traffic mirroring from production COBOL',
+          'Set up comparison logging infrastructure',
+          'Define success criteria and tolerance thresholds'
+        ]
+      },
+      phase2_parallel: {
+        name: 'Parallel Execution',
+        duration: '1-2 weeks',
+        tasks: [
+          'Route production traffic to both systems',
+          'Log all inputs and outputs from both systems',
+          'Compare results with automated diff engine',
+          'Track discrepancy rate and categorize differences'
+        ]
+      },
+      phase3_analysis: {
+        name: 'Discrepancy Analysis',
+        duration: '3-5 days',
+        tasks: [
+          'Investigate all critical path discrepancies',
+          'Classify differences: bug vs. intentional improvement',
+          'Document edge cases requiring special handling',
+          'Adjust Python code for COBOL compatibility where needed'
+        ]
+      },
+      phase4_validation: {
+        name: 'Final Validation',
+        duration: '1 week',
+        tasks: [
+          'Run full regression test suite',
+          'Achieve 99.99% output parity',
+          'Sign-off from business stakeholders',
+          'Prepare cutover plan'
+        ]
+      }
+    },
+    estimated_duration: '2-4 weeks',
+    risk_mitigation: [
+      'Start with read-only operations before write operations',
+      'Use feature flags for gradual rollout',
+      'Maintain COBOL fallback for 30 days post-migration',
+      'Monitor error rates and response times continuously'
+    ],
+    success_criteria: {
+      output_parity: '99.99%',
+      performance_threshold: '±10% of COBOL response time',
+      zero_data_corruption: true,
+      all_edge_cases_documented: true
+    }
+  };
 }
 
 // Run tests using Pyodide (v8.5: improved error handling and fallback)
@@ -817,14 +985,23 @@ export default function Home() {
     // Load history from Supabase
     loadHistory(10).then((data) => {
       if (data.length > 0) {
-        setHistory(data.map(item => ({
-          id: item.id || Date.now().toString(),
-          filename: item.filename,
-          timestamp: new Date(item.timestamp).getTime(),
-          cobolCode: item.cobol_code,
-          pythonCode: item.python_code,
-          analysis: item.analysis,
-        })));
+        setHistory(data.map(item => {
+          // Regenerate shadow_testing_plan if missing (for historical data)
+          const enrichedAnalysis = getAnalysisWithShadowTest(
+            item.cobol_code,
+            item.python_code,
+            item.analysis
+          );
+          
+          return {
+            id: item.id || Date.now().toString(),
+            filename: item.filename,
+            timestamp: new Date(item.timestamp).getTime(),
+            cobolCode: item.cobol_code,
+            pythonCode: item.python_code,
+            analysis: enrichedAnalysis,
+          };
+        }));
       }
     });
   }, []);
@@ -1469,7 +1646,13 @@ export default function Home() {
   const loadFromHistory = (item: HistoryItem) => {
     setCobolCode(item.cobolCode);
     setPythonCode(item.pythonCode);
-    setAnalysis(item.analysis);
+    // Ensure shadow_testing_plan is present (regenerate if needed for historical data)
+    const enrichedAnalysis = getAnalysisWithShadowTest(
+      item.cobolCode,
+      item.pythonCode,
+      item.analysis
+    );
+    setAnalysis(enrichedAnalysis);
     setFilename(item.filename);
     setShowHistory(false);
   };

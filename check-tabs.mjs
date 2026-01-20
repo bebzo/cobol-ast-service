@@ -5,12 +5,12 @@ async function checkTabs() {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  console.log('🔍 Checking tabs and sub-tabs...\n');
+  console.log('🔍 Checking Tests sub-tabs and Production Readiness...\n');
 
   try {
     // Login
     console.log('1. Logging in...');
-    await page.goto('http://localhost:3000/login', { waitUntil: 'networkidle' });
+    await page.goto('http://localhost:3001/login', { waitUntil: 'networkidle' });
     await page.fill('input[type="email"]', 'embebangon@gmail.com');
     await page.fill('input[type="password"]', 'EManu1231975@@');
     await page.click('button[type="submit"]');
@@ -19,24 +19,8 @@ async function checkTabs() {
     await page.waitForTimeout(2000);
     console.log('   ✓ Logged in');
 
-    // Check main tabs
-    console.log('\n2. Checking main tabs...');
-    const mainTabs = await page.$$eval('button', buttons =>
-      buttons
-        .filter(b => {
-          const text = b.textContent?.trim() || '';
-          return text === 'Python' || text === 'Tests' || text === 'Diff' ||
-                 text === 'Architecture' || text === 'Security Report' || text === 'Export';
-        })
-        .map(b => ({
-          text: b.textContent?.trim(),
-          class: b.className?.substring(0, 100)
-        }))
-    );
-    console.log('   Main tabs:', mainTabs.map(t => t.text).join(', '));
-
     // Click Tests tab
-    console.log('\n3. Clicking Tests tab...');
+    console.log('\n2. Clicking Tests tab...');
     const testsTab = await page.$('button:has-text("Tests")');
     if (testsTab) {
       await testsTab.click();
@@ -44,72 +28,73 @@ async function checkTabs() {
       console.log('   ✓ Clicked Tests');
 
       // Check for sub-tabs
-      console.log('\n4. Checking Tests sub-tabs...');
-      const subTabs = await page.$$eval('button', buttons =>
-        buttons
+      console.log('\n3. Checking Tests sub-tabs...');
+      const subTabs = await page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button'));
+        return buttons
           .filter(b => {
             const text = b.textContent?.trim() || '';
-            return text === 'Coverage' || text === 'Mock' || text === 'Assert';
+            return text === 'unit tests' || text === 'shadow testing' || text === 'production readiness';
           })
-          .map(b => ({
-            text: b.textContent?.trim(),
-            class: b.className?.substring(0, 100)
-          }))
-      );
-      console.log('   Tests sub-tabs found:', subTabs.map(t => t.text).join(', ') || 'NONE');
+          .map(b => b.textContent?.trim());
+      });
+      console.log('   Sub-tabs found:', subTabs.join(', ') || 'NONE');
 
-      // Click Architecture tab
-      console.log('\n5. Clicking Architecture tab...');
-      const archTab = await page.$('button:has-text("Architecture")');
-      if (archTab) {
-        await archTab.click();
-        await page.waitForTimeout(2000);
-        console.log('   ✓ Clicked Architecture');
+      // Click on production readiness
+      console.log('\n4. Clicking Production Readiness...');
+      const prTab = await page.$('button:has-text("production readiness")');
+      if (prTab) {
+        await prTab.click();
+        await page.waitForTimeout(1000);
+        console.log('   ✓ Clicked Production Readiness');
 
-        // Check for Architecture sub-tabs
-        console.log('\n6. Checking Architecture sub-tabs...');
-        const archSubTabs = await page.$$eval('button', buttons =>
-          buttons
-            .filter(b => {
-              const text = b.textContent?.trim() || '';
-              return text === 'Code' || text === 'Tests' || text === 'Config' || text === 'Security';
-            })
-            .map(b => ({
-              text: b.textContent?.trim(),
-              class: b.className?.substring(0, 100)
-            }))
-        );
-        console.log('   Architecture sub-tabs found:', archSubTabs.map(t => t.text).join(', ') || 'NONE');
-      }
+        // Check what content is displayed
+        console.log('\n5. Checking Production Readiness content...');
+        const content = await page.evaluate(() => {
+          const pageText = document.body.innerText;
+          
+          // Check if "Run a COBOL analysis" message is shown (expected when no analysis)
+          if (pageText.includes('Run a COBOL analysis')) {
+            return {
+              state: 'NO_ANALYSIS',
+              message: 'Correctly shows "Run a COBOL analysis" message when no data',
+              score: null
+            };
+          }
+          
+          // Check if there's a percentage score
+          const scoreMatch = pageText.match(/(\d+)%.*Production Readiness/);
+          if (scoreMatch) {
+            return {
+              state: 'HAS_SCORE',
+              message: 'Shows calculated score',
+              score: scoreMatch[1]
+            };
+          }
+          
+          return {
+            state: 'UNKNOWN',
+            message: 'Could not determine state',
+            score: null
+          };
+        });
 
-      // Click Security Report tab
-      console.log('\n7. Clicking Security Report tab...');
-      const securityTab = await page.$('button:has-text("Security Report")');
-      if (securityTab) {
-        await securityTab.click();
-        await page.waitForTimeout(2000);
-        console.log('   ✓ Clicked Security Report');
+        console.log(`   State: ${content.state}`);
+        console.log(`   Message: ${content.message}`);
+        if (content.score) {
+          console.log(`   Score: ${content.score}%`);
+        }
 
-        // Check for Security Report sub-tabs
-        console.log('\n8. Checking Security Report sub-tabs...');
-        const securitySubTabs = await page.$$eval('button', buttons =>
-          buttons
-            .filter(b => {
-              const text = b.textContent?.trim() || '';
-              return text === 'Issues' || text === 'Improvements' || text === 'Security' || text === 'Next Steps';
-            })
-            .map(b => ({
-              text: b.textContent?.trim(),
-              class: b.className?.substring(0, 100)
-            }))
-        );
-        console.log('   Security Report sub-tabs found:', securitySubTabs.map(t => t.text).join(', ') || 'NONE');
+        // Verify no false positives
+        if (content.state === 'NO_ANALYSIS') {
+          console.log('\n✅ SUCCESS: No false positive! Message correctly shown when no analysis');
+        } else if (content.state === 'HAS_SCORE') {
+          console.log('\n⚠️  Note: Score shown - this is real data from a loaded analysis');
+        }
       }
     }
 
     console.log('\n=== RESULT ===');
-    console.log('Check complete!');
-
     await browser.close();
     return { success: true };
 
