@@ -27,13 +27,9 @@
       "maxDuration": 60,
       "memory": 1024
     },
-    "app/api/chat/route.ts": {
+    "api/chat/route.ts": {
       "maxDuration": 60,
       "memory": 512
-    },
-    "api/transpile.py": {
-      "maxDuration": 300,
-      "memory": 1024
     }
   }
 }
