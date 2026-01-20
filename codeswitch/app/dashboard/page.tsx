@@ -67,6 +67,7 @@ const EquivalenceDashboard = dynamic(() => import("@/components/EquivalenceDashb
 const ArchitectureViewer = dynamic(() => import("@/components/ArchitectureViewer"), { ssr: false });
 const AdminPanel = dynamic(() => import("@/components/AdminPanel"), { ssr: false });
 const ProductionReadinessPanel = dynamic(() => import("@/components/ProductionReadinessPanel"), { ssr: false });
+const TestRunnerPanel = dynamic(() => import("@/components/TestRunnerPanel"), { ssr: false });
 
 const MigrationGuide = dynamic(() => import("@/components/MigrationGuide"), { ssr: false });
 const Glossary = dynamic(() => import("@/components/Glossary"), { ssr: false });
@@ -659,6 +660,10 @@ interface AnalysisResult {
     risk_mitigation: string[];
     success_criteria: Record<string, unknown>;
   };
+  production_readiness?: {
+    score: number;
+    categories: { name: string; score: number; items: string[] }[];
+  };
 }
 
 interface HistoryItem {
@@ -1046,6 +1051,47 @@ export default function Home() {
     setCopybookCount(0);
     setMissingCopybooks(requiredCopybooks);
   }, [requiredCopybooks]);
+
+  // Handle manual test execution from TestRunnerPanel
+  const handleRunTests = useCallback(async (testType: string) => {
+    if (!pythonCode || testType === 'unit') {
+      // Run unit tests
+      const testStr = (analysis?.tests || analysis?.unit_tests || '');
+      const testContent = Array.isArray(testStr) ? testStr.join('\n') : testStr;
+      
+      // Count tests
+      const testNameMatches = testContent.match(/def (test_[a-z0-9_]+)/gi) || [];
+      const testCount = testNameMatches.length;
+      
+      if (testCount === 0) {
+        setTestResults({running: false, total: 0, passed: 0, failed: 0, details: []});
+        return;
+      }
+      
+      setTestResults(prev => ({...prev, running: true}));
+      
+      try {
+        const results = await runTestsWithPyodide(pythonCode || analysis?.python_code || '', testContent);
+        setTestResults({...results, running: false});
+      } catch (e) {
+        console.error('Test execution error:', e);
+        setTestResults({
+          running: false,
+          total: testCount,
+          passed: 0,
+          failed: testCount,
+          details: [{name: 'execution_error', status: 'error', error: String(e).slice(0, 100)}]
+        });
+      }
+    } else if (testType === 'shadow') {
+      // Trigger shadow testing - this would typically call an API
+      console.log('Running shadow tests...');
+      // Shadow tests are pre-computed in analysis.shadow_testing_plan
+    } else if (testType === 'production') {
+      // Production readiness is already computed
+      console.log('Production readiness:', analysis?.compliance_assessment);
+    }
+  }, [pythonCode, analysis]);
 
   const handleConvert = async () => {
     // API key is now server-side
@@ -2274,144 +2320,43 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               )}
 
               {activeTab === "tests" && (
-                <div className="flex flex-col h-[500px]">
-                  {/* Sub-tabs navigation */}
-                  <div className="flex gap-1 p-2 bg-slate-800 border-b border-slate-700">
-                    <button
-                      onClick={() => setActiveTestsSubTab("unit")}
-                      className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
-                        activeTestsSubTab === "unit" ? "bg-blue-500/20 text-blue-400" : "text-slate-400 hover:text-white hover:bg-slate-700"
-                      }`}
-                    >
-                      <TestTube className="w-4 h-4 inline mr-2" />Unit Tests
-                    </button>
-                    <button
-                      onClick={() => setActiveTestsSubTab("shadow")}
-                      className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
-                        activeTestsSubTab === "shadow" ? "bg-amber-500/20 text-amber-400" : "text-slate-400 hover:text-white hover:bg-slate-700"
-                      }`}
-                    >
-                      <FlaskConical className="w-4 h-4 inline mr-2" />Shadow Testing
-                    </button>
-                    <button
-                      onClick={() => setActiveTestsSubTab("production")}
-                      className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
-                        activeTestsSubTab === "production" ? "bg-emerald-500/20 text-emerald-400" : "text-slate-400 hover:text-white hover:bg-slate-700"
-                      }`}
-                    >
-                      <Shield className="w-4 h-4 inline mr-2" />Production Readiness
-                    </button>
-                  </div>
-                  
-                  {/* Sub-tab content */}
-                  <div className="flex-1 overflow-hidden">
-                    {/* Unit Tests */}
-                    {activeTestsSubTab === "unit" && (() => {
-                      const testContent = (() => {
-                        const t = analysis?.tests || analysis?.unit_tests;
-                        if (!t) return "# Run analysis to generate unit tests";
-                        return Array.isArray(t) ? t.join('\n') : t;
-                      })();
-                      return (
-                        <Editor
-                          height="100%"
-                          defaultLanguage="python"
-                          value={testContent}
-                          theme="vs-dark"
-                          options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                          loading={<pre className="h-full bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">{testContent}</pre>}
-                        />
-                      );
+                <div className="h-[600px]">
+                  <TestRunnerPanel
+                    pythonCode={pythonCode}
+                    testCode={(() => {
+                      const t = analysis?.tests || analysis?.unit_tests;
+                      if (!t) return "# Run analysis to generate unit tests";
+                      return Array.isArray(t) ? t.join('\n') : t;
                     })()}
-                    
-                    {/* Shadow Testing */}
-                    {activeTestsSubTab === "shadow" && (
-                      <div className="h-full overflow-y-auto p-4 bg-slate-900">
-                        {analysis?.shadow_testing_plan ? (
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                              <h3 className="text-xl font-bold text-amber-400">Shadow Testing Plan</h3>
-                              <div className="flex items-center gap-2">
-                                <span className={`text-2xl font-bold ${
-                                  analysis.shadow_testing_plan.readiness_score >= 80 ? 'text-green-400' :
-                                  analysis.shadow_testing_plan.readiness_score >= 60 ? 'text-yellow-400' : 'text-red-400'
-                                }`}>
-                                  {analysis.shadow_testing_plan.readiness_score}%
-                                </span>
-                                <span className={`px-2 py-1 rounded text-xs ${
-                                  analysis.shadow_testing_plan.readiness_status === 'READY' ? 'bg-green-500/20 text-green-400' :
-                                  analysis.shadow_testing_plan.readiness_status === 'NEEDS_WORK' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
-                                }`}>
-                                  {analysis.shadow_testing_plan.readiness_status}
-                                </span>
-                              </div>
-                            </div>
-                            
-                            {/* Critical Paths */}
-                            <div className="bg-slate-800 rounded-lg p-4">
-                              <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-                                <AlertTriangle className="w-4 h-4 text-amber-400" /> Critical Paths ({analysis.shadow_testing_plan.critical_paths?.length || 0})
-                              </h4>
-                              <div className="space-y-2">
-                                {analysis.shadow_testing_plan.critical_paths?.map((path: any, idx: number) => (
-                                  <div key={idx} className="bg-slate-700/50 rounded p-3">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="font-medium text-white">{path.category}</span>
-                                      <span className={`text-xs px-2 py-0.5 rounded ${
-                                        path.priority === 'HIGH' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'
-                                      }`}>{path.priority}</span>
-                                    </div>
-                                    <p className="text-sm text-slate-400">{path.description}</p>
-                                    <p className="text-xs text-slate-500 mt-1">Strategy: {path.strategy}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Execution Plan */}
-                            <div className="bg-slate-800 rounded-lg p-4">
-                              <h4 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-blue-400" /> Execution Plan ({analysis.shadow_testing_plan.estimated_duration})
-                              </h4>
-                              <div className="space-y-2">
-                                {Object.entries(analysis.shadow_testing_plan.execution_plan || {}).map(([key, phase]: [string, any]) => (
-                                  <div key={key} className="bg-slate-700/50 rounded p-3">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium text-white">{phase.name}</span>
-                                      <span className="text-xs text-slate-400">{phase.duration}</span>
-                                    </div>
-                                    <ul className="text-xs text-slate-400 mt-1 list-disc list-inside">
-                                      {phase.tasks?.slice(0, 3).map((task: string, i: number) => (
-                                        <li key={i}>{task}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="h-full flex items-center justify-center text-slate-400">
-                            <div className="text-center">
-                              <FlaskConical className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                              <p>Shadow Testing Plan will appear after analysis</p>
-                              <p className="text-xs mt-2 text-slate-500">Compares COBOL and Python outputs in parallel</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Production Readiness */}
-                    {activeTestsSubTab === "production" && (
-                      <ProductionReadinessPanel 
-                        analysis={analysis}
-                        testResults={testResults}
-                        cobolLines={(analyzedCobolCode || cobolCode).split('\n').length}
-                        pythonLines={(pythonCode || analysis?.python_code || '').split('\n').length}
-                      />
-                    )}
-                  </div>
+                    analysis={analysis}
+                    onRunTests={(testType) => handleRunTests(testType)}
+                    testResults={testResults}
+                    shadowTestResults={analysis?.shadow_testing_plan ? {
+                      ready: analysis.shadow_testing_plan.readiness_status === 'READY',
+                      score: analysis.shadow_testing_plan.readiness_score,
+                      paths: analysis.shadow_testing_plan.critical_paths?.map((p: any) => ({
+                        name: p.category,
+                        status: p.priority === 'HIGH' ? 'ready' : 'pending',
+                        inputs: p.testValues || p.sample_inputs || [],
+                        outputs: []
+                      })) || []
+                    } : undefined}
+                    productionReadiness={analysis?.production_readiness ? {
+                      score: analysis.production_readiness.score,
+                      categories: analysis.production_readiness.categories || []
+                    } : analysis?.compliance_assessment ? {
+                      score: Math.round(((analysis.compliance_assessment.sox.status === 'COMPLIANT' ? 1 : analysis.compliance_assessment.sox.status === 'PARTIAL' ? 0.5 : 0) +
+                        (analysis.compliance_assessment.pci_dss?.status === 'COMPLIANT' ? 1 : analysis.compliance_assessment.pci_dss?.status === 'PARTIAL' ? 0.5 : 0) +
+                        (analysis.compliance_assessment.gdpr?.status === 'COMPLIANT' ? 1 : analysis.compliance_assessment.gdpr?.status === 'PARTIAL' ? 0.5 : 0) +
+                        (analysis.compliance_assessment.hipaa?.status === 'COMPLIANT' ? 1 : analysis.compliance_assessment.hipaa?.status === 'PARTIAL' ? 0.5 : 0)) * 25),
+                      categories: [
+                        { name: 'SOX Compliance', score: analysis.compliance_assessment.sox.status === 'COMPLIANT' ? 100 : analysis.compliance_assessment.sox.status === 'PARTIAL' ? 60 : 20, items: analysis.compliance_assessment.sox.findings || [] },
+                        { name: 'PCI-DSS', score: analysis.compliance_assessment.pci_dss?.status === 'COMPLIANT' ? 100 : analysis.compliance_assessment.pci_dss?.status === 'PARTIAL' ? 60 : 20, items: analysis.compliance_assessment.pci_dss?.findings || [] },
+                        { name: 'GDPR', score: analysis.compliance_assessment.gdpr?.status === 'COMPLIANT' ? 100 : analysis.compliance_assessment.gdpr?.status === 'PARTIAL' ? 60 : 20, items: analysis.compliance_assessment.gdpr?.findings || [] },
+                        { name: 'HIPAA', score: analysis.compliance_assessment.hipaa?.status === 'COMPLIANT' ? 100 : analysis.compliance_assessment.hipaa?.status === 'PARTIAL' ? 60 : 20, items: analysis.compliance_assessment.hipaa?.findings || [] }
+                      ]
+                    } : undefined}
+                  />
                 </div>
               )}
               
