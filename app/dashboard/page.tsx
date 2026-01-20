@@ -135,7 +135,6 @@ def check_syntax(code):
   }
 }
 
-}
 
 // Run tests using Pyodide (v8.5: improved error handling and fallback)
 async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
