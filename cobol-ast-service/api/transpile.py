@@ -186,6 +186,14 @@ Improvements in v4.4:
 
 import ast
 
+import re
+import json
+from http.server import BaseHTTPRequestHandler
+from typing import Any, Dict, List, Optional, Tuple, Set, Union, Callable
+from typing import TypeVar, Generic
+from dataclasses import dataclass, field
+from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
+
 # ============================================================
 # v9.0.0: Supabase Integration for Production Readiness Metrics
 # ============================================================
@@ -314,14 +322,6 @@ def get_metrics_client(supabase_url: str = None, supabase_key: str = None) -> Pr
 # ============================================================
 # Fin de l'intégration Supabase
 # ============================================================
-
-import re
-import json
-from http.server import BaseHTTPRequestHandler
-from typing import Any, Dict, List, Optional, Tuple, Set, Union, Callable
-from typing import TypeVar, Generic
-from dataclasses import dataclass, field
-from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
 
 # ============================================================
 # v6.0.0: Import new features from dedicated module
