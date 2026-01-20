@@ -39,7 +39,7 @@ export const supabase = {
   },
   auth: {
     getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    onAuthStateChange: (_callback: (event: string, session: any) => void) => ({ data: { subscription: { unsubscribe: () => {} } } }),
     signOut: () => Promise.resolve({ error: null })
   }
 };
