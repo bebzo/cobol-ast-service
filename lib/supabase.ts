@@ -85,7 +85,7 @@ export async function saveAnalysis(item: AnalysisHistory): Promise<boolean> {
   }
   
   try {
-    const { error } = await (client
+    const { error } = await client
       .from('analysis_history')
       .insert([{
         filename: item.filename,
@@ -95,22 +95,22 @@ export async function saveAnalysis(item: AnalysisHistory): Promise<boolean> {
         cobol_code: item.cobol_code,
         python_code: item.python_code,
         analysis: item.analysis,
-      }]) as any);
+      }] as any);
     
     if (error) {
       console.error('Supabase save error:', error);
       return false;
     }
     
-    const { data: allEntries } = await (client
+    const { data: allEntries } = await client
       .from('analysis_history')
       .select('id, created_at')
-      .order('created_at', { ascending: false }) as any);
+      .order('created_at', { ascending: false });
     
     if (allEntries && allEntries.length > MAX_HISTORY) {
       const entriesToDelete = allEntries.slice(MAX_HISTORY);
       for (const entry of entriesToDelete) {
-        await (client.from('analysis_history').delete().eq('id', entry.id) as any);
+        await client.from('analysis_history').delete().eq('id', entry.id);
       }
       console.log(`Auto-purged ${entriesToDelete.length} old entries`);
     }
@@ -130,11 +130,12 @@ export async function loadHistory(limit = 10): Promise<AnalysisHistory[]> {
   }
   
   try {
-    const { data, error } = await (client
+    // @ts-ignore - Supabase types mismatch with runtime client
+    const { data, error } = await client
       .from('analysis_history')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(limit) as any);
+      .limit(limit);
     
     if (error) {
       console.error('Supabase load error, trying localStorage:', error);
@@ -174,10 +175,11 @@ export async function deleteAnalysis(id: string): Promise<boolean> {
   }
   
   try {
-    const { error } = await (client
+    // @ts-ignore - Supabase types mismatch with runtime client
+    const { error } = await client
       .from('analysis_history')
       .delete()
-      .eq('id', id) as any);
+      .eq('id', id);
     
     if (error) {
       console.error('Supabase delete error:', error);
