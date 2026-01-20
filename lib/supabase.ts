@@ -1,5 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Type definition for auth state change callback
+type AuthStateChangeCallback = (event: string, session: any) => void;
+
+// Type definition for the mock subscription object
+interface MockSubscription {
+  unsubscribe: () => void;
+}
+
+// Type definition for the mock auth object
+interface MockAuth {
+  getSession: () => Promise<{ data: { session: any }; error: null }>;
+  onAuthStateChange: (callback: AuthStateChangeCallback) => { data: { subscription: MockSubscription } };
+  signOut: () => Promise<{ error: null }>;
+}
+
 // Lazy initialization - only create client when actually needed
 let supabaseClient: ReturnType<typeof createClient> | null = null;
 
@@ -39,9 +54,12 @@ export const supabase = {
   },
   auth: {
     getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-    onAuthStateChange: (_callback: (event: string, session: any) => void) => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    onAuthStateChange: (callback: AuthStateChangeCallback) => {
+      // Return a mock subscription
+      return { data: { subscription: { unsubscribe: () => {} } } };
+    },
     signOut: () => Promise.resolve({ error: null })
-  }
+  } as MockAuth
 };
 
 export interface AnalysisHistory {
