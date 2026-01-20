@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 interface TestCase {
   id: string;
   name: string;
+  description?: string;
   cobol_input: Record<string, unknown>;
   python_input: Record<string, unknown>;
   category: string;
