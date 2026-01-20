@@ -1,0 +1,67 @@
+# ============================================================
+# CodeSwitch Configuration File
+# Generated for: ULTIMATEBANKINGSYSTEM
+# ============================================================
+
+# Production settings
+production:
+  # Buffer size for file operations (bytes)
+  buffer_size: 10000
+  
+  # Enable OpenTelemetry tracing
+  trace_enabled: false
+  
+  # Allow stub implementations (DEVELOPMENT ONLY - set false for production)
+  allow_stubs: false
+  
+  # Logging level: DEBUG, INFO, WARNING, ERROR
+  log_level: INFO
+  
+  # Maximum retries for file operations
+  max_retries: 3
+  
+  # Timeout for operations (seconds)
+  timeout_seconds: 30
+
+# File paths (adjust to your environment)
+files:
+  customer_master: data/customers.dat
+  transaction_log: data/transactions.dat
+  audit_trail: data/audit.dat
+  temp_work: data/temp.dat
+
+# Security configuration
+security:
+  # Secrets backend: env | vault | aws | azure
+  secrets_backend: env
+  
+  # HashiCorp Vault address (if using vault backend)
+  vault_addr: ""
+  
+  # Strict mode: raise errors for undeclared variables
+  strict_mode: false
+
+# External CALL implementations
+# Status: pending | implemented | not_required
+external_calls:
+  authmodule: pending  # TODO: Implement
+  validatesession: pending  # TODO: Implement
+  deletetemp: pending  # TODO: Implement
+  securityalert: pending  # TODO: Implement
+  updatemetrics: pending  # TODO: Implement
+  verifyaudit: pending  # TODO: Implement
+  gensession: pending  # TODO: Implement
+
+# Monitoring
+monitoring:
+  # Enable Prometheus metrics endpoint
+  prometheus_enabled: false
+  prometheus_port: 9090
+  
+  # Enable health check endpoint
+  healthcheck_enabled: true
+  healthcheck_path: /health
+
+# Environment-specific overrides
+# These can also be set via environment variables:
+#   COBOL_BUFFER_SIZE, COBOL_TRACE, ALLOW_STUBS, COBOL_LOG_LEVEL
