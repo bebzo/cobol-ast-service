@@ -102,6 +102,7 @@ export async function saveAnalysis(item: AnalysisHistory): Promise<boolean> {
       return false;
     }
     
+    // @ts-ignore - Supabase types mismatch with runtime client
     const { data: allEntries } = await client
       .from('analysis_history')
       .select('id, created_at')
