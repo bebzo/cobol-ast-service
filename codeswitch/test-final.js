@@ -98,13 +98,20 @@ async function runFinalTest() {
 
       log('Dashboard chargé', dashboardContent.includes('Dashboard') || dashboardContent.includes('CodeSwitch'));
 
-      // Vérifier les onglets principaux
-      const mainTabs = ['Code', 'Tests', 'Architecture', 'Insights', 'Chat', 'Config'];
+      // Vérifier les onglets principaux (avec différents sélecteurs possibles)
+      const mainTabs = [
+        { name: 'Code', selector: 'button:has-text("Code")' },
+        { name: 'Tests', selector: 'button:has-text("Tests")' },
+        { name: 'Architecture', selector: 'button:has-text("Architecture")' },
+        { name: 'Insights', selector: 'button:has-text("Insights")' },
+        { name: 'Chat', selector: 'button:has-text("Chat")' },
+        { name: 'Config', selector: 'button:has-text("Config")' }
+      ];
       let tabsFound = 0;
       for (const tab of mainTabs) {
-        const tabExists = await page.locator(`button:has-text("${tab}")`).count() > 0;
+        const tabExists = await page.locator(tab.selector).count() > 0;
         if (tabExists) tabsFound++;
-        log(`Onglet "${tab}"`, tabExists);
+        log(`Onglet "${tab.name}"`, tabExists);
       }
 
       // ============================================
