@@ -2507,8 +2507,20 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         const confidence = typeof analysis?.migration_score?.confidence === "number" 
                           ? analysis.migration_score.confidence 
                           : parseInt(String(analysis?.migration_score?.confidence || "0").replace(/[^0-9]/g, "")) || 0;
-                        const securityIssues = Array.isArray(analysis?.security_warnings) ? analysis.security_warnings.length : 0;
-                        const issuesCount = Array.isArray(analysis?.issues) ? analysis.issues.length : 0;
+                        
+                        // Filter security warnings to only count active issues (not auto-corrected)
+                        const allSecurityWarnings = Array.isArray(analysis?.security_warnings) ? analysis.security_warnings : [];
+                        const activeSecurityIssues = allSecurityWarnings.filter((w: any) => 
+                          w && (w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM')
+                        );
+                        const securityIssues = activeSecurityIssues.length;
+                        
+                        // Filter issues to only count active issues (not auto-corrected)
+                        const allIssues = Array.isArray(analysis?.issues) ? analysis.issues : [];
+                        const activeIssues = allIssues.filter((w: any) => 
+                          w && (w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM')
+                        );
+                        const issuesCount = activeIssues.length;
                         
                         // Calculate individual scores (0-100 each, weighted)
                         const coverageScore = Math.min(coverage, 100);
@@ -2997,42 +3009,68 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               {activeTab === "report" && analysis && (
                 <div className="h-[400px] overflow-y-auto p-4">
                   <div className="flex gap-2 mb-4 flex-wrap">
-                    {[
-                      { key: "issues", label: "Issues", icon: AlertTriangle, count: analysis.issues?.length || 0 },
-                      { key: "improvements", label: "Improvements", icon: Lightbulb, count: analysis.improvements?.length || 0 },
-                      { key: "security", label: "Security", icon: Shield, count: analysis.security_warnings?.length || 0 },
-                      { key: "next", label: "Next Steps", icon: TrendingUp, count: analysis.next_steps?.length || 0 },
-                    ].map(({ key, label, icon: Icon, count }) => (
-                      <button
-                        key={key}
-                        onClick={() => setActiveReportTab(key as typeof activeReportTab)}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition ${
-                          activeReportTab === key ? "bg-indigo-500 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                        }`}
-                      >
-                        <Icon className="w-4 h-4" />{label} ({count})
-                      </button>
-                    ))}
+                    {(() => {
+                      const allIssues = Array.isArray(analysis.issues) ? analysis.issues : [];
+                      const activeIssues = allIssues.filter((w: any) => 
+                        w && (w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM')
+                      );
+                      
+                      const allSecurityWarnings = Array.isArray(analysis.security_warnings) ? analysis.security_warnings : [];
+                      const activeSecurityWarnings = allSecurityWarnings.filter((w: any) => 
+                        w && (w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM')
+                      );
+                      
+                      const filterButtons = [
+                        { key: "security", label: "Security", icon: Shield, count: activeSecurityWarnings.length },
+                        { key: "issues", label: "Issues", icon: AlertTriangle, count: activeIssues.length },
+                      ];
+                      
+                      return filterButtons.map(({ key, label, icon: Icon, count }) => (
+                        <button
+                          key={key}
+                          onClick={() => setActiveReportTab(key as typeof activeReportTab)}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm transition ${
+                            activeReportTab === key ? "bg-indigo-500 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />{label} ({count})
+                        </button>
+                      ));
+                    })()}
                   </div>
                   <ul className="space-y-2">
-                    {activeReportTab === "issues" && (analysis.issues || []).map((item: any, i: number) => {
-                      const issueText = typeof item === 'string' ? item : (item?.title || item?.message || item?.description || JSON.stringify(item));
-                      const severity = typeof item === 'object' && item?.severity ? item.severity : 'INFO';
-                      const severityColors: Record<string, string> = {
-                        'CRITICAL': 'bg-red-500/20 text-red-400 border-red-500/30',
-                        'HIGH': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-                        'MEDIUM': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-                        'LOW': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-                        'INFO': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-                      };
-                      return (
-                        <li key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${severityColors[severity] || 'bg-slate-500/10 border-slate-500/30'}`}>
-                          <span className="px-2 py-0.5 text-xs font-semibold rounded uppercase">{severity}</span>
-                          <span className="text-slate-300 flex-1">{issueText}</span>
-                          <HelpButton issueText={issueText} issueType="issue" />
-                        </li>
+                    {activeReportTab === "issues" && (() => {
+                      const allIssues = Array.isArray(analysis.issues) ? analysis.issues : [];
+                      const activeIssues = allIssues.filter((item: any) => 
+                        item && (item.severity === 'CRITICAL' || item.severity === 'HIGH' || item.severity === 'MEDIUM')
                       );
-                    })}
+                      
+                      if (activeIssues.length === 0) {
+                        return (
+                          <li className="flex items-center gap-3 p-4 bg-green-500/10 rounded-lg border border-green-500/30">
+                            <CheckCircle className="w-5 h-5 text-green-400" />
+                            <span className="text-green-400 font-medium">No active issues - all issues have been auto-corrected</span>
+                          </li>
+                        );
+                      }
+                      
+                      return activeIssues.map((item: any, i: number) => {
+                        const issueText = typeof item === 'string' ? item : (item?.title || item?.message || item?.description || JSON.stringify(item));
+                        const severity = typeof item === 'object' && item?.severity ? item.severity : 'INFO';
+                        const severityColors: Record<string, string> = {
+                          'CRITICAL': 'bg-red-500/20 text-red-400 border-red-500/30',
+                          'HIGH': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+                          'MEDIUM': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+                        };
+                        return (
+                          <li key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${severityColors[severity] || 'bg-slate-500/10 border-slate-500/30'}`}>
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded uppercase">{severity}</span>
+                            <span className="text-slate-300 flex-1">{issueText}</span>
+                            <HelpButton issueText={issueText} issueType="issue" />
+                          </li>
+                        );
+                      });
+                    })()}
                     {activeReportTab === "security" && (() => {
                       const rawWarnings = analysis.security_warnings || [];
                       const warnings = rawWarnings.filter((w): w is SecurityWarning => typeof w === 'object' && w !== null);
