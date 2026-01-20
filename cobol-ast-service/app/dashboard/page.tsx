@@ -728,6 +728,8 @@ export default function Home() {
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
   // v8.7: Architecture sub-tabs state
   const [activeArchSubTab, setActiveArchSubTab] = useState<"code" | "tests" | "config" | "security">("code");
+  // v8.7: Tests sub-tabs state
+  const [activeTestsSubTab, setActiveTestsSubTab] = useState<"unit" | "shadow" | "readiness">("unit");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -2324,38 +2326,196 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   {/* Tests Sub-Tabs */}
                   <div className="flex items-center gap-1 px-2 border-b border-slate-700 bg-slate-800/50">
                     <button
-                      className="px-4 py-2 text-sm font-medium text-blue-400 border-b-2 border-blue-400 bg-blue-500/10"
+                      onClick={() => setActiveTestsSubTab("unit")}
+                      className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                        activeTestsSubTab === "unit"
+                          ? "text-blue-400 border-blue-400 bg-blue-500/10"
+                          : "text-slate-400 border-transparent hover:text-white"
+                      }`}
                     >
                       unit tests
                     </button>
                     <button
-                      className="px-4 py-2 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-white"
+                      onClick={() => setActiveTestsSubTab("shadow")}
+                      className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                        activeTestsSubTab === "shadow"
+                          ? "text-blue-400 border-blue-400 bg-blue-500/10"
+                          : "text-slate-400 border-transparent hover:text-white"
+                      }`}
                     >
                       shadow testing
                     </button>
                     <button
-                      className="px-4 py-2 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-white"
+                      onClick={() => setActiveTestsSubTab("readiness")}
+                      className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                        activeTestsSubTab === "readiness"
+                          ? "text-blue-400 border-blue-400 bg-blue-500/10"
+                          : "text-slate-400 border-transparent hover:text-white"
+                      }`}
                     >
                       production readiness
                     </button>
                   </div>
-                  {(() => {
-                    const testContent = (() => {
-                      const t = analysis?.tests || analysis?.unit_tests;
-                      if (!t) return "# Run analysis to generate unit tests";
-                      return Array.isArray(t) ? t.join('\n') : t;
-                    })();
-                    return (
-                      <Editor
-                        height="400px"
-                        defaultLanguage="python"
-                        value={testContent}
-                        theme="vs-dark"
-                        options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                        loading={<pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">{testContent}</pre>}
-                      />
-                    );
-                  })()}
+
+                  {/* Sub-tab Content */}
+                  <div className="p-4">
+                    {activeTestsSubTab === "unit" && (
+                      <div className="h-[400px]">
+                        {(() => {
+                          const testContent = (() => {
+                            const t = analysis?.tests || analysis?.unit_tests;
+                            if (!t) return "# Run analysis to generate unit tests";
+                            return Array.isArray(t) ? t.join('\n') : t;
+                          })();
+                          return (
+                            <Editor
+                              height="400px"
+                              defaultLanguage="python"
+                              value={testContent}
+                              theme="vs-dark"
+                              options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                              loading={<pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">{testContent}</pre>}
+                            />
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {activeTestsSubTab === "shadow" && (
+                      <div className="h-[400px] overflow-y-auto">
+                        {analysis?.shadow_testing_plan ? (
+                          <div className="space-y-4">
+                            {/* Readiness Score */}
+                            <div className="flex items-center gap-4 p-4 bg-slate-800 rounded-lg border border-cyan-500/30">
+                              <div className="text-center">
+                                <p className="text-3xl font-bold text-cyan-400">
+                                  {analysis.shadow_testing_plan.readiness_score || 0}%
+                                </p>
+                                <p className="text-xs text-slate-500">Readiness Score</p>
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                    (analysis.shadow_testing_plan.readiness_score || 0) >= 80 ? 'bg-green-500/20 text-green-400' :
+                                    (analysis.shadow_testing_plan.readiness_score || 0) >= 60 ? 'bg-yellow-500/20 text-yellow-400' :
+                                    'bg-red-500/20 text-red-400'
+                                  }`}>
+                                    {analysis.shadow_testing_plan.readiness_status || 'Unknown'}
+                                  </span>
+                                </div>
+                                <p className="text-sm text-slate-400">
+                                  Estimated duration: {analysis.shadow_testing_plan.estimated_duration || 'N/A'}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Critical Paths */}
+                            <div>
+                              <h4 className="text-sm font-semibold text-cyan-400 mb-2">Critical Testing Paths</h4>
+                              <div className="space-y-2">
+                                {(analysis.shadow_testing_plan.critical_paths || []).map((path: any, i: number) => (
+                                  <div key={i} className="p-3 bg-slate-800 rounded-lg border border-slate-700">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="font-medium text-white">{path.category}</span>
+                                      <span className={`px-2 py-0.5 rounded text-xs ${
+                                        path.priority === 'HIGH' ? 'bg-red-500/20 text-red-400' :
+                                        path.priority === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' :
+                                        'bg-green-500/20 text-green-400'
+                                      }`}>
+                                        {path.priority}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-xs text-slate-500">
+                                      <span>Test Points: {path.testPoints}</span>
+                                      <span>Strategy: {path.strategy}</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Risk Mitigation */}
+                            <div>
+                              <h4 className="text-sm font-semibold text-cyan-400 mb-2">Risk Mitigation</h4>
+                              <ul className="space-y-1 text-sm text-slate-400">
+                                {(analysis.shadow_testing_plan.risk_mitigation || []).map((item: string, i: number) => (
+                                  <li key={i} className="flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full"></span>
+                                    {item}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-slate-400">
+                            <div className="text-center">
+                              <TestTube className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                              <p>Shadow testing plan will appear after analysis</p>
+                              <p className="text-xs mt-2 text-slate-500">Based on migration complexity and risk assessment</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {activeTestsSubTab === "readiness" && (
+                      <div className="h-[400px] overflow-y-auto">
+                        {analysis?.shadow_testing_plan ? (
+                          <div className="space-y-4">
+                            {/* Overall Readiness */}
+                            <div className="text-center p-6 bg-gradient-to-br from-cyan-900/30 to-blue-900/30 rounded-lg border border-cyan-500/30">
+                              <p className="text-5xl font-bold text-cyan-400 mb-2">
+                                {analysis.shadow_testing_plan.readiness_score || 0}%
+                              </p>
+                              <p className="text-lg text-white">Production Readiness</p>
+                              <p className="text-sm text-slate-400 mt-2">
+                                {analysis.shadow_testing_plan.readiness_status || 'Assessing...'}
+                              </p>
+                            </div>
+
+                            {/* Success Criteria */}
+                            <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                              <h4 className="text-sm font-semibold text-cyan-400 mb-3">Success Criteria</h4>
+                              <div className="space-y-2">
+                                {Object.entries(analysis.shadow_testing_plan.success_criteria || {}).map(([key, value]) => (
+                                  <div key={key} className="flex items-center justify-between p-2 bg-slate-700/50 rounded">
+                                    <span className="text-sm text-slate-300">{key}</span>
+                                    <span className="text-sm font-medium text-green-400">{String(value)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Execution Plan */}
+                            <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                              <h4 className="text-sm font-semibold text-cyan-400 mb-3">Execution Plan</h4>
+                              <div className="space-y-3">
+                                {Object.entries(analysis.shadow_testing_plan.execution_plan || {}).map(([phase, details]: [string, any]) => (
+                                  <div key={phase} className="flex items-start gap-3">
+                                    <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs text-cyan-400 font-medium">
+                                      {phase.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium text-white">{details.name}</p>
+                                      <p className="text-xs text-slate-500">{details.duration}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="h-full flex items-center justify-center text-slate-400">
+                            <div className="text-center">
+                              <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                              <p>Production readiness assessment will appear after analysis</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
               
