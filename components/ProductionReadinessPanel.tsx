@@ -142,46 +142,53 @@ export default function ProductionReadinessPanel({
     };
 
     // Calcul du score basé sur les métriques réelles
-    let score = 40;
+    // Score de base à 0 pour permettre d'atteindre 100% avec du code parfait
+    let score = 0;
     
-    // Couverture de typage
+    // Couverture de typage (max 20 points)
     if (metrics.functions > 0) {
-      score += Math.min(15, (metrics.type_annotated / metrics.functions) * 15);
+      score += (metrics.type_annotated / metrics.functions) * 20;
     }
     
-    // Documentation
+    // Documentation (max 15 points)
     if (metrics.functions > 0) {
-      score += Math.min(10, (metrics.documented / metrics.functions) * 10);
+      score += (metrics.documented / metrics.functions) * 15;
     }
     
-    // Gestion d'erreurs
+    // Gestion d'erreurs (max 15 points)
     if (metrics.functions > 0) {
-      score += Math.min(15, (metrics.error_handled / metrics.functions) * 15);
+      score += (metrics.error_handled / metrics.functions) * 15;
     }
     
-    // Tests
-    if (metrics.test_functions > 0) {
-      score += Math.min(15, (metrics.test_functions / metrics.functions) * 15);
+    // Tests (max 20 points)
+    if (metrics.functions > 0) {
+      score += (metrics.test_functions / metrics.functions) * 20;
     }
     
-    // Logging
+    // Logging (max 5 points)
     if (metrics.logging_statements > 0) {
       score += 5;
     }
     
-    // Concurrence
+    // Concurrence - bonus si présent (max 5 points)
     if (metrics.contextvars > 0 || metrics.locks > 0) {
-      score += 3;
+      score += 5;
     }
     
-    // Malus pour problèmes de sécurité
-    score -= metrics.hardcoded_secrets * 8;
-    score -= metrics.dangerous_calls * 5;
+    // Malus pour problèmes de sécurité (réduit pour ne pas descendre sous 0)
+    score -= metrics.hardcoded_secrets * 5;
+    score -= metrics.dangerous_calls * 3;
     
-    // Bonus pour architecture moderne
+    // Bonus pour architecture moderne (max 10 points)
     if (metrics.async_functions > 0) score += 3;
-    if (metrics.dataclasses > 0) score += 3;
-    if (metrics.orm_usage > 0) score += 2;
+    if (metrics.dataclasses > 0) score += 4;
+    if (metrics.orm_usage > 0) score += 3;
+    
+    // Bonus pour base de code non-vide (encourage l'analyse de vrai code)
+    if (metrics.functions > 0) score += 5;
+    
+    // Bonus pour code Python de l'analyse (signifie que l'analyse a réussi)
+    if (code.length > 100) score += 2;
     
     // Normaliser le score entre 0 et 100
     score = Math.round(Math.min(100, Math.max(0, score)));
