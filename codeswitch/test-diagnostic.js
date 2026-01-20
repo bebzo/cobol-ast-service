@@ -1,278 +1,213 @@
 /**
- * TEST COMPLET DE L'APPLICATION CODESWITCH
- * Identifie et corrige tous les problèmes automatiquement
+ * TEST DIAGNOSTIC - Structure du DOM et extraction Python
  */
 
 const { chromium } = require('playwright');
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
 
-const results = {
-  login: { tests: [], issues: [] },
-  dashboard: { tests: [], issues: [] },
-  features: { tests: [], issues: [] },
-  auth: { tests: [], issues: [] }
-};
-
-function log(section, message, success = true) {
-  const status = success ? '✅' : '❌';
-  const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-  console.log(`[${timestamp}] ${status} [${section}] ${message}`);
-
-  if (success) {
-    results[section]?.tests.push(message);
-  } else {
-    results[section]?.issues.push(message);
-    console.log(`       ^ PROBLÈME À CORRIGER`);
-  }
-}
-
-async function runComprehensiveTests() {
+async function runDiagnostic() {
   console.log('\n' + '='.repeat(70));
-  console.log('🔍 DIAGNOSTIC COMPLET DE L\'APPLICATION CODESWITCH');
-  console.log('='.repeat(70) + '\n');
+  console.log('🔍 TEST DIAGNOSTIC - Structure DOM CodeSwitch');
+  console.log('='.repeat(70));
 
   const browser = await chromium.launch({ headless: true });
-  const page = await browser.newContext({
-    viewport: { width: 1920, height: 1080 }
-  }).then(ctx => ctx.newPage());
+  const page = await browser.newPage();
 
-  const consoleErrors = [];
-  page.on('console', msg => {
-    if (msg.type() === 'error') {
-      consoleErrors.push(msg.text());
+  try {
+    // Authentification
+    console.log('\n📋 AUTHENTIFICATION\n' + '-'.repeat(50));
+
+    await page.goto('http://localhost:3000/login', { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(1500);
+
+    await page.locator('input[type="email"]').fill('dev@minimax.io');
+    await page.locator('input[type="password"]').fill('CodeSwitch2024!');
+    await page.locator('button[type="submit"]').click();
+
+    try {
+      await page.waitForURL('**/dashboard', { timeout: 15000 });
+      console.log('✅ Authentifié: dev@minimax.io\n');
+    } catch (e) {
+      console.log('❌ Échec auth\n');
     }
-  });
 
-  // ============================================
-  // TEST 1: PAGE DE LOGIN
-  // ============================================
-  console.log('📋 TEST 1: PAGE DE LOGIN\n' + '-'.repeat(50));
-
-  await page.goto('http://localhost:3001/login', { waitUntil: 'networkidle', timeout: 30000 });
-  await page.waitForTimeout(2000);
-
-  // Vérifier les éléments essentiels
-  const loginChecks = [
-    { selector: 'input[type="email"]', name: 'Champ email' },
-    { selector: 'input[type="password"]', name: 'Champ password' },
-    { selector: 'button:has-text("Sign In")', name: 'Bouton Sign In' },
-    { selector: 'button:has-text("Demo Access")', name: 'Bouton Demo Access' },
-    { selector: 'button:has-text("Continue with Google")', name: 'Bouton Google' },
-    { selector: 'button:has-text("Continue with GitHub")', name: 'Bouton GitHub' },
-    { selector: 'text=CodeSwitch', name: 'Logo CodeSwitch' }
-  ];
-
-  for (const check of loginChecks) {
-    const element = page.locator(check.selector);
-    const exists = await element.count() > 0;
-    const visible = exists && await element.first().isVisible().catch(() => false);
-    log('login', `${check.name}: ${visible ? 'VISIBLE' : 'ABSENT'}`, visible);
-  }
-
-  // ============================================
-  // TEST 2: AUTHENTIFICATION
-  // ============================================
-  console.log('\n📋 TEST 2: AUTHENTIFICATION\n' + '-'.repeat(50));
-
-  // Remplir le formulaire
-  await page.fill('input[type="email"]', 'test@codeswitch.app');
-  await page.fill('input[type="password"]', 'TestPassword123!@#');
-
-  // Cliquer sur Sign In
-  await page.click('button:has-text("Sign In")');
-  await page.waitForTimeout(5000);
-
-  const loginUrl = page.url();
-  const isLoggedIn = loginUrl.includes('/dashboard');
-
-  if (isLoggedIn) {
-    log('auth', 'Connexion réussie - Dashboard accessible');
-  } else {
-    log('auth', 'Connexion échouée -停留在 login', false);
-
-    // Vérifier le message d'erreur
-    const errorEl = page.locator('[class*="error"], [class*="red"], .text-red').first();
-    const errorText = await errorEl.textContent().catch(() => 'No error message');
-    log('auth', `Message d'erreur: ${errorText}`, false);
-
-    // SOLUTION: Utiliser Demo Access
-    console.log('\n🔧 SOLUTION: Utilisation du Demo Access...\n');
-    await page.click('button:has-text("Demo Access")');
+    // Attendre le chargement du dashboard
     await page.waitForTimeout(3000);
 
-    if (page.url().includes('/dashboard')) {
-      log('auth', 'Demo Access fonctionne - Dashboard accessible');
-    } else {
-      log('auth', 'Demo Access échoue aussi', false);
-    }
-  }
+    // ============================================
+    // ANALYSE DE LA STRUCTURE DOM
+    // ============================================
+    console.log('📋 ANALYSE STRUCTURE DOM\n' + '-'.repeat(50));
 
-  // ============================================
-  // TEST 3: DASHBOARD
-  // ============================================
-  console.log('\n📋 TEST 3: DASHBOARD\n' + '-'.repeat(50));
+    const domAnalysis = await page.evaluate(() => {
+      const results = {
+        editors: [],
+        textareas: [],
+        preElements: [],
+        codeElements: [],
+        monacoCount: 0,
+        panels: [],
+        buttons: []
+      };
 
-  // Naviguer au dashboard
-  await page.goto('http://localhost:3001/dashboard', { waitUntil: 'networkidle', timeout: 30000 });
-  await page.waitForTimeout(3000);
+      // Compter les éditeurs Monaco
+      const monacoEditors = document.querySelectorAll('.monaco-editor');
+      results.monacoCount = monacoEditors.length;
+      console.log(`   🔍 Éditeurs Monaco trouvés: ${results.monacoCount}`);
 
-  if (page.url().includes('/login')) {
-    log('dashboard', 'Dashboard nécessite auth - redirection vers login', false);
+      // Analyser chaque éditeur Monaco
+      monacoEditors.forEach((editor, i) => {
+        const lines = editor.querySelectorAll('.view-line');
+        const text = Array.from(lines).map(l => l.textContent).join('\n').substring(0, 500);
+        results.editors.push({
+          index: i,
+          linesCount: lines.length,
+          preview: text.substring(0, 100)
+        });
+      });
 
-    // Utiliser Demo Access depuis le dashboard
-    const demoOnDashboard = page.locator('button:has-text("Demo Access")');
-    if (await demoOnDashboard.count() > 0) {
-      console.log('\n🔧 SOLUTION: Clic sur Demo Access depuis dashboard...\n');
-      await demoOnDashboard.click();
-      await page.waitForTimeout(3000);
-    }
-  }
+      // Textareas
+      const textareas = document.querySelectorAll('textarea');
+      results.textareas = Array.from(textareas).map(t => ({
+        visible: t.offsetParent !== null,
+        length: t.value?.length || 0
+      }));
 
-  // Vérifier les éléments du dashboard
-  if (!page.url().includes('/login')) {
-    log('dashboard', 'Dashboard chargé');
+      // Boutons
+      const buttons = document.querySelectorAll('button');
+      results.buttons = Array.from(buttons)
+        .filter(b => b.offsetParent !== null)
+        .map(b => b.textContent?.trim())
+        .filter(t => t);
 
-    // Vérifier les onglets principaux
-    const mainTabs = ['Code', 'Tests', 'Architecture', 'Insights', 'Chat', 'Config'];
-    for (const tab of mainTabs) {
-      const tabExists = await page.locator(`button:has-text("${tab}")`).count() > 0;
-      log('dashboard', `Onglet "${tab}": ${tabExists ? 'PRÉSENT' : 'ABSENT'}`, tabExists);
-    }
+      return results;
+    });
 
-    // Vérifier l'éditeur de code
-    const editorExists = await page.locator('.monaco-editor, [class*="editor"]').count() > 0;
-    log('features', `Éditeur de code: ${editorExists ? 'PRÉSENT' : 'ABSENT'}`, editorExists);
-  } else {
-    log('dashboard', 'Impossible d\'accéder au dashboard', false);
-  }
+    console.log(`\n📊 Structure DOM:`);
+    console.log(`   • Éditeurs Monaco: ${domAnalysis.monacoCount}`);
+    console.log(`   • Textareas visibles: ${domAnalysis.textareas.filter(t => t.visible).length}`);
 
-  // ============================================
-  // TEST 4: ONGLET TESTS ET SHADOW TESTING
-  // ============================================
-  console.log('\n📋 TEST 4: TESTS ET SHADOW TESTING\n' + '-'.repeat(50));
+    console.log(`\n📝 Boutons visibles (${domAnalysis.buttons.length}):`);
+    domAnalysis.buttons.slice(0, 10).forEach(btn => console.log(`   • ${btn}`));
 
-  if (!page.url().includes('/login')) {
-    // Cliquer sur Tests
-    const testsTab = page.locator('button:has-text("Tests")').first();
-    if (await testsTab.count() > 0) {
-      await testsTab.click();
-      await page.waitForTimeout(2000);
-      log('features', 'Onglet Tests cliqué');
+    // ============================================
+    // EXTRAIRE LE CONTENU PYTHON
+    // ============================================
+    console.log('\n📋 EXTRACTION CONTENU\n' + '-'.repeat(50));
 
-      // Vérifier les sous-onglets
-      const subTabs = ['Unit', 'Shadow', 'Production'];
-      for (const subTab of subTabs) {
-        const subTabBtn = page.locator(`button:has-text("${subTab}")`).first();
-        const isVisible = await subTabBtn.count() > 0 && await subTabBtn.isVisible().catch(() => false);
+    const pythonContent = await page.evaluate(() => {
+      // Méthode 1: Chercher le contenu Python dans Monaco
+      const monacoEditors = document.querySelectorAll('.monaco-editor');
+      let pythonCode = '';
 
-        if (isVisible) {
-          await subTabBtn.click();
-          await page.waitForTimeout(2000);
-          log('features', `Sous-onglet Tests > ${subTab}: VISIBLE`);
+      monacoEditors.forEach((editor, i) => {
+        const lines = editor.querySelectorAll('.view-line');
+        const text = Array.from(lines).map(l => l.textContent).join('\n');
 
-          // Vérifier le contenu spécifique
-          if (subTab === 'Shadow') {
-            const shadowContent = await page.content();
-            const hasShadowContent = shadowContent.includes('Shadow') || shadowContent.includes('readiness') || shadowContent.includes('critical');
-            log('features', `Contenu Shadow Testing: ${hasShadowContent ? 'PRÉSENT' : 'VIDE'}`, hasShadowContent);
-          }
-        } else {
-          log('features', `Sous-onglet Tests > ${subTab}: NON VISIBLE`, false);
+        // Détecter si c'est du Python (contient des mots-clés Python)
+        const isPython = text.includes('def ') ||
+                        text.includes('class ') ||
+                        text.includes('import ') ||
+                        text.includes('from ');
+
+        if (isPython && text.length > 100) {
+          pythonCode = text;
+          console.log(`   ✅ Éditeur ${i}: Python détecté (${text.length} caractères)`);
+        } else if (text.includes('IDENTIFICATION') || text.includes('PROCEDURE DIVISION')) {
+          console.log(`   📝 Éditeur ${i}: COBOL (${text.length} caractères)`);
         }
+      });
+
+      // Méthode 2: Si pas trouvé, chercher dans les panneaux
+      if (!pythonCode) {
+        const panels = document.querySelectorAll('[class*="panel"], [class*="result"], [class*="output"]');
+        panels.forEach((panel, i) => {
+          const text = panel.textContent || '';
+          if (text.includes('def ') || text.includes('class ')) {
+            pythonCode = text;
+            console.log(`   ✅ Panneau ${i}: Python trouvé (${text.length} caractères)`);
+          }
+        });
       }
+
+      return pythonCode;
+    });
+
+    console.log(`\n📊 Code Python trouvé: ${pythonContent.length > 0 ? `${pythonContent.length} caractères ✅` : '0 caractères ❌'}`);
+
+    if (pythonContent.length > 100) {
+      console.log('\n📋 ANALYSE CODE PYTHON\n' + '-'.repeat(50));
+
+      const analysis = {
+        hasDecimal: pythonContent.includes('Decimal'),
+        hasDataclass: pythonContent.includes('@dataclass') || pythonContent.includes('dataclass'),
+        hasClass: pythonContent.includes('class '),
+        hasMethods: (pythonContent.match(/def \w+/g) || []).length,
+        hasTyping: pythonContent.includes('from typing') || pythonContent.includes('import typing'),
+        hasDocstrings: pythonContent.includes('"""') || pythonContent.includes("'''"),
+        hasTests: pythonContent.includes('def test_'),
+        hasConfig: pythonContent.includes('load') || pythonContent.includes('Config'),
+        hasAudit: pythonContent.includes('audit') || pythonContent.includes('Audit'),
+      };
+
+      console.log('   🔍 Fonctionnalités détectées:');
+      console.log(`   • Type Decimal: ${analysis.hasDecimal ? '✅' : '❌'}`);
+      console.log(`   • @dataclass: ${analysis.hasDataclass ? '✅' : '❌'}`);
+      console.log(`   • Classes: ${analysis.hasClass ? '✅' : '❌'} (${pythonContent.match(/class \w+/g)?.length || 0})`);
+      console.log(`   • Méthodes: ${analysis.hasMethods > 0 ? '✅' : '❌'} (${analysis.hasMethods})`);
+      console.log(`   • Imports typing: ${analysis.hasTyping ? '✅' : '❌'}`);
+      console.log(`   • Docstrings: ${analysis.hasDocstrings ? '✅' : '❌'}`);
+      console.log(`   • Tests unitaires: ${analysis.hasTests ? '✅' : '❌'}`);
+      console.log(`   • Configuration: ${analysis.hasConfig ? '✅' : '❌'}`);
+      console.log(`   • Audit/Logging: ${analysis.hasAudit ? '✅' : '❌'}`);
+
+      // Compter les lignes et fonctions
+      const lineCount = pythonContent.split('\n').length;
+      console.log(`\n   📊 Statistiques:`);
+      console.log(`   • Lignes de code: ${lineCount}`);
+
+      // Afficher un extrait du code
+      console.log('\n📝 Extrait du code généré:');
+      console.log('─'.repeat(50));
+      const lines = pythonContent.split('\n').slice(0, 15);
+      lines.forEach(line => console.log(line));
+      console.log('─'.repeat(50));
     } else {
-      log('features', 'Onglet Tests non trouvé', false);
+      console.log('\n⚠️ Code Python non trouvé dans la page');
     }
-  }
 
-  // ============================================
-  // TEST 5: API BACKEND
-  // ============================================
-  console.log('\n📋 TEST 5: API BACKEND\n' + '-'.repeat(50));
+    // ============================================
+    // VÉRIFICATION DES ONGLETS
+    // ============================================
+    console.log('\n📋 VÉRIFICATION ONGLETS\n' + '-'.repeat(50));
 
-  // Tester l'API de santé
-  await new Promise(resolve => {
-    https.get('http://localhost:3001/api/health', (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        const success = res.statusCode === 200;
-        log('features', `Health Check API: ${success ? 'OK' : 'ÉCHEC (' + res.statusCode + ')'}`, success);
-        resolve();
-      });
-    }).on('error', () => {
-      log('features', 'Health Check API: INDISPONIBLE', false);
-      resolve();
-    });
-  });
+    const tabs = ['Tests', 'Architecture', 'Insights', 'Compliance', 'Shadow', 'Production'];
 
-  // ============================================
-  // RAPPORT FINAL
-  // ============================================
-  console.log('\n' + '='.repeat(70));
-  console.log('📊 RAPPORT DE DIAGNOSTIC');
-  console.log('='.repeat(70));
+    for (const tab of tabs) {
+      const tabBtn = page.locator(`button:has-text("${tab}")`).first();
+      const exists = await tabBtn.count() > 0;
+      console.log(`   ${exists ? '✅' : '❌'} Onglet "${tab}": ${exists ? 'présent' : 'non trouvé'}`);
 
-  const allIssues = [];
-  for (const [section, data] of Object.entries(results)) {
-    if (data.issues?.length > 0) {
-      console.log(`\n⚠️ ${section.toUpperCase()} - ${data.issues.length} problème(s):`);
-      data.issues.forEach((issue, i) => {
-        console.log(`   ${i + 1}. ${issue}`);
-        allIssues.push(issue);
-      });
+      if (exists) {
+        await tabBtn.click();
+        await page.waitForTimeout(1000);
+
+        // Vérifier le contenu de l'onglet
+        const content = await page.content();
+        const hasContent = content.length > 5000;
+        console.log(`      Contenu chargé: ${hasContent ? '✅' : '⚠️'}`);
+      }
     }
+
+    console.log('\n' + '='.repeat(70));
+    console.log('🏁 TEST DIAGNOSTIC TERMINÉ');
+    console.log('='.repeat(70));
+
+  } catch (error) {
+    console.error('\n💥 Erreur:', error.message);
+  } finally {
+    await browser.close();
+    console.log('\n🔒 Navigateur fermé');
   }
-
-  if (consoleErrors.length > 0) {
-    console.log('\n🚨 ERREURS CONSOLE:');
-    consoleErrors.slice(0, 5).forEach((err, i) => {
-      console.log(`   ${i + 1}. ${err.substring(0, 150)}`);
-    });
-  }
-
-  console.log('\n' + '='.repeat(70));
-  console.log(`📈 RÉSUMÉ: ${allIssues.length} problème(s) identifié(s)`);
-  console.log('='.repeat(70));
-
-  await browser.close();
-
-  return { issues: allIssues, consoleErrors };
 }
 
-// Exécuter et générer un plan de correction
-runComprehensiveTests().then(({ issues, consoleErrors }) => {
-  console.log('\n' + '='.repeat(70));
-  console.log('🔧 PLAN DE CORRECTION GÉNÉRÉ');
-  console.log('='.repeat(70));
-
-  const corrections = [];
-
-  if (issues.some(i => i.includes('Demo Access') && i.includes('ABSENT'))) {
-    corrections.push('1. Ajouter le bouton Demo Access à la page de login');
-  }
-
-  if (issues.some(i => i.includes('Demo Access') && (i.includes('échoue') || i.includes('ABSENT')))) {
-    corrections.push('2. Corriger la fonction handleDemoAccess pour accéder au dashboard');
-  }
-
-  if (issues.some(i => i.includes('auth') && i.includes('échoue'))) {
-    corrections.push('3. Implémenter l\'authentification automatique en mode développement');
-    corrections.push('4. Ou: Désactiver "Confirm email" dans Supabase Auth > Providers');
-  }
-
-  if (issues.some(i => i.includes('Tests') && i.includes('ABSENT'))) {
-    corrections.push('5. Vérifier la visibilité de l\'onglet Tests');
-  }
-
-  if (issues.some(i => i.includes('Shadow') && (i.includes('NON VISIBLE') || i.includes('VIDE')))) {
-    corrections.push('6. Vérifier que le panel Shadow Testing est correctement implémenté');
-  }
-
-  corrections.forEach(c => console.log(`   ${c}`));
-
-  console.log('\n🚀 Lancement des corrections automatiques...\n');
-  process.exit(0);
-}).catch(console.error);
+runDiagnostic();
