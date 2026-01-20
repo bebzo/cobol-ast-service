@@ -5,75 +5,118 @@ async function checkTabs() {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  // Collect console messages
-  const consoleMessages = [];
-  const consoleErrors = [];
+  console.log('🔍 Checking Security Report sub-tabs...\n');
 
-  page.on('console', msg => {
-    const text = msg.text();
-    consoleMessages.push({ type: msg.type(), text });
-    if (msg.type() === 'error') {
-      consoleErrors.push(text);
+  try {
+    // Login
+    console.log('1. Logging in...');
+    await page.goto('http://localhost:3000/login', { waitUntil: 'networkidle' });
+    await page.fill('input[type="email"]', 'embebangon@gmail.com');
+    await page.fill('input[type="password"]', 'EManu1231975@@');
+    await page.click('button[type="submit"]');
+
+    await page.waitForURL('**/dashboard', { timeout: 30000 });
+    await page.waitForTimeout(2000);
+    console.log('   ✓ Logged in');
+
+    // Step 2: Check all main tabs first
+    console.log('\n2. Checking all main tabs...');
+    const mainTabs = await page.$$eval('button', buttons =>
+      buttons
+        .filter(b => {
+          const text = b.textContent?.trim() || '';
+          return text === 'Python' || text === 'Tests' || text === 'Diff' ||
+                 text === 'Architecture' || text === 'Security Report' || text === 'Export';
+        })
+        .map(b => ({
+          text: b.textContent?.trim(),
+          class: b.className?.substring(0, 100)
+        }))
+    );
+    console.log('   Main tabs found:', mainTabs.length);
+    mainTabs.forEach((tab, i) => {
+      console.log(`   ${i + 1}. "${tab.text}"`);
+    });
+
+    // Step 3: Click on "Security Report" tab
+    console.log('\n3. Clicking "Security Report" tab...');
+    const securityReportBtn = await page.$('button:has-text("Security Report")');
+    if (securityReportBtn) {
+      await securityReportBtn.click();
+      await page.waitForTimeout(3000);
+      console.log('   ✓ Clicked Security Report');
+
+      // Step 4: Check for sub-tabs under Security Report
+      console.log('\n4. Checking for sub-tabs (issues, improvements, security, next)...');
+
+      // Look for these specific sub-tab buttons
+      const subTabNames = ['issues', 'improvements', 'security', 'next'];
+      const foundSubTabs = [];
+
+      for (const subTab of subTabNames) {
+        const btn = await page.$(`button:has-text("${subTab}")`);
+        if (btn) {
+          const info = await page.evaluate((el) => ({
+            text: el.textContent?.trim(),
+            visible: el.offsetParent !== null,
+            class: el.className?.substring(0, 100)
+          }), btn);
+          foundSubTabs.push({ name: subTab, ...info });
+        }
+      }
+
+      console.log('   Found sub-tabs:', foundSubTabs.length);
+      foundSubTabs.forEach((tab, i) => {
+        console.log(`   ${i + 1}. "${tab.name}" - visible: ${tab.visible}`);
+      });
+
+      // Step 5: Get ALL buttons on page after clicking Security Report
+      console.log('\n5. All buttons on page after clicking Security Report...');
+      const allButtons = await page.$$eval('button', buttons =>
+        buttons.map(b => ({
+          text: b.textContent?.trim().substring(0, 30),
+          class: b.className?.substring(0, 100)
+        }))
+      );
+      console.log('   Total buttons:', allButtons.length);
+      allButtons.forEach((btn, i) => {
+        if (i < 25) console.log(`   ${i + 1}. "${btn.text}"`);
+      });
+
+      // Step 6: Check if issues/improvements/security/next text appears anywhere
+      console.log('\n6. Searching for sub-tab text anywhere on page...');
+      const pageContent = await page.evaluate(() => document.body?.textContent || '');
+
+      const hasIssues = pageContent.includes('Issues');
+      const hasImprovements = pageContent.includes('Improvements');
+      const hasSecurity = pageContent.includes('Security');
+      const hasNext = pageContent.includes('Next Steps');
+
+      console.log('   "Issues":', hasIssues ? '✓' : '✗');
+      console.log('   "Improvements":', hasImprovements ? '✓' : '✗');
+      console.log('   "Security":', hasSecurity ? '✓' : '✗');
+      console.log('   "Next Steps":', hasNext ? '✓' : '✗');
+
+    } else {
+      console.log('   ✗ Security Report button NOT FOUND');
     }
-  });
 
-  page.on('pageerror', err => {
-    consoleErrors.push(err.message);
-  });
+    console.log('\n=== RESULT ===');
+    console.log('Security Report sub-tabs investigation complete');
 
-  console.log('🔍 Checking dashboard page with demo mode...\n');
+    await browser.close();
+    return { success: true };
 
-  // Navigate to dashboard with demo mode
-  await page.goto('http://localhost:3000/dashboard?demo=true', { waitUntil: 'networkidle' });
-
-  // Wait for React to hydrate
-  await page.waitForTimeout(5000);
-
-  // Check URL
-  const url = page.url();
-  console.log('Current URL:', url);
-
-  // Check all buttons on the page
-  const allButtons = await page.$$eval('button', buttons =>
-    buttons.map(b => ({ text: b.textContent?.trim(), class: b.className?.substring(0, 100) }))
-  );
-  console.log('\n🔘 All buttons on page:', allButtons);
-
-  // Check for specific text
-  const hasRefactor = await page.evaluate(() =>
-    document.body?.textContent?.includes('Refactor')
-  );
-  console.log('\n🔍 Has "Refactor" text:', hasRefactor);
-
-  const hasArchitecture = await page.evaluate(() =>
-    document.body?.textContent?.includes('Architecture')
-  );
-  console.log('🔍 Has "Architecture" text:', hasArchitecture);
-
-  // Check for Code button (sub-tab)
-  const hasCodeTab = await page.evaluate(() =>
-    document.body?.textContent?.includes('"Code"')
-  );
-  console.log('🔍 Has "Code" sub-tab:', hasCodeTab);
-
-  // Console errors
-  console.log('\n❌ Console errors:', consoleErrors.slice(0, 5));
-
-  await browser.close();
-
-  return {
-    success: true,
-    hasRefactor,
-    hasArchitecture,
-    hasCodeTab,
-    consoleErrors: consoleErrors.length
-  };
+  } catch (err) {
+    console.error('Error:', err.message);
+    await browser.close();
+    return { success: false, error: err.message };
+  }
 }
 
 checkTabs().then(result => {
-  console.log('\n=== RESULT ===');
   console.log(JSON.stringify(result, null, 2));
 }).catch(err => {
-  console.error('Error:', err.message);
+  console.error('Fatal Error:', err.message);
   process.exit(1);
 });
