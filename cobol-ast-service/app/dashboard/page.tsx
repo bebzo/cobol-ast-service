@@ -660,7 +660,7 @@ export default function Home() {
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
+        if (session == null || !session.user) {
           // No session - redirect to login
           router.push('/login?redirect=/dashboard');
           return;
@@ -682,7 +682,7 @@ export default function Home() {
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+      if (event === "SIGNED_OUT" || session == null || !session.user) {
         router.push('/login');
       } else {
         setUser(session.user);
