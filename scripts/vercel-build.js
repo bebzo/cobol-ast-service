@@ -3,15 +3,14 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Create tmp directory for Next.js build (relative path works on Vercel)
-const tmpDir = path.join(process.cwd(), 'tmp');
+// Create /vercel/path0/tmp directory (required by Next.js on Vercel)
+const tmpDir = '/vercel/path0/tmp';
 try {
-  if (!fs.existsSync(tmpDir)) {
-    fs.mkdirSync(tmpDir, { recursive: true });
-    console.log(`Created directory: ${tmpDir}`);
-  }
+  fs.mkdirSync(tmpDir, { recursive: true });
+  console.log(`Created directory: ${tmpDir}`);
 } catch (err) {
-  console.log(`Note: Could not create tmp directory: ${err.message}`);
+  // Directory might already exist
+  console.log(`Note: ${tmpDir} - ${err.message}`);
 }
 
 // Run Next.js build
