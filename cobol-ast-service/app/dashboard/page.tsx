@@ -3638,11 +3638,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     })()}
                   </div>
                 </Tooltip>
-                {/* Improvements */}
-                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-cyan-400 tabular-nums">{Array.isArray(analysis.improvements) ? analysis.improvements.length : 5}</p>
-                  <p className="text-xs text-slate-400 mt-1">Improvements</p>
-                </div>
                 
                 {/* Confidence */}
                 <Tooltip content={METRIC_TOOLTIPS.confidence.content} title={METRIC_TOOLTIPS.confidence.title}>
