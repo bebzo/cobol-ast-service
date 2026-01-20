@@ -2245,29 +2245,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
               )}
 
-              {/* v8.7: Security Report Sub-Tabs (uses activeReportTab) */}
+              {/* v8.7: Security Report Sub-Tabs - Security first, then Issues */}
               {activeTab === "report" && (
                 <div className="flex items-center gap-1 px-4 border-b border-slate-700 bg-slate-800/30">
-                  <button
-                    onClick={() => setActiveReportTab("issues")}
-                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
-                      activeReportTab === "issues"
-                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
-                        : "text-slate-400 border-transparent hover:text-white"
-                    }`}
-                  >
-                    Issues
-                  </button>
-                  <button
-                    onClick={() => setActiveReportTab("improvements")}
-                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
-                      activeReportTab === "improvements"
-                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
-                        : "text-slate-400 border-transparent hover:text-white"
-                    }`}
-                  >
-                    Improvements
-                  </button>
                   <button
                     onClick={() => setActiveReportTab("security")}
                     className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
@@ -2279,14 +2259,14 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     Security
                   </button>
                   <button
-                    onClick={() => setActiveReportTab("next")}
+                    onClick={() => setActiveReportTab("issues")}
                     className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
-                      activeReportTab === "next"
+                      activeReportTab === "issues"
                         ? "text-purple-400 border-purple-400 bg-purple-500/10"
                         : "text-slate-400 border-transparent hover:text-white"
                     }`}
                   >
-                    Next Steps
+                    Issues
                   </button>
                 </div>
               )}
@@ -3053,13 +3033,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         </li>
                       );
                     })}
-                    {activeReportTab === "improvements" && (analysis.improvements || []).map((item, i) => (
-                      <li key={i} className="flex items-start gap-3 p-3 bg-amber-500/10 rounded-lg">
-                        <span className="text-amber-400 font-bold">{i + 1}.</span>
-                        <span className="text-slate-300 flex-1">{typeof item === 'string' ? item : JSON.stringify(item)}</span>
-                        <HelpButton issueText={typeof item === 'string' ? item : JSON.stringify(item)} issueType="improvement" />
-                      </li>
-                    ))}
                     {activeReportTab === "security" && (() => {
                       const rawWarnings = analysis.security_warnings || [];
                       const warnings = rawWarnings.filter((w): w is SecurityWarning => typeof w === 'object' && w !== null);
@@ -3174,12 +3147,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         </>
                       );
                     })()}
-                    {activeReportTab === "next" && analysis.next_steps?.map((item, i) => (
-                      <li key={i} className="flex items-start gap-3 p-3 bg-green-500/10 rounded-lg">
-                        <span className="text-green-400 font-bold">{i + 1}.</span>
-                        <span className="text-slate-300">{item}</span>
-                      </li>
-                    ))}
                   </ul>
                 </div>
               )}
