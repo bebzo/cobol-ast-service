@@ -3594,7 +3594,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
                 {/* Tests - Dynamic */}
                 <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{(testCode || analysis.tests || analysis.unit_tests || '').split('\n').filter(l => l.trim().startsWith('def test_')).length}</p>
+                  <p className="text-2xl font-bold text-purple-400 tabular-nums">{(() => {
+                    const testData = validatedTests || analysis.tests || analysis.unit_tests || '';
+                    const testStr = Array.isArray(testData) ? testData.join('\n') : testData;
+                    return testStr.split('\n').filter(l => l.trim().startsWith('def test_')).length;
+                  })()}</p>
                   <p className="text-xs text-slate-400 mt-1">Tests</p>
                 </div>
                 {/* Total - Dynamic calculation */}
@@ -3603,7 +3607,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     {(() => {
                       const cobolLines = (analyzedCobolCode || cobolCode || '').split('\n').filter(l => l.trim()).length;
                       const pythonLines = (pythonCode || analysis.python_code || '').split('\n').filter(l => l.trim()).length;
-                      const testCount = (testCode || analysis.tests || analysis.unit_tests || '').split('\n').filter(l => l.trim().startsWith('def test_')).length;
+                      const testData = validatedTests || analysis.tests || analysis.unit_tests || '';
+                      const testStr = Array.isArray(testData) ? testData.join('\n') : testData;
+                      const testCount = testStr.split('\n').filter(l => l.trim().startsWith('def test_')).length;
                       return cobolLines + pythonLines + testCount;
                     })()}
                   </p>
@@ -3700,7 +3706,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <p className="text-2xl font-bold text-green-400 tabular-nums">{(() => {
                     const cobolLen = (analyzedCobolCode || cobolCode || '').length;
                     const pythonLen = (pythonCode || analysis.python_code || '').length;
-                    const testCount = (testCode || analysis.tests || analysis.unit_tests || '').split('\n').filter(l => l.trim().startsWith('def test_')).length;
+                    const testData = validatedTests || analysis.tests || analysis.unit_tests || '';
+                    const testStr = Array.isArray(testData) ? testData.join('\n') : testData;
+                    const testCount = testStr.split('\n').filter(l => l.trim().startsWith('def test_')).length;
                     let confidence = 70;
                     confidence += Math.min(testCount * 5, 20);
                     const ratio = pythonLen > 0 ? pythonLen / Math.max(cobolLen, 1) : 0;
@@ -3711,7 +3719,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   <p className="text-[10px] text-slate-500">{(() => {
                     const cobolLen = (analyzedCobolCode || cobolCode || '').length;
                     const pythonLen = (pythonCode || analysis.python_code || '').length;
-                    const testCount = (testCode || analysis.tests || analysis.unit_tests || '').split('\n').filter(l => l.trim().startsWith('def test_')).length;
+                    const testData = validatedTests || analysis.tests || analysis.unit_tests || '';
+                    const testStr = Array.isArray(testData) ? testData.join('\n') : testData;
+                    const testCount = testStr.split('\n').filter(l => l.trim().startsWith('def test_')).length;
                     let confidence = 70 + Math.min(testCount * 5, 20);
                     const ratio = pythonLen > 0 ? pythonLen / Math.max(cobolLen, 1) : 0;
                     if (ratio >= 1.2 && ratio <= 2.5) confidence += 10;
