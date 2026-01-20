@@ -648,6 +648,16 @@ export default function Home() {
   // Authentication check - requires login
   useEffect(() => {
     const checkAuth = async () => {
+      // Check for dev mode bypass
+      const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+      if (isDevMode) {
+        // Dev mode: bypass authentication
+        console.log('Dev mode enabled - bypassing authentication');
+        setUser({ email: 'demo@codeswitch.dev', id: 'demo-user' });
+        setAuthLoading(false);
+        return;
+      }
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -664,8 +674,13 @@ export default function Home() {
       }
     };
     checkAuth();
-    
-    // Listen for auth changes
+
+    // Listen for auth changes (skip in dev mode)
+    const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+    if (isDevMode) {
+      return undefined;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         router.push('/login');
@@ -674,7 +689,7 @@ export default function Home() {
         setAuthLoading(false);
       }
     });
-    
+
     return () => subscription.unsubscribe();
   }, [router]);
   
