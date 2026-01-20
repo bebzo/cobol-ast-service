@@ -3639,6 +3639,25 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </div>
                 </Tooltip>
                 
+                {/* Security Score */}
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center">
+                  {(() => {
+                    const rawWarnings = analysis.security_warnings || [];
+                    const warnings = rawWarnings.filter((w): w is SecurityWarning => typeof w && w !== null && typeof w === 'object');
+                    const activeIssues = warnings.filter((w) => 
+                      w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM'
+                    );
+                    const score = activeIssues.length === 0 ? 100 : Math.max(0, 100 - activeIssues.length * 15);
+                    return (
+                      <>
+                        <p className="text-2xl font-bold text-purple-400 tabular-nums">{score}</p>
+                        <p className="text-xs text-slate-400 mt-1">Security</p>
+                        <p className="text-[10px] text-green-400">{score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'D'}</p>
+                      </>
+                    );
+                  })()}
+                </div>
+                
                 {/* Confidence */}
                 <Tooltip content={METRIC_TOOLTIPS.confidence.content} title={METRIC_TOOLTIPS.confidence.title}>
                   <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center cursor-help">
