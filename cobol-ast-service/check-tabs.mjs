@@ -21,10 +21,10 @@ async function checkTabs() {
     consoleErrors.push(err.message);
   });
 
-  console.log('🔍 Checking dashboard page...\n');
+  console.log('🔍 Checking dashboard page with demo mode...\n');
 
-  // Navigate to dashboard
-  await page.goto('http://localhost:3000/dashboard', { waitUntil: 'networkidle' });
+  // Navigate to dashboard with demo mode
+  await page.goto('http://localhost:3000/dashboard?demo=true', { waitUntil: 'networkidle' });
 
   // Wait for React to hydrate
   await page.waitForTimeout(5000);
@@ -33,13 +33,9 @@ async function checkTabs() {
   const url = page.url();
   console.log('Current URL:', url);
 
-  // Get page content for debugging
-  const bodyHTML = await page.evaluate(() => document.body?.innerHTML?.substring(0, 1000));
-  console.log('\n📄 Page body (first 1000 chars):', bodyHTML?.replace(/\s+/g, ' '));
-
   // Check all buttons on the page
   const allButtons = await page.$$eval('button', buttons =>
-    buttons.map(b => ({ text: b.textContent?.trim(), class: b.className?.substring(0, 50) }))
+    buttons.map(b => ({ text: b.textContent?.trim(), class: b.className?.substring(0, 100) }))
   );
   console.log('\n🔘 All buttons on page:', allButtons);
 
@@ -49,10 +45,16 @@ async function checkTabs() {
   );
   console.log('\n🔍 Has "Refactor" text:', hasRefactor);
 
-  // Check for any content
-  const bodyText = await page.evaluate(() => document.body?.textContent?.trim());
-  console.log('\n📄 Body text length:', bodyText?.length);
-  console.log('📄 Body text preview:', bodyText?.substring(0, 200));
+  const hasArchitecture = await page.evaluate(() =>
+    document.body?.textContent?.includes('Architecture')
+  );
+  console.log('🔍 Has "Architecture" text:', hasArchitecture);
+
+  // Check for Code button (sub-tab)
+  const hasCodeTab = await page.evaluate(() =>
+    document.body?.textContent?.includes('"Code"')
+  );
+  console.log('🔍 Has "Code" sub-tab:', hasCodeTab);
 
   // Console errors
   console.log('\n❌ Console errors:', consoleErrors.slice(0, 5));
@@ -62,6 +64,8 @@ async function checkTabs() {
   return {
     success: true,
     hasRefactor,
+    hasArchitecture,
+    hasCodeTab,
     consoleErrors: consoleErrors.length
   };
 }
