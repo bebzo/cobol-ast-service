@@ -432,6 +432,23 @@ export async function POST(request: NextRequest) {
       });
       
       // Build full response
+      // Calculate coverage metrics from transpiler stats
+      const stats = result.stats || {};
+      const totalParagraphs = stats.paragraphs || quickParse.paragraphs?.length || 0;
+      const successfulTranslations = totalParagraphs - (stats.fallback_count || 0) - (stats.stubbed_count || 0);
+      const coverage_metrics = {
+        total_paragraphs: totalParagraphs,
+        successful_translations: Math.max(0, successfulTranslations),
+        fallback_count: stats.fallback_count || 0,
+        translation_rate: totalParagraphs > 0 ? Math.round((successfulTranslations / totalParagraphs) * 100) : 0,
+        variables_detected: stats.variables || quickParse.workingStorageVariables?.length || 0,
+        cobol_functions_ai_translated: stats.ai_translated || 0,
+        cobol_functions_unknown: stats.unknown_functions || 0,
+        cobol_functions_stubbed: stats.stubbed_count || 0,
+        python_methods_generated: stats.python_methods || 0,
+        lines_of_python: pythonLines
+      };
+      
       const fullResult = {
         python_code: result.python_code,
         pythonCode: result.python_code,
@@ -441,6 +458,7 @@ export async function POST(request: NextRequest) {
         config: configData,
         cobol_lines: totalLines,
         python_lines: pythonLines,
+        coverage_metrics,
         confidence: 100, // AST transpiler = 100% syntax valid
         complexity: totalLines > 5000 ? 'HIGH' : totalLines > 1000 ? 'MEDIUM' : 'LOW',
         risk_level: 'LOW',

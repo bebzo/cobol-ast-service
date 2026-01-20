@@ -11,6 +11,8 @@ import {
 interface AnalysisResult {
   summary: string;
   python_code?: string;
+  unit_tests?: string;
+  finalUnitTests?: string;
   issues?: string[];
   improvements?: string[];
   security_warnings?: any[];
@@ -95,7 +97,7 @@ export default function ProductionReadinessPanel({
   const [error, setError] = useState<string | null>(null);
 
   // Analyse statique réelle du code Python
-  const performStaticAnalysis = useCallback((code: string): ReadinessData => {
+  const performStaticAnalysis = useCallback((code: string, testCode: string = ''): ReadinessData => {
     const lines = code.split('\n');
     const codeLines = lines.filter(l => l.trim() && !l.trim().startsWith('#'));
     
@@ -108,7 +110,10 @@ export default function ProductionReadinessPanel({
     const docMatches = code.match(/"""[\s\S]*?"""/g) || [];
     const tryMatches = code.match(/try:/g) || [];
     const exceptMatches = code.match(/except\s+/g) || [];
-    const testMatches = code.match(/def\s+test_/g) || [];
+    
+    // Compter les tests depuis le code de test (pas depuis le code de production)
+    const testMatches = testCode.match(/def\s+test_/g) || [];
+    
     const loggingMatches = code.match(/logger\.|logging\./g) || [];
     const contextMatches = code.match(/contextvars/g) || [];
     const lockMatches = code.match(/threading\.(Lock|RLock)/g) || [];
@@ -314,11 +319,13 @@ export default function ProductionReadinessPanel({
     setError(null);
     
     try {
+      const testCode = analysis.finalUnitTests || analysis.unit_tests || '';
       const response = await fetch('/api/readiness-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           code: analysis.python_code,
+          test_code: testCode,
           targetPath: null
         })
       });
@@ -344,12 +351,14 @@ export default function ProductionReadinessPanel({
         });
       } else {
         // Fallback à l'analyse statique locale
-        setData(performStaticAnalysis(analysis.python_code));
+        const testCode = analysis.finalUnitTests || analysis.unit_tests || '';
+        setData(performStaticAnalysis(analysis.python_code, testCode));
       }
     } catch (err: any) {
       console.error('Analysis error:', err);
       // Erreur - utiliser l'analyse statique locale au lieu de fake data
-      setData(performStaticAnalysis(analysis.python_code));
+      const testCode = analysis.finalUnitTests || analysis.unit_tests || '';
+      setData(performStaticAnalysis(analysis.python_code, testCode));
     } finally {
       setLoading(false);
     }
