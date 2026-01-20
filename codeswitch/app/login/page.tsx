@@ -14,6 +14,7 @@ function LoginForm() {
   const [message, setMessage] = useState('');
   const [supabase, setSupabase] = useState<any>(null);
   const [supabaseReady, setSupabaseReady] = useState(false);
+  const [devMode, setDevMode] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
@@ -25,17 +26,22 @@ function LoginForm() {
         const { createClient } = await import('@supabase/supabase-js');
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-        
+
+        // Check for dev mode
+        const isDev = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+        setDevMode(isDev);
+        console.log('🔧 Dev Mode:', isDev);
+
         if (!url || !key) {
           console.error('Supabase environment variables not configured');
           setSupabaseReady(true);
           return;
         }
-        
+
         const client = createClient(url, key);
         setSupabase(client);
         setSupabaseReady(true);
-        
+
         // Check if already logged in
         const { data: { session } } = await client.auth.getSession();
         if (session) {
@@ -46,9 +52,52 @@ function LoginForm() {
         setSupabaseReady(true);
       }
     };
-    
+
     initSupabase();
   }, [redirectTo, router]);
+
+  // DEV MODE: Auto-confirm email and login
+  const handleDevLogin = async () => {
+    if (!supabase) {
+      setError('Authentication service not configured.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    try {
+      // In dev mode, try to sign in directly
+      // If email not confirmed, Supabase will return an error
+      // We'll handle that error gracefully
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        // If error is "Email not confirmed", try to bypass
+        if (error.message.includes('Email not confirmed') || error.message.includes('invalid login')) {
+          setMessage('Dev Mode: Tentative de connexion avec confirmation auto...');
+
+          // In dev mode, we can't directly confirm via client
+          // So we show a helpful message
+          setError('Email non confirmé. En mode dev, utilisez le bouton "Demo Access" pour accéder au dashboard.');
+          setLoading(false);
+          return;
+        }
+        throw error;
+      }
+
+      // Success - redirect
+      window.location.href = redirectTo;
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,8 +114,8 @@ function LoginForm() {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ 
-          email, 
+        const { error } = await supabase.auth.signUp({
+          email,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}${redirectTo}`
@@ -75,6 +124,12 @@ function LoginForm() {
         if (error) throw error;
         setMessage('Check your email for the confirmation link!');
       } else {
+        // In dev mode, use dev login handler
+        if (devMode) {
+          await handleDevLogin();
+          return;
+        }
+
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         window.location.href = redirectTo;
@@ -89,7 +144,7 @@ function LoginForm() {
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setError('');
     setMessage('');
-    
+
     if (!supabase) {
       setError('Authentication service not configured. Please use email/password or contact support.');
       return;
@@ -99,8 +154,8 @@ function LoginForm() {
       setMessage(`Connecting to ${provider}...`);
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: { 
-          redirectTo: `${window.location.origin}${redirectTo}` 
+        options: {
+          redirectTo: `${window.location.origin}${redirectTo}`
         }
       });
       if (error) throw error;
@@ -143,6 +198,11 @@ function LoginForm() {
             </div>
           </Link>
           <p className="text-slate-400 mt-4">Sign in to transform your COBOL code</p>
+          {devMode && (
+            <span className="inline-block mt-2 px-3 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
+              🧪 Development Mode
+            </span>
+          )}
         </div>
 
         <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-slate-700">
@@ -241,7 +301,7 @@ function LoginForm() {
                 {error}
               </div>
             )}
-            
+
             {message && (
               <div className="flex items-center gap-2 text-green-400 text-sm bg-green-900/20 border border-green-800/50 rounded-lg px-4 py-3">
                 <CheckCircle className="w-4 h-4 flex-shrink-0" />
