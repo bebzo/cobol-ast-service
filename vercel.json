@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "buildCommand": "(test -d /vercel/path0/tmp || mkdir -p /vercel/path0/tmp) && next build",
+  "buildCommand": "rm -rf /vercel/path0/tmp && mkdir -p /vercel/path0/tmp && next build",
   "regions": ["iad1"],
   "functions": {
     "app/api/analyse/route.ts": {
