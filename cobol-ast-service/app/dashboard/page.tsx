@@ -2319,23 +2319,35 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
               )}
 
-              {activeTab === "tests" && (() => {
-                const testContent = (() => {
-                  const t = analysis?.tests || analysis?.unit_tests;
-                  if (!t) return "# Run analysis to generate unit tests";
-                  return Array.isArray(t) ? t.join('\n') : t;
-                })();
-                return (
-                  <Editor
-                    height="400px"
-                    defaultLanguage="python"
-                    value={testContent}
-                    theme="vs-dark"
-                    options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
-                    loading={<pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">{testContent}</pre>}
-                  />
-                );
-              })()}
+              {activeTab === "tests" && (
+                <div>
+                  {/* Tests Sub-Tabs */}
+                  <div className="flex items-center gap-1 px-2 border-b border-slate-700 bg-slate-800/50">
+                    <button
+                      className="px-4 py-2 text-sm font-medium text-blue-400 border-b-2 border-blue-400 bg-blue-500/10"
+                    >
+                      Tests
+                    </button>
+                  </div>
+                  {(() => {
+                    const testContent = (() => {
+                      const t = analysis?.tests || analysis?.unit_tests;
+                      if (!t) return "# Run analysis to generate unit tests";
+                      return Array.isArray(t) ? t.join('\n') : t;
+                    })();
+                    return (
+                      <Editor
+                        height="400px"
+                        defaultLanguage="python"
+                        value={testContent}
+                        theme="vs-dark"
+                        options={{ minimap: { enabled: false }, fontSize: 13, lineNumbers: "on", wordWrap: "on", readOnly: true }}
+                        loading={<pre className="h-[400px] bg-slate-900 text-green-400 font-mono text-sm p-4 overflow-auto whitespace-pre-wrap">{testContent}</pre>}
+                      />
+                    );
+                  })()}
+                </div>
+              )}
               
               {activeTab === "config" && (
                 <Editor

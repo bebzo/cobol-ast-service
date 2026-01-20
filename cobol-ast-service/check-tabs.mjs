@@ -5,7 +5,7 @@ async function checkTabs() {
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  console.log('🔍 Checking Security Report sub-tabs...\n');
+  console.log('🔍 Checking tabs and sub-tabs...\n');
 
   try {
     // Login
@@ -19,8 +19,8 @@ async function checkTabs() {
     await page.waitForTimeout(2000);
     console.log('   ✓ Logged in');
 
-    // Step 2: Check all main tabs first
-    console.log('\n2. Checking all main tabs...');
+    // Check main tabs
+    console.log('\n2. Checking main tabs...');
     const mainTabs = await page.$$eval('button', buttons =>
       buttons
         .filter(b => {
@@ -33,76 +33,82 @@ async function checkTabs() {
           class: b.className?.substring(0, 100)
         }))
     );
-    console.log('   Main tabs found:', mainTabs.length);
-    mainTabs.forEach((tab, i) => {
-      console.log(`   ${i + 1}. "${tab.text}"`);
-    });
+    console.log('   Main tabs:', mainTabs.map(t => t.text).join(', '));
 
-    // Step 3: Click on "Security Report" tab
-    console.log('\n3. Clicking "Security Report" tab...');
-    const securityReportBtn = await page.$('button:has-text("Security Report")');
-    if (securityReportBtn) {
-      await securityReportBtn.click();
-      await page.waitForTimeout(3000);
-      console.log('   ✓ Clicked Security Report');
+    // Click Tests tab
+    console.log('\n3. Clicking Tests tab...');
+    const testsTab = await page.$('button:has-text("Tests")');
+    if (testsTab) {
+      await testsTab.click();
+      await page.waitForTimeout(2000);
+      console.log('   ✓ Clicked Tests');
 
-      // Step 4: Check for sub-tabs under Security Report
-      console.log('\n4. Checking for sub-tabs (issues, improvements, security, next)...');
+      // Check for sub-tabs
+      console.log('\n4. Checking Tests sub-tabs...');
+      const subTabs = await page.$$eval('button', buttons =>
+        buttons
+          .filter(b => {
+            const text = b.textContent?.trim() || '';
+            return text === 'Coverage' || text === 'Mock' || text === 'Assert';
+          })
+          .map(b => ({
+            text: b.textContent?.trim(),
+            class: b.className?.substring(0, 100)
+          }))
+      );
+      console.log('   Tests sub-tabs found:', subTabs.map(t => t.text).join(', ') || 'NONE');
 
-      // Look for these specific sub-tab buttons
-      const subTabNames = ['issues', 'improvements', 'security', 'next'];
-      const foundSubTabs = [];
+      // Click Architecture tab
+      console.log('\n5. Clicking Architecture tab...');
+      const archTab = await page.$('button:has-text("Architecture")');
+      if (archTab) {
+        await archTab.click();
+        await page.waitForTimeout(2000);
+        console.log('   ✓ Clicked Architecture');
 
-      for (const subTab of subTabNames) {
-        const btn = await page.$(`button:has-text("${subTab}")`);
-        if (btn) {
-          const info = await page.evaluate((el) => ({
-            text: el.textContent?.trim(),
-            visible: el.offsetParent !== null,
-            class: el.className?.substring(0, 100)
-          }), btn);
-          foundSubTabs.push({ name: subTab, ...info });
-        }
+        // Check for Architecture sub-tabs
+        console.log('\n6. Checking Architecture sub-tabs...');
+        const archSubTabs = await page.$$eval('button', buttons =>
+          buttons
+            .filter(b => {
+              const text = b.textContent?.trim() || '';
+              return text === 'Code' || text === 'Tests' || text === 'Config' || text === 'Security';
+            })
+            .map(b => ({
+              text: b.textContent?.trim(),
+              class: b.className?.substring(0, 100)
+            }))
+        );
+        console.log('   Architecture sub-tabs found:', archSubTabs.map(t => t.text).join(', ') || 'NONE');
       }
 
-      console.log('   Found sub-tabs:', foundSubTabs.length);
-      foundSubTabs.forEach((tab, i) => {
-        console.log(`   ${i + 1}. "${tab.name}" - visible: ${tab.visible}`);
-      });
+      // Click Security Report tab
+      console.log('\n7. Clicking Security Report tab...');
+      const securityTab = await page.$('button:has-text("Security Report")');
+      if (securityTab) {
+        await securityTab.click();
+        await page.waitForTimeout(2000);
+        console.log('   ✓ Clicked Security Report');
 
-      // Step 5: Get ALL buttons on page after clicking Security Report
-      console.log('\n5. All buttons on page after clicking Security Report...');
-      const allButtons = await page.$$eval('button', buttons =>
-        buttons.map(b => ({
-          text: b.textContent?.trim().substring(0, 30),
-          class: b.className?.substring(0, 100)
-        }))
-      );
-      console.log('   Total buttons:', allButtons.length);
-      allButtons.forEach((btn, i) => {
-        if (i < 25) console.log(`   ${i + 1}. "${btn.text}"`);
-      });
-
-      // Step 6: Check if issues/improvements/security/next text appears anywhere
-      console.log('\n6. Searching for sub-tab text anywhere on page...');
-      const pageContent = await page.evaluate(() => document.body?.textContent || '');
-
-      const hasIssues = pageContent.includes('Issues');
-      const hasImprovements = pageContent.includes('Improvements');
-      const hasSecurity = pageContent.includes('Security');
-      const hasNext = pageContent.includes('Next Steps');
-
-      console.log('   "Issues":', hasIssues ? '✓' : '✗');
-      console.log('   "Improvements":', hasImprovements ? '✓' : '✗');
-      console.log('   "Security":', hasSecurity ? '✓' : '✗');
-      console.log('   "Next Steps":', hasNext ? '✓' : '✗');
-
-    } else {
-      console.log('   ✗ Security Report button NOT FOUND');
+        // Check for Security Report sub-tabs
+        console.log('\n8. Checking Security Report sub-tabs...');
+        const securitySubTabs = await page.$$eval('button', buttons =>
+          buttons
+            .filter(b => {
+              const text = b.textContent?.trim() || '';
+              return text === 'Issues' || text === 'Improvements' || text === 'Security' || text === 'Next Steps';
+            })
+            .map(b => ({
+              text: b.textContent?.trim(),
+              class: b.className?.substring(0, 100)
+            }))
+        );
+        console.log('   Security Report sub-tabs found:', securitySubTabs.map(t => t.text).join(', ') || 'NONE');
+      }
     }
 
     console.log('\n=== RESULT ===');
-    console.log('Security Report sub-tabs investigation complete');
+    console.log('Check complete!');
 
     await browser.close();
     return { success: true };
