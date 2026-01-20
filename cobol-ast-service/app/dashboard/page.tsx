@@ -136,6 +136,73 @@ def check_syntax(code):
 }
 
 
+// Analyze Python code for security vulnerabilities (v9.0: regenerate based on FIXED Python code)
+function generateSecurityWarningsForPython(pythonCode: string): any[] {
+  const warnings: any[] = [];
+  const lines = pythonCode.split('\n');
+
+  // Define security checks for Python code patterns
+  const checks = [
+    {
+      id: 'PY-S001',
+      severity: 'MEDIUM',
+      title: 'Use of "eval" detected',
+      pattern: /eval\s*\(/,
+      description: 'The use of "eval" can execute arbitrary code and is a major security risk.',
+    },
+    {
+      id: 'PY-S002',
+      severity: 'HIGH',
+      title: 'Hardcoded credentials detected',
+      pattern: /(password|secret|api_key|auth_token)\s*=\s*['"][^'"]+['"]/i,
+      description: 'Hardcoded secrets can be easily exposed in source code.',
+    },
+    {
+      id: 'PY-S003',
+      severity: 'LOW',
+      title: 'SQL query with string concatenation',
+      pattern: /execute\s*\(\s*["'].*["']\s*\+\s*['"]|execute\s*\(\s*f["'].*{.*}/,
+      description: 'String concatenation in SQL queries can lead to injection vulnerabilities.',
+    },
+    {
+      id: 'PY-S004',
+      severity: 'MEDIUM',
+      title: 'Use of "pickle" for deserialization',
+      pattern: /pickle\.(load|loads)/,
+      description: 'Pickle deserialization can execute arbitrary code. Use safer alternatives like JSON.',
+    },
+    {
+      id: 'PY-S005',
+      severity: 'HIGH',
+      title: 'Command injection via subprocess',
+      pattern: /subprocess\.(call|run|Popen).*shell\s*=\s*True|os\.system\s*\(/,
+      description: 'Shell=True with user input can lead to command injection attacks.',
+    },
+  ];
+
+  lines.forEach((line, index) => {
+    for (const check of checks) {
+      if (check.pattern.test(line)) {
+        warnings.push({
+          id: check.id,
+          severity: check.severity,
+          title: check.title,
+          location: `Line ${index + 1}`,
+          description: check.description,
+          vulnerable_code: line.trim(),
+          fix: check.id === 'PY-S001' ? 'Use ast.literal_eval() or safer alternatives to eval()' :
+                check.id === 'PY-S002' ? 'Use environment variables or a secure secrets management system' :
+                check.id === 'PY-S003' ? 'Use parameterized queries or ORM methods' :
+                check.id === 'PY-S004' ? 'Use json.loads() or other safe deserialization methods' :
+                'Avoid shell=True with subprocess, use proper argument lists',
+        });
+      }
+    }
+  });
+
+  return warnings;
+}
+
 // Run tests using Pyodide (v8.5: improved error handling and fallback)
 async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
   // Extract real test names from code for fallback (capture full name)
@@ -1298,6 +1365,9 @@ export default function Home() {
         mergedCodeValid = true;
         console.log('[Merge Validation] v7.38 - external validation DISABLED');
         
+        // Generate security warnings based on CORRECTED Python code, not original COBOL
+        const securityWarningsFromPython = generateSecurityWarningsForPython(validatedMergedCode);
+        
         parsed = {
           summary: `${data.summary} (${successParts.length}/${data.total_parts} parts)`,
           python_code: validatedMergedCode,
@@ -1307,7 +1377,7 @@ export default function Home() {
           python_lines: validatedMergedCode.split('\n').length,  // Use VALIDATED merged code line count
           issues: successParts.flatMap((p: any) => p.issues || []),
           improvements: successParts.flatMap((p: any) => p.improvements || []),
-          security_warnings: successParts.flatMap((p: any) => p.security_warnings || []),
+          security_warnings: securityWarningsFromPython,  // Use Python-based security warnings
           business_context: successParts[0]?.business_context || {},
           migration_score: successParts[0]?.migration_score || {},
           config_json: successParts[0]?.config_json || '',
@@ -1360,11 +1430,16 @@ export default function Home() {
       finalPythonCode = postProcessPythonCode(finalPythonCode, filename || 'PROGRAM');
       
       setPythonCode(finalPythonCode);
+      // v9.0: Regenerate security warnings based on FIXED Python code, not original COBOL
+      const regeneratedSecurityWarnings = generateSecurityWarningsForPython(finalPythonCode);
+      console.log(`[v9.0] Security warnings regenerated: ${regeneratedSecurityWarnings.length} issues found in Python code`);
+
       // Create new object to trigger React state update - include code_valid!
-      const updatedAnalysis = { 
-        ...parsed, 
-        python_code: finalPythonCode, 
+      const updatedAnalysis = {
+        ...parsed,
+        python_code: finalPythonCode,
         code_valid: finalCodeValid,
+        security_warnings: regeneratedSecurityWarnings,  // Use Python-based security warnings
         // Ensure metrics are always available for chat context
         cobol_lines: parsed.cobol_lines || cobolCode.split('\n').length,
         python_lines: finalPythonCode.split('\n').length,
