@@ -3637,36 +3637,71 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </div>
                 </Tooltip>
                 
-                {/* Security Score - Visible immediately for jury */}
+                {/* Security Score - Real score based on actual Python code analysis */}
                 {(() => {
-                  const rawWarnings = analysis.security_warnings || [];
-                  const warnings = rawWarnings.filter((w): w is SecurityWarning => typeof w && w !== null && typeof w === 'object');
-                  const activeIssues = warnings.filter((w) => 
-                    w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM'
-                  );
-                  const fixedIssues = warnings.filter((w) => 
-                    w.severity === 'INFO' || w.severity === 'LOW'
-                  );
-                  const summaryItem = warnings.find((w) => w.summary);
-                  const score = summaryItem?.summary?.score || (activeIssues.length === 0 ? 100 : Math.max(0, 100 - activeIssues.length * 15));
+                  // Scan actual Python code for security issues
+                  const pythonCodeToScan = pythonCode || analysis.python_code || '';
+                  const securityChecks = [
+                    { pattern: /eval\s*\(/, severity: 'HIGH', name: 'eval()' },
+                    { pattern: /pickle\.(load|loads)\s*\(/, severity: 'HIGH', name: 'pickle' },
+                    { pattern: /os\.system\s*\(/, severity: 'HIGH', name: 'os.system' },
+                    { pattern: /subprocess\..*shell\s*=\s*True/i, severity: 'MEDIUM', name: 'shell=True' },
+                    { pattern: /password\s*=\s*['"][^'"]+['"]/i, severity: 'MEDIUM', name: 'hardcoded password' },
+                    { pattern: /api_?key\s*=\s*['"][^'"]+['"]/i, severity: 'MEDIUM', name: 'hardcoded API key' },
+                    { pattern: /secret\s*=\s*['"][^'"]+['"]/i, severity: 'MEDIUM', name: 'hardcoded secret' },
+                    { pattern: /\.execute\s*\([^)]*\+\s*/i, severity: 'HIGH', name: 'SQL injection' },
+                    { pattern: /__import__\s*\(/, severity: 'HIGH', name: '__import__' },
+                    { pattern: /yaml\.load\s*\(/, severity: 'MEDIUM', name: 'yaml.load' },
+                    { pattern: /os\.popen\s*\(/, severity: 'HIGH', name: 'os.popen' },
+                    { pattern: /tempfile\.mktemp\s*\(/, severity: 'LOW', name: 'insecure temp' },
+                  ];
+                  
+                  let totalVulnerabilities = 0;
+                  let criticalCount = 0;
+                  let highCount = 0;
+                  let mediumCount = 0;
+                  
+                  for (const check of securityChecks) {
+                    const matches = pythonCodeToScan.match(check.pattern);
+                    if (matches) {
+                      totalVulnerabilities += matches.length;
+                      if (check.severity === 'HIGH') highCount += matches.length;
+                      if (check.severity === 'MEDIUM') mediumCount += matches.length;
+                      if (check.severity === 'CRITICAL') criticalCount += matches.length;
+                    }
+                  }
+                  
+                  // Calculate score based on actual vulnerabilities
+                  const baseScore = 100;
+                  const criticalPenalty = criticalCount * 25;
+                  const highPenalty = highCount * 15;
+                  const mediumPenalty = mediumCount * 5;
+                  const score = Math.max(0, baseScore - criticalPenalty - highPenalty - mediumPenalty);
                   const grade = score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'D';
-                  const isSecure = activeIssues.length === 0;
+                  const isSecure = totalVulnerabilities === 0;
                   
                   return (
                     <div className={`rounded-lg p-3 text-center ${
                       isSecure 
                         ? 'bg-green-500/10 border border-green-500/30' 
+                        : score >= 70 ? 'bg-yellow-500/10 border border-yellow-500/30'
                         : 'bg-red-500/10 border border-red-500/30'
                     }`}>
-                      <p className={`text-sm font-bold ${isSecure ? 'text-green-400' : 'text-red-400'}`}>
+                      <p className={`text-sm font-bold ${isSecure ? 'text-green-400' : score >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>
                         Security Score: {score}/100 (Grade {grade})
                       </p>
+                      {!isSecure && (
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          {criticalCount} critical, {highCount} high, {mediumCount} medium
+                        </p>
+                      )}
                       <div className={`mt-2 px-3 py-1 rounded text-sm font-bold inline-block ${
                         isSecure 
                           ? 'bg-green-500/20 text-green-400' 
+                          : score >= 70 ? 'bg-yellow-500/20 text-yellow-400'
                           : 'bg-red-500/20 text-red-400'
                       }`}>
-                        {isSecure ? '✓ Secure' : '⚠ Action Required'}
+                        {isSecure ? '✓ Secure' : `${totalVulnerabilities} issue${totalVulnerabilities > 1 ? 's' : ''}`}
                       </div>
                     </div>
                   );
