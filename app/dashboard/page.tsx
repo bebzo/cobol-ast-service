@@ -1385,7 +1385,8 @@ export default function Home() {
       setIsLoading(false);
       
       // Count tests from code (instant, no Pyodide needed)
-      const testCode = parsed.tests || parsed.unit_tests || '';
+      // v9.1.1: Use finalUnitTests which contains auto-generated tests
+      const testCode = finalUnitTests || parsed.tests || parsed.unit_tests || '';
       let testStr = Array.isArray(testCode) ? testCode.join('\n') : testCode;
       
       // v8.6: Generate property-based tests for financial calculations
