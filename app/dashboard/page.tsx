@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory, getAnalysisWithShadowTest } from "@/lib/supabase";
-import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
+import { postProcessPythonCode, generatePropertyTests, generateUnitTests } from "@/lib/postprocess";
 
 // Configure Monaco loader at module level (runs once on client)
 import { loader } from "@monaco-editor/react";
@@ -1358,12 +1358,19 @@ export default function Home() {
       
       // ALWAYS apply post-processing as final step to clean any remaining artifacts
       finalPythonCode = postProcessPythonCode(finalPythonCode, filename || 'PROGRAM');
-      
+
+      // v9.1: Generate additional unit tests if not provided by API
+      let finalUnitTests = parsed.unit_tests || '';
+      if (finalUnitTests.length < 100 || !finalUnitTests.includes('def test_')) {
+        finalUnitTests = generateUnitTests(finalPythonCode);
+      }
+
       setPythonCode(finalPythonCode);
       // Create new object to trigger React state update - include code_valid!
       const updatedAnalysis = { 
         ...parsed, 
         python_code: finalPythonCode, 
+        unit_tests: finalUnitTests,
         code_valid: finalCodeValid,
         // Ensure metrics are always available for chat context
         cobol_lines: parsed.cobol_lines || cobolCode.split('\n').length,
