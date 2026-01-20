@@ -1313,6 +1313,8 @@ export default function Home() {
           config_json: successParts[0]?.config_json || '',
           architecture_diagram: successParts[0]?.architecture_diagram || '',
           modules: successParts.flatMap((p: any) => p.modules || []),
+          // v9.3: Preserve shadow_testing_plan from first successful part
+          shadow_testing_plan: successParts[0]?.shadow_testing_plan || null,
           ast_metrics: {
             paragraphs: successParts.reduce((sum: number, p: any) => sum + (p.ast_metrics?.paragraphs || 0), 0),
             variables: successParts.reduce((sum: number, p: any) => sum + (p.ast_metrics?.variables || 0), 0),
@@ -1367,7 +1369,7 @@ export default function Home() {
 
       setPythonCode(finalPythonCode);
       // Create new object to trigger React state update - include code_valid!
-      const updatedAnalysis = { 
+      let updatedAnalysis = { 
         ...parsed, 
         python_code: finalPythonCode, 
         unit_tests: finalUnitTests,
@@ -1377,6 +1379,11 @@ export default function Home() {
         cobol_lines: parsed.cobol_lines || cobolCode.split('\n').length,
         python_lines: finalPythonCode.split('\n').length,
       };
+      
+      // v9.3: Ensure shadow_testing_plan is present for newly completed analyses
+      // This handles cases where the API response might not include it
+      updatedAnalysis = getAnalysisWithShadowTest(cobolCode, finalPythonCode, updatedAnalysis);
+      
       setAnalysis(updatedAnalysis);
       setAnalyzedCobolCode(cobolCode);
 
