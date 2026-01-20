@@ -629,7 +629,7 @@ def generate_test_method_template(method_name: str, paragraph_name: str) -> str:
     Returns:
         Template de test pytest
     """
-    return f"""    def test_{method_name}(self):
+    return f'''    def test_{method_name}(self):
         """Test for COBOL paragraph: {paragraph_name}"""
         # Setup
         self.{method_name}()
@@ -637,7 +637,7 @@ def generate_test_method_template(method_name: str, paragraph_name: str) -> str:
         # TODO: Add assertions based on expected behavior
 
 
-"""
+'''
 
 # ============================================================
 # Fin des helpers de génération production
@@ -8749,10 +8749,6 @@ def generate_python_code(
         minified_mode: bool = False,
         production_quality: bool = True  # Nouveau paramètre pour génération haute qualité
     ) -> Dict[str, Any]:
-                         cics_commands: List[CICSCommand] = None,
-                         sql_commands: List[SQLCommand] = None,
-                         exception_mode: str = 'cobol',
-                         minified_mode: bool = False) -> Dict[str, Any]:
     """Main entry point: COBOL source → Python code
     
     v6.1.1: minified_mode parameter
