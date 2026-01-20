@@ -109,6 +109,7 @@ export async function saveAnalysis(item: AnalysisHistory): Promise<boolean> {
     
     if (allEntries && allEntries.length > MAX_HISTORY) {
       const entriesToDelete = allEntries.slice(MAX_HISTORY);
+      // @ts-ignore - allEntries type is never[] due to Supabase type inference issues
       for (const entry of entriesToDelete) {
         await client.from('analysis_history').delete().eq('id', entry.id);
       }
