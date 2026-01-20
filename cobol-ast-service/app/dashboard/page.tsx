@@ -726,6 +726,8 @@ export default function Home() {
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
+  // v8.7: Architecture sub-tabs state
+  const [activeArchSubTab, setActiveArchSubTab] = useState<"code" | "tests" | "config" | "security">("code");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -2169,7 +2171,99 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </button>
 
               </div>
-              
+
+              {/* v8.7: Architecture Sub-Tabs */}
+              {activeTab === "arch" && (
+                <div className="flex items-center gap-1 px-4 border-b border-slate-700 bg-slate-800/30">
+                  <button
+                    onClick={() => setActiveArchSubTab("code")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeArchSubTab === "code"
+                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Code
+                  </button>
+                  <button
+                    onClick={() => setActiveArchSubTab("tests")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeArchSubTab === "tests"
+                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Tests
+                  </button>
+                  <button
+                    onClick={() => setActiveArchSubTab("config")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeArchSubTab === "config"
+                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Config
+                  </button>
+                  <button
+                    onClick={() => setActiveArchSubTab("security")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeArchSubTab === "security"
+                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Security
+                  </button>
+                </div>
+              )}
+
+              {/* v8.7: Security Report Sub-Tabs (uses activeReportTab) */}
+              {activeTab === "report" && (
+                <div className="flex items-center gap-1 px-4 border-b border-slate-700 bg-slate-800/30">
+                  <button
+                    onClick={() => setActiveReportTab("issues")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeReportTab === "issues"
+                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Issues
+                  </button>
+                  <button
+                    onClick={() => setActiveReportTab("improvements")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeReportTab === "improvements"
+                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Improvements
+                  </button>
+                  <button
+                    onClick={() => setActiveReportTab("security")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeReportTab === "security"
+                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Security
+                  </button>
+                  <button
+                    onClick={() => setActiveReportTab("next")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeReportTab === "next"
+                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Next Steps
+                  </button>
+                </div>
+              )}
+
               {activeTab === "code" && (
                 <div>
                   {/* Code Status Bar */}
