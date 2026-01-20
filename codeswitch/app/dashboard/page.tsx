@@ -674,10 +674,29 @@ export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  
-  // Authentication check - requires login
+  const [devMode, setDevMode] = useState(false);
+
+  // Authentication check - with dev mode bypass
   useEffect(() => {
     const checkAuth = async () => {
+      // Check for dev mode
+      const isDev = process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_DEV_MODE === 'true';
+      setDevMode(isDev);
+
+      if (isDev) {
+        console.log('🧪 Mode développement: Authentification ignorée');
+        // En mode dev, créer un utilisateur mock et autoriser l'accès
+        setUser({
+          id: 'dev-user-001',
+          email: 'dev@codeswitch.app',
+          user_metadata: {
+            full_name: 'Developer Mode'
+          }
+        });
+        setAuthLoading(false);
+        return;
+      }
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
@@ -694,7 +713,7 @@ export default function Home() {
       }
     };
     checkAuth();
-    
+
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
@@ -704,7 +723,7 @@ export default function Home() {
         setAuthLoading(false);
       }
     });
-    
+
     return () => subscription.unsubscribe();
   }, [router]);
   
