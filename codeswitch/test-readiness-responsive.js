@@ -42,34 +42,64 @@ async function runProductionReadinessTest() {
     await page.goto('http://localhost:3001/login', { waitUntil: 'networkidle', timeout: 30000 });
     await page.waitForTimeout(3000);
     
-    // Injecter une session Supabase mockée dans localStorage
-    // Cela contourne la vérification d'auth dans le tableau de bord
-    await page.evaluate(() => {
-      const mockSession = {
-        access_token: 'mock-access-token',
-        refresh_token: 'mock-refresh-token',
-        expires_at: Date.now() + 3600000,
-        user: {
-          id: 'mock-user-id',
-          email: 'test@example.com',
-          created_at: new Date().toISOString()
-        }
-      };
-      
-      // Stocker la session mockée dans localStorage
-      localStorage.setItem('sb-access-token', 'mock-access-token');
-      localStorage.setItem('sb-refresh-token', 'mock-refresh-token');
-      localStorage.setItem('sb-expires-at', String(Date.now() + 3600000));
-      localStorage.setItem('supabase.auth.token', JSON.stringify(mockSession));
-      
-      // Définir aussi un cookie pour persister la session
-      document.cookie = `sb-access-token=mock-access-token; path=/; max-age=3600`;
-    });
+    // Essayer de cliquer sur le bouton Accès Démo (Demo Access)
+    const demoButtonSelectors = [
+      'button:has-text("Demo Access")',
+      'button:has-text("Demo")',
+      'text=Demo Access',
+      '[class*="demo"]'
+    ];
     
-    log('Session mockée injectée dans localStorage');
+    let demoButtonClicked = false;
+    for (const selector of demoButtonSelectors) {
+      const button = page.locator(selector).first();
+      if (await button.count() > 0) {
+        const isVisible = await button.isVisible().catch(() => false);
+        if (isVisible) {
+          log(`Bouton Demo trouvé avec le sélecteur: ${selector}`);
+          try {
+            await button.click({ timeout: 5000 });
+            await page.waitForTimeout(2000);
+            demoButtonClicked = true;
+            log('Bouton Demo Access cliqué avec succès');
+            break;
+          } catch (clickError) {
+            log(`Échec du clic sur ${selector}`, true);
+          }
+        }
+      }
+    }
+    
+    // Si le bouton Demo n'a pas fonctionné, essayer l'injection de session
+    if (!demoButtonClicked) {
+      log('Injection de session Supabase mockée dans localStorage...');
+      await page.evaluate(() => {
+        const mockSession = {
+          access_token: 'mock-access-token',
+          refresh_token: 'mock-refresh-token',
+          expires_at: Date.now() + 3600000,
+          user: {
+            id: 'mock-user-id',
+            email: 'test@example.com',
+            created_at: new Date().toISOString()
+          }
+        };
+        
+        // Stocker la session mockée dans localStorage
+        localStorage.setItem('sb-access-token', 'mock-access-token');
+        localStorage.setItem('sb-refresh-token', 'mock-refresh-token');
+        localStorage.setItem('sb-expires-at', String(Date.now() + 3600000));
+        localStorage.setItem('supabase.auth.token', JSON.stringify(mockSession));
+        
+        // Définir aussi un cookie pour persister la session
+        document.cookie = `sb-access-token=mock-access-token; path=/; max-age=3600`;
+      });
+      
+      log('Session mockée injectée dans localStorage');
+    }
     
     // Maintenant naviguer vers le tableau de bord
-    log('Navigation vers le tableau de bord avec session mockée...');
+    log('Navigation vers le tableau de bord...');
     await page.goto('http://localhost:3001/dashboard', { waitUntil: 'networkidle', timeout: 30000 });
     await page.waitForTimeout(3000);
     
