@@ -659,7 +659,7 @@ export default function Home() {
       }
 
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession() as { data: { session: any } };
         if (session == null || !session.user) {
           // No session - redirect to login
           router.push('/login?redirect=/dashboard');
