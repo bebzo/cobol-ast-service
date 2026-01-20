@@ -26,10 +26,6 @@
     "app/api/ast/route.ts": {
       "maxDuration": 60,
       "memory": 1024
-    },
-    "api/chat/route.ts": {
-      "maxDuration": 60,
-      "memory": 512
     }
   }
 }
