@@ -433,7 +433,7 @@ export async function POST(request: NextRequest) {
       
       // Build full response
       // Calculate coverage metrics from transpiler stats
-      const stats = result.stats || {} as any;
+      const stats = (result.stats || {}) as any;
       const totalParagraphs = stats.paragraphs || quickParse.paragraphs?.length || 0;
       const successfulTranslations = totalParagraphs - (stats.fallback_count || 0) - (stats.stubbed_count || 0);
       const coverage_metrics = {
