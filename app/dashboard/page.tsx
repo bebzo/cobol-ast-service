@@ -1371,6 +1371,7 @@ export default function Home() {
         ...parsed, 
         python_code: finalPythonCode, 
         unit_tests: finalUnitTests,
+        finalUnitTests: finalUnitTests, // v9.2: Stocker pour accès dans le rendu
         code_valid: finalCodeValid,
         // Ensure metrics are always available for chat context
         cobol_lines: parsed.cobol_lines || cobolCode.split('\n').length,
@@ -3568,14 +3569,44 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 {/* Tests */}
                 <Tooltip content={METRIC_TOOLTIPS.tests.content} title={METRIC_TOOLTIPS.tests.title}>
                   <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center cursor-help">
-                    <p className="text-2xl font-bold text-purple-400 tabular-nums">{testResults?.total || (() => { const t = analysis.tests || analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })()}</p>
+                    <p className="text-2xl font-bold text-purple-400 tabular-nums">{testResults?.total || (() => {
+                      // v9.2: Compter les tests depuis toutes les sources possibles
+                      const testSources = [
+                        (analysis as any).finalUnitTests,
+                        analysis.tests,
+                        analysis.unit_tests
+                      ];
+                      for (const source of testSources) {
+                        if (source) {
+                          const s = Array.isArray(source) ? source.join('\n') : source;
+                          const count = (s.match(/def test_/g) || []).length;
+                          if (count > 0) return count;
+                        }
+                      }
+                      return 0;
+                    })()}</p>
                     <p className="text-xs text-slate-400 mt-1">Tests</p>
                   </div>
                 </Tooltip>
                 {/* Total */}
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-blue-400 tabular-nums">
-                    {(analysis.python_lines || (analysis.python_code || '').split('\n').length) + (testResults?.total || (() => { const t = analysis.unit_tests || ''; const s = Array.isArray(t) ? t.join('\n') : t; return (s.match(/def test_/g) || []).length || 0; })())}
+                    {(analysis.python_lines || (analysis.python_code || '').split('\n').length) + (testResults?.total || (() => {
+                      // v9.2: Compter les tests depuis toutes les sources possibles
+                      const testSources = [
+                        (analysis as any).finalUnitTests,
+                        analysis.tests,
+                        analysis.unit_tests
+                      ];
+                      for (const source of testSources) {
+                        if (source) {
+                          const s = Array.isArray(source) ? source.join('\n') : source;
+                          const count = (s.match(/def test_/g) || []).length;
+                          if (count > 0) return count;
+                        }
+                      }
+                      return 0;
+                    })())}
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Total</p>
                 </div>
