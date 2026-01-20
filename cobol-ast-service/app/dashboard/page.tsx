@@ -681,7 +681,7 @@ export default function Home() {
       return undefined;
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
       if (event === "SIGNED_OUT" || session == null || !session.user) {
         router.push('/login');
       } else {
