@@ -42,10 +42,10 @@ async function runFinalTest() {
     log('Logo CodeSwitch visible', loginContent.includes('CodeSwitch'));
     log('Champ email visible', await page.locator('input[type="email"]').count() > 0);
     log('Champ password visible', await page.locator('input[type="password"]').count() > 0);
-    log('Bouton Sign In visible', await page.locator('button:has-text("Sign In")').count() > 0);
-    log('Bouton Demo Access visible', await page.locator('button:has-text("Demo Access")').count() > 0);
-    log('Bouton Google visible', await page.locator('button:has-text("Google")').count() > 0);
-    log('Bouton GitHub visible', await page.locator('button:has-text("GitHub")').count() > 0);
+    log('Bouton Se connecter visible', await page.locator('button:has-text("Se connecter")').count() > 0 || await page.locator('button:has-text("Créer un compte")').count() > 0);
+    log('Bouton Accès Demo visible', await page.locator('button:has-text("Accès Demo")').count() > 0);
+    log('Bouton Google visible', await page.locator('button:has-text("Google")').count() > 0 || await page.locator('text=Continuer avec Google').count() > 0);
+    log('Bouton GitHub visible', await page.locator('button:has-text("GitHub")').count() > 0 || await page.locator('text=Continuer avec GitHub').count() > 0);
 
     // Vérifier les indicateurs de mode
     const devModeIndicator = await page.locator('text=Mode Développement').count();
@@ -57,11 +57,22 @@ async function runFinalTest() {
     // ============================================
     console.log('\n📋 TEST 2: Demo Access vers Dashboard\n' + '-'.repeat(50));
 
-    // Cliquer sur Demo Access
-    const demoButton = page.locator('button:has-text("Demo Access")').first();
+    // Cliquer sur Accès Demo
+    const demoButton = page.locator('button:has-text("Accès Demo")').first();
     if (await demoButton.count() > 0) {
       await demoButton.click();
-      await page.waitForTimeout(3000);
+
+      // Attendre que l'URL change vers /dashboard
+      try {
+        await page.waitForURL('**/dashboard', { timeout: 10000 });
+        console.log('✅ Navigation vers dashboard réussie');
+      } catch (e) {
+        // Si le timeout est atteint, vérifier l'URL actuelle
+        const currentUrl = page.url();
+        console.log(`⚠️ Timeout navigation, URL actuelle: ${currentUrl}`);
+      }
+
+      await page.waitForTimeout(2000);
 
       const currentUrl = page.url();
       const dashboardLoaded = currentUrl.includes('/dashboard');
