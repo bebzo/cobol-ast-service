@@ -816,15 +816,20 @@ export default function Home() {
     }
     // Load history from Supabase
     loadHistory(10).then((data) => {
+      console.log('[DEBUG] loadHistory raw data:', JSON.stringify(data.slice(0, 1), null, 2));
       if (data.length > 0) {
-        setHistory(data.map(item => ({
+        const mappedHistory = data.map(item => ({
           id: item.id || Date.now().toString(),
           filename: item.filename,
           timestamp: new Date(item.timestamp).getTime(),
           cobolCode: item.cobol_code,
           pythonCode: item.python_code,
           analysis: item.analysis,
-        })));
+        }));
+        console.log('[DEBUG] First item analysis keys:', Object.keys(mappedHistory[0].analysis || {}));
+        console.log('[DEBUG] shadow_testing_plan present:', !!mappedHistory[0].analysis?.shadow_testing_plan);
+        console.log('[DEBUG] shadow_testing_plan value:', JSON.stringify(mappedHistory[0].analysis?.shadow_testing_plan, null, 2));
+        setHistory(mappedHistory);
       }
     });
   }, []);
