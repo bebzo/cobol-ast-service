@@ -2326,7 +2326,17 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     <button
                       className="px-4 py-2 text-sm font-medium text-blue-400 border-b-2 border-blue-400 bg-blue-500/10"
                     >
-                      Tests
+                      Coverage
+                    </button>
+                    <button
+                      className="px-4 py-2 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-white"
+                    >
+                      Mock
+                    </button>
+                    <button
+                      className="px-4 py-2 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-white"
+                    >
+                      Assert
                     </button>
                   </div>
                   {(() => {
