@@ -237,7 +237,7 @@ class ProductionReadinessMetrics:
         """
         metrics = {
             'functions': len(re.findall(r'def \w+\(self[^)]*\)', python_code)),
-            'type_annotated': len(re.findall(r':\s*\w+[:=]', python_code)),
+            'type_annotated': len(re.findall(r'(?:->\s*\w+)|(?::\s*\w+)', python_code)),
             'documented': len(re.findall(r'"""[\s\S]*?"""', python_code)),
             'error_handled': len(re.findall(r'except\s+', python_code)),
             'try_blocks': len(re.findall(r'try:', python_code)),

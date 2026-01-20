@@ -4670,7 +4670,7 @@ Parent variable: error_severity"""
     """
         import os
         result = {'ready': True, 'missing_calls': [], 'warnings': [], 'config_ok': True, 'checks_passed': [], 'checks_failed': []}
-        external_calls = ['AUTHMODULE', 'UPDATEMETRICS', 'VALIDATESESSION', 'GENSESSION', 'SECURITYALERT', 'VERIFYAUDIT', 'DELETETEMP']
+        external_calls = ['VALIDATESESSION', 'AUTHMODULE', 'VERIFYAUDIT', 'UPDATEMETRICS', 'DELETETEMP', 'SECURITYALERT', 'GENSESSION']
         allow_stubs = os.getenv('ALLOW_STUBS', '') == 'true'
         if external_calls and (not allow_stubs):
             result['missing_calls'] = external_calls
@@ -4732,7 +4732,7 @@ Parent variable: error_severity"""
     v6.0.0: Provides helpful feedback instead of cryptic errors.
     """
         import os
-        missing_methods = ['AUTHMODULE', 'UPDATEMETRICS', 'VALIDATESESSION', 'GENSESSION', 'SECURITYALERT', 'VERIFYAUDIT', 'DELETETEMP']
+        missing_methods = ['VALIDATESESSION', 'AUTHMODULE', 'VERIFYAUDIT', 'UPDATEMETRICS', 'DELETETEMP', 'SECURITYALERT', 'GENSESSION']
         if os.getenv('ALLOW_STUBS', '') != 'true' and missing_methods:
             print('=' * 60)
             print('CODESWITCH MIGRATION ASSISTANT')
