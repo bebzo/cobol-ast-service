@@ -2520,6 +2520,32 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         );
                         
                         const isReady = overallScore >= 85;
+
+                        // Only show score if real analysis data exists
+                        const hasRealData = coverage > 0 || confidence > 0 || securityIssues > 0 || issuesCount > 0;
+
+                        if (!hasRealData) {
+                          return (
+                            <div className="h-full flex items-center justify-center">
+                              <div className="text-center">
+                                <BarChart3 className="w-16 h-16 mx-auto mb-4 text-slate-500" />
+                                <h3 className="text-xl font-semibold text-slate-300 mb-2">Production Readiness</h3>
+                                <p className="text-slate-400 mb-4">Run a COBOL analysis to calculate your readiness score</p>
+                                <div className="bg-slate-800 rounded-lg p-4 text-left max-w-md mx-auto">
+                                  <p className="text-sm text-slate-400 mb-2">Score based on:</p>
+                                  <ul className="text-xs text-slate-300 space-y-1">
+                                    <li>• Test coverage rate</li>
+                                    <li>• Migration confidence</li>
+                                    <li>• Security issues count</li>
+                                    <li>• Code quality issues</li>
+                                  </ul>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        // Score is calculated from real analysis data
                         
                         return (
                           <div className="space-y-4">
