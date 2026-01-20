@@ -728,6 +728,8 @@ export default function Home() {
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
   // v8.7: Architecture sub-tabs state
   const [activeArchSubTab, setActiveArchSubTab] = useState<"code" | "tests" | "config" | "security">("code");
+  // v8.7: Tests sub-tabs state
+  const [activeTestsSubTab, setActiveTestsSubTab] = useState<"unit" | "shadow" | "readiness">("unit");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -2491,80 +2493,190 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </div>
                   )}
 
-                  {/* Production Readiness Content - 100% as requested */}
+                  {/* Production Readiness Content - Real Calculation */}
                   {activeTestsSubTab === "readiness" && (
                     <div className="h-[400px] overflow-y-auto">
-                      <div className="space-y-4">
-                        {/* Overall Readiness - 100% */}
-                        <div className="text-center p-6 bg-gradient-to-br from-green-900/30 to-emerald-900/30 rounded-lg border border-green-500/30">
-                          <p className="text-5xl font-bold text-green-400 mb-2">100%</p>
-                          <p className="text-lg text-white">Production Readiness</p>
-                          <p className="text-sm text-green-300 mt-2">Ready for deployment</p>
-                        </div>
+                      {(() => {
+                        // Real production readiness calculation
+                        const coverage = analysis?.coverage_metrics?.translation_rate || 0;
+                        const confidence = typeof analysis?.migration_score?.confidence === "number" 
+                          ? analysis.migration_score.confidence 
+                          : parseInt(String(analysis?.migration_score?.confidence || "0").replace(/[^0-9]/g, "")) || 0;
+                        const securityIssues = Array.isArray(analysis?.security_warnings) ? analysis.security_warnings.length : 0;
+                        const issuesCount = Array.isArray(analysis?.issues) ? analysis.issues.length : 0;
+                        
+                        // Calculate individual scores (0-100 each, weighted)
+                        const coverageScore = Math.min(coverage, 100);
+                        const confidenceScore = confidence;
+                        const securityScore = Math.max(0, 100 - (securityIssues * 15)); // -15% per security issue
+                        const qualityScore = Math.max(0, 100 - (issuesCount * 5)); // -5% per issue
+                        
+                        // Overall score calculation (weighted average)
+                        const overallScore = Math.round(
+                          (coverageScore * 0.25) +
+                          (confidenceScore * 0.30) +
+                          (securityScore * 0.25) +
+                          (qualityScore * 0.20)
+                        );
+                        
+                        const isReady = overallScore >= 85;
+                        
+                        return (
+                          <div className="space-y-4">
+                            {/* Overall Readiness - Real Calculated Score */}
+                            <div className={`text-center p-6 rounded-lg border ${
+                              isReady 
+                                ? "bg-gradient-to-br from-green-900/30 to-emerald-900/30 border-green-500/30" 
+                                : "bg-gradient-to-br from-yellow-900/30 to-amber-900/30 border-yellow-500/30"
+                            }`}>
+                              <p className={`text-5xl font-bold mb-2 ${isReady ? "text-green-400" : "text-yellow-400"}`}>
+                                {overallScore}%
+                              </p>
+                              <p className="text-lg text-white">Production Readiness</p>
+                              <p className={`text-sm mt-2 ${isReady ? "text-green-300" : "text-yellow-300"}`}>
+                                {isReady ? "Ready for deployment" : `Needs ${100 - overallScore}% improvement`}
+                              </p>
+                            </div>
 
-                        {/* Readiness Criteria Grid */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="bg-slate-800 rounded-lg p-4 border border-green-500/30 text-center">
-                            <CheckCircle className="w-6 h-6 text-green-400 mx-auto mb-2" />
-                            <p className="text-xs text-slate-400 mb-1">Code Quality</p>
-                            <p className="font-semibold text-green-400">PASSED</p>
-                          </div>
-                          <div className="bg-slate-800 rounded-lg p-4 border border-green-500/30 text-center">
-                            <CheckCircle className="w-6 h-6 text-green-400 mx-auto mb-2" />
-                            <p className="text-xs text-slate-400 mb-1">Test Coverage</p>
-                            <p className="font-semibold text-green-400">{analysis?.coverage_metrics?.translation_rate || 100}%</p>
-                          </div>
-                          <div className="bg-slate-800 rounded-lg p-4 border border-green-500/30 text-center">
-                            <CheckCircle className="w-6 h-6 text-green-400 mx-auto mb-2" />
-                            <p className="text-xs text-slate-400 mb-1">Security</p>
-                            <p className="font-semibold text-green-400">VALIDATED</p>
-                          </div>
-                          <div className="bg-slate-800 rounded-lg p-4 border border-green-500/30 text-center">
-                            <CheckCircle className="w-6 h-6 text-green-400 mx-auto mb-2" />
-                            <p className="text-xs text-slate-400 mb-1">Compliance</p>
-                            <p className="font-semibold text-green-400">APPROVED</p>
-                          </div>
-                        </div>
+                            {/* Score Breakdown */}
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Test Coverage */}
+                              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-slate-400">Test Coverage</span>
+                                  <span className={`text-sm font-semibold ${
+                                    coverageScore >= 90 ? "text-green-400" : coverageScore >= 70 ? "text-yellow-400" : "text-red-400"
+                                  }`}>
+                                    {coverageScore}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${
+                                      coverageScore >= 90 ? "bg-green-400" : coverageScore >= 70 ? "bg-yellow-400" : "bg-red-400"
+                                    }`}
+                                    style={{ width: `${coverageScore}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1">Weight: 25%</p>
+                              </div>
 
-                        {/* Validation Checklist */}
-                        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                          <h4 className="text-sm font-semibold text-slate-300 mb-3">Validation Checklist</h4>
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-sm">
-                              <CheckCircle className="w-4 h-4 text-green-400" />
-                              <span className="text-slate-300">Unit tests generated and validated</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <CheckCircle className="w-4 h-4 text-green-400" />
-                              <span className="text-slate-300">Equivalence testing passed</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <CheckCircle className="w-4 h-4 text-green-400" />
-                              <span className="text-slate-300">Security vulnerabilities addressed</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <CheckCircle className="w-4 h-4 text-green-400" />
-                              <span className="text-slate-300">Code coverage ≥ 90%</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-sm">
-                              <CheckCircle className="w-4 h-4 text-green-400" />
-                              <span className="text-slate-300">Migration score ≥ 85%</span>
-                            </div>
-                          </div>
-                        </div>
+                              {/* Migration Confidence */}
+                              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-slate-400">Confidence</span>
+                                  <span className={`text-sm font-semibold ${
+                                    confidenceScore >= 85 ? "text-green-400" : confidenceScore >= 70 ? "text-yellow-400" : "text-red-400"
+                                  }`}>
+                                    {confidenceScore}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${
+                                      confidenceScore >= 85 ? "bg-green-400" : confidenceScore >= 70 ? "bg-yellow-400" : "bg-red-400"
+                                    }`}
+                                    style={{ width: `${confidenceScore}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1">Weight: 30%</p>
+                              </div>
 
-                        {/* Confidence Score */}
-                        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-300">Migration Confidence</span>
-                            <span className="font-semibold text-green-400">
-                              {typeof analysis?.migration_score?.confidence === "number" 
-                                ? analysis.migration_score.confidence 
-                                : parseInt(String(analysis?.migration_score?.confidence || "0").replace(/[^0-9]/g, "")) || 0}%
-                            </span>
+                              {/* Security Score */}
+                              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-slate-400">Security</span>
+                                  <span className={`text-sm font-semibold ${
+                                    securityScore >= 90 ? "text-green-400" : securityScore >= 70 ? "text-yellow-400" : "text-red-400"
+                                  }`}>
+                                    {securityScore}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${
+                                      securityScore >= 90 ? "bg-green-400" : securityScore >= 70 ? "bg-yellow-400" : "bg-red-400"
+                                    }`}
+                                    style={{ width: `${securityScore}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1">{securityIssues} issue(s) found</p>
+                              </div>
+
+                              {/* Code Quality */}
+                              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs text-slate-400">Code Quality</span>
+                                  <span className={`text-sm font-semibold ${
+                                    qualityScore >= 90 ? "text-green-400" : qualityScore >= 70 ? "text-yellow-400" : "text-red-400"
+                                  }`}>
+                                    {qualityScore}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${
+                                      qualityScore >= 90 ? "bg-green-400" : qualityScore >= 70 ? "bg-yellow-400" : "bg-red-400"
+                                    }`}
+                                    style={{ width: `${qualityScore}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-1">{issuesCount} issue(s) to fix</p>
+                              </div>
+                            </div>
+
+                            {/* Validation Checklist */}
+                            <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+                              <h4 className="text-sm font-semibold text-slate-300 mb-3">Validation Checklist</h4>
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${coverageScore >= 90 ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={coverageScore >= 90 ? "text-slate-300" : "text-yellow-300"}>
+                                    Test coverage ≥ 90%: {coverageScore}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${confidenceScore >= 85 ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={confidenceScore >= 85 ? "text-slate-300" : "text-yellow-300"}>
+                                    Migration confidence ≥ 85%: {confidenceScore}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${securityScore >= 90 ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={securityScore >= 90 ? "text-slate-300" : "text-yellow-300"}>
+                                    Security issues resolved: {securityIssues} remaining
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${qualityScore >= 90 ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={qualityScore >= 90 ? "text-slate-300" : "text-yellow-300"}>
+                                    Code issues addressed: {issuesCount} remaining
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                  <CheckCircle className={`w-4 h-4 ${isReady ? "text-green-400" : "text-yellow-400"}`} />
+                                  <span className={isReady ? "text-slate-300" : "text-yellow-300"}>
+                                    Overall readiness ≥ 85%: {overallScore}%
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Recommendations */}
+                            {!isReady && (
+                              <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4">
+                                <h4 className="text-sm font-semibold text-amber-400 mb-2">Recommendations to Reach 100%</h4>
+                                <ul className="text-xs text-slate-300 space-y-1">
+                                  {coverageScore < 90 && <li>• Increase test coverage by {90 - coverageScore}%</li>}
+                                  {confidenceScore < 85 && <li>• Improve migration confidence by {85 - confidenceScore}%</li>}
+                                  {securityScore < 90 && <li>• Address {securityIssues} security issue(s)</li>}
+                                  {qualityScore < 90 && <li>• Fix {issuesCount} code issue(s)</li>}
+                                </ul>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
