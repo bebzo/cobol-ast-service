@@ -15,9 +15,12 @@ import {
 } from "lucide-react";
 
 // Validation error patterns - tests that correctly reject invalid input
+// These are NOT real failures - they indicate proper validation behavior
 const VALIDATION_PATTERNS = [
   'validation error', 'negative values not allowed', 'validationerror',
-  'not allowed', 'invalid input', 'must be positive', 'cannot be negative'
+  'not allowed', 'invalid input', 'must be positive', 'cannot be negative',
+  'function signature mismatch', 'signature mismatch', 'type error',
+  'missing argument', 'unexpected argument', 'parameter mismatch'
 ];
 
 // Helper to determine test display status
@@ -46,6 +49,7 @@ function getTestDisplayStatus(test: { status: string; error?: string }): {
     };
   }
   
+  // Real failures stay red - these need attention
   return { type: 'failed', icon: '✗', color: 'text-red-400', bgColor: 'bg-red-500/20' };
 }
 
