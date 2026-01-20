@@ -3626,64 +3626,16 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                           <div className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded-full">✓ Fixed</div>
                           <p className="text-2xl font-bold text-green-400 tabular-nums">0</p>
                           <p className="text-xs text-slate-400 mt-1">Issues</p>
-                          <p className="text-[10px] text-green-400">Auto-corrected</p>
                         </>
                       ) : (
                         <>
                           <p className="text-2xl font-bold text-red-400 tabular-nums">{activeCount}</p>
                           <p className="text-xs text-slate-400 mt-1">Issues</p>
-                          <p className="text-[10px] text-red-400">Needs review</p>
                         </>
                       );
                     })()}
                   </div>
                 </Tooltip>
-                
-                {/* Security Score - Full Report */}
-                {(() => {
-                  const rawWarnings = analysis.security_warnings || [];
-                  const warnings = rawWarnings.filter((w): w is SecurityWarning => typeof w && w !== null && typeof w === 'object');
-                  const activeIssues = warnings.filter((w) => 
-                    w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM'
-                  );
-                  const fixedIssues = warnings.filter((w) => 
-                    w.severity === 'INFO' || w.severity === 'LOW'
-                  );
-                  const summaryItem = warnings.find((w) => w.summary);
-                  const score = summaryItem?.summary?.score || (activeIssues.length === 0 ? 100 : Math.max(0, 100 - activeIssues.length * 15));
-                  const grade = score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'D';
-                  const isSecure = activeIssues.length === 0;
-                  
-                  return (
-                    <div className={`rounded-lg p-3 text-center ${
-                      isSecure 
-                        ? 'bg-green-500/10 border border-green-500/30' 
-                        : 'bg-red-500/10 border border-red-500/30'
-                    }`}>
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mx-auto ${
-                        isSecure ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        {score}
-                      </div>
-                      <p className={`text-sm font-bold mt-2 ${isSecure ? 'text-green-400' : 'text-red-400'}`}>
-                        Security Score: {score}/100 (Grade {grade})
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        {isSecure 
-                          ? `${fixedIssues.length} issues auto-remediated`
-                          : `${activeIssues.length} issue${activeIssues.length > 1 ? 's' : ''} require attention`
-                        }
-                      </p>
-                      <div className={`mt-2 px-2 py-1 rounded text-xs font-bold inline-block ${
-                        isSecure 
-                          ? 'bg-green-500/20 text-green-400' 
-                          : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        {isSecure ? '✓ Secure' : '⚠ Action Required'}
-                      </div>
-                    </div>
-                  );
-                })()}
                 
                 {/* Confidence */}
                 <Tooltip content={METRIC_TOOLTIPS.confidence.content} title={METRIC_TOOLTIPS.confidence.title}>
