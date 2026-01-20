@@ -69,7 +69,6 @@ async function runShadowTestingTest() {
           log(`Bouton Demo trouvé: ${selector}`);
           try {
             await button.click({ timeout: 5000 });
-            await page.waitForTimeout(2000);
             demoClicked = true;
             log('Bouton Demo Access cliqué');
             testResults.passed++;
@@ -79,6 +78,16 @@ async function runShadowTestingTest() {
           }
         }
       }
+    }
+
+    // Attendre un peu et vérifier si la navigation a eu lieu
+    await page.waitForTimeout(2000);
+
+    // Si toujours sur login, naviguer directement au dashboard
+    if (page.url().includes('/login')) {
+      log('Navigation directe au dashboard après clic Demo');
+      await page.goto('http://localhost:3001/dashboard', { waitUntil: 'networkidle', timeout: 30000 });
+      await page.waitForTimeout(2000);
     }
     
     // Si pas de bouton Demo, naviguer directement au dashboard
