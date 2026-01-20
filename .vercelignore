@@ -1,8 +1,35 @@
+# Exclude large directories and build artifacts
+node_modules/
+.next/
+out/
+dist/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Exclude screenshots and other large directories
+screenshots/
+user_input_files/
+shell_output_save/
+autres_fichiers_racines.7z/
+preview-out/
+output/
+
+# Exclude other project directories
+codeswitch/
+cobol-ast-service/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test files
 tmp/
 .tmp/
 test-results/
-screenshots/
-preview-out/
-shell_output_save/
 *.spec.ts
 *.test.ts
