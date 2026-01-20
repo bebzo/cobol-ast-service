@@ -1,0 +1,474 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. BANQUE-SYSTEME.
+       AUTHOR. ENTERPRISE-BANK.
+       DATE-WRITTEN. 1995-06-15.
+       SECURITY. LEVEL-3 ENCRYPTED.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-390.
+       OBJECT-COMPUTER. IBM-390.
+       SPECIAL-NAMES.
+           CURRENCY SIGN IS '€'
+           DECIMAL-POINT IS COMMA.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT CLIENT-FILE ASSIGN TO DA-CLIENT
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS RANDOM
+               RECORD KEY IS CLIENT-ID
+               FILE STATUS IS WS-FILE-STATUS.
+
+           SELECT TRANSACTION-FILE ASSIGN TO DA-TRANS
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS WS-TRANS-STATUS.
+
+           SELECT AUDIT-FILE ASSIGN TO DA-AUDIT
+               ORGANIZATION IS LINE SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL.
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD CLIENT-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 200 CHARACTERS
+           DATA RECORD IS CLIENT-RECORD.
+       01 CLIENT-RECORD.
+           05 CLIENT-ID                PIC 9(10).
+           05 CLIENT-NAME              PIC X(30).
+           05 CLIENT-SURNAME           PIC X(30).
+           05 CLIENT-ACCOUNT-NUM       PIC 9(16).
+           05 CLIENT-BALANCE           PIC 9(10)V99.
+           05 CLIENT-ACCOUNT-TYPE      PIC X(2).
+               88 CHECKING-ACCOUNT     VALUE 'CK'.
+               88 SAVINGS-ACCOUNT      VALUE 'SV'.
+               88 BUSINESS-ACCOUNT     VALUE 'BU'.
+           05 CLIENT-RISK-LEVEL        PIC X.
+               88 LOW-RISK             VALUE 'L'.
+               88 MEDIUM-RISK          VALUE 'M'.
+               88 HIGH-RISK            VALUE 'H'.
+           05 CLIENT-LAST-TRANS-DATE   PIC 9(8).  *> YYYYMMDD
+           05 CLIENT-STATUS            PIC X.
+               88 ACTIVE-STATUS        VALUE 'A'.
+               88 SUSPENDED-STATUS     VALUE 'S'.
+               88 CLOSED-STATUS        VALUE 'C'.
+           05 CLIENT-PIN               PIC 9(4).
+           05 CLIENT-FRAUD-FLAG        PIC X.
+               88 FRAUD-DETECTED       VALUE 'Y'.
+               88 NO-FRAUD             VALUE 'N'.
+           05 FILLER                   PIC X(85).
+
+       FD TRANSACTION-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 150 CHARACTERS.
+       01 TRANSACTION-RECORD.
+           05 TRANS-ID                 PIC 9(12).
+           05 TRANS-ACCOUNT-NUM        PIC 9(16).
+           05 TRANS-TYPE               PIC X(3).
+               88 TRANS-DEPOSIT        VALUE 'DEP'.
+               88 TRANS-WITHDRAWAL     VALUE 'WDR'.
+               88 TRANS-TRANSFER       VALUE 'TRF'.
+               88 TRANS-FEE            VALUE 'FEE'.
+               88 TRANS-INTEREST       VALUE 'INT'.
+           05 TRANS-AMOUNT             PIC 9(8)V99.
+           05 TRANS-DATE               PIC 9(8).
+           05 TRANS-TIME               PIC 9(6).
+           05 TRANS-DESCRIPTION        PIC X(50).
+           05 TRANS-AUTH-CODE          PIC X(10).
+           05 TRANS-STATUS             PIC X.
+               88 TRANS-PENDING        VALUE 'P'.
+               88 TRANS-COMPLETED      VALUE 'C'.
+               88 TRANS-FAILED         VALUE 'F'.
+               88 TRANS-REVERSED       VALUE 'R'.
+           05 FILLER                   PIC X(35).
+
+       FD AUDIT-FILE
+           LABEL RECORDS ARE STANDARD.
+       01 AUDIT-RECORD                 PIC X(200).
+
+       WORKING-STORAGE SECTION.
+
+       01 WS-FLAGS.
+           05 WS-FILE-STATUS           PIC XX.
+               88 FILE-OK              VALUE '00'.
+               88 FILE-EOF             VALUE '10'.
+               88 FILE-NOT-FOUND       VALUE '35'.
+               88 FILE-INVALID-KEY     VALUE '23'.
+           05 WS-TRANS-STATUS          PIC XX.
+           05 WS-EOF-FLAG              PIC X VALUE 'N'.
+               88 EOF-REACHED          VALUE 'Y'.
+               88 NOT-EOF              VALUE 'N'.
+           05 WS-VALIDATION-FLAG       PIC X.
+               88 VALID-DATA           VALUE 'Y'.
+               88 INVALID-DATA         VALUE 'N'.
+           05 WS-SECURITY-FLAG         PIC X.
+               88 SECURITY-PASS        VALUE 'P'.
+               88 SECURITY-FAIL        VALUE 'F'.
+
+       01 WS-CALCULATION-FIELDS.
+           05 WS-NEW-BALANCE           PIC 9(10)V99.
+           05 WS-INTEREST-RATE         PIC 9V999 VALUE 0.025.
+           05 WS-FEE-AMOUNT            PIC 9(5)V99.
+           05 WS-DAILY-LIMIT           PIC 9(7)V99 VALUE 5000.00.
+           05 WS-MONTHLY-LIMIT         PIC 9(8)V99 VALUE 20000.00.
+           05 WS-TRANSACTION-COUNT     PIC 9(3) VALUE 0.
+           05 WS-MONTHLY-TOTAL         PIC 9(8)V99 VALUE 0.
+           05 WS-TAX-RATE              PIC 9V999 VALUE 0.196.
+           05 WS-TAX-AMOUNT            PIC 9(8)V99.
+
+       01 WS-DATE-TIME.
+           05 WS-CURRENT-DATE.
+               10 WS-YEAR              PIC 9(4).
+               10 WS-MONTH             PIC 9(2).
+               10 WS-DAY               PIC 9(2).
+           05 WS-CURRENT-TIME.
+               10 WS-HOUR              PIC 9(2).
+               10 WS-MINUTE            PIC 9(2).
+               10 WS-SECOND            PIC 9(2).
+
+       01 WS-CLIENT-DATA.
+           05 WS-INPUT-ACCOUNT         PIC 9(16).
+           05 WS-INPUT-PIN             PIC 9(4).
+           05 WS-INPUT-AMOUNT          PIC 9(8)V99.
+           05 WS-TARGET-ACCOUNT        PIC 9(16).
+           05 WS-RETRY-COUNT           PIC 9(2) VALUE 0.
+           05 WS-MAX-RETRIES           PIC 9(2) VALUE 3.
+
+       01 WS-SECURITY-FIELDS.
+           05 WS-ENCRYPTED-PIN         PIC X(16).
+           05 WS-SESSION-TOKEN         PIC X(32).
+           05 WS-AUTH-ATTEMPTS         PIC 9(2) VALUE 0.
+           05 WS-LAST-LOGIN-TIME       PIC 9(14).
+           05 WS-IP-ADDRESS            PIC X(15).
+
+       01 WS-AUDIT-DATA.
+           05 WS-AUDIT-MESSAGE         PIC X(100).
+           05 WS-AUDIT-USER            PIC X(20).
+           05 WS-AUDIT-TIMESTAMP       PIC 9(14).
+           05 WS-AUDIT-SEVERITY        PIC X.
+               88 AUDIT-INFO           VALUE 'I'.
+               88 AUDIT-WARNING        VALUE 'W'.
+               88 AUDIT-ERROR          VALUE 'E'.
+               88 AUDIT-SECURITY       VALUE 'S'.
+
+       01 WS-CONSTANTS.
+           05 WS-MAX-DAILY-WITHDRAWAL  PIC 9(7)V99 VALUE 5000.00.
+           05 WS-MIN-BALANCE           PIC 9(5)V99 VALUE 100.00.
+           05 WS-FEE-PERCENTAGE        PIC 9V999 VALUE 0.015.
+           05 WS-FIXED-FEE             PIC 9(3)V99 VALUE 5.00.
+
+       PROCEDURE DIVISION.
+       
+       MAIN-PROCEDURE.
+           PERFORM INITIALIZE-PROGRAM
+           PERFORM AUTHENTICATE-USER
+           IF SECURITY-PASS
+               PERFORM PROCESS-TRANSACTIONS
+               PERFORM CALCULATE-INTEREST
+               PERFORM APPLY-FEES
+               PERFORM GENERATE-REPORTS
+           ELSE
+               PERFORM LOG-SECURITY-VIOLATION
+           END-IF
+           PERFORM CLOSE-FILES
+           STOP RUN.
+
+       INITIALIZE-PROGRAM.
+           OPEN I-O CLIENT-FILE
+           OPEN INPUT TRANSACTION-FILE
+           OPEN OUTPUT AUDIT-FILE
+           MOVE FUNCTION CURRENT-DATE TO WS-CURRENT-DATE
+           MOVE 'SYSTEM' TO WS-AUDIT-USER
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Program started' 'I'.
+
+       AUTHENTICATE-USER.
+           DISPLAY "Enter account number: "
+           ACCEPT WS-INPUT-ACCOUNT
+           DISPLAY "Enter PIN: "
+           ACCEPT WS-INPUT-PIN
+           
+           MOVE WS-INPUT-ACCOUNT TO CLIENT-ID
+           READ CLIENT-FILE
+               KEY IS CLIENT-ID
+               INVALID KEY
+                   MOVE 'N' TO WS-VALIDATION-FLAG
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Invalid account number' 'S'
+               NOT INVALID KEY
+                   IF CLIENT-PIN = WS-INPUT-PIN
+                       IF NOT FRAUD-DETECTED
+                           IF ACTIVE-STATUS
+                               MOVE 'P' TO WS-SECURITY-FLAG
+                               ADD 1 TO WS-AUTH-ATTEMPTS
+                               PERFORM LOG-AUDIT-ENTRY
+                                   USING 'Authentication successful' 'I'
+                           ELSE
+                               MOVE 'F' TO WS-SECURITY-FLAG
+                               PERFORM LOG-AUDIT-ENTRY
+                                   USING 'Account suspended' 'S'
+                           END-IF
+                       ELSE
+                           MOVE 'F' TO WS-SECURITY-FLAG
+                           PERFORM LOG-AUDIT-ENTRY
+                               USING 'Fraud detected' 'S'
+                       END-IF
+                   ELSE
+                       ADD 1 TO WS-RETRY-COUNT
+                       IF WS-RETRY-COUNT > WS-MAX-RETRIES
+                           MOVE 'Y' TO CLIENT-FRAUD-FLAG
+                           REWRITE CLIENT-RECORD
+                           PERFORM LOG-AUDIT-ENTRY
+                               USING 'Too many PIN attempts - Fraud flagged' 'S'
+                       END-IF
+                       MOVE 'F' TO WS-SECURITY-FLAG
+                   END-IF
+           END-READ.
+
+       PROCESS-TRANSACTIONS.
+           MOVE 'N' TO WS-EOF-FLAG
+           PERFORM UNTIL EOF-REACHED
+               READ TRANSACTION-FILE
+                   AT END
+                       MOVE 'Y' TO WS-EOF-FLAG
+                   NOT AT END
+                       PERFORM VALIDATE-TRANSACTION
+                       IF VALID-DATA
+                           PERFORM EXECUTE-TRANSACTION
+                       ELSE
+                           PERFORM LOG-AUDIT-ENTRY
+                               USING 'Invalid transaction' 'W'
+                       END-IF
+               END-READ
+           END-PERFORM.
+
+       VALIDATE-TRANSACTION.
+           MOVE 'Y' TO WS-VALIDATION-FLAG
+           
+           *> Vérification du montant
+           IF TRANS-AMOUNT <= 0
+               MOVE 'N' TO WS-VALIDATION-FLAG
+           END-IF
+           
+           *> Vérification des limites
+           IF TRANS-WITHDRAWAL
+               IF TRANS-AMOUNT > WS-DAILY-LIMIT
+                   MOVE 'N' TO WS-VALIDATION-FLAG
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Daily limit exceeded' 'W'
+               END-IF
+               ADD TRANS-AMOUNT TO WS-MONTHLY-TOTAL
+               IF WS-MONTHLY-TOTAL > WS-MONTHLY-LIMIT
+                   MOVE 'N' TO WS-VALIDATION-FLAG
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Monthly limit exceeded' 'W'
+               END-IF
+           END-IF
+           
+           *> Vérification de la date
+           IF TRANS-DATE > WS-CURRENT-DATE
+               MOVE 'N' TO WS-VALIDATION-FLAG
+           END-IF.
+
+       EXECUTE-TRANSACTION.
+           EVALUATE TRUE
+               WHEN TRANS-DEPOSIT
+                   PERFORM PROCESS-DEPOSIT
+               WHEN TRANS-WITHDRAWAL
+                   PERFORM PROCESS-WITHDRAWAL
+               WHEN TRANS-TRANSFER
+                   PERFORM PROCESS-TRANSFER
+               WHEN TRANS-FEE
+                   PERFORM PROCESS-FEE
+               WHEN TRANS-INTEREST
+                   PERFORM PROCESS-INTEREST
+           END-EVALUATE
+           
+           ADD 1 TO WS-TRANSACTION-COUNT
+           PERFORM UPDATE-CLIENT-RECORD.
+
+       PROCESS-DEPOSIT.
+           COMPUTE WS-NEW-BALANCE = 
+               CLIENT-BALANCE + TRANS-AMOUNT
+           MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+           MOVE 'C' TO TRANS-STATUS
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Deposit processed successfully' 'I'.
+
+       PROCESS-WITHDRAWAL.
+           IF CLIENT-BALANCE >= TRANS-AMOUNT
+               COMPUTE WS-NEW-BALANCE = 
+                   CLIENT-BALANCE - TRANS-AMOUNT
+               IF WS-NEW-BALANCE >= WS-MIN-BALANCE
+                   MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+                   MOVE 'C' TO TRANS-STATUS
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Withdrawal processed' 'I'
+               ELSE
+                   MOVE 'F' TO TRANS-STATUS
+                   PERFORM LOG-AUDIT-ENTRY
+                       USING 'Minimum balance violation' 'W'
+               END-IF
+           ELSE
+               MOVE 'F' TO TRANS-STATUS
+               PERFORM LOG-AUDIT-ENTRY
+                   USING 'Insufficient funds' 'W'
+           END-IF.
+
+       PROCESS-TRANSFER.
+           MOVE TRANS-AMOUNT TO WS-INPUT-AMOUNT
+           MOVE TRANS-DESCRIPTION(1:16) TO WS-TARGET-ACCOUNT
+           
+           PERFORM DEBIT-SOURCE-ACCOUNT
+           IF TRANS-COMPLETED
+               PERFORM CREDIT-TARGET-ACCOUNT
+           END-IF.
+
+       DEBIT-SOURCE-ACCOUNT.
+           IF CLIENT-BALANCE >= TRANS-AMOUNT
+               COMPUTE WS-NEW-BALANCE = 
+                   CLIENT-BALANCE - TRANS-AMOUNT
+               MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+               MOVE 'C' TO TRANS-STATUS
+           ELSE
+               MOVE 'F' TO TRANS-STATUS
+           END-IF.
+
+       CREDIT-TARGET-ACCOUNT.
+           MOVE WS-TARGET-ACCOUNT TO CLIENT-ID
+           READ CLIENT-FILE
+               INVALID KEY
+                   MOVE 'R' TO TRANS-STATUS  *> Reverse transaction
+                   PERFORM REVERSE-TRANSACTION
+               NOT INVALID KEY
+                   COMPUTE WS-NEW-BALANCE = 
+                       CLIENT-BALANCE + TRANS-AMOUNT
+                   MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+                   REWRITE CLIENT-RECORD
+           END-READ.
+
+       REVERSE-TRANSACTION.
+           MOVE WS-INPUT-ACCOUNT TO CLIENT-ID
+           READ CLIENT-FILE
+           COMPUTE WS-NEW-BALANCE = 
+               CLIENT-BALANCE + TRANS-AMOUNT
+           MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+           REWRITE CLIENT-RECORD
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Transaction reversed' 'W'.
+
+       PROCESS-FEE.
+           COMPUTE WS-FEE-AMOUNT = 
+               TRANS-AMOUNT * WS-FEE-PERCENTAGE
+           IF WS-FEE-AMOUNT < WS-FIXED-FEE
+               MOVE WS-FIXED-FEE TO WS-FEE-AMOUNT
+           END-IF
+           
+           COMPUTE WS-NEW-BALANCE = 
+               CLIENT-BALANCE - WS-FEE-AMOUNT
+           MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Fee applied' 'I'.
+
+       PROCESS-INTEREST.
+           COMPUTE WS-NEW-BALANCE = 
+               CLIENT-BALANCE + TRANS-AMOUNT
+           MOVE WS-NEW-BALANCE TO CLIENT-BALANCE
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Interest applied' 'I'.
+
+       CALCULATE-INTEREST.
+           EVALUATE TRUE
+               WHEN CHECKING-ACCOUNT
+                   COMPUTE WS-INTEREST-RATE = 0.005
+               WHEN SAVINGS-ACCOUNT
+                   COMPUTE WS-INTEREST-RATE = 0.015
+               WHEN BUSINESS-ACCOUNT
+                   COMPUTE WS-INTEREST-RATE = 0.008
+           END-EVALUATE
+           
+           IF CLIENT-BALANCE > 10000.00
+               COMPUTE WS-INTEREST-RATE = 
+                   WS-INTEREST-RATE + 0.002
+           END-IF
+           
+           COMPUTE TRANS-AMOUNT = 
+               CLIENT-BALANCE * WS-INTEREST-RATE / 365 * 30
+           
+           *> Calcul de la taxe
+           COMPUTE WS-TAX-AMOUNT = 
+               TRANS-AMOUNT * WS-TAX-RATE
+           COMPUTE TRANS-AMOUNT = 
+               TRANS-AMOUNT - WS-TAX-AMOUNT
+           
+           PERFORM PROCESS-INTEREST.
+
+       APPLY-FEES.
+           IF CLIENT-BALANCE < 500.00
+               MOVE 2.00 TO WS-FEE-AMOUNT
+               PERFORM PROCESS-FEE
+           END-IF
+           
+           IF WS-TRANSACTION-COUNT > 10
+               MOVE 0.50 TO WS-FEE-AMOUNT
+               COMPUTE WS-FEE-AMOUNT = 
+                   WS-FEE-AMOUNT * (WS-TRANSACTION-COUNT - 10)
+               PERFORM PROCESS-FEE
+           END-IF.
+
+       GENERATE-REPORTS.
+           DISPLAY "=== TRANSACTION REPORT ==="
+           DISPLAY "Account: " CLIENT-ACCOUNT-NUM
+           DISPLAY "Name: " CLIENT-NAME " " CLIENT-SURNAME
+           DISPLAY "Starting balance: " CLIENT-BALANCE
+           DISPLAY "Transactions processed: " WS-TRANSACTION-COUNT
+           DISPLAY "Final balance: " CLIENT-BALANCE
+           DISPLAY "=========================="
+           
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Report generated' 'I'.
+
+       UPDATE-CLIENT-RECORD.
+           MOVE WS-CURRENT-DATE TO CLIENT-LAST-TRANS-DATE
+           
+           *> Mise à jour du niveau de risque
+           IF WS-TRANSACTION-COUNT > 20
+               MOVE 'H' TO CLIENT-RISK-LEVEL
+           ELSE IF WS-TRANSACTION-COUNT > 10
+               MOVE 'M' TO CLIENT-RISK-LEVEL
+           ELSE
+               MOVE 'L' TO CLIENT-RISK-LEVEL
+           END-IF
+           
+           REWRITE CLIENT-RECORD
+           IF NOT FILE-OK
+               PERFORM LOG-AUDIT-ENTRY
+                   USING 'Failed to update client record' 'E'
+           END-IF.
+
+       LOG-AUDIT-ENTRY.
+           USING WS-AUDIT-MESSAGE WS-AUDIT-SEVERITY.
+           MOVE FUNCTION CURRENT-DATE TO WS-AUDIT-TIMESTAMP
+           MOVE SPACES TO AUDIT-RECORD
+           STRING WS-AUDIT-TIMESTAMP ' | '
+                  WS-AUDIT-USER ' | '
+                  WS-AUDIT-SEVERITY ' | '
+                  WS-AUDIT-MESSAGE
+                  INTO AUDIT-RECORD
+           WRITE AUDIT-RECORD.
+
+       LOG-SECURITY-VIOLATION.
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Security violation detected' 'S'
+           DISPLAY "SECURITY VIOLATION - ACCESS DENIED"
+           DISPLAY "This incident has been logged.".
+
+       CLOSE-FILES.
+           CLOSE CLIENT-FILE
+           CLOSE TRANSACTION-FILE
+           CLOSE AUDIT-FILE
+           PERFORM LOG-AUDIT-ENTRY
+               USING 'Program terminated' 'I'.

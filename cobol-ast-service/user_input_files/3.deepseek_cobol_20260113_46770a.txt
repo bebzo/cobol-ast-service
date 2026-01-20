@@ -1,0 +1,1099 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. ULTIMATE-BANKING-SYSTEM.
+       AUTHOR. ENTERPRISE-ARCHITECT.
+       DATE-WRITTEN. 1987-11-30.
+       DATE-COMPILED. 2024-01-15.
+       SECURITY. LEVEL-4 ENCRYPTED-AUDIT.
+       REMARKS. CRITICAL FINANCIAL PROCESSING SYSTEM.
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-Z15 WITH DEBUGGING MODE.
+       OBJECT-COMPUTER. IBM-Z15.
+       SPECIAL-NAMES.
+           CURRENCY SIGN IS '€'
+           DECIMAL-POINT IS COMMA
+           CLASS VALID-CHARACTERS IS 
+               "A" THRU "Z", "a" THRU "z", "0" THRU "9", "-", " "
+           SWITCH-1 IS MAINTENANCE-SWITCH
+               ON STATUS IS MAINTENANCE-MODE
+               OFF STATUS IS PRODUCTION-MODE
+           SWITCH-2 IS AUDIT-SWITCH
+               ON STATUS IS AUDIT-ENABLED.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT CUSTOMER-MASTER-FILE 
+               ASSIGN TO DA-CUSTMAS
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS CM-CUSTOMER-ID
+               ALTERNATE RECORD KEY IS CM-ACCOUNT-NUMBER
+                   WITH DUPLICATES
+               ALTERNATE RECORD KEY IS CM-SSN
+                   WITH DUPLICATES
+               FILE STATUS IS CM-STATUS.
+
+           SELECT TRANSACTION-FILE
+               ASSIGN TO DA-TRANS
+               ORGANIZATION IS RELATIVE
+               ACCESS MODE IS RANDOM
+               RELATIVE KEY IS TRANS-KEY
+               FILE STATUS IS TRANS-STATUS.
+
+           SELECT AUDIT-TRAIL-FILE
+               ASSIGN TO DA-AUDIT
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS AUDIT-STATUS.
+
+           SELECT TEMPORARY-WORK-FILE
+               ASSIGN TO DA-TEMP
+               ORGANIZATION IS LINE SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL.
+
+           SELECT REPORT-FILE
+               ASSIGN TO UR-SYSPRINT
+               ORGANIZATION IS LINE SEQUENTIAL.
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD CUSTOMER-MASTER-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 512 CHARACTERS
+           DATA RECORD IS CUSTOMER-RECORD
+           RECORDING MODE IS F.
+       01 CUSTOMER-RECORD.
+           05 CM-CUSTOMER-ID            PIC 9(10).
+           05 CM-NAME.
+               10 CM-LAST-NAME          PIC X(30).
+               10 CM-FIRST-NAME         PIC X(20).
+               10 CM-MIDDLE-INITIAL     PIC X.
+           05 CM-ADDRESS.
+               10 CM-STREET             PIC X(40).
+               10 CM-CITY               PIC X(30).
+               10 CM-STATE              PIC XX.
+               10 CM-ZIP                PIC 9(5).
+               10 CM-ZIP-PLUS-4         PIC 9(4).
+           05 CM-CONTACT.
+               10 CM-PHONE              PIC 9(10).
+               10 CM-EMAIL              PIC X(50).
+           05 CM-ACCOUNT-INFO.
+               10 CM-ACCOUNT-NUMBER     PIC 9(16).
+               10 CM-ACCOUNT-TYPE       PIC XX.
+                   88 CHECKING-ACCOUNT  VALUE 'CK'.
+                   88 SAVINGS-ACCOUNT   VALUE 'SV'.
+                   88 MONEY-MARKET      VALUE 'MM'.
+                   88 CD-ACCOUNT        VALUE 'CD'.
+                   88 IRA-ACCOUNT       VALUE 'IR'.
+               10 CM-ACCOUNT-BALANCE    PIC S9(9)V99
+                                        SIGN LEADING SEPARATE.
+               10 CM-AVAILABLE-BALANCE  PIC S9(9)V99.
+               10 CM-CREDIT-LIMIT       PIC S9(7)V99.
+               10 CM-INTEREST-RATE      PIC 9V9(5).
+               10 CM-LAST-INTEREST-DATE PIC 9(8).
+           05 CM-RISK-ASSESSMENT.
+               10 CM-RISK-LEVEL         PIC X.
+                   88 LOW-RISK          VALUE 'L'.
+                   88 MEDIUM-RISK       VALUE 'M'.
+                   88 HIGH-RISK         VALUE 'H'.
+                   88 CRITICAL-RISK     VALUE 'C'.
+               10 CM-RISK-SCORE         PIC 9(3).
+               10 CM-FRAUD-FLAGS        PIC X(8).
+                   88 SUSPICIOUS-ACTIVITY VALUE 'Y' THRU 'Z'.
+               10 CM-LAST-RISK-REVIEW   PIC 9(8).
+           05 CM-SECURITY-DATA.
+               10 CM-PIN-HASH           PIC X(64).
+               10 CM-PASSWORD-HASH      PIC X(128).
+               10 CM-SECURITY-QUESTIONS.
+                   15 CM-QUESTION-1     PIC X(50).
+                   15 CM-ANSWER-1-HASH  PIC X(64).
+                   15 CM-QUESTION-2     PIC X(50).
+                   15 CM-ANSWER-2-HASH  PIC X(64).
+               10 CM-LAST-LOGIN         PIC 9(14).
+               10 CM-LOGIN-ATTEMPTS     PIC 9(2).
+               10 CM-ACCOUNT-LOCKED     PIC X.
+                   88 ACCOUNT-ACTIVE    VALUE 'N'.
+                   88 ACCOUNT-LOCKED    VALUE 'Y'.
+               10 CM-MFA-ENABLED        PIC X.
+           05 CM-TAX-INFORMATION.
+               10 CM-TAX-ID             PIC X(11).
+               10 CM-WITHHOLDING-RATE   PIC 9V9(3).
+               10 CM-LAST-TAX-REPORT    PIC 9(8).
+           05 FILLER                    PIC X(47).
+
+       FD TRANSACTION-FILE
+           LABEL RECORDS ARE STANDARD
+           RECORD CONTAINS 256 CHARACTERS.
+       01 TRANSACTION-RECORD.
+           05 TRANS-KEY                 PIC 9(12).
+           05 TRANS-DETAILS.
+               10 TRANS-REFERENCE       PIC X(20).
+               10 TRANS-TYPE            PIC XXX.
+                   88 TRANS-DEPOSIT     VALUE 'DEP'.
+                   88 TRANS-WITHDRAWAL  VALUE 'WDR'.
+                   88 TRANS-TRANSFER    VALUE 'TRF'.
+                   88 TRANS-PAYMENT     VALUE 'PAY'.
+                   88 TRANS-FEE         VALUE 'FEE'.
+                   88 TRANS-INTEREST    VALUE 'INT'.
+                   88 TRANS-ADJUSTMENT  VALUE 'ADJ'.
+                   88 TRANS-REVERSAL    VALUE 'REV'.
+               10 TRANS-AMOUNT          PIC S9(9)V99
+                                        SIGN LEADING SEPARATE.
+               10 TRANS-CURRENCY        PIC XXX.
+               10 TRANS-EXCHANGE-RATE   PIC 9(7)V9(8).
+               10 TRANS-DATE            PIC 9(8).
+               10 TRANS-TIME            PIC 9(6).
+               10 TRANS-DESCRIPTION     PIC X(100).
+               10 TRANS-STATUS          PIC X.
+                   88 TRANS-PENDING     VALUE 'P'.
+                   88 TRANS-COMPLETED   VALUE 'C'.
+                   88 TRANS-FAILED      VALUE 'F'.
+                   88 TRANS-HOLD        VALUE 'H'.
+                   88 TRANS-REVERSED    VALUE 'R'.
+               10 TRANS-AUTH-CODE       PIC X(20).
+               10 TRANS-CHANNEL         PIC X.
+                   88 CHANNEL-BRANCH    VALUE 'B'.
+                   88 CHANNEL-ATM       VALUE 'A'.
+                   88 CHANNEL-ONLINE    VALUE 'O'.
+                   88 CHANNEL-MOBILE    VALUE 'M'.
+               10 TRANS-IP-ADDRESS      PIC X(15).
+               10 TRANS-DEVICE-ID       PIC X(32).
+           05 TRANS-ACCOUNTS.
+               10 TRANS-SOURCE-ACCOUNT  PIC 9(16).
+               10 TRANS-TARGET-ACCOUNT  PIC 9(16).
+               10 TRANS-ROUTING-NUMBER  PIC 9(9).
+           05 FILLER                    PIC X(10).
+
+       FD AUDIT-TRAIL-FILE.
+       01 AUDIT-RECORD                  PIC X(200).
+
+       FD TEMPORARY-WORK-FILE.
+       01 WORK-RECORD                   PIC X(100).
+
+       FD REPORT-FILE.
+       01 REPORT-LINE                   PIC X(132).
+
+       WORKING-STORAGE SECTION.
+
+       01 WS-CONTROL-FIELDS.
+           05 WS-PROGRAM-STATUS         PIC X(2).
+               88 PROGRAM-OK            VALUE '00'.
+               88 PROGRAM-ERROR         VALUE '99'.
+           05 WS-TRANSACTION-COUNT      PIC 9(6) VALUE ZERO.
+           05 WS-TOTAL-AMOUNT           PIC S9(12)V99 VALUE ZERO.
+           05 WS-SUCCESS-COUNT          PIC 9(6) VALUE ZERO.
+           05 WS-FAILURE-COUNT          PIC 9(6) VALUE ZERO.
+           05 WS-CURRENT-DATE           PIC 9(8).
+           05 WS-CURRENT-TIME           PIC 9(6).
+           05 WS-BATCH-NUMBER           PIC 9(10).
+           05 WS-JOB-ID                 PIC X(20).
+
+       01 WS-FILE-STATUSES.
+           05 CM-STATUS                 PIC XX.
+               88 CM-SUCCESS            VALUE '00'.
+               88 CM-EOF                VALUE '10'.
+               88 CM-DUPLICATE          VALUE '22'.
+               88 CM-NOT-FOUND          VALUE '23'.
+               88 CM-INVALID-KEY        VALUE '24'.
+           05 TRANS-STATUS              PIC XX.
+           05 AUDIT-STATUS              PIC XX.
+
+       01 WS-CALCULATION-FIELDS.
+           05 WS-NEW-BALANCE            PIC S9(9)V99.
+           05 WS-INTEREST-AMOUNT        PIC S9(7)V99.
+           05 WS-FEE-AMOUNT             PIC S9(5)V99.
+           05 WS-TAX-AMOUNT             PIC S9(7)V99.
+           05 WS-NET-AMOUNT             PIC S9(9)V99.
+           05 WS-FOREIGN-AMOUNT         PIC S9(9)V99.
+           05 WS-DAILY-LIMIT            PIC S9(7)V99 VALUE 500000.
+           05 WS-MONTHLY-LIMIT          PIC S9(8)V99 VALUE 2000000.
+           05 WS-DAILY-TOTAL            PIC S9(9)V99 VALUE ZERO.
+           05 WS-MONTHLY-TOTAL          PIC S9(9)V99 VALUE ZERO.
+           05 WS-COMPOUND-FACTOR        PIC 9(9)V9(9).
+           05 WS-PRESENT-VALUE          PIC S9(12)V99.
+           05 WS-FUTURE-VALUE           PIC S9(12)V99.
+           05 WS-DAILY-RATE             PIC 9(3)V9(8).
+           05 WS-NET-INTEREST           PIC S9(9)V99.
+           05 WS-TOTAL-DEBIT            PIC S9(9)V99.
+
+       01 WS-INTEREST-CALCULATION.
+           05 WS-PRINCIPAL              PIC S9(9)V99.
+           05 WS-ANNUAL-RATE            PIC 9(3)V9(5).
+           05 WS-DAYS-ACCRUED           PIC 9(3).
+           05 WS-DAYS-IN-YEAR           PIC 9(3) VALUE 365.
+           05 WS-COMPOUNDING-PERIODS    PIC 9(2).
+           05 WS-EFFECTIVE-RATE         PIC 9(3)V9(8).
+
+       01 WS-SECURITY-CONTROLS.
+           05 WS-ENCRYPTION-KEY         PIC X(32).
+           05 WS-SESSION-TOKEN          PIC X(64).
+           05 WS-AUTH-LEVEL             PIC 9.
+               88 AUTH-NONE             VALUE 0.
+               88 AUTH-BASIC            VALUE 1.
+               88 AUTH-ADVANCED         VALUE 2.
+               88 AUTH-ADMIN            VALUE 3.
+           05 WS-IP-WHITELIST OCCURS 50 TIMES
+                                        PIC X(15).
+           05 WS-IP-WHITELIST-COUNT     PIC 9(2) VALUE 10.
+           05 WS-FRAUD-SCORE            PIC 9(3).
+           05 WS-RISK-THRESHOLD         PIC 9(3) VALUE 750.
+           05 WS-INDEX                  PIC 9(3).
+
+       01 WS-REPORT-DATA.
+           05 WS-REPORT-DATE            PIC X(10).
+           05 WS-REPORT-TIME            PIC X(8).
+           05 WS-REPORT-TITLE           PIC X(50).
+           05 WS-REPORT-HEADER          PIC X(132).
+           05 WS-REPORT-DETAIL          PIC X(132).
+           05 WS-REPORT-TOTAL           PIC X(132).
+           05 WS-PAGE-COUNT             PIC 9(3) VALUE 1.
+           05 WS-LINE-COUNT             PIC 9(2) VALUE 0.
+           05 WS-LINES-PER-PAGE         PIC 9(2) VALUE 55.
+
+       01 WS-TABLES.
+           05 WS-INTEREST-RATE-TABLE.
+               10 FILLER                PIC X(20) 
+                   VALUE 'CK001.002500.000000'.
+               10 FILLER                PIC X(20)
+                   VALUE 'SV002.015000.000000'.
+               10 FILLER                PIC X(20)
+                   VALUE 'MM003.020000.000000'.
+               10 FILLER                PIC X(20)
+                   VALUE 'CD004.030000.000000'.
+               10 FILLER                PIC X(20)
+                   VALUE 'IR005.025000.000000'.
+           05 WS-RATE-TABLE REDEFINES WS-INTEREST-RATE-TABLE.
+               10 WS-RATE-ENTRY OCCURS 5 TIMES
+                  INDEXED BY RATE-INDEX.
+                   15 WS-ACCOUNT-CODE   PIC XXX.
+                   15 WS-BASE-RATE      PIC 9(3)V9(6).
+                   15 WS-PREMIUM-RATE   PIC 9(3)V9(6).
+
+           05 WS-FEE-SCHEDULE.
+               10 FILLER                PIC X(30)
+                   VALUE 'WDR010.005000.500000.00'.
+               10 FILLER                PIC X(30)
+                   VALUE 'TRF015.010000.100000.00'.
+               10 FILLER                PIC X(30)
+                   VALUE 'PAY005.002500.250000.00'.
+           05 WS-FEE-TABLE REDEFINES WS-FEE-SCHEDULE.
+               10 WS-FEE-ENTRY OCCURS 3 TIMES
+                  INDEXED BY FEE-INDEX.
+                   15 WS-FEE-TYPE       PIC XXX.
+                   15 WS-FEE-PERCENT    PIC 9(3)V9(6).
+                   15 WS-MIN-FEE        PIC 9(5)V99.
+                   15 WS-MAX-FEE        PIC 9(5)V99.
+
+       01 WS-FLAGS.
+           05 WS-EOF-FLAG               PIC X VALUE 'N'.
+               88 WS-END-OF-FILE        VALUE 'Y'.
+               88 WS-NOT-END-OF-FILE    VALUE 'N'.
+           05 WS-VALIDATION-FLAG        PIC X.
+               88 WS-DATA-VALID         VALUE 'Y'.
+               88 WS-DATA-INVALID       VALUE 'N'.
+           05 WS-SECURITY-FLAG          PIC X.
+               88 WS-SECURITY-PASS      VALUE 'P'.
+               88 WS-SECURITY-FAIL      VALUE 'F'.
+           05 WS-AUDIT-FLAG             PIC X VALUE 'Y'.
+               88 WS-AUDIT-ENABLED      VALUE 'Y'.
+               88 WS-AUDIT-DISABLED     VALUE 'N'.
+           05 WS-DEBUG-FLAG             PIC X VALUE 'N'.
+               88 DEBUG-MODE            VALUE 'Y'.
+
+       01 WS-ERROR-HANDLING.
+           05 WS-ERROR-CODE             PIC X(4).
+           05 WS-ERROR-MESSAGE          PIC X(100).
+           05 WS-ERROR-SEVERITY         PIC X.
+               88 SEVERITY-INFO         VALUE 'I'.
+               88 SEVERITY-WARNING      VALUE 'W'.
+               88 SEVERITY-ERROR        VALUE 'E'.
+               88 SEVERITY-CRITICAL     VALUE 'C'.
+           05 WS-ERROR-STACK.
+               10 WS-ERROR-PROGRAM      PIC X(8) OCCURS 10 TIMES.
+               10 WS-ERROR-LINE         PIC 9(4) OCCURS 10 TIMES.
+           05 WS-ERROR-STACK-PTR        PIC 9(2) VALUE 0.
+
+       01 WS-PERFORMANCE-METRICS.
+           05 WS-START-TIME             PIC 9(14).
+           05 WS-END-TIME               PIC 9(14).
+           05 WS-ELAPSED-TIME           PIC 9(14).
+           05 WS-RECORDS-PROCESSED      PIC 9(8).
+           05 WS-TRANSACTIONS-PER-SECOND PIC 9(5)V9(2).
+
+       01 WS-DYNAMIC-STORAGE.
+           05 WS-BUFFER-PTR             USAGE IS POINTER.
+           05 WS-BUFFER-SIZE            PIC 9(6) VALUE 10000.
+           05 WS-BUFFER                 PIC X(10000)
+                                        BASED.
+
+       01 WS-CONSTANTS.
+           05 WS-MAX-RETRIES            PIC 9 VALUE 3.
+           05 WS-MIN-BALANCE            PIC S9(5)V99 VALUE 10000.
+           05 WS-MAX-SINGLE-TRANSACTION PIC S9(7)V99 VALUE 100000.
+           05 WS-TAX-RATE               PIC 9V9(3) VALUE 0.196.
+           05 WS-FRAUD-THRESHOLD        PIC 9(3) VALUE 85.
+
+       01 WS-DISPLAY-FIELDS.
+           05 WS-DISPLAY-AMOUNT         PIC ZZZ,ZZZ,ZZZ.99.
+           05 WS-DISPLAY-DATE           PIC 99/99/9999.
+           05 WS-DISPLAY-TIME           PIC 99:99:99.
+           05 WS-DISPLAY-BALANCE        PIC ZZZ,ZZZ,ZZZ,ZZZ.99.
+           05 WS-DISPLAY-COUNT          PIC ZZZ,ZZZ,ZZ9.
+
+       LINKAGE SECTION.
+       01 LS-CONTROL-BLOCK.
+           05 LS-COMMAND                PIC X(8).
+           05 LS-RETURN-CODE            PIC 9(4).
+           05 LS-ERROR-MSG              PIC X(100).
+           05 LS-USER-ID                PIC X(20).
+           05 LS-SESSION-ID             PIC X(32).
+
+       01 LS-TRANSACTION-DATA.
+           05 LS-TRANS-TYPE             PIC XXX.
+           05 LS-AMOUNT                 PIC S9(9)V99.
+           05 LS-FROM-ACCOUNT           PIC 9(16).
+           05 LS-TO-ACCOUNT             PIC 9(16).
+           05 LS-DESCRIPTION            PIC X(100).
+
+       PROCEDURE DIVISION 
+           USING LS-CONTROL-BLOCK
+                 LS-TRANSACTION-DATA.
+
+       DECLARATIVES.
+
+       CUSTOMER-FILE-ERROR SECTION.
+           USE AFTER ERROR PROCEDURE ON CUSTOMER-MASTER-FILE.
+       CUST-ERR-PROC.
+           DISPLAY 'CUSTOMER FILE ERROR: ' CM-STATUS
+           MOVE 'CFER' TO WS-ERROR-CODE
+           PERFORM LOG-ERROR
+           IF CM-STATUS = '30' OR '35'
+               MOVE 'CRITICAL' TO WS-ERROR-SEVERITY
+               MOVE 9999 TO LS-RETURN-CODE
+           ELSE
+               MOVE 'ERROR' TO WS-ERROR-SEVERITY
+               MOVE 9000 TO LS-RETURN-CODE.
+
+       TRANSACTION-FILE-ERROR SECTION.
+           USE AFTER ERROR PROCEDURE ON TRANSACTION-FILE.
+       TRANS-ERR-PROC.
+           DISPLAY 'TRANSACTION FILE ERROR: ' TRANS-STATUS
+           MOVE 'TFER' TO WS-ERROR-CODE
+           PERFORM LOG-ERROR.
+
+       END DECLARATIVES.
+
+       MAIN-PROCEDURE SECTION.
+       000-MAIN.
+           PERFORM 100-INITIALIZE
+           PERFORM 200-AUTHENTICATE-USER
+           IF WS-SECURITY-PASS
+               PERFORM 300-PROCESS-COMMAND
+               PERFORM 400-CALCULATE-INTEREST
+               PERFORM 500-APPLY-FEES-AND-TAXES
+               PERFORM 600-GENERATE-REPORTS
+               PERFORM 700-UPDATE-AUDIT-TRAIL
+           ELSE
+               PERFORM 800-HANDLE-SECURITY-FAILURE
+           END-IF
+           PERFORM 900-TERMINATE
+           GOBACK.
+
+       100-INITIALIZE.
+           MOVE FUNCTION CURRENT-DATE TO WS-CURRENT-DATE
+           MOVE FUNCTION TIME-OF-DAY TO WS-CURRENT-TIME
+           MOVE FUNCTION WHEN-COMPILED TO WS-JOB-ID
+           
+           OPEN I-O CUSTOMER-MASTER-FILE
+           OPEN INPUT TRANSACTION-FILE
+           OPEN OUTPUT AUDIT-TRAIL-FILE
+           OPEN OUTPUT TEMPORARY-WORK-FILE
+           
+           IF NOT CM-SUCCESS
+               MOVE 'FILE OPEN FAILED' TO LS-ERROR-MSG
+               MOVE 9001 TO LS-RETURN-CODE
+               PERFORM 900-TERMINATE
+               GOBACK
+           END-IF
+           
+           PERFORM 110-LOAD-CONFIGURATION
+           PERFORM 120-INITIALIZE-SECURITY
+           PERFORM 130-SETUP-REPORTING.
+
+       110-LOAD-CONFIGURATION.
+           PERFORM VARYING RATE-INDEX FROM 1 BY 1
+                     UNTIL RATE-INDEX > 5
+               DISPLAY 'LOADED RATE: ' WS-ACCOUNT-CODE(RATE-INDEX)
+                         ' ' WS-BASE-RATE(RATE-INDEX)
+           END-PERFORM.
+
+       120-INITIALIZE-SECURITY.
+           MOVE 'SECRET_KEY_1234567890ABCDEF' TO WS-ENCRYPTION-KEY
+           CALL 'GENSESSION' USING WS-SESSION-TOKEN
+           MOVE 2 TO WS-AUTH-LEVEL.
+
+       130-SETUP-REPORTING.
+           MOVE 'ULTIMATE BANKING SYSTEM REPORT' TO WS-REPORT-TITLE
+           MOVE WS-CURRENT-DATE TO WS-REPORT-DATE
+           MOVE WS-CURRENT-TIME TO WS-REPORT-TIME.
+
+       200-AUTHENTICATE-USER.
+           IF LS-USER-ID = SPACES
+               MOVE 'F' TO WS-SECURITY-FLAG
+               MOVE 'NO USER ID' TO WS-ERROR-MESSAGE
+               PERFORM LOG-SECURITY-EVENT
+               EXIT PARAGRAPH
+           END-IF
+           
+           CALL 'AUTHMODULE' USING LS-USER-ID
+                                 WS-SESSION-TOKEN
+                                 WS-AUTH-LEVEL
+                                 WS-SECURITY-FLAG
+           
+           IF WS-SECURITY-PASS
+               PERFORM 210-CHECK-IP-AUTHORIZATION
+               PERFORM 220-VALIDATE-SESSION
+           END-IF.
+
+       210-CHECK-IP-AUTHORIZATION.
+           MOVE 'F' TO WS-SECURITY-FLAG
+           PERFORM VARYING WS-INDEX FROM 1 BY 1
+                     UNTIL WS-INDEX > WS-IP-WHITELIST-COUNT
+               IF WS-IP-WHITELIST(WS-INDEX) = TRANS-IP-ADDRESS
+                   MOVE 'P' TO WS-SECURITY-FLAG
+                   EXIT PERFORM
+               END-IF
+           END-PERFORM.
+
+       220-VALIDATE-SESSION.
+           CALL 'VALIDATESESSION' USING LS-SESSION-ID
+                                      WS-CURRENT-DATE
+                                      WS-CURRENT-TIME
+                                      WS-SECURITY-FLAG.
+
+       300-PROCESS-COMMAND.
+           EVALUATE LS-COMMAND
+               WHEN 'DEPOSIT  '
+                   PERFORM 310-PROCESS-DEPOSIT
+               WHEN 'WITHDRAW '
+                   PERFORM 320-PROCESS-WITHDRAWAL
+               WHEN 'TRANSFER '
+                   PERFORM 330-PROCESS-TRANSFER
+               WHEN 'BALANCE  '
+                   PERFORM 340-CHECK-BALANCE
+               WHEN 'HISTORY  '
+                   PERFORM 350-GET-HISTORY
+               WHEN 'CALCINT  '
+                   PERFORM 360-CALCULATE-INTEREST-ADV
+               WHEN OTHER
+                   MOVE 'INVALID COMMAND' TO LS-ERROR-MSG
+                   MOVE 9002 TO LS-RETURN-CODE
+           END-EVALUATE.
+
+       310-PROCESS-DEPOSIT.
+           MOVE LS-FROM-ACCOUNT TO CM-CUSTOMER-ID
+           READ CUSTOMER-MASTER-FILE
+               KEY IS CM-CUSTOMER-ID
+               INVALID KEY
+                   MOVE 'ACCOUNT NOT FOUND' TO LS-ERROR-MSG
+                   MOVE 9003 TO LS-RETURN-CODE
+               NOT INVALID KEY
+                   IF ACCOUNT-LOCKED
+                       MOVE 'ACCOUNT LOCKED' TO LS-ERROR-MSG
+                       MOVE 9004 TO LS-RETURN-CODE
+                   ELSE
+                       PERFORM 311-VALIDATE-DEPOSIT
+                       IF WS-DATA-VALID
+                           PERFORM 312-EXECUTE-DEPOSIT
+                           PERFORM 313-UPDATE-RECORD
+                       END-IF
+                   END-IF
+           END-READ.
+
+       311-VALIDATE-DEPOSIT.
+           MOVE 'Y' TO WS-VALIDATION-FLAG
+           
+           IF LS-AMOUNT <= 0
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'INVALID AMOUNT' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           IF LS-AMOUNT > WS-MAX-SINGLE-TRANSACTION
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'EXCEEDS LIMIT' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           PERFORM CALCULATE-FRAUD-SCORE
+           IF WS-FRAUD-SCORE > WS-FRAUD-THRESHOLD
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'FRAUD SUSPECTED' TO WS-ERROR-MESSAGE
+           END-IF.
+
+       312-EXECUTE-DEPOSIT.
+           COMPUTE WS-NEW-BALANCE = 
+               CM-ACCOUNT-BALANCE + LS-AMOUNT
+           
+           COMPUTE WS-TAX-AMOUNT = 
+               LS-AMOUNT * WS-TAX-RATE
+           
+           COMPUTE WS-NET-AMOUNT = 
+               LS-AMOUNT - WS-TAX-AMOUNT
+           
+           ADD WS-NET-AMOUNT TO CM-ACCOUNT-BALANCE
+           ADD WS-NET-AMOUNT TO CM-AVAILABLE-BALANCE
+           
+           ADD 1 TO WS-TRANSACTION-COUNT
+           ADD LS-AMOUNT TO WS-TOTAL-AMOUNT
+           
+           MOVE 'DEP' TO TRANS-TYPE
+           MOVE LS-AMOUNT TO TRANS-AMOUNT
+           MOVE 'C' TO TRANS-STATUS.
+
+       313-UPDATE-RECORD.
+           MOVE WS-CURRENT-DATE TO CM-LAST-INTEREST-DATE
+           REWRITE CUSTOMER-RECORD
+           
+           IF NOT CM-SUCCESS
+               MOVE 'UPDATE FAILED' TO LS-ERROR-MSG
+               MOVE 9005 TO LS-RETURN-CODE
+           ELSE
+               MOVE 'SUCCESS' TO LS-ERROR-MSG
+               MOVE 0 TO LS-RETURN-CODE
+               PERFORM LOG-TRANSACTION
+           END-IF.
+
+       320-PROCESS-WITHDRAWAL.
+           MOVE LS-FROM-ACCOUNT TO CM-CUSTOMER-ID
+           READ CUSTOMER-MASTER-FILE
+               KEY IS CM-CUSTOMER-ID
+               INVALID KEY
+                   MOVE 'ACCOUNT NOT FOUND' TO LS-ERROR-MSG
+                   MOVE 9006 TO LS-RETURN-CODE
+               NOT INVALID KEY
+                   PERFORM 321-VALIDATE-WITHDRAWAL
+                   IF WS-DATA-VALID
+                       PERFORM 322-EXECUTE-WITHDRAWAL
+                       PERFORM 323-UPDATE-RECORD
+                   END-IF
+           END-READ.
+
+       321-VALIDATE-WITHDRAWAL.
+           MOVE 'Y' TO WS-VALIDATION-FLAG
+           
+           IF LS-AMOUNT <= 0
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'INVALID AMOUNT' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           IF LS-AMOUNT > CM-AVAILABLE-BALANCE
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'INSUFFICIENT FUNDS' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           IF LS-AMOUNT > WS-DAILY-LIMIT
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'DAILY LIMIT EXCEEDED' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           COMPUTE WS-DAILY-TOTAL = WS-DAILY-TOTAL + LS-AMOUNT
+           IF WS-DAILY-TOTAL > WS-DAILY-LIMIT
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'DAILY TOTAL EXCEEDED' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           PERFORM CALCULATE-FRAUD-SCORE
+           IF WS-FRAUD-SCORE > WS-FRAUD-THRESHOLD
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'FRAUD SUSPECTED' TO WS-ERROR-MESSAGE
+           END-IF.
+
+       322-EXECUTE-WITHDRAWAL.
+           COMPUTE WS-NEW-BALANCE = 
+               CM-ACCOUNT-BALANCE - LS-AMOUNT
+           
+           COMPUTE WS-FEE-AMOUNT = 
+               LS-AMOUNT * 0.015
+           IF WS-FEE-AMOUNT < 5.00
+               MOVE 5.00 TO WS-FEE-AMOUNT
+           END-IF
+           
+           COMPUTE WS-NET-AMOUNT = 
+               LS-AMOUNT + WS-FEE-AMOUNT
+           
+           SUBTRACT WS-NET-AMOUNT FROM CM-ACCOUNT-BALANCE
+           SUBTRACT WS-NET-AMOUNT FROM CM-AVAILABLE-BALANCE
+           
+           ADD 1 TO WS-TRANSACTION-COUNT
+           SUBTRACT LS-AMOUNT FROM WS-TOTAL-AMOUNT
+           
+           MOVE 'WDR' TO TRANS-TYPE
+           MOVE LS-AMOUNT TO TRANS-AMOUNT
+           MOVE 'C' TO TRANS-STATUS.
+
+       330-PROCESS-TRANSFER.
+           MOVE LS-FROM-ACCOUNT TO CM-CUSTOMER-ID
+           READ CUSTOMER-MASTER-FILE
+               KEY IS CM-CUSTOMER-ID
+               INVALID KEY
+                   MOVE 'SOURCE ACCOUNT NOT FOUND' TO LS-ERROR-MSG
+                   MOVE 9007 TO LS-RETURN-CODE
+               NOT INVALID KEY
+                   PERFORM 331-VALIDATE-TRANSFER
+                   IF WS-DATA-VALID
+                       PERFORM 332-DEBIT-SOURCE
+                       PERFORM 333-CREDIT-TARGET
+                       PERFORM 334-UPDATE-BOTH
+                   END-IF
+           END-READ.
+
+       331-VALIDATE-TRANSFER.
+           MOVE 'Y' TO WS-VALIDATION-FLAG
+           
+           IF LS-AMOUNT <= 0
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'INVALID AMOUNT' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           IF LS-AMOUNT > CM-AVAILABLE-BALANCE
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'INSUFFICIENT FUNDS' TO WS-ERROR-MESSAGE
+           END-IF
+           
+           IF LS-FROM-ACCOUNT = LS-TO-ACCOUNT
+               MOVE 'N' TO WS-VALIDATION-FLAG
+               MOVE 'SAME ACCOUNT' TO WS-ERROR-MESSAGE
+           END-IF.
+
+       332-DEBIT-SOURCE.
+           COMPUTE WS-NEW-BALANCE = 
+               CM-ACCOUNT-BALANCE - LS-AMOUNT
+           
+           COMPUTE WS-FEE-AMOUNT = 
+               LS-AMOUNT * 0.010
+           IF WS-FEE-AMOUNT < 10.00
+               MOVE 10.00 TO WS-FEE-AMOUNT
+           END-IF
+           
+           COMPUTE WS-TOTAL-DEBIT = 
+               LS-AMOUNT + WS-FEE-AMOUNT
+           
+           SUBTRACT WS-TOTAL-DEBIT FROM CM-ACCOUNT-BALANCE
+           SUBTRACT WS-TOTAL-DEBIT FROM CM-AVAILABLE-BALANCE.
+
+       333-CREDIT-TARGET.
+           MOVE LS-TO-ACCOUNT TO CM-CUSTOMER-ID
+           READ CUSTOMER-MASTER-FILE
+               KEY IS CM-CUSTOMER-ID
+               INVALID KEY
+                   MOVE 'TARGET ACCOUNT NOT FOUND' TO LS-ERROR-MSG
+                   MOVE 9008 TO LS-RETURN-CODE
+                   PERFORM 335-REVERSE-TRANSACTION
+               NOT INVALID KEY
+                   ADD LS-AMOUNT TO CM-ACCOUNT-BALANCE
+                   ADD LS-AMOUNT TO CM-AVAILABLE-BALANCE
+                   REWRITE CUSTOMER-RECORD
+           END-READ.
+
+       334-UPDATE-BOTH.
+           MOVE 'TRF' TO TRANS-TYPE
+           MOVE LS-AMOUNT TO TRANS-AMOUNT
+           MOVE 'C' TO TRANS-STATUS
+           
+           ADD 1 TO WS-TRANSACTION-COUNT
+           PERFORM LOG-TRANSACTION.
+
+       335-REVERSE-TRANSACTION.
+           MOVE LS-FROM-ACCOUNT TO CM-CUSTOMER-ID
+           READ CUSTOMER-MASTER-FILE
+           ADD LS-AMOUNT TO CM-ACCOUNT-BALANCE
+           ADD LS-AMOUNT TO CM-AVAILABLE-BALANCE
+           REWRITE CUSTOMER-RECORD
+           
+           MOVE 'REV' TO TRANS-TYPE
+           MOVE 'REVERSED - TARGET NOT FOUND' TO TRANS-DESCRIPTION.
+
+       340-CHECK-BALANCE.
+           MOVE LS-FROM-ACCOUNT TO CM-CUSTOMER-ID
+           READ CUSTOMER-MASTER-FILE
+               KEY IS CM-CUSTOMER-ID
+               INVALID KEY
+                   MOVE 'ACCOUNT NOT FOUND' TO LS-ERROR-MSG
+                   MOVE 9009 TO LS-RETURN-CODE
+               NOT INVALID KEY
+                   MOVE CM-ACCOUNT-BALANCE TO LS-AMOUNT
+                   MOVE 'SUCCESS' TO LS-ERROR-MSG
+                   MOVE 0 TO LS-RETURN-CODE
+           END-READ.
+
+       350-GET-HISTORY.
+           PERFORM 351-INITIALIZE-SEARCH
+           PERFORM 352-SEARCH-TRANSACTIONS
+           PERFORM 353-FORMAT-RESULTS.
+
+       351-INITIALIZE-SEARCH.
+           MOVE 1 TO TRANS-KEY
+           START TRANSACTION-FILE
+               KEY >= TRANS-KEY
+           IF TRANS-STATUS NOT = '00'
+               MOVE 'NO TRANSACTIONS' TO LS-ERROR-MSG
+               MOVE 9010 TO LS-RETURN-CODE
+           END-IF.
+
+       352-SEARCH-TRANSACTIONS.
+           MOVE 1 TO WS-INDEX
+           PERFORM UNTIL WS-INDEX > 100 OR WS-END-OF-FILE
+               READ TRANSACTION-FILE NEXT
+                   AT END
+                       MOVE 'Y' TO WS-EOF-FLAG
+                   NOT AT END
+                       IF TRANS-SOURCE-ACCOUNT = LS-FROM-ACCOUNT
+                           PERFORM 354-ADD-TO-RESULTS
+                       END-IF
+               END-READ
+               ADD 1 TO WS-INDEX
+           END-PERFORM.
+
+       353-FORMAT-RESULTS.
+           MOVE 'HISTORY RETRIEVED' TO LS-ERROR-MSG
+           MOVE 0 TO LS-RETURN-CODE.
+
+       354-ADD-TO-RESULTS.
+           ADD 1 TO WS-TRANSACTION-COUNT.
+
+       360-CALCULATE-INTEREST-ADV.
+           PERFORM 361-GET-ACCOUNT-DATA
+           PERFORM 362-DETERMINE-RATE
+           PERFORM 363-CALCULATE-COMPOUND
+           PERFORM 364-APPLY-INTEREST.
+
+       361-GET-ACCOUNT-DATA.
+           MOVE LS-FROM-ACCOUNT TO CM-CUSTOMER-ID
+           READ CUSTOMER-MASTER-FILE
+               KEY IS CM-CUSTOMER-ID
+               INVALID KEY
+                   MOVE 'ACCOUNT NOT FOUND' TO LS-ERROR-MSG
+                   MOVE 9011 TO LS-RETURN-CODE
+               NOT INVALID KEY
+                   MOVE CM-ACCOUNT-BALANCE TO WS-PRINCIPAL
+                   MOVE CM-INTEREST-RATE TO WS-ANNUAL-RATE
+           END-READ.
+
+       362-DETERMINE-RATE.
+           SET RATE-INDEX TO 1
+           SEARCH WS-RATE-ENTRY
+               AT END
+                   MOVE 0.005 TO WS-ANNUAL-RATE
+               WHEN WS-ACCOUNT-CODE(RATE-INDEX) = CM-ACCOUNT-TYPE
+                   MOVE WS-BASE-RATE(RATE-INDEX) TO WS-ANNUAL-RATE
+           END-SEARCH
+           
+           IF CM-ACCOUNT-BALANCE > 1000000
+               COMPUTE WS-ANNUAL-RATE = 
+                   WS-ANNUAL-RATE + WS-PREMIUM-RATE(RATE-INDEX)
+           END-IF.
+
+       363-CALCULATE-COMPOUND.
+           COMPUTE WS-COMPOUND-FACTOR = 
+               (1 + (WS-ANNUAL-RATE / 365)) ** 30
+           
+           COMPUTE WS-FUTURE-VALUE = 
+               WS-PRINCIPAL * WS-COMPOUND-FACTOR
+           
+           COMPUTE WS-INTEREST-AMOUNT = 
+               WS-FUTURE-VALUE - WS-PRINCIPAL.
+
+       364-APPLY-INTEREST.
+           COMPUTE WS-TAX-AMOUNT = 
+               WS-INTEREST-AMOUNT * WS-TAX-RATE
+           
+           COMPUTE WS-NET-INTEREST = 
+               WS-INTEREST-AMOUNT - WS-TAX-AMOUNT
+           
+           ADD WS-NET-INTEREST TO CM-ACCOUNT-BALANCE
+           ADD WS-NET-INTEREST TO CM-AVAILABLE-BALANCE
+           
+           MOVE WS-CURRENT-DATE TO CM-LAST-INTEREST-DATE
+           REWRITE CUSTOMER-RECORD
+           
+           MOVE 'INT' TO TRANS-TYPE
+           MOVE WS-NET-INTEREST TO TRANS-AMOUNT
+           PERFORM LOG-TRANSACTION.
+
+       400-CALCULATE-INTEREST.
+           MOVE 1 TO CM-CUSTOMER-ID
+           START CUSTOMER-MASTER-FILE
+               KEY >= CM-CUSTOMER-ID
+           
+           PERFORM UNTIL WS-END-OF-FILE
+               READ CUSTOMER-MASTER-FILE NEXT
+                   AT END
+                       MOVE 'Y' TO WS-EOF-FLAG
+                   NOT AT END
+                       IF CM-ACCOUNT-BALANCE > 0
+                           PERFORM 410-CALCULATE-DAILY-INTEREST
+                           PERFORM 411-UPDATE-ACCOUNT
+                       END-IF
+               END-READ
+           END-PERFORM.
+
+       410-CALCULATE-DAILY-INTEREST.
+           MOVE CM-ACCOUNT-BALANCE TO WS-PRINCIPAL
+           MOVE CM-INTEREST-RATE TO WS-ANNUAL-RATE
+           
+           COMPUTE WS-DAILY-RATE = 
+               WS-ANNUAL-RATE / 365
+           
+           COMPUTE WS-INTEREST-AMOUNT = 
+               WS-PRINCIPAL * WS-DAILY-RATE
+           
+           COMPUTE WS-TAX-AMOUNT = 
+               WS-INTEREST-AMOUNT * WS-TAX-RATE
+           
+           COMPUTE WS-NET-INTEREST = 
+               WS-INTEREST-AMOUNT - WS-TAX-AMOUNT.
+
+       411-UPDATE-ACCOUNT.
+           ADD WS-NET-INTEREST TO CM-ACCOUNT-BALANCE
+           ADD WS-NET-INTEREST TO CM-AVAILABLE-BALANCE
+           
+           MOVE WS-CURRENT-DATE TO CM-LAST-INTEREST-DATE
+           REWRITE CUSTOMER-RECORD
+           
+           ADD WS-NET-INTEREST TO WS-TOTAL-AMOUNT
+           ADD 1 TO WS-TRANSACTION-COUNT.
+
+       500-APPLY-FEES-AND-TAXES.
+           PERFORM 510-CALCULATE-MONTHLY-FEES
+           PERFORM 520-APPLY-TAX-WITHHOLDING
+           PERFORM 530-UPDATE-COMPLIANCE.
+
+       510-CALCULATE-MONTHLY-FEES.
+           IF CM-ACCOUNT-BALANCE < WS-MIN-BALANCE
+               COMPUTE WS-FEE-AMOUNT = 25.00
+               SUBTRACT WS-FEE-AMOUNT FROM CM-ACCOUNT-BALANCE
+               PERFORM LOG-FEE
+           END-IF.
+
+       520-APPLY-TAX-WITHHOLDING.
+           IF WS-TOTAL-AMOUNT > 10000
+               COMPUTE WS-TAX-AMOUNT = 
+                   WS-TOTAL-AMOUNT * CM-WITHHOLDING-RATE
+               SUBTRACT WS-TAX-AMOUNT FROM CM-ACCOUNT-BALANCE
+               PERFORM LOG-TAX
+           END-IF.
+
+       530-UPDATE-COMPLIANCE.
+           MOVE WS-CURRENT-DATE TO CM-LAST-TAX-REPORT
+           REWRITE CUSTOMER-RECORD.
+
+       600-GENERATE-REPORTS.
+           PERFORM 610-GENERATE-TRANSACTION-REPORT
+           PERFORM 620-GENERATE-BALANCE-REPORT
+           PERFORM 630-GENERATE-RISK-REPORT
+           PERFORM 640-GENERATE-AUDIT-REPORT.
+
+       610-GENERATE-TRANSACTION-REPORT.
+           WRITE REPORT-LINE FROM WS-REPORT-HEADER
+           MOVE WS-TRANSACTION-COUNT TO WS-DISPLAY-COUNT
+           MOVE WS-TOTAL-AMOUNT TO WS-DISPLAY-AMOUNT
+           WRITE REPORT-LINE FROM WS-REPORT-DETAIL.
+
+       620-GENERATE-BALANCE-REPORT.
+           MOVE 'BALANCE REPORT' TO WS-REPORT-TITLE
+           PERFORM 621-PROCESS-BALANCES.
+
+       621-PROCESS-BALANCES.
+           MOVE 1 TO CM-CUSTOMER-ID
+           START CUSTOMER-MASTER-FILE
+               KEY >= CM-CUSTOMER-ID
+           
+           PERFORM UNTIL WS-END-OF-FILE
+               READ CUSTOMER-MASTER-FILE NEXT
+                   AT END
+                       MOVE 'Y' TO WS-EOF-FLAG
+                   NOT AT END
+                       MOVE CM-ACCOUNT-BALANCE TO WS-DISPLAY-BALANCE
+                       WRITE REPORT-LINE FROM WS-REPORT-DETAIL
+               END-READ
+           END-PERFORM.
+
+       630-GENERATE-RISK-REPORT.
+           MOVE 'RISK ASSESSMENT REPORT' TO WS-REPORT-TITLE
+           PERFORM 631-ANALYZE-RISKS.
+
+       631-ANALYZE-RISKS.
+           MOVE 1 TO WS-INDEX
+           PERFORM UNTIL WS-INDEX > 100 OR WS-END-OF-FILE
+               READ CUSTOMER-MASTER-FILE NEXT
+                   AT END
+                       MOVE 'Y' TO WS-EOF-FLAG
+                   NOT AT END
+                       PERFORM 632-CALCULATE-RISK-SCORE
+                       IF CM-RISK-SCORE > WS-RISK-THRESHOLD
+                           PERFORM 633-FLAG-HIGH-RISK
+                       END-IF
+               END-READ
+               ADD 1 TO WS-INDEX
+           END-PERFORM.
+
+       632-CALCULATE-RISK-SCORE.
+           MOVE 50 TO CM-RISK-SCORE
+           IF CM-ACCOUNT-BALANCE > 1000000
+               ADD 20 TO CM-RISK-SCORE
+           END-IF
+           IF SUSPICIOUS-ACTIVITY
+               ADD 30 TO CM-RISK-SCORE
+           END-IF
+           
+           IF CM-RISK-SCORE > 75
+               MOVE 'H' TO CM-RISK-LEVEL
+           ELSE 
+               IF CM-RISK-SCORE > 50
+                   MOVE 'M' TO CM-RISK-LEVEL
+               ELSE
+                   MOVE 'L' TO CM-RISK-LEVEL
+               END-IF
+           END-IF.
+
+       633-FLAG-HIGH-RISK.
+           MOVE 'C' TO CM-RISK-LEVEL
+           REWRITE CUSTOMER-RECORD
+           PERFORM LOG-RISK-EVENT.
+
+       640-GENERATE-AUDIT-REPORT.
+           MOVE 'AUDIT TRAIL REPORT' TO WS-REPORT-TITLE
+           PERFORM 641-GATHER-AUDIT-DATA.
+
+       641-GATHER-AUDIT-DATA.
+           WRITE AUDIT-RECORD FROM WS-REPORT-HEADER
+           PERFORM 642-WRITE-AUDIT-ENTRIES.
+
+       642-WRITE-AUDIT-ENTRIES.
+           MOVE 'AUDIT COMPLETED' TO AUDIT-RECORD
+           WRITE AUDIT-RECORD.
+
+       700-UPDATE-AUDIT-TRAIL.
+           IF WS-AUDIT-ENABLED
+               PERFORM 710-LOG-ALL-ACTIONS
+               PERFORM 720-ARCHIVE-AUDIT-DATA
+               PERFORM 730-VERIFY-AUDIT-INTEGRITY
+           END-IF.
+
+       710-LOG-ALL-ACTIONS.
+           MOVE WS-CURRENT-DATE TO AUDIT-RECORD(1:8)
+           MOVE WS-CURRENT-TIME TO AUDIT-RECORD(9:6)
+           MOVE LS-USER-ID TO AUDIT-RECORD(15:20)
+           MOVE LS-COMMAND TO AUDIT-RECORD(35:8)
+           WRITE AUDIT-RECORD.
+
+       720-ARCHIVE-AUDIT-DATA.
+           CLOSE AUDIT-TRAIL-FILE
+           OPEN EXTEND AUDIT-TRAIL-FILE.
+
+       730-VERIFY-AUDIT-INTEGRITY.
+           CALL 'VERIFYAUDIT' USING AUDIT-STATUS
+           IF AUDIT-STATUS NOT = '00'
+               MOVE 'AUDIT INTEGRITY FAILED' TO WS-ERROR-MESSAGE
+               PERFORM LOG-ERROR
+           END-IF.
+
+       800-HANDLE-SECURITY-FAILURE.
+           MOVE 'SECURITY VIOLATION' TO LS-ERROR-MSG
+           MOVE 9998 TO LS-RETURN-CODE
+           PERFORM LOG-SECURITY-EVENT
+           PERFORM LOCK-ACCOUNT
+           PERFORM NOTIFY-SECURITY-TEAM.
+
+       LOCK-ACCOUNT.
+           MOVE 'Y' TO CM-ACCOUNT-LOCKED
+           REWRITE CUSTOMER-RECORD.
+
+       NOTIFY-SECURITY-TEAM.
+           DISPLAY 'SECURITY ALERT: ' LS-USER-ID
+           CALL 'SECURITYALERT' USING LS-USER-ID
+                                    WS-CURRENT-DATE
+                                    WS-CURRENT-TIME.
+
+       900-TERMINATE.
+           CLOSE CUSTOMER-MASTER-FILE
+           CLOSE TRANSACTION-FILE
+           CLOSE AUDIT-TRAIL-FILE
+           CLOSE TEMPORARY-WORK-FILE
+           CLOSE REPORT-FILE
+           
+           PERFORM 910-GENERATE-PERFORMANCE-REPORT
+           PERFORM 920-CLEANUP-TEMP-FILES
+           PERFORM 930-UPDATE-METRICS.
+
+       910-GENERATE-PERFORMANCE-REPORT.
+           COMPUTE WS-ELAPSED-TIME = 
+               WS-END-TIME - WS-START-TIME
+           
+           IF WS-ELAPSED-TIME > 0
+               COMPUTE WS-TRANSACTIONS-PER-SECOND = 
+                   WS-TRANSACTION-COUNT / WS-ELAPSED-TIME
+           END-IF
+           
+           DISPLAY 'PERFORMANCE METRICS:'
+           DISPLAY 'TRANSACTIONS: ' WS-TRANSACTION-COUNT
+           DISPLAY 'ELAPSED TIME: ' WS-ELAPSED-TIME
+           DISPLAY 'TPS: ' WS-TRANSACTIONS-PER-SECOND.
+
+       920-CLEANUP-TEMP-FILES.
+           CALL 'DELETETEMP' USING WS-JOB-ID.
+
+       930-UPDATE-METRICS.
+           CALL 'UPDATEMETRICS' USING WS-TRANSACTION-COUNT
+                                    WS-TOTAL-AMOUNT
+                                    WS-ELAPSED-TIME.
+
+       LOG-ERROR.
+           MOVE WS-ERROR-CODE TO AUDIT-RECORD(1:4)
+           MOVE WS-ERROR-MESSAGE TO AUDIT-RECORD(5:100)
+           MOVE WS-ERROR-SEVERITY TO AUDIT-RECORD(105:1)
+           WRITE AUDIT-RECORD.
+
+       LOG-TRANSACTION.
+           MOVE TRANS-REFERENCE TO AUDIT-RECORD(1:20)
+           MOVE TRANS-TYPE TO AUDIT-RECORD(21:3)
+           MOVE TRANS-AMOUNT TO AUDIT-RECORD(24:12)
+           MOVE TRANS-STATUS TO AUDIT-RECORD(36:1)
+           WRITE AUDIT-RECORD.
+
+       LOG-SECURITY-EVENT.
+           MOVE 'SECURITY' TO AUDIT-RECORD(1:8)
+           MOVE LS-USER-ID TO AUDIT-RECORD(9:20)
+           MOVE WS-SECURITY-FLAG TO AUDIT-RECORD(29:1)
+           WRITE AUDIT-RECORD.
+
+       LOG-FEE.
+           MOVE 'FEE' TO AUDIT-RECORD(1:3)
+           MOVE WS-FEE-AMOUNT TO AUDIT-RECORD(4:12)
+           WRITE AUDIT-RECORD.
+
+       LOG-TAX.
+           MOVE 'TAX' TO AUDIT-RECORD(1:3)
+           MOVE WS-TAX-AMOUNT TO AUDIT-RECORD(4:12)
+           WRITE AUDIT-RECORD.
+
+       LOG-RISK-EVENT.
+           MOVE 'RISK' TO AUDIT-RECORD(1:4)
+           MOVE CM-RISK-LEVEL TO AUDIT-RECORD(5:1)
+           MOVE CM-RISK-SCORE TO AUDIT-RECORD(6:3)
+           WRITE AUDIT-RECORD.
+
+       CALCULATE-FRAUD-SCORE.
+           MOVE 0 TO WS-FRAUD-SCORE
+           IF TRANS-AMOUNT > 100000
+               ADD 30 TO WS-FRAUD-SCORE
+           END-IF
+           IF TRANS-CHANNEL = 'O' AND TRANS-AMOUNT > 50000
+               ADD 25 TO WS-FRAUD-SCORE
+           END-IF
+           IF WS-INDEX > 10
+               ADD 20 TO WS-FRAUD-SCORE
+           END-IF.
+
+       END PROGRAM ULTIMATE-BANKING-SYSTEM.

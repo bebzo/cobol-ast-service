@@ -1,0 +1,22 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. ARRAY-TEST.
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01 WS-TABLE.
+          05 WS-ITEM PIC 9(4) OCCURS 5 TIMES.
+       01 WS-INDEX PIC 9(2) VALUE 1.
+       01 WS-TOTAL PIC 9(6) VALUE 0.
+       01 WS-VALUE PIC 9(4) VALUE 100.
+       PROCEDURE DIVISION.
+       MAIN-PARA.
+           MOVE 10 TO WS-ITEM(1)
+           MOVE 20 TO WS-ITEM(2)
+           MOVE 30 TO WS-ITEM(3)
+           MOVE WS-VALUE TO WS-ITEM(4)
+           COMPUTE WS-ITEM(5) = WS-ITEM(1) + WS-ITEM(2)
+           COMPUTE WS-TOTAL = WS-ITEM(1) + WS-ITEM(2) + WS-ITEM(3)
+           ADD 5 TO WS-ITEM(1)
+           DISPLAY "Item 1: " WS-ITEM(1)
+           DISPLAY "Item 5: " WS-ITEM(5)
+           DISPLAY "Total: " WS-TOTAL
+           STOP RUN.
