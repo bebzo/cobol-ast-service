@@ -1,0 +1,910 @@
+"use client";
+
+import React, { useState, useRef, useEffect, useCallback, useMemo, Fragment } from 'react';
+import {
+  GitCompare,
+  Link2,
+  Scroll,
+  FileDown,
+  FlaskConical,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  X,
+  Maximize2,
+  Minimize2,
+  Copy,
+  Download,
+  Layers,
+  ArrowLeftRight,
+  Search,
+  Map,
+  Zap,
+  AlertCircle,
+} from 'lucide-react';
+import {
+  generateLineMappings,
+  findPythonLinesForCobol,
+  findCobolLinesForPython,
+  calculateScrollSync,
+  applyScrollSync,
+  exportDiffToPDF,
+  compareVersions,
+  extractPythonMetrics,
+  generateCodeDiff,
+  LineMapping,
+  ABTestVersion,
+} from '@/lib/diff-features';
+
+interface DiffPanelProps {
+  cobolCode: string;
+  pythonCode: string;
+  filename?: string;
+  versions?: ABTestVersion[];
+  onVersionSelect?: (version: ABTestVersion) => void;
+}
+
+export default function DiffPanel({
+  cobolCode,
+  pythonCode,
+  filename = 'program',
+  versions = [],
+  onVersionSelect,
+}: DiffPanelProps) {
+  // State
+  const [selectedCobolLine, setSelectedCobolLine] = useState<number | null>(null);
+  const [selectedPythonLine, setSelectedPythonLine] = useState<number | null>(null);
+  const [highlightedPythonLines, setHighlightedPythonLines] = useState<number[]>([]);
+  const [highlightedCobolLines, setHighlightedCobolLines] = useState<number[]>([]);
+  const [syncScrollEnabled, setSyncScrollEnabled] = useState(true);
+  const [showLineMapping, setShowLineMapping] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showABTest, setShowABTest] = useState(false);
+  const [selectedVersionA, setSelectedVersionA] = useState<string | null>(null);
+  const [selectedVersionB, setSelectedVersionB] = useState<string | null>(null);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [copiedSide, setCopiedSide] = useState<'cobol' | 'python' | null>(null);
+  
+  // Search state
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<{cobol: number[], python: number[]}>({cobol: [], python: []});
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
+  const [searchSide, setSearchSide] = useState<'cobol' | 'python'>('cobol');
+  
+  // Mini-map state
+  const [showMinimap, setShowMinimap] = useState(true);
+  const [minimapHoverLine, setMinimapHoverLine] = useState<{side: 'cobol' | 'python', line: number} | null>(null);
+  
+  // Auto-debug state
+  const [autoDebugSuggestions, setAutoDebugSuggestions] = useState<{line: number, message: string, severity: string}[]>([]);
+
+  // Refs
+  const cobolPanelRef = useRef<HTMLDivElement>(null);
+  const pythonPanelRef = useRef<HTMLDivElement>(null);
+  const isScrolling = useRef(false);
+
+  // Memoized line mappings
+  const lineMappings = useMemo(() => {
+    if (!cobolCode || !pythonCode) return [];
+    return generateLineMappings(cobolCode, pythonCode);
+  }, [cobolCode, pythonCode]);
+
+  // Handle COBOL line click
+  const handleCobolLineClick = useCallback((lineNumber: number) => {
+    setSelectedCobolLine(lineNumber);
+    setSelectedPythonLine(null); // Clear Python selection
+    setHighlightedCobolLines([]); // Clear COBOL highlights
+    const pythonLines = findPythonLinesForCobol(lineNumber, lineMappings);
+    setHighlightedPythonLines(pythonLines);
+
+    // Scroll Python panel to highlighted lines
+    if (pythonLines.length > 0 && pythonPanelRef.current) {
+      const targetLine = pythonLines[0];
+      const lineHeight = 20; // Approximate line height
+      pythonPanelRef.current.scrollTop = (targetLine - 5) * lineHeight;
+    }
+  }, [lineMappings]);
+
+  // Handle Python line click (reverse mapping)
+  const handlePythonLineClick = useCallback((lineNumber: number) => {
+    setSelectedPythonLine(lineNumber);
+    setSelectedCobolLine(null); // Clear COBOL selection
+    setHighlightedPythonLines([]); // Clear Python highlights
+    const cobolLines = findCobolLinesForPython(lineNumber, lineMappings);
+    setHighlightedCobolLines(cobolLines);
+
+    // Scroll COBOL panel to highlighted lines
+    if (cobolLines.length > 0 && cobolPanelRef.current) {
+      const targetLine = cobolLines[0];
+      const lineHeight = 20; // Approximate line height
+      cobolPanelRef.current.scrollTop = (targetLine - 5) * lineHeight;
+    }
+  }, [lineMappings]);
+
+  // Sync scroll handler
+  const handleScroll = useCallback((source: 'cobol' | 'python') => {
+    if (!syncScrollEnabled || isScrolling.current) return;
+
+    isScrolling.current = true;
+
+    const sourcePanel = source === 'cobol' ? cobolPanelRef.current : pythonPanelRef.current;
+    const targetPanel = source === 'cobol' ? pythonPanelRef.current : cobolPanelRef.current;
+
+    if (sourcePanel && targetPanel) {
+      const scrollPercent = calculateScrollSync(
+        sourcePanel.scrollTop,
+        sourcePanel.scrollHeight,
+        sourcePanel.clientHeight
+      );
+      applyScrollSync(targetPanel, scrollPercent);
+    }
+
+    setTimeout(() => {
+      isScrolling.current = false;
+    }, 50);
+  }, [syncScrollEnabled]);
+
+  // Export PDF
+  const handleExportPDF = async () => {
+    setExportingPDF(true);
+    try {
+      const blob = await exportDiffToPDF(cobolCode, pythonCode, filename);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filename}_diff_report.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('PDF export failed:', error);
+    }
+    setExportingPDF(false);
+  };
+
+  // Copy code to clipboard
+  const handleCopy = async (side: 'cobol' | 'python') => {
+    const code = side === 'cobol' ? cobolCode : pythonCode;
+    await navigator.clipboard.writeText(code);
+    setCopiedSide(side);
+    setTimeout(() => setCopiedSide(null), 2000);
+  };
+
+  // Search functionality
+  const handleSearch = useCallback((term: string) => {
+    setSearchTerm(term);
+    if (!term.trim()) {
+      setSearchResults({cobol: [], python: []});
+      setCurrentSearchIndex(0);
+      return;
+    }
+
+    const termLower = term.toLowerCase();
+    const cobolLines = cobolCode.split('\n');
+    const pythonLines = pythonCode.split('\n');
+
+    const cobolMatches: number[] = [];
+    const pythonMatches: number[] = [];
+
+    cobolLines.forEach((line, idx) => {
+      if (line.toLowerCase().includes(termLower)) {
+        cobolMatches.push(idx + 1);
+      }
+    });
+
+    pythonLines.forEach((line, idx) => {
+      if (line.toLowerCase().includes(termLower)) {
+        pythonMatches.push(idx + 1);
+      }
+    });
+
+    setSearchResults({cobol: cobolMatches, python: pythonMatches});
+    setCurrentSearchIndex(0);
+
+    // Auto-scroll to first result
+    const firstResult = searchSide === 'cobol' ? cobolMatches[0] : pythonMatches[0];
+    if (firstResult) {
+      scrollToLine(firstResult, searchSide);
+    }
+  }, [cobolCode, pythonCode, searchSide]);
+
+  const scrollToLine = (lineNumber: number, side: 'cobol' | 'python') => {
+    const panel = side === 'cobol' ? cobolPanelRef.current : pythonPanelRef.current;
+    if (panel) {
+      const lineHeight = 20;
+      panel.scrollTop = (lineNumber - 5) * lineHeight;
+    }
+  };
+
+  const navigateSearch = (direction: 'next' | 'prev') => {
+    const results = searchSide === 'cobol' ? searchResults.cobol : searchResults.python;
+    if (results.length === 0) return;
+
+    let newIndex = currentSearchIndex;
+    if (direction === 'next') {
+      newIndex = (currentSearchIndex + 1) % results.length;
+    } else {
+      newIndex = currentSearchIndex === 0 ? results.length - 1 : currentSearchIndex - 1;
+    }
+
+    setCurrentSearchIndex(newIndex);
+    scrollToLine(results[newIndex], searchSide);
+
+    // Also highlight corresponding lines in the other panel
+    if (showLineMapping) {
+      const lineNumber = results[newIndex];
+      if (searchSide === 'cobol') {
+        const pythonLines = findPythonLinesForCobol(lineNumber, lineMappings);
+        setHighlightedPythonLines(pythonLines);
+        setSelectedCobolLine(lineNumber);
+      } else {
+        const cobolLines = findCobolLinesForPython(lineNumber, lineMappings);
+        setHighlightedCobolLines(cobolLines);
+        setSelectedPythonLine(lineNumber);
+      }
+    }
+  };
+
+  // A/B Test comparison
+  const abTestResult = useMemo(() => {
+    if (!showABTest || !selectedVersionA || !selectedVersionB) return null;
+    const versionA = versions.find(v => v.id === selectedVersionA);
+    const versionB = versions.find(v => v.id === selectedVersionB);
+    if (!versionA || !versionB) return null;
+    return compareVersions(versionA, versionB);
+  }, [showABTest, selectedVersionA, selectedVersionB, versions]);
+
+  // Render code with line numbers and highlighting
+  const renderCode = (
+    code: string,
+    type: 'cobol' | 'python',
+    onLineClick?: (line: number) => void,
+    highlightedLines: number[] = []
+  ) => {
+    const lines = code.split('\n');
+    const searchMatches = type === 'cobol' ? searchResults.cobol : searchResults.python;
+    const currentMatch = searchMatches[currentSearchIndex];
+    
+    return (
+      <div className="font-mono text-xs">
+        {lines.map((line, idx) => {
+          const lineNum = idx + 1;
+          const isHighlighted = highlightedLines.includes(lineNum);
+          const isSelected = (type === 'cobol' && selectedCobolLine === lineNum) || 
+                            (type === 'python' && selectedPythonLine === lineNum);
+          const isSearchMatch = searchMatches.includes(lineNum);
+          const isCurrentSearchMatch = searchSide === type && lineNum === currentMatch;
+          
+          return (
+            <div
+              key={lineNum}
+              className={`flex hover:bg-slate-700/50 cursor-pointer transition-colors ${
+                isCurrentSearchMatch ? 'bg-orange-500/40 border-l-2 border-orange-400' : 
+                isSearchMatch ? 'bg-yellow-500/20 border-l-2 border-yellow-500' :
+                isHighlighted ? 'bg-yellow-500/20 border-l-2 border-yellow-400' : ''
+              } ${isSelected ? 'bg-cyan-500/30 border-l-2 border-cyan-400' : ''}`}
+              onClick={() => onLineClick?.(lineNum)}
+            >
+              <span className={`select-none w-12 text-right pr-3 py-0.5 flex-shrink-0 ${
+                isCurrentSearchMatch ? 'text-orange-400 font-bold' : 'text-slate-500'
+              }`}>
+                {lineNum}
+              </span>
+              <span 
+                className={`py-0.5 pr-4 whitespace-pre ${
+                  type === 'cobol' ? 'text-amber-200' : 'text-green-200'
+                }`}
+                dangerouslySetInnerHTML={{ __html: highlightSearchTerm(highlightSyntax(line, type)) }}
+              />
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Highlight search term in code
+  const highlightSearchTerm = (html: string) => {
+    if (!searchTerm.trim()) return html;
+    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return html.replace(regex, '<mark class="bg-yellow-400 text-black px-0.5 rounded">$1</mark>');
+  };
+
+  // Escape HTML to prevent XSS
+  const escapeHtml = (str: string) => {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  // Simple syntax highlighting
+  const highlightSyntax = (line: string, type: 'cobol' | 'python') => {
+    const escaped = escapeHtml(line);
+    if (type === 'cobol') {
+      // COBOL keywords
+      return escaped
+        .replace(/(IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE|DIVISION|SECTION|PROGRAM-ID|AUTHOR|WORKING-STORAGE|PERFORM|MOVE|COMPUTE|IF|ELSE|END-IF|DISPLAY|STOP RUN|COPY|PIC|VALUE|CALL)/gi, 
+          '<span class="text-purple-400 font-semibold">$1</span>')
+        .replace(/(\d+)/g, '<span class="text-cyan-400">$1</span>')
+        .replace(/(&quot;.*?&quot;)/g, '<span class="text-green-400">$1</span>')
+        .replace(/(\*.*$)/gm, '<span class="text-slate-500 italic">$1</span>');
+    } else {
+      // Python keywords
+      return escaped
+        .replace(/\b(def|class|import|from|return|if|else|elif|for|while|try|except|with|as|self|True|False|None)\b/g,
+          '<span class="text-purple-400 font-semibold">$1</span>')
+        .replace(/(\d+\.?\d*)/g, '<span class="text-cyan-400">$1</span>')
+        .replace(/(&#039;.*?&#039;|&quot;.*?&quot;)/g, '<span class="text-green-400">$1</span>')
+        .replace(/(#.*$)/gm, '<span class="text-slate-500 italic">$1</span>');
+    }
+  };
+
+  const cobolLines = cobolCode.split('\n').length;
+  const pythonLines = pythonCode.split('\n').length;
+  const ratio = cobolLines > 0 ? (pythonLines / cobolLines * 100).toFixed(0) : 0;
+
+  return (
+    <div className={`bg-slate-900 rounded-xl border border-slate-700 ${
+      isFullscreen ? 'fixed inset-4 z-50 flex flex-col overflow-hidden' : ''
+    }`}>
+      {/* Header */}
+      <div className="bg-gradient-to-r from-slate-800 to-indigo-900/30 px-4 py-3 border-b border-slate-700">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <GitCompare className="w-5 h-5 text-indigo-400" />
+            <h3 className="font-semibold text-white">Interactive Diff v6.1</h3>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded">
+                COBOL: {cobolLines} lines
+              </span>
+              <span className="text-slate-500">→</span>
+              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded">
+                Python: {pythonLines} lines
+              </span>
+              <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-400 rounded">
+                {ratio}% ratio
+              </span>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="flex items-center gap-2">
+            {/* Line Mapping Toggle */}
+            <button
+              onClick={() => setShowLineMapping(!showLineMapping)}
+              className={`p-2 rounded-lg transition ${
+                showLineMapping ? 'bg-indigo-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              }`}
+              title="Line Mapping"
+            >
+              <Link2 className="w-4 h-4" />
+            </button>
+
+            {/* Sync Scroll Toggle */}
+            <button
+              onClick={() => setSyncScrollEnabled(!syncScrollEnabled)}
+              className={`p-2 rounded-lg transition ${
+                syncScrollEnabled ? 'bg-cyan-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              }`}
+              title="Sync Scroll"
+            >
+              <Scroll className="w-4 h-4" />
+            </button>
+
+            {/* A/B Test Toggle */}
+            {versions.length >= 2 && (
+              <button
+                onClick={() => setShowABTest(!showABTest)}
+                className={`p-2 rounded-lg transition ${
+                  showABTest ? 'bg-purple-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                }`}
+                title="A/B Testing"
+              >
+                <FlaskConical className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Export PDF */}
+            <button
+              onClick={handleExportPDF}
+              disabled={exportingPDF}
+              className="p-2 rounded-lg bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white transition disabled:opacity-50"
+              title="Export PDF"
+            >
+              {exportingPDF ? (
+                <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <FileDown className="w-4 h-4" />
+              )}
+            </button>
+
+            {/* Search Toggle */}
+            <button
+              onClick={() => setShowSearch(!showSearch)}
+              className={`p-2 rounded-lg transition ${
+                showSearch ? 'bg-yellow-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              }`}
+              title="Search"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+
+            {/* Mini-map Toggle */}
+            <button
+              onClick={() => setShowMinimap(!showMinimap)}
+              className={`p-2 rounded-lg transition ${
+                showMinimap ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+              }`}
+              title="Toggle Mini-map"
+            >
+              <Map className="w-4 h-4" />
+            </button>
+
+            {/* Fullscreen Toggle */}
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-2 rounded-lg bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white transition"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        {showSearch && (
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1 bg-slate-800 rounded-lg px-2 py-1">
+              <button
+                onClick={() => setSearchSide('cobol')}
+                className={`px-2 py-1 text-xs rounded ${searchSide === 'cobol' ? 'bg-amber-500 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                COBOL
+              </button>
+              <button
+                onClick={() => setSearchSide('python')}
+                className={`px-2 py-1 text-xs rounded ${searchSide === 'python' ? 'bg-green-500 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                Python
+              </button>
+            </div>
+            <div className="flex-1 min-w-[200px] relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder={`Search in ${searchSide.toUpperCase()}...`}
+                className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-yellow-500"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => handleSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => navigateSearch('prev')}
+                disabled={(searchSide === 'cobol' ? searchResults.cobol : searchResults.python).length === 0}
+                className="p-1.5 rounded bg-slate-700 text-slate-400 hover:bg-slate-600 disabled:opacity-50"
+                title="Previous"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => navigateSearch('next')}
+                disabled={(searchSide === 'cobol' ? searchResults.cobol : searchResults.python).length === 0}
+                className="p-1.5 rounded bg-slate-700 text-slate-400 hover:bg-slate-600 disabled:opacity-50"
+                title="Next"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
+            {searchTerm && (
+              <span className="text-xs text-slate-400">
+                {(searchSide === 'cobol' ? searchResults.cobol : searchResults.python).length > 0 ? (
+                  <>
+                    {currentSearchIndex + 1}/{(searchSide === 'cobol' ? searchResults.cobol : searchResults.python).length} in {searchSide.toUpperCase()}
+                    {searchResults.cobol.length > 0 && searchResults.python.length > 0 && (
+                      <span className="ml-2 text-green-400">
+                        (+{searchSide === 'cobol' ? searchResults.python.length : searchResults.cobol.length} in {searchSide === 'cobol' ? 'Python' : 'COBOL'})
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-red-400">No results</span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Feature hints */}
+        {showLineMapping && !showSearch && (
+          <div className="mt-2 text-xs text-slate-400 flex items-center gap-2">
+            <Link2 className="w-3 h-3" />
+            <span>Click on a COBOL line to highlight the corresponding Python code</span>
+          </div>
+        )}
+      </div>
+
+      {/* A/B Test Panel */}
+      {showABTest && versions.length >= 2 && (
+        <div className="bg-purple-900/20 border-b border-purple-500/30 p-4">
+          <div className="flex items-center gap-4 mb-3">
+            <span className="text-purple-400 font-semibold text-sm">A/B Testing</span>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedVersionA || ''}
+                onChange={(e) => setSelectedVersionA(e.target.value)}
+                className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-white"
+              >
+                <option value="">Select Version A</option>
+                {versions.map(v => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+              <ArrowLeftRight className="w-4 h-4 text-purple-400" />
+              <select
+                value={selectedVersionB || ''}
+                onChange={(e) => setSelectedVersionB(e.target.value)}
+                className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-sm text-white"
+              >
+                <option value="">Select Version B</option>
+                {versions.map(v => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {abTestResult && (
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p className={`text-xl font-bold ${abTestResult.linesDiff < 0 ? 'text-green-400' : abTestResult.linesDiff > 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                  {abTestResult.linesDiff > 0 ? '+' : ''}{abTestResult.linesDiff}
+                </p>
+                <p className="text-xs text-slate-400">Lines Diff</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-cyan-400">
+                  {abTestResult.linesPercent > 0 ? '+' : ''}{abTestResult.linesPercent.toFixed(1)}%
+                </p>
+                <p className="text-xs text-slate-400">Size Change</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p className="text-xl font-bold text-purple-400">
+                  {abTestResult.methodsDiff > 0 ? '+' : ''}{abTestResult.methodsDiff}
+                </p>
+                <p className="text-xs text-slate-400">Methods Diff</p>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <p className={`text-xl font-bold ${
+                  abTestResult.winner === 'A' ? 'text-amber-400' : 
+                  abTestResult.winner === 'B' ? 'text-green-400' : 'text-slate-400'
+                }`}>
+                  {abTestResult.winner === 'tie' ? 'TIE' : `Version ${abTestResult.winner}`}
+                </p>
+                <p className="text-xs text-slate-400">Winner</p>
+              </div>
+            </div>
+          )}
+
+          {abTestResult && abTestResult.analysis.length > 0 && (
+            <div className="mt-3 space-y-1">
+              {abTestResult.analysis.map((item, idx) => (
+                <p key={idx} className="text-xs text-slate-300 flex items-center gap-2">
+                  <Check className="w-3 h-3 text-green-400" />
+                  {item}
+                </p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Code Panels with Mapping Arrows and Mini-maps */}
+      <div className={`flex flex-col md:flex-row ${isFullscreen ? 'flex-1 overflow-hidden' : 'h-[400px] md:h-[500px]'}`}>
+        {/* COBOL Panel */}
+        <div className="w-full md:w-1/2 flex flex-col border-b md:border-b-0 md:border-r border-slate-700 h-1/2 md:h-full">
+          <div className="flex items-center justify-between px-4 py-2 bg-amber-900/20 border-b border-amber-500/30">
+            <span className="text-amber-400 font-semibold text-sm flex items-center gap-2">
+              <Layers className="w-4 h-4" />
+              COBOL Original
+            </span>
+            <button
+              onClick={() => handleCopy('cobol')}
+              className="p-1.5 rounded hover:bg-amber-500/20 transition"
+              title="Copy COBOL code"
+            >
+              {copiedSide === 'cobol' ? (
+                <Check className="w-4 h-4 text-green-400" />
+              ) : (
+                <Copy className="w-4 h-4 text-amber-400" />
+              )}
+            </button>
+          </div>
+          <div className="flex flex-1 overflow-hidden">
+            {/* COBOL Code Panel */}
+            <div
+              ref={cobolPanelRef}
+              className="flex-1 overflow-auto bg-slate-950"
+              onScroll={() => handleScroll('cobol')}
+            >
+              {renderCode(cobolCode, 'cobol', showLineMapping ? handleCobolLineClick : undefined, highlightedCobolLines)}
+            </div>
+            
+            {/* COBOL Mini-map */}
+            {showMinimap && (
+              <div 
+                className="w-20 bg-slate-900 border-l border-slate-700 overflow-hidden relative cursor-pointer"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const clickY = e.clientY - rect.top;
+                  const lineNum = Math.floor((clickY / rect.height) * cobolLines);
+                  if (cobolPanelRef.current) {
+                    cobolPanelRef.current.scrollTop = lineNum * 20;
+                  }
+                }}
+              >
+                <div className="absolute inset-0 p-1">
+                  {/* Minimap content visualization */}
+                  {cobolCode.split('\n').map((line, idx) => {
+                    const isHighlighted = highlightedCobolLines.includes(idx + 1);
+                    const isSelected = selectedCobolLine === idx + 1;
+                    const hasKeyword = /PERFORM|COMPUTE|IF|MOVE|CALL/.test(line);
+                    return (
+                      <div
+                        key={idx}
+                        className={`h-[2px] mb-[1px] rounded-sm transition-all ${
+                          isSelected ? 'bg-cyan-400' :
+                          isHighlighted ? 'bg-yellow-400' :
+                          hasKeyword ? 'bg-purple-400/60' :
+                          line.trim() ? 'bg-amber-300/30' : 'bg-transparent'
+                        }`}
+                        style={{ width: `${Math.min(100, (line.length / 80) * 100)}%` }}
+                        onMouseEnter={() => setMinimapHoverLine({side: 'cobol', line: idx + 1})}
+                        onMouseLeave={() => setMinimapHoverLine(null)}
+                      />
+                    );
+                  }).slice(0, 200)}
+                </div>
+                {/* Viewport indicator */}
+                <div 
+                  className="absolute left-0 right-0 bg-amber-500/20 border border-amber-500/50 pointer-events-none"
+                  style={{
+                    top: cobolPanelRef.current ? `${(cobolPanelRef.current.scrollTop / cobolPanelRef.current.scrollHeight) * 100}%` : '0%',
+                    height: cobolPanelRef.current ? `${(cobolPanelRef.current.clientHeight / cobolPanelRef.current.scrollHeight) * 100}%` : '10%'
+                  }}
+                />
+                {/* Hover tooltip */}
+                {minimapHoverLine?.side === 'cobol' && (
+                  <div className="absolute top-0 right-full mr-2 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white whitespace-nowrap z-10">
+                    Line {minimapHoverLine.line}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Mapping Arrows Column - Hidden on mobile */}
+        {showLineMapping && (selectedCobolLine || selectedPythonLine) && (
+          <div className="hidden md:flex w-16 bg-slate-800/50 border-x border-slate-700 flex-col items-center justify-start pt-8 relative overflow-hidden">
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" />
+                </marker>
+                <marker id="arrowhead-reverse" markerWidth="10" markerHeight="7" refX="1" refY="3.5" orient="auto">
+                  <polygon points="10 0, 0 3.5, 10 7" fill="#a78bfa" />
+                </marker>
+                <linearGradient id="arrow-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#f59e0b" />
+                  <stop offset="100%" stopColor="#22c55e" />
+                </linearGradient>
+              </defs>
+              {/* Render mapping arrows */}
+              {selectedCobolLine && highlightedPythonLines.length > 0 && highlightedPythonLines.slice(0, 10).map((pyLine, idx) => {
+                const lineHeight = 20;
+                const cobolY = (selectedCobolLine - 1) * lineHeight + 10;
+                const pythonY = (pyLine - 1) * lineHeight + 10;
+                const midY = (cobolY + pythonY) / 2;
+                return (
+                  <g key={idx}>
+                    <path
+                      d={`M 0 ${cobolY} C 32 ${cobolY}, 32 ${pythonY}, 64 ${pythonY}`}
+                      stroke="url(#arrow-gradient)"
+                      strokeWidth="2"
+                      fill="none"
+                      markerEnd="url(#arrowhead)"
+                      className="opacity-80"
+                    />
+                    <circle cx="0" cy={cobolY} r="4" fill="#f59e0b" />
+                    <circle cx="64" cy={pythonY} r="4" fill="#22c55e" />
+                  </g>
+                );
+              })}
+              {selectedPythonLine && highlightedCobolLines.length > 0 && highlightedCobolLines.slice(0, 10).map((cobolLine, idx) => {
+                const lineHeight = 20;
+                const cobolY = (cobolLine - 1) * lineHeight + 10;
+                const pythonY = (selectedPythonLine - 1) * lineHeight + 10;
+                return (
+                  <g key={idx}>
+                    <path
+                      d={`M 64 ${pythonY} C 32 ${pythonY}, 32 ${cobolY}, 0 ${cobolY}`}
+                      stroke="#a78bfa"
+                      strokeWidth="2"
+                      fill="none"
+                      markerEnd="url(#arrowhead-reverse)"
+                      className="opacity-80"
+                    />
+                    <circle cx="64" cy={pythonY} r="4" fill="#22c55e" />
+                    <circle cx="0" cy={cobolY} r="4" fill="#f59e0b" />
+                  </g>
+                );
+              })}
+            </svg>
+            <div className="absolute top-2 left-1/2 -translate-x-1/2">
+              <ArrowLeftRight className="w-4 h-4 text-slate-500" />
+            </div>
+          </div>
+        )}
+
+        {/* Python Panel */}
+        <div className="w-full md:w-1/2 flex flex-col h-1/2 md:h-full">
+          <div className="flex items-center justify-between px-4 py-2 bg-green-900/20 border-b border-green-500/30">
+            <span className="text-green-400 font-semibold text-sm flex items-center gap-2">
+              <Layers className="w-4 h-4" />
+              Python Generated
+            </span>
+            <div className="flex items-center gap-2">
+              {highlightedPythonLines.length > 0 && (
+                <span className="text-xs text-yellow-400 bg-yellow-500/20 px-2 py-0.5 rounded">
+                  {highlightedPythonLines.length} lines highlighted
+                </span>
+              )}
+              <button
+                onClick={() => handleCopy('python')}
+                className="p-1.5 rounded hover:bg-green-500/20 transition"
+                title="Copy Python code"
+              >
+                {copiedSide === 'python' ? (
+                  <Check className="w-4 h-4 text-green-400" />
+                ) : (
+                  <Copy className="w-4 h-4 text-green-400" />
+                )}
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-1 overflow-hidden">
+            {/* Python Mini-map */}
+            {showMinimap && (
+              <div 
+                className="w-20 bg-slate-900 border-r border-slate-700 overflow-hidden relative cursor-pointer"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const clickY = e.clientY - rect.top;
+                  const lineNum = Math.floor((clickY / rect.height) * pythonLines);
+                  if (pythonPanelRef.current) {
+                    pythonPanelRef.current.scrollTop = lineNum * 20;
+                  }
+                }}
+              >
+                <div className="absolute inset-0 p-1">
+                  {/* Minimap content visualization */}
+                  {pythonCode.split('\n').map((line, idx) => {
+                    const isHighlighted = highlightedPythonLines.includes(idx + 1);
+                    const isSelected = selectedPythonLine === idx + 1;
+                    const hasKeyword = /def |class |import |return |if |for |while /.test(line);
+                    const hasError = autoDebugSuggestions.some(s => s.line === idx + 1);
+                    return (
+                      <div
+                        key={idx}
+                        className={`h-[2px] mb-[1px] rounded-sm transition-all ${
+                          hasError ? 'bg-red-500' :
+                          isSelected ? 'bg-cyan-400' :
+                          isHighlighted ? 'bg-yellow-400' :
+                          hasKeyword ? 'bg-purple-400/60' :
+                          line.trim() ? 'bg-green-300/30' : 'bg-transparent'
+                        }`}
+                        style={{ width: `${Math.min(100, (line.length / 80) * 100)}%` }}
+                        onMouseEnter={() => setMinimapHoverLine({side: 'python', line: idx + 1})}
+                        onMouseLeave={() => setMinimapHoverLine(null)}
+                      />
+                    );
+                  }).slice(0, 200)}
+                </div>
+                {/* Viewport indicator */}
+                <div 
+                  className="absolute left-0 right-0 bg-green-500/20 border border-green-500/50 pointer-events-none"
+                  style={{
+                    top: pythonPanelRef.current ? `${(pythonPanelRef.current.scrollTop / pythonPanelRef.current.scrollHeight) * 100}%` : '0%',
+                    height: pythonPanelRef.current ? `${(pythonPanelRef.current.clientHeight / pythonPanelRef.current.scrollHeight) * 100}%` : '10%'
+                  }}
+                />
+                {/* Hover tooltip */}
+                {minimapHoverLine?.side === 'python' && (
+                  <div className="absolute top-0 left-full ml-2 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white whitespace-nowrap z-10">
+                    Line {minimapHoverLine.line}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Python Code Panel */}
+            <div
+              ref={pythonPanelRef}
+              className="flex-1 overflow-auto bg-slate-950"
+              onScroll={() => handleScroll('python')}
+            >
+              {renderCode(pythonCode, 'python', showLineMapping ? handlePythonLineClick : undefined, highlightedPythonLines)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Auto-Debug Suggestions Panel */}
+      {autoDebugSuggestions.length > 0 && (
+        <div className="bg-red-900/20 border-t border-red-500/30 px-4 py-3">
+          <div className="flex items-center gap-2 text-red-400 font-semibold text-sm mb-2">
+            <Zap className="w-4 h-4" />
+            Auto-Debug Suggestions ({autoDebugSuggestions.length})
+          </div>
+          <div className="space-y-1">
+            {autoDebugSuggestions.slice(0, 3).map((s, idx) => (
+              <div key={idx} className="flex items-center gap-2 text-xs">
+                <AlertCircle className={`w-3 h-3 ${
+                  s.severity === 'critical' ? 'text-red-400' :
+                  s.severity === 'high' ? 'text-orange-400' : 'text-yellow-400'
+                }`} />
+                <span className="text-slate-400">Line {s.line}:</span>
+                <span className="text-slate-300">{s.message}</span>
+                <button 
+                  className="ml-auto px-2 py-0.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 rounded text-xs"
+                  onClick={() => {
+                    if (pythonPanelRef.current) {
+                      pythonPanelRef.current.scrollTop = (s.line - 5) * 20;
+                    }
+                    setSelectedPythonLine(s.line);
+                  }}
+                >
+                  Go to line
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Mapping Info */}
+      {showLineMapping && lineMappings.length > 0 && (
+        <div className="bg-slate-800/50 border-t border-slate-700 px-4 py-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-400">
+              {lineMappings.length} line mappings detected
+            </span>
+            {selectedCobolLine && (
+              <span className="text-cyan-400">
+                COBOL Line {selectedCobolLine} → Python Lines {highlightedPythonLines.join(', ') || 'none'}
+              </span>
+            )}
+            {selectedPythonLine && (
+              <span className="text-green-400">
+                Python Line {selectedPythonLine} → COBOL Lines {highlightedCobolLines.join(', ') || 'none'}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
