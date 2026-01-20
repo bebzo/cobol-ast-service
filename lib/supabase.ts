@@ -40,14 +40,14 @@ export const supabase = {
   from(table: string) {
     const client = getSupabaseClient();
     if (!client) {
-      // Return a mock object for dev mode
+      // Return a mock object for dev mode with proper type assertions
       return {
-        select: () => Promise.resolve({ data: [], error: null }),
-        insert: () => Promise.resolve({ error: null }),
-        delete: () => Promise.resolve({ error: null }),
-        order: () => Promise.resolve({ data: [], error: null }),
-        eq: () => Promise.resolve({ error: null }),
-        limit: () => Promise.resolve({ data: [], error: null })
+        select: () => Promise.resolve({ data: [], error: null }) as any,
+        insert: () => Promise.resolve({ error: null }) as any,
+        delete: () => Promise.resolve({ error: null }) as any,
+        order: () => Promise.resolve({ data: [], error: null }) as any,
+        eq: () => Promise.resolve({ error: null }) as any,
+        limit: () => Promise.resolve({ data: [], error: null }) as any
       };
     }
     return client.from(table);
