@@ -296,6 +296,7 @@ export default function ShadowTestingPanel({
   const [selectedTab, setSelectedTab] = useState<'summary' | 'details' | 'recommendations'>('summary');
   const [testCases, setTestCases] = useState<ShadowTestCase[]>(defaultTestCases);
   const [showSettings, setShowSettings] = useState(false);
+  const [autoRunTriggered, setAutoRunTriggered] = useState(false);
   const [settings, setSettings] = useState({
     parallelExecution: true,
     timeout: 30,
@@ -310,6 +311,14 @@ export default function ShadowTestingPanel({
       setTestCases(generatedCases);
     }
   }, [cobolCode, testCases.length]);
+
+  // Exécution automatique des tests quand le code Python est disponible
+  useEffect(() => {
+    if (cobolCode && pythonCode && !isRunning && !report && !autoRunTriggered) {
+      setAutoRunTriggered(true);
+      runTests();
+    }
+  }, [cobolCode, pythonCode, isRunning, report, autoRunTriggered]);
 
   const generateDefaultTestCases = useCallback((code: string): ShadowTestCase[] => {
     const cases: ShadowTestCase[] = [];
@@ -493,12 +502,11 @@ export default function ShadowTestingPanel({
               <Download className="w-5 h-5" />
             </button>
             <button
-              onClick={runTests}
-              disabled={isRunning}
+              disabled={!isRunning}
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                 isRunning 
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
             >
               {isRunning ? (
@@ -509,7 +517,7 @@ export default function ShadowTestingPanel({
               ) : (
                 <>
                   <Play className="w-4 h-4" />
-                  <span>Lancer les tests</span>
+                  <span>Tests automatiques</span>
                 </>
               )}
             </button>
