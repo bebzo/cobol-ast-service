@@ -2311,19 +2311,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </div>
               )}
 
-              {/* v9.1: Security Report Sub-Tabs - Only Issues and Security */}
+              {/* v9.1: Security Report Sub-Tabs - Only Security and Issues */}
               {activeTab === "report" && (
                 <div className="flex items-center gap-1 px-4 border-b border-slate-700 bg-slate-800/30">
-                  <button
-                    onClick={() => setActiveReportTab("issues")}
-                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
-                      activeReportTab === "issues"
-                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
-                        : "text-slate-400 border-transparent hover:text-white"
-                    }`}
-                  >
-                    Issues
-                  </button>
                   <button
                     onClick={() => setActiveReportTab("security")}
                     className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
@@ -2333,6 +2323,16 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     }`}
                   >
                     Security
+                  </button>
+                  <button
+                    onClick={() => setActiveReportTab("issues")}
+                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
+                      activeReportTab === "issues"
+                        ? "text-purple-400 border-purple-400 bg-purple-500/10"
+                        : "text-slate-400 border-transparent hover:text-white"
+                    }`}
+                  >
+                    Issues
                   </button>
                 </div>
               )}
@@ -3064,8 +3064,8 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 <div className="h-[400px] overflow-y-auto p-4">
                   <div className="flex gap-2 mb-4 flex-wrap">
                     {[
-                      { key: "issues", label: "Issues", icon: AlertTriangle, count: analysis.issues?.length || 0 },
                       { key: "security", label: "Security", icon: Shield, count: analysis.security_warnings?.length || 0 },
+                      { key: "issues", label: "Issues", icon: AlertTriangle, count: analysis.issues?.length || 0 },
                     ].map(({ key, label, icon: Icon, count }) => (
                       <button
                         key={key}
@@ -3079,24 +3079,6 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     ))}
                   </div>
                   <ul className="space-y-2">
-                    {activeReportTab === "issues" && (analysis.issues || []).map((item: any, i: number) => {
-                      const issueText = typeof item === 'string' ? item : (item?.title || item?.message || item?.description || JSON.stringify(item));
-                      const severity = typeof item === 'object' && item?.severity ? item.severity : 'INFO';
-                      const severityColors: Record<string, string> = {
-                        'CRITICAL': 'bg-red-500/20 text-red-400 border-red-500/30',
-                        'HIGH': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-                        'MEDIUM': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-                        'LOW': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-                        'INFO': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-                      };
-                      return (
-                        <li key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${severityColors[severity] || 'bg-slate-500/10 border-slate-500/30'}`}>
-                          <span className="px-2 py-0.5 text-xs font-semibold rounded uppercase">{severity}</span>
-                          <span className="text-slate-300 flex-1">{issueText}</span>
-                          <HelpButton issueText={issueText} issueType="issue" />
-                        </li>
-                      );
-                    })}
                     {activeReportTab === "security" && (() => {
                       const rawWarnings = analysis.security_warnings || [];
                       const warnings = rawWarnings.filter((w): w is SecurityWarning => typeof w === 'object' && w !== null);
@@ -3211,6 +3193,24 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                         </>
                       );
                     })()}
+                    {activeReportTab === "issues" && (analysis.issues || []).map((item: any, i: number) => {
+                      const issueText = typeof item === 'string' ? item : (item?.title || item?.message || item?.description || JSON.stringify(item));
+                      const severity = typeof item === 'object' && item?.severity ? item.severity : 'INFO';
+                      const severityColors: Record<string, string> = {
+                        'CRITICAL': 'bg-red-500/20 text-red-400 border-red-500/30',
+                        'HIGH': 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+                        'MEDIUM': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+                        'LOW': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+                        'INFO': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+                      };
+                      return (
+                        <li key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${severityColors[severity] || 'bg-slate-500/10 border-slate-500/30'}`}>
+                          <span className="px-2 py-0.5 text-xs font-semibold rounded uppercase">{severity}</span>
+                          <span className="text-slate-300 flex-1">{issueText}</span>
+                          <HelpButton issueText={issueText} issueType="issue" />
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
