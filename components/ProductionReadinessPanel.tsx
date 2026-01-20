@@ -1,797 +1,662 @@
-"use client";
+'use client';
 
-import { useState, useMemo, useCallback } from "react";
-import {
-  Shield,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Lock,
-  Database,
-  Activity,
-  Clock,
-  FileText,
-  Zap,
-  Server,
-  GitCompare,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Download,
-  RefreshCw,
-  Play,
-} from "lucide-react";
+import { useState, useEffect, useCallback } from 'react';
+import { 
+  Shield, CheckCircle, AlertTriangle, 
+  Activity, Lock, Database, Cpu, FileText,
+  ChevronRight, RefreshCw, Target, TrendingUp,
+  Loader2, BarChart3, XCircle
+} from 'lucide-react';
 
-interface ProductionCheck {
-  id: string;
-  name: string;
-  category: "critical" | "major" | "minor";
-  status: "passed" | "failed" | "partial" | "not_tested";
-  description: string;
-  recommendation?: string;
-  codeSnippet?: string;
-  effort: string;
+interface AnalysisResult {
+  summary: string;
+  python_code?: string;
+  issues?: string[];
+  improvements?: string[];
+  security_warnings?: any[];
+  migration_score?: {
+    complexity?: string;
+    risk_level?: string;
+    estimated_effort?: string;
+    confidence?: string | number;
+  };
+  coverage_metrics?: {
+    total_paragraphs?: number;
+    successful_translations?: number;
+    translation_rate?: number;
+  };
 }
 
-interface ProductionReadinessProps {
-  analysis: any;
-  testResults: {
-    total: number;
-    passed: number;
-    failed: number;
-    details: { name: string; status: string; error?: string }[];
-  };
-  cobolLines: number;
-  pythonLines: number;
-  onEnhance?: () => void;
-  isEnhancing?: boolean;
+interface TestResults {
+  running: boolean;
+  total: number;
+  passed: number;
+  failed: number;
+  details: { name: string; status: string; error?: string }[];
 }
 
-export default function ProductionReadinessPanel({
-  analysis,
-  testResults,
-  cobolLines,
-  pythonLines,
-  onEnhance,
-  isEnhancing = false,
-}: ProductionReadinessProps) {
-  const [expandedChecks, setExpandedChecks] = useState<string[]>([]);
-  const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
+interface ProductionReadinessPanelProps {
+  analysis: AnalysisResult | null;
+  testResults?: TestResults;
+  cobolLines?: number;
+  pythonLines?: number;
+}
 
-  const toggleExpand = (id: string) => {
-    setExpandedChecks((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+interface ReadinessData {
+  score: number;
+  grade: string;
+  summary: string;
+  recommendations: string[];
+  metrics: {
+    functions: number;
+    classes: number;
+    dataclasses: number;
+    async_functions: number;
+    type_annotated: number;
+    documented: number;
+    error_handled: number;
+    try_blocks: number;
+    test_functions: number;
+    hardcoded_secrets: number;
+    dangerous_calls: number;
+    input_validations: number;
+    logging_statements: number;
+    contextvars: number;
+    locks: number;
+    sql_queries: number;
+    orm_usage: number;
   };
+  issues: {
+    severity: string;
+    category: string;
+    line_number: number;
+    message: string;
+    suggestion: string;
+    code_snippet: string;
+  }[];
+  production_ready: boolean;
+  historical_scores?: {
+    timestamp: string;
+    score: number;
+    grade: string;
+  }[];
+  mode?: string;
+}
 
-  const copySnippet = (id: string, code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedSnippet(id);
-    setTimeout(() => setCopiedSnippet(null), 2000);
-  };
+type Category = 'all' | 'security' | 'error_handling' | 'testing' | 'architecture' | 'performance';
 
-  // Dynamically calculate production readiness checks based on analysis
-  const checks = useMemo<ProductionCheck[]>(() => {
-    const pythonCode = analysis?.python_code || "";
-    const stats = analysis?.stats || {};
-    const confidence = analysis?.confidence || {};
-    const quality = analysis?.quality || {};
+export default function ProductionReadinessPanel({ 
+  analysis, 
+  testResults 
+}: ProductionReadinessPanelProps) {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<ReadinessData | null>(null);
+  const [activeCategory, setActiveCategory] = useState<Category>('all');
+  const [error, setError] = useState<string | null>(null);
 
-    // Helper to determine status based on code analysis
-    const hasPattern = (pattern: string | RegExp) => {
-      if (typeof pattern === "string") {
-        return pythonCode.includes(pattern);
-      }
-      return pattern.test(pythonCode);
+  // Analyse statique réelle du code Python
+  const performStaticAnalysis = useCallback((code: string): ReadinessData => {
+    const lines = code.split('\n');
+    const codeLines = lines.filter(l => l.trim() && !l.trim().startsWith('#'));
+    
+    // Métriques calculées réellement depuis le code
+    const functionMatches = code.match(/def\s+\w+/g) || [];
+    const classMatches = code.match(/class\s+\w+/g) || [];
+    const dataclassMatches = code.match(/@dataclass/g) || [];
+    const asyncMatches = code.match(/async\s+def/g) || [];
+    const typeMatches = code.match(/:\s*\w+[:=]/g) || [];
+    const docMatches = code.match(/"""[\s\S]*?"""/g) || [];
+    const tryMatches = code.match(/try:/g) || [];
+    const exceptMatches = code.match(/except\s+/g) || [];
+    const testMatches = code.match(/def\s+test_/g) || [];
+    const loggingMatches = code.match(/logger\.|logging\./g) || [];
+    const contextMatches = code.match(/contextvars/g) || [];
+    const lockMatches = code.match(/threading\.(Lock|RLock)/g) || [];
+    const sqlMatches = code.match(/execute\(|cursor\./g) || [];
+    const ormMatches = code.match(/\.filter\(|\.query\(/g) || [];
+    const evalExecMatches = code.match(/eval\(|exec\(/g) || [];
+    
+    // Détection des secrets codés en dur
+    const secretPattern = /(password|secret|api_key|token)\s*[:=]\s*['"][^'"]+['"]/gi;
+    const secretMatches = code.match(secretPattern) || [];
+    
+    // Métriques détaillées
+    const metrics = {
+      functions: functionMatches.length,
+      classes: classMatches.length,
+      dataclasses: dataclassMatches.length,
+      async_functions: asyncMatches.length,
+      type_annotated: typeMatches.length,
+      documented: docMatches.length,
+      error_handled: exceptMatches.length,
+      try_blocks: tryMatches.length,
+      test_functions: testMatches.length,
+      hardcoded_secrets: secretMatches.length,
+      dangerous_calls: evalExecMatches.length,
+      input_validations: 0,
+      logging_statements: loggingMatches.length,
+      contextvars: contextMatches.length,
+      locks: lockMatches.length,
+      sql_queries: sqlMatches.length,
+      orm_usage: ormMatches.length,
     };
 
-    return [
-      // CRITICAL CHECKS
-      {
-        id: "thread_safety",
-        name: "Thread Safety (contextvars)",
-        category: "critical",
-        status: hasPattern("contextvars")
-          ? "passed"
-          : hasPattern("ThreadSafeRuntime") || hasPattern("threading")
-          ? "partial"
-          : "failed",
-        description:
-          "COBOL code is single-threaded. Python in web servers needs thread isolation.",
-        recommendation: hasPattern("contextvars")
-          ? "Thread safety is implemented correctly."
-          : "Use contextvars to isolate state per request in multi-threaded environments.",
-        effort: "2-3 days",
-        codeSnippet: `from lib.production_infrastructure import ThreadSafeRuntime
-
-# Thread-safe runtime is now available
-runtime = ThreadSafeRuntime(
-    max_workers=10,
-    timeout_seconds=30,
-    enable_deadlock_detection=True
-)
-
-# Execute with automatic thread isolation
-result = runtime.execute(
-    lambda: process_transaction(data),
-    context={'user_id': 'U123', 'transaction_id': 'TX456'}
-)`,
-      },
-      {
-        id: "acid_transactions",
-        name: "ACID Transactions (Unit of Work)",
-        category: "critical",
-        status: hasPattern("UnitOfWork") || hasPattern("start_production_transaction")
-          ? "passed"
-          : hasPattern("transaction") || hasPattern("@transaction")
-          ? "partial"
-          : "failed",
-        description:
-          "COBOL/CICS provides native transaction support. Python needs explicit transaction management.",
-        recommendation: hasPattern("UnitOfWork")
-          ? "Transaction management is implemented."
-          : "Implement Unit of Work pattern for atomic operations.",
-        effort: "3-5 days",
-        codeSnippet: `from lib.production_infrastructure import UnitOfWork
-
-# Transaction context with automatic commit/rollback
-with start_production_transaction(user_id="U123", session_id="S456") as uow:
-    account = repository.get("ACC123")
-    uow.register_dirty(account)
+    // Calcul du score basé sur les métriques réelles
+    let score = 40;
     
-    account.balance += amount
-    account.last_modified = datetime.now()
+    // Couverture de typage
+    if (metrics.functions > 0) {
+      score += Math.min(15, (metrics.type_annotated / metrics.functions) * 15);
+    }
     
-    # Commit is automatic at exit
+    // Documentation
+    if (metrics.functions > 0) {
+      score += Math.min(10, (metrics.documented / metrics.functions) * 10);
+    }
+    
+    // Gestion d'erreurs
+    if (metrics.functions > 0) {
+      score += Math.min(15, (metrics.error_handled / metrics.functions) * 15);
+    }
+    
+    // Tests
+    if (metrics.test_functions > 0) {
+      score += Math.min(15, (metrics.test_functions / metrics.functions) * 15);
+    }
+    
+    // Logging
+    if (metrics.logging_statements > 0) {
+      score += 5;
+    }
+    
+    // Concurrence
+    if (metrics.contextvars > 0 || metrics.locks > 0) {
+      score += 3;
+    }
+    
+    // Malus pour problèmes de sécurité
+    score -= metrics.hardcoded_secrets * 8;
+    score -= metrics.dangerous_calls * 5;
+    
+    // Bonus pour architecture moderne
+    if (metrics.async_functions > 0) score += 3;
+    if (metrics.dataclasses > 0) score += 3;
+    if (metrics.orm_usage > 0) score += 2;
+    
+    // Normaliser le score entre 0 et 100
+    score = Math.round(Math.min(100, Math.max(0, score)));
+    
+    // Calculer le grade
+    const grade = score >= 90 ? 'A' : score >= 80 ? 'B' : score >= 70 ? 'C' : score >= 60 ? 'D' : 'F';
 
-# Or use UnitOfWork directly
-uow = UnitOfWork(audit_logger=audit_logger)
-with uow.start(user_id="U123") as ctx:
-    # Perform operations
-    pass`,
-      },
-      {
-        id: "test_coverage",
-        name: "Test Coverage (>500 tests)",
-        category: "critical",
-        status:
-          testResults.total >= 500
-            ? "passed"
-            : testResults.total >= 100
-            ? "partial"
-            : testResults.total >= 10
-            ? "partial"
-            : "failed",
-        description: `Current: ${testResults.total} tests. Banking systems require 50-100 tests per 1000 lines.`,
-        recommendation:
-          testResults.total >= 500
-            ? "Excellent test coverage!"
-            : `Add ${Math.max(0, 500 - testResults.total)} more tests for ${cobolLines} lines of COBOL.`,
-        effort: "1-2 weeks",
-        codeSnippet: `from lib.production_postprocessor import ProductionPostprocessor, ProductionLevel
+    // Générer les issues réels
+    const issues: ReadinessData['issues'] = [];
+    
+    if (metrics.dangerous_calls > 0) {
+      issues.push({
+        severity: 'HIGH',
+        category: 'Security',
+        line_number: 0,
+        message: `Dangerous code execution detected (${metrics.dangerous_calls} eval/exec calls)`,
+        suggestion: 'Avoid using eval() or exec() with user input. Use safer alternatives like ast.literal_eval()',
+        code_snippet: 'eval(...) or exec(...)'
+      });
+    }
+    
+    if (metrics.hardcoded_secrets > 0) {
+      secretMatches.forEach((secret: string, idx: number) => {
+        issues.push({
+          severity: 'CRITICAL',
+          category: 'Security',
+          line_number: idx + 1,
+          message: 'Hardcoded secret detected in source code',
+          suggestion: 'Move secrets to environment variables or use a secrets manager (AWS Secrets Manager, HashiCorp Vault)',
+          code_snippet: secret.substring(0, 50)
+        });
+      });
+    }
+    
+    if (metrics.functions > metrics.try_blocks) {
+      issues.push({
+        severity: 'MEDIUM',
+        category: 'Error Handling',
+        line_number: 0,
+        message: `${metrics.functions - metrics.try_blocks} functions lack error handling`,
+        suggestion: 'Add try-except blocks to all functions that can fail',
+        code_snippet: 'def function(...):  # Missing try-except'
+      });
+    }
+    
+    if (metrics.logging_statements === 0 && metrics.functions > 3) {
+      issues.push({
+        severity: 'LOW',
+        category: 'Architecture',
+        line_number: 0,
+        message: 'No logging statements detected',
+        suggestion: 'Add logging for production monitoring and debugging',
+        code_snippet: 'logger = logging.getLogger(__name__)'
+      });
+    }
+    
+    if (metrics.test_functions === 0 && metrics.functions > 0) {
+      issues.push({
+        severity: 'MEDIUM',
+        category: 'Testing',
+        line_number: 0,
+        message: 'No unit tests detected',
+        suggestion: 'Add pytest unit tests for better code quality assurance',
+        code_snippet: 'def test_function(): ...'
+      });
+    }
+    
+    if (metrics.type_annotated < metrics.functions * 0.5 && metrics.functions > 5) {
+      issues.push({
+        severity: 'LOW',
+        category: 'Type Safety',
+        line_number: 0,
+        message: `Low type annotation coverage (${metrics.functions > 0 ? Math.round((metrics.type_annotated / metrics.functions) * 100) : 0}%)`,
+        suggestion: 'Add type hints to improve code quality and enable better IDE support',
+        code_snippet: 'def function(param: str) -> bool: ...'
+      });
+    }
 
-# Generate comprehensive tests automatically
-postprocessor = ProductionPostprocessor(
-    production_level=ProductionLevel.BANK_GRADE
-)
+    // Générer les recommandations
+    const recommendations: string[] = [];
+    
+    if (metrics.try_blocks === 0 && metrics.functions > 0) {
+      recommendations.push('Add try-except blocks for comprehensive error handling');
+    }
+    if (metrics.logging_statements === 0) {
+      recommendations.push('Add logging statements using the logging module');
+    }
+    if (metrics.test_functions === 0) {
+      recommendations.push('Create unit tests using pytest framework');
+    }
+    if (metrics.type_annotated < metrics.functions * 0.5) {
+      recommendations.push('Increase type annotation coverage for better maintainability');
+    }
+    if (metrics.hardcoded_secrets > 0) {
+      recommendations.push('Move all secrets to environment variables');
+    }
+    if (metrics.dangerous_calls > 0) {
+      recommendations.push('Replace eval/exec with safer alternatives');
+    }
+    if (metrics.contextvars === 0 && metrics.locks === 0 && metrics.functions > 20) {
+      recommendations.push('Consider adding thread safety mechanisms for concurrent access');
+    }
 
-production_code, report = postprocessor.process(
-    original_cobol=cobol_code,
-    transpiled_python=python_code,
-    metadata={'user_id': 'U123'}
-)
+    // Générer le résumé
+    const summary = `Codebase with ${metrics.functions} functions, ${metrics.classes} classes. ` +
+                    `Type coverage: ${metrics.functions > 0 ? Math.round((metrics.type_annotated / metrics.functions) * 100) : 0}%. ` +
+                    `Error handling: ${metrics.error_handled}/${metrics.functions} functions. ` +
+                    `Tests: ${metrics.test_functions} test functions.`;
 
-# Check the production report for test requirements
-print(f"Production Readiness Score: {report.overall_score}%")`,
-      },
-      {
-        id: "shadow_testing",
-        name: "Shadow Testing (COBOL vs Python)",
-        category: "critical",
-        status: hasPattern("ShadowTester") || hasPattern("shadow_test")
-          ? "passed"
-          : hasPattern("run_shadow_test") || analysis?.shadow_testing_plan
-          ? "partial"
-          : "failed",
-        description:
-          "Run COBOL and Python in parallel, compare outputs bit-by-bit before cutover.",
-        recommendation: hasPattern("ShadowTester")
-          ? "Shadow testing is configured."
-          : "Implement shadow mode: route traffic to both systems, compare results.",
-        effort: "1 week",
-        codeSnippet: `from lib.shadow_tester import ShadowTester, ShadowTestCase
+    return {
+      score,
+      grade,
+      summary,
+      recommendations,
+      metrics,
+      issues,
+      production_ready: score >= 75,
+      mode: 'static_analysis'
+    };
+  }, []);
 
-# Create shadow tester
-tester = ShadowTester(
-    cobol_executor="cobc",
-    python_executor="python3"
-)
+  // Analyse via l'API Supabase
+  const analyzeReadiness = useCallback(async () => {
+    if (!analysis?.python_code) {
+      setError('No Python code available for analysis');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/readiness-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          code: analysis.python_code,
+          targetPath: null
+        })
+      });
 
-# Define test cases
-test_case = ShadowTestCase(
-    name="Test calcul intérêt",
-    cobol_input={"principal": 10000, "rate": 0.05, "time": 12},
-    python_input={"principal": 10000, "rate": 0.05, "time": 12}
-)
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
 
-# Run shadow test
-report = tester.run_test(test_case)
+      const result = await response.json();
+      
+      // Si l'API retourne des données valides, les utiliser
+      if (result.score !== undefined) {
+        setData({
+          score: result.score,
+          grade: result.grade,
+          summary: result.summary,
+          recommendations: result.recommendations || [],
+          metrics: result.metrics,
+          issues: result.issues || [],
+          production_ready: result.production_ready,
+          historical_scores: result.historical_scores || [],
+          mode: result.mode
+        });
+      } else {
+        // Fallback à l'analyse statique locale
+        setData(performStaticAnalysis(analysis.python_code));
+      }
+    } catch (err: any) {
+      console.error('Analysis error:', err);
+      // Erreur - utiliser l'analyse statique locale au lieu de fake data
+      setData(performStaticAnalysis(analysis.python_code));
+    } finally {
+      setLoading(false);
+    }
+  }, [analysis, performStaticAnalysis]);
 
-print(f"Correspondance: {report.comparison_result['match']}")
-print(f"Score: {report.success_rate}%")`,
-      },
-      // MAJOR CHECKS
-      {
-        id: "secrets_management",
-        name: "Secrets Management (Vault)",
-        category: "major",
-        status: hasPattern("SecureCredentialManager") || hasPattern("get_secure_credential")
-          ? "passed"
-          : hasPattern("vault") || hasPattern("secretsmanager")
-          ? "partial"
-          : "failed",
-        description:
-          "PCI-DSS requires secrets in secure vaults, not environment variables.",
-        recommendation: "Integrate HashiCorp Vault or AWS Secrets Manager.",
-        effort: "2-3 days",
-        codeSnippet: `from lib.production_infrastructure import SOXAuditLogger
+  // Recalculer quand l'analyse change
+  useEffect(() => {
+    if (analysis?.python_code) {
+      analyzeReadiness();
+    }
+  }, [analysis?.python_code, analyzeReadiness]);
 
-# Initialize audit logger for SOX compliance
-audit_logger = SOXAuditLogger(
-    log_directory="/var/log/codeswitch/audit",
-    retention_days=2555  # ~7 ans pour conformité SOX
-)
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'text-green-400';
+    if (score >= 75) return 'text-emerald-400';
+    if (score >= 60) return 'text-yellow-400';
+    if (score >= 45) return 'text-orange-400';
+    return 'text-red-400';
+  };
 
-# Log audit events
-audit_logger.log_event(
-    event_type=AuditEventType.TRANSACTION_COMMIT,
-    user_id="U123",
-    session_id="S456",
-    resource="ACCOUNT001",
-    action="CREDIT",
-    after_state={"balance": 5000.00}
-)`,
-      },
-      {
-        id: "audit_logs",
-        name: "SOX Audit Logs (Immutable)",
-        category: "major",
-        status: hasPattern("SOXAuditLogger") || hasPattern("AuditLogger")
-          ? "passed"
-          : hasPattern("audit") || hasPattern("AuditEvent")
-          ? "partial"
-          : "failed",
-        description:
-          "SOX compliance requires immutable, signed audit logs for all financial operations.",
-        recommendation: hasPattern("SOXAuditLogger")
-          ? "SOX audit logging is configured."
-          : "Implement cryptographically signed audit trail with WORM storage.",
-        effort: "3-5 days",
-        codeSnippet: `from lib.production_infrastructure import SOXAuditLogger, AuditEventType
+  const getScoreBg = (score: number) => {
+    if (score >= 90) return 'from-green-500/20 to-emerald-500/20';
+    if (score >= 75) return 'from-emerald-500/20 to-teal-500/20';
+    if (score >= 60) return 'from-yellow-500/20 to-amber-500/20';
+    if (score >= 45) return 'from-orange-500/20 to-red-500/20';
+    return 'from-red-500/20 to-pink-500/20';
+  };
 
-# Initialize audit logger for SOX compliance
-audit_logger = SOXAuditLogger(
-    log_directory="/var/log/codeswitch/audit",
-    retention_days=2555  # ~7 ans pour conformité SOX
-)
-
-# Log audit events
-audit_logger.log_event(
-    event_type=AuditEventType.TRANSACTION_COMMIT,
-    user_id="U123",
-    session_id="S456",
-    resource="ACCOUNT001",
-    action="CREDIT",
-    after_state={"balance": 5000.00}
-)
-
-# Generate compliance report
-report = audit_logger.export_compliance_report(
-    start_date=datetime(2024, 1, 1),
-    end_date=datetime(2024, 12, 31)
-)`,
-      },
-      {
-        id: "rate_limiting",
-        name: "Rate Limiting (API Protection)",
-        category: "major",
-        status: hasPattern("RateLimiter") || hasPattern("rate_limited")
-          ? "passed"
-          : hasPattern("rate_limit") || hasPattern("throttle")
-          ? "partial"
-          : "failed",
-        description:
-          "No protection against API abuse, DoS attacks, or fraud by volume.",
-        recommendation: "Implement token bucket rate limiting with Redis backend.",
-        effort: "1-2 days",
-        codeSnippet: `from lib.production_postprocessor import ProductionPostprocessor, ProductionLevel
-
-# Enhance code with production patterns including rate limiting
-postprocessor = ProductionPostprocessor(
-    production_level=ProductionLevel.BANK_GRADE
-)
-
-production_code, report = postprocessor.process(
-    original_cobol=cobol_code,
-    transpiled_python=python_code
-)
-
-print(f"Production Readiness Score: {report.overall_score}%")
-print(f"Patterns injected: {report.injected_patterns}")`,
-      },
-      {
-        id: "observability",
-        name: "Observability (OpenTelemetry)",
-        category: "major",
-        status:
-          hasPattern("opentelemetry") ||
-          hasPattern("TracingContext") ||
-          hasPattern("tracer")
-            ? "passed"
-            : hasPattern("trace") || hasPattern("span")
-            ? "partial"
-            : "failed",
-        description: "No distributed tracing or monitoring for transaction flows.",
-        recommendation: "Add OpenTelemetry instrumentation for all critical paths.",
-        effort: "2-3 days",
-        codeSnippet: `from lib.production_infrastructure import ThreadSafeRuntime
-
-# All production patterns are now available
-runtime = ThreadSafeRuntime(
-    max_workers=10,
-    timeout_seconds=30,
-    enable_deadlock_detection=True
-)
-
-# Execute with monitoring
-result = runtime.execute(
-    lambda: calculate_loan_interest(amount, rate, term),
-    context={'user_id': 'U123', 'loan_id': 'L456'}
-)
-
-# Get runtime statistics
-stats = runtime.get_statistics()
-print(f"Executions: {stats['total_executions']}")
-print(f"Active: {stats['active_executions']}")`,
-      },
-      // MINOR CHECKS
-      {
-        id: "db_migration",
-        name: "Database Migration (FileManager → SQL)",
-        category: "minor",
-        status: hasPattern("SQLAlchemy") || hasPattern("psycopg")
-          ? "passed"
-          : hasPattern("DatabaseRepository") || hasPattern("sessionmaker")
-          ? "partial"
-          : "not_tested",
-        description: "FileManager uses sequential file access. Production needs indexed database.",
-        recommendation: "Migrate to PostgreSQL with proper indexing for O(log n) access.",
-        effort: "1 week",
-        codeSnippet: `from lib.production_postprocessor import calculate_production_readiness
-
-# Calculate production readiness score
-readiness = calculate_production_readiness(python_code)
-
-print(f"Overall Score: {readiness['overall_score']}%")
-print(f"Category Scores: {readiness['category_scores']}")
-print(f"Critical Missing: {readiness['critical_missing']}")
-
-# Recommendations
-for rec in readiness['recommendations']:
-    if rec:
-        print(f"- {rec}")`,
-      },
-      {
-        id: "mutation_testing",
-        name: "Mutation Testing",
-        category: "minor",
-        status:
-          testResults.total >= 100 && testResults.passed / testResults.total > 0.9
-            ? "passed"
-            : testResults.total >= 20
-            ? "partial"
-            : "not_tested",
-        description: "Verify test quality by introducing code mutations.",
-        recommendation: "Run mutmut or cosmic-ray to validate test effectiveness.",
-        effort: "2-3 days",
-        codeSnippet: `# Install: pip install mutmut
-# Run: mutmut run --paths-to-mutate=api/
-
-# Configuration in setup.cfg:
-[mutmut]
-paths_to_mutate=api/
-tests_dir=tests/
-runner=pytest -x --tb=no -q
-
-# Target: >80% mutation score`,
-      },
-      {
-        id: "rollback_plan",
-        name: "Rollback Strategy",
-        category: "minor",
-        status: hasPattern("FeatureFlags") || hasPattern("rollback")
-          ? "passed"
-          : hasPattern("feature_flag") || hasPattern("traffic_percent")
-          ? "partial"
-          : "not_tested",
-        description:
-          "No documented rollback plan if Python system fails in production.",
-        recommendation: "Implement feature flags and traffic routing for instant rollback.",
-        effort: "2-3 days",
-        codeSnippet: `from lib.shadow_tester import run_shadow_test
-
-# Run shadow testing on the transpiled code
-report = run_shadow_test(
-    cobol_code=original_cobol,
-    python_code=transpiled_python,
-    test_cases=[
-        {
-            'name': 'Test principal',
-            'cobol_input': {'amount': 1000, 'rate': 0.05},
-            'python_input': {'amount': 1000, 'rate': 0.05}
-        }
-    ],
-    parallel=True
-)
-
-print(f"Success Rate: {report['success_rate']}%")
-print(f"Passed: {report['passed_tests']}/{report['total_tests']}")`,
-      },
-    ];
-  }, [analysis, testResults, cobolLines, pythonLines]);
-
-  // Calculate overall readiness score dynamically
-  const { score, passedCritical, totalCritical, passedMajor, totalMajor, passedMinor, totalMinor } =
-    useMemo(() => {
-      const criticalChecks = checks.filter((c) => c.category === "critical");
-      const majorChecks = checks.filter((c) => c.category === "major");
-      const minorChecks = checks.filter((c) => c.category === "minor");
-
-      const _totalCritical = criticalChecks.length;
-      const _totalMajor = majorChecks.length;
-      const _totalMinor = minorChecks.length;
-
-      const passedCritical = criticalChecks.filter(
-        (c) => c.status === "passed"
-      ).length;
-      const partialCritical = criticalChecks.filter(
-        (c) => c.status === "partial"
-      ).length;
-
-      const passedMajor = majorChecks.filter(
-        (c) => c.status === "passed"
-      ).length;
-      const partialMajor = majorChecks.filter(
-        (c) => c.status === "partial"
-      ).length;
-
-      const passedMinor = minorChecks.filter(
-        (c) => c.status === "passed"
-      ).length;
-      const partialMinor = minorChecks.filter(
-        (c) => c.status === "partial"
-      ).length;
-
-      // Weighted scoring: Critical=50%, Major=30%, Minor=20%
-      const criticalScore =
-        _totalCritical > 0 ? ((passedCritical + partialCritical * 0.5) / _totalCritical) * 50 : 0;
-      const majorScore =
-        _totalMajor > 0 ? ((passedMajor + partialMajor * 0.5) / _totalMajor) * 30 : 0;
-      const minorScore =
-        _totalMinor > 0 ? ((passedMinor + partialMinor * 0.5) / _totalMinor) * 20 : 0;
-
-      const _score = Math.round(criticalScore + majorScore + minorScore);
-
-      return {
-        score: _score,
-        passedCritical,
-        totalCritical: _totalCritical,
-        passedMajor,
-        totalMajor: _totalMajor,
-        passedMinor,
-        totalMinor: _totalMinor,
-      };
-    }, [checks]);
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "passed":
-        return <CheckCircle className="w-5 h-5 text-green-400" />;
-      case "partial":
-        return <AlertTriangle className="w-5 h-5 text-yellow-400" />;
-      case "failed":
-        return <XCircle className="w-5 h-5 text-red-400" />;
-      default:
-        return <Clock className="w-5 h-5 text-slate-400" />;
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'CRITICAL': return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case 'HIGH': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+      case 'MEDIUM': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+      case 'LOW': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
     }
   };
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "critical":
-        return "border-red-500/50 bg-red-500/10";
-      case "major":
-        return "border-orange-500/50 bg-orange-500/10";
-      default:
-        return "border-slate-500/50 bg-slate-500/10";
+  const getCategoryIcon = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'security': return <Lock className="w-4 h-4" />;
+      case 'error handling': return <AlertTriangle className="w-4 h-4" />;
+      case 'testing': return <Target className="w-4 h-4" />;
+      case 'database': return <Database className="w-4 h-4" />;
+      case 'architecture': return <Cpu className="w-4 h-4" />;
+      case 'type safety': return <FileText className="w-4 h-4" />;
+      case 'performance': return <Activity className="w-4 h-4" />;
+      default: return <Shield className="w-4 h-4" />;
     }
   };
 
-  const getScoreColor = (scoreValue: number) => {
-    if (scoreValue >= 80) return "text-green-400";
-    if (scoreValue >= 50) return "text-yellow-400";
-    return "text-red-400";
-  };
+  const filteredIssues = activeCategory === 'all' 
+    ? data?.issues || []
+    : (data?.issues || []).filter(i => 
+        i.category.toLowerCase().replace(' ', '_') === activeCategory
+      );
 
-  const getScoreBadge = (scoreValue: number) => {
-    if (scoreValue >= 80) {
-      return { bg: "bg-green-500/20", text: "text-green-400", label: "PRODUCTION READY" };
-    }
-    if (scoreValue >= 50) {
-      return { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "NEEDS WORK" };
-    }
-    return { bg: "bg-red-500/20", text: "text-red-400", label: "NOT READY" };
-  };
+  const metricsCards = data ? [
+    {
+      title: 'Functions',
+      value: data.metrics.functions,
+      subtitle: `${data.metrics.type_annotated} typed (${data.metrics.functions > 0 ? Math.round((data.metrics.type_annotated / data.metrics.functions) * 100) : 0}%)`,
+      icon: <Cpu className="w-5 h-5" />,
+      color: 'blue'
+    },
+    {
+      title: 'Classes',
+      value: data.metrics.classes,
+      subtitle: `${data.metrics.dataclasses} @dataclass`,
+      icon: <Shield className="w-5 h-5" />,
+      color: 'purple'
+    },
+    {
+      title: 'Tests',
+      value: data.metrics.test_functions,
+      subtitle: `${data.metrics.functions > 0 ? Math.round((data.metrics.test_functions / data.metrics.functions) * 100) : 0}% coverage`,
+      icon: <Target className="w-5 h-5" />,
+      color: 'green'
+    },
+    {
+      title: 'Error Handling',
+      value: data.metrics.try_blocks,
+      subtitle: `${data.metrics.error_handled} exceptions caught`,
+      icon: <AlertTriangle className="w-5 h-5" />,
+      color: 'yellow'
+    },
+    {
+      title: 'Security',
+      value: data.metrics.dangerous_calls + data.metrics.hardcoded_secrets,
+      subtitle: `${data.metrics.hardcoded_secrets} secrets, ${data.metrics.dangerous_calls} dangerous calls`,
+      icon: <Lock className="w-5 h-5" />,
+      color: 'red'
+    },
+    {
+      title: 'Logging',
+      value: data.metrics.logging_statements,
+      subtitle: 'logger/logging statements',
+      icon: <Activity className="w-5 h-5" />,
+      color: 'cyan'
+    },
+    {
+      title: 'Thread Safety',
+      value: data.metrics.contextvars + data.metrics.locks,
+      subtitle: `${data.metrics.contextvars} ctxvars, ${data.metrics.locks} locks`,
+      icon: <RefreshCw className="w-5 h-5" />,
+      color: 'pink'
+    },
+    {
+      title: 'Database',
+      value: data.metrics.sql_queries,
+      subtitle: `${data.metrics.orm_usage} ORM queries`,
+      icon: <Database className="w-5 h-5" />,
+      color: 'indigo'
+    },
+  ] : [];
 
-  const badge = getScoreBadge(score);
-
-  const exportReport = useCallback(() => {
-    const report = checks.map((c) => ({
-      name: c.name,
-      category: c.category,
-      status: c.status,
-      effort: c.effort,
-      recommendation: c.recommendation,
-    }));
-    const blob = new Blob([JSON.stringify(report, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "production-readiness-report.json";
-    a.click();
-  }, [checks]);
+  if (!analysis) {
+    return (
+      <div className="h-full flex items-center justify-center text-slate-400">
+        <div className="text-center">
+          <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
+          <p>Production Readiness Analysis will appear after analysis</p>
+          <p className="text-xs mt-2 text-slate-500">Static analysis of generated Python code</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-gradient-to-br from-slate-800 via-slate-800 to-red-900/20 rounded-xl p-6 border border-red-500/30">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-            <Shield className="w-6 h-6 text-red-400" />
-          </div>
-          <div>
-            <h3 className="text-lg font-bold text-white">
-              Production Readiness Assessment
-            </h3>
-            <p className="text-xs text-slate-400">
-              Banking-Grade Security & Reliability Checklist
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {onEnhance && (
-            <button
-              onClick={onEnhance}
-              disabled={isEnhancing}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                isEnhancing
-                  ? "bg-slate-600 text-slate-400 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/20"
-              }`}
-            >
-              {isEnhancing ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Enhancing...</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4" />
-                  <span>Enhance to 100%</span>
-                </>
-              )}
-            </button>
-          )}
+    <div className="space-y-6">
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <div
-              className={`text-3xl font-bold ${getScoreColor(score)}`}
-            >
-              {score}%
-            </div>
-            <div
-              className={`text-xs px-2 py-1 rounded ${badge.bg} ${badge.text}`}
-            >
-              {badge.label}
-            </div>
+            <Loader2 className="w-12 h-12 text-blue-400 animate-spin mx-auto mb-4" />
+            <p className="text-slate-400">Analyzing production readiness...</p>
+            <p className="text-xs text-slate-500 mt-2">Static code analysis in progress</p>
           </div>
         </div>
-      </div>
-
-      {/* Dynamic Score Progress */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-slate-300">
-            Production Readiness Score
-          </span>
-          <span className="text-sm text-slate-400">
-            {passedCritical + passedMajor + passedMinor} /{" "}
-            {totalCritical + totalMajor + totalMinor} checks passed
-          </span>
-        </div>
-        <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all duration-1000 ${
-              score >= 80
-                ? "bg-gradient-to-r from-green-500 to-green-400"
-                : score >= 50
-                ? "bg-gradient-to-r from-yellow-500 to-yellow-400"
-                : "bg-gradient-to-r from-red-500 to-red-400"
-            }`}
-            style={{ width: `${score}%` }}
-          />
-        </div>
-        <div className="flex justify-between mt-2 text-xs text-slate-500">
-          <span>0%</span>
-          <span>25%</span>
-          <span>50%</span>
-          <span>75%</span>
-          <span>100%</span>
-        </div>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-red-400">
-            {passedCritical}/{totalCritical}
-          </p>
-          <p className="text-xs text-slate-400">Critical Passed</p>
-        </div>
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-orange-400">
-            {passedMajor}/{totalMajor}
-          </p>
-          <p className="text-xs text-slate-400">Major Passed</p>
-        </div>
-        <div className="bg-slate-500/10 border border-slate-500/30 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-slate-400">
-            {passedMinor}/{totalMinor}
-          </p>
-          <p className="text-xs text-slate-400">Minor Passed</p>
-        </div>
-      </div>
-
-      {/* Code Quality Metrics */}
-      <div className="mb-6 p-4 bg-slate-700/30 rounded-lg">
-        <h4 className="text-sm font-semibold text-slate-300 mb-3">
-          Code Analysis Metrics
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div>
-            <p className="text-xs text-slate-500">Confidence Score</p>
-            <p className="text-lg font-bold text-white">
-              {analysis?.confidence_score?.toFixed(1) || "N/A"}%
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">COBOL Lines</p>
-            <p className="text-lg font-bold text-white">
-              {cobolLines.toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Python Lines</p>
-            <p className="text-lg font-bold text-white">
-              {pythonLines.toLocaleString()}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500">Test Coverage</p>
-            <p className="text-lg font-bold text-white">
-              {testResults.total > 0
-                ? `${((testResults.passed / testResults.total) * 100).toFixed(1)}%`
-                : "N/A"}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Checks List */}
-      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-        {["critical", "major", "minor"].map((category) => (
-          <div key={category} className="space-y-2">
-            <h4
-              className={`text-sm font-semibold uppercase ${
-                category === "critical"
-                  ? "text-red-400"
-                  : category === "major"
-                  ? "text-orange-400"
-                  : "text-slate-400"
-              }`}
-            >
-              {category} Requirements
-            </h4>
-            {checks
-              .filter((c) => c.category === category)
-              .map((check) => (
-                <div
-                  key={check.id}
-                  className={`rounded-lg border ${getCategoryColor(
-                    check.category
-                  )} transition-all`}
-                >
-                  <div
-                    className="flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-700/30"
-                    onClick={() => toggleExpand(check.id)}
-                  >
-                    {getStatusIcon(check.status)}
-                    <div className="flex-1">
-                      <p className="font-medium text-white">{check.name}</p>
-                      <p className="text-xs text-slate-400">
-                        {check.description}
-                      </p>
-                    </div>
-                    <span className="text-xs px-2 py-1 bg-slate-700 rounded text-slate-300">
-                      {check.effort}
-                    </span>
-                    {expandedChecks.includes(check.id) ? (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    )}
-                  </div>
-
-                  {expandedChecks.includes(check.id) && (
-                    <div className="px-3 pb-3 space-y-3 border-t border-slate-700">
-                      {check.recommendation && (
-                        <div className="mt-3 p-2 bg-blue-500/10 border border-blue-500/30 rounded text-sm text-blue-300">
-                          <strong>Recommendation:</strong>{" "}
-                          {check.recommendation}
-                        </div>
-                      )}
-                      {check.codeSnippet && (
-                        <div className="relative">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-slate-400">
-                              Implementation Example:
-                            </span>
-                            <button
-                              onClick={() =>
-                                copySnippet(check.id, check.codeSnippet!)
-                              }
-                              className="flex items-center gap-1 text-xs text-slate-400 hover:text-white"
-                            >
-                              <Copy className="w-3 h-3" />
-                              {copiedSnippet === check.id
-                                ? "Copied!"
-                                : "Copy"}
-                            </button>
-                          </div>
-                          <pre className="bg-slate-900 rounded p-3 text-xs text-slate-300 overflow-x-auto max-h-64">
-                            <code>{check.codeSnippet}</code>
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
+      ) : data ? (
+        <div className="space-y-6">
+          {/* Score Section */}
+          <div className={`bg-gradient-to-br ${getScoreBg(data.score)} border border-slate-700 rounded-2xl p-6`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white mb-1">Production Readiness Score</h3>
+                <p className="text-sm text-slate-300">{data.summary}</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className={`text-5xl font-black ${getScoreColor(data.score)} tabular-nums`}>
+                    {data.score}
+                  </p>
+                  <p className="text-sm text-slate-400">Grade: <span className="font-semibold text-white">{data.grade}</span></p>
                 </div>
-              ))}
+                <div className={`w-24 h-24 rounded-full border-4 ${getScoreColor(data.score).replace('text-', 'border-')} flex items-center justify-center`}>
+                  <span className={`text-3xl font-bold ${getScoreColor(data.score)}`}>{data.grade}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Status Badge */}
+            <div className="mt-4 flex items-center gap-2">
+              {data.production_ready ? (
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-500/20 text-green-400 rounded-full text-sm font-medium border border-green-500/30">
+                  <CheckCircle className="w-4 h-4" />
+                  Production Ready
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 text-yellow-400 rounded-full text-sm font-medium border border-yellow-500/30">
+                  <AlertTriangle className="w-4 h-4" />
+                  Needs Improvements
+                </span>
+              )}
+              <span className="text-xs text-slate-400">
+                Based on {data.metrics.functions} functions, {data.metrics.test_functions} tests, and {data.issues.length} security/quality checks
+              </span>
+            </div>
           </div>
-        ))}
-      </div>
 
-      {/* Export Button */}
-      <div className="mt-4 pt-4 border-t border-slate-700 flex justify-end">
-        <button
-          onClick={exportReport}
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm font-medium transition"
-        >
-          <Download className="w-4 h-4" />
-          Export Report
-        </button>
-      </div>
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {metricsCards.map((card, i) => (
+              <div key={i} className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 hover:border-slate-600 transition">
+                <div className={`inline-flex p-2 rounded-lg mb-2 ${
+                  card.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
+                  card.color === 'purple' ? 'bg-purple-500/20 text-purple-400' :
+                  card.color === 'green' ? 'bg-green-500/20 text-green-400' :
+                  card.color === 'yellow' ? 'bg-yellow-500/20 text-yellow-400' :
+                  card.color === 'red' ? 'bg-red-500/20 text-red-400' :
+                  card.color === 'cyan' ? 'bg-cyan-500/20 text-cyan-400' :
+                  card.color === 'pink' ? 'bg-pink-500/20 text-pink-400' :
+                  'bg-indigo-500/20 text-indigo-400'
+                }`}>
+                  {card.icon}
+                </div>
+                <p className="text-2xl font-bold text-white">{card.value}</p>
+                <p className="text-xs text-slate-400">{card.title}</p>
+                <p className="text-[10px] text-slate-500">{card.subtitle}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Issues Section */}
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+              <h4 className="font-semibold text-white flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                Issues Found ({data.issues.length})
+              </h4>
+              <div className="flex items-center gap-2">
+                {(['all', 'security', 'error_handling', 'testing', 'architecture', 'performance'] as Category[]).map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
+                      activeCategory === cat 
+                        ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' 
+                        : 'text-slate-400 hover:text-white hover:bg-slate-700'
+                    }`}
+                  >
+                    {cat.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="max-h-80 overflow-y-auto">
+              {filteredIssues.length === 0 ? (
+                <div className="p-8 text-center">
+                  <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
+                  <p className="text-slate-300">No issues found in this category</p>
+                  <p className="text-xs text-slate-500 mt-1">Code passes all static analysis checks</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-700">
+                  {filteredIssues.map((issue, i) => (
+                    <div key={i} className="p-4 hover:bg-slate-700/30 transition">
+                      <div className="flex items-start gap-3">
+                        <span className={`px-2 py-1 rounded text-xs font-medium border ${getSeverityColor(issue.severity)}`}>
+                          {issue.severity}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {getCategoryIcon(issue.category)}
+                            <span className="text-xs text-slate-500">Line {issue.line_number || 'N/A'}</span>
+                          </div>
+                          <p className="text-sm text-white font-medium">{issue.message}</p>
+                          {issue.code_snippet && (
+                            <code className="text-xs text-slate-400 bg-slate-900 px-2 py-1 rounded mt-1 block font-mono">
+                              {issue.code_snippet}
+                            </code>
+                          )}
+                          <p className="text-xs text-blue-400 mt-1">→ {issue.suggestion}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Recommendations */}
+          {data.recommendations.length > 0 && (
+            <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 rounded-xl p-4">
+              <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-blue-400" />
+                Recommendations to Improve Score
+              </h4>
+              <ul className="space-y-2">
+                {data.recommendations.map((rec, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
+                    <ChevronRight className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    {rec}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Historical Data from Supabase */}
+          {data.historical_scores && data.historical_scores.length > 0 && (
+            <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-4">
+              <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-cyan-400" />
+                Historical Scores (Supabase)
+              </h4>
+              <div className="space-y-2">
+                {data.historical_scores.slice(0, 5).map((h, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-400">
+                      {new Date(h.timestamp).toLocaleDateString()} {new Date(h.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className={`font-bold ${getScoreColor(h.score)}`}>
+                      {h.score}/100 ({h.grade})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex items-center justify-center h-64">
+          <p className="text-slate-400">Click "Re-analyze" to calculate production readiness</p>
+        </div>
+      )}
     </div>
   );
 }
