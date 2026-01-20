@@ -1,0 +1,174 @@
+# Source URL: https://community.vercel.com/t/new-commits-to-main-do-not-trigger-deployments/28848
+# Content Length: 7870 characters
+# Extracted at: 2026-01-20 09:57:04
+#============================================================
+
+New Commits to main Do Not Trigger Deployments - Help - Vercel Community
+[Skip to last reply](/t/new-commits-to-main-do-not-trigger-deployments/28848/7)[Skip to top](/t/new-commits-to-main-do-not-trigger-deployments/28848/1)
+[Skip to main content](#main-container)
+[![](https://global.discourse-cdn.com/vercel/original/2X/1/11474f976db29140a6de48bf48718a8e2d830211.svg)](/)
+Sign UpSign In
+\* ​
+\* [Categories](/)
+\* [Leaderboard](/leaderboard)
+\* [Code of Conduct](/code-of-conduct)
+\* [Handbook](/docs)
+\* More
+Enterprise
+\* [Enterprise](/c/enterprise/48)
+Partners
+\* [Partners](/c/partners/49)
+Community Area
+\* [Announcements](/c/announcements/27)
+\* [Events](/c/events/42)
+\* [Showcase](/c/showcase/41)
+\* [Discussions](/c/community/4)
+\* [Help](/c/help/9)
+\* [Open Source](/c/open-source/45)
+\* [v0](/c/v0/59)
+\* [v0 Chat](/chat/c/v0/28)
+\* [Turborepo Chat](/chat/c/turborepo/29)
+\* [AI SDK Chat](/chat/c/ai/31)
+\* [All categories](/categories)
+Categories
+\* [v0](/c/v0/59)
+\* [Help](/c/help/9)
+\* [Showcase](/c/showcase/41)
+\* [Announcements](/c/announcements/27)
+\* [Events](/c/events/42)
+\* [All categories](/categories)
+Tags
+\* [v0](/tag/v0)
+\* [nextjs](/tag/nextjs)
+\* [domains](/tag/domains)
+\* [react](/tag/react)
+\* [ai-sdk](/tag/ai-sdk)
+\* [All tags](/tags)
+​
+​
+# [New Commits to main Do Not Trigger Deployments](/t/new-commits-to-main-do-not-trigger-deployments/28848)
+[Help](/c/help/9)
+[builds](/tag/builds)
+You have selected \*\*0\*\* posts.
+select all
+cancel selecting
+98views1link
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/gershome95/48/12751\_2.png)3](/u/gershome95)
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/anshumanb/48/2943\_2.png)](/u/anshumanb)
+[Nov 2025](/t/new-commits-to-main-do-not-trigger-deployments/28848/1)
+1 / 5
+Dec 2025
+[Dec 2025](/t/new-commits-to-main-do-not-trigger-deployments/28848/7)
+## post by gershome95 on Nov 30, 2025
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/gershome95/48/12751\_2.png)](/u/gershome95)
+[Gershome95](/u/gershome95)
+1
+[Nov 2025](/t/new-commits-to-main-do-not-trigger-deployments/28848)
+Hi everyone,
+I’m having an issue where Vercel is \*\*not detecting any of my new commits on the `main` branch\*\*, even though my project is fully connected to GitHub.
+### \*\*What’s happening\*\*
+\* My production deployment keeps showing the \*\*initial commit\*\* (`9a79e7a`) as the source.
+\* My latest commit is \*\*`2a1ce67`\*\*, and it’s in the `main` branch on GitHub.
+\* Pushing new commits to `main` does \*\*not\*\* trigger a new deployment in Vercel.
+\* The “Deployments” tab shows \*\*no new builds\*\* since the first one.
+### \*\*What I’ve already done\*\*
+1. \*\*Confirmed my GitHub repo is connected\*\* (Vercel → Project → Git).
+2. \*\*Reinstalled the Vercel GitHub App\*\* and granted full repo access again.
+3. Verified GitHub shows the Vercel GitHub App with correct permissions.
+4. Checked GitHub \*\*webhooks\*\* — no manual webhooks exist (as expected).
+5. Created a \*\*Deploy Hook\*\* on Vercel (but I know this is separate from GitHub triggers).
+6. Tried a manual redeploy, but Vercel redeploys the \*old\* commit only.
+7. Confirmed:
+\* Production branch = `main`
+\* Repo name hasn’t changed
+\* Branch protection isn’t blocking pushes
+\* Commits show up correctly in GitHub
+### \*\*What I’m trying to understand\*\*
+Why is Vercel still stuck on the initial commit and not seeing any GitHub updates, even though my repository is connected and the GitHub App is installed correctly?
+Any insight on what might be causing Vercel to ignore new commits to the production branch would be greatly appreciated.
+Thanks in advance!
+Solved by [Gershome95](/u/gershome95) in [post 4](/t/new-commits-to-main-do-not-trigger-deployments/28848/4)
+​
+[​](/t/new-commits-to-main-do-not-trigger-deployments/28848/4)
+> I realized that my git config wasn’t pointing to my username or email! That solved the problem.
+​
+​
+98views1link
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/gershome95/48/12751\_2.png)3](/u/gershome95)
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/anshumanb/48/2943\_2.png)](/u/anshumanb)
+## post by gershome95 on Nov 30, 2025
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/gershome95/48/12751\_2.png)](/u/gershome95)
+[Gershome95](/u/gershome95)
+[Nov 2025](/t/new-commits-to-main-do-not-trigger-deployments/28848/3)
+I have read this [Why aren't commits triggering deployments on Vercel? | Knowledge Base](https://vercel.com/kb/guide/why-aren-t-commits-triggering-deployments-on-vercel)
+​
+​
+## post by gershome95 on Nov 30, 2025
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/gershome95/48/12751\_2.png)](/u/gershome95)
+[Gershome95](/u/gershome95)
+[Nov 2025](/t/new-commits-to-main-do-not-trigger-deployments/28848/4)
+I realized that my git config wasn’t pointing to my username or email! That solved the problem.
+Solution
+1
+​
+​
+## post by anshumanb on Dec 1, 2025
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/anshumanb/48/2943\_2.png)](/u/anshumanb)
+[Anshuman Bhardwaj](/u/anshumanb)[anshumanb](/u/anshumanb)[Vercel Staff](/g/Vercelians)
+[Dec 2025](/t/new-commits-to-main-do-not-trigger-deployments/28848/6)
+I’m glad you figured it out. Thanks for sharing your solution here.
+​
+​
+14 days later
+## Closed on Dec 15, 2025
+Reply
+### Related topics
+Topic list, column headers with buttons are sortable.
+| Topic | Replies | Views | Activity |
+| --- | --- | --- | --- |
+|
+[![](https://community-avatars.vercel.app/lime-cyan.svg)](/u/syntellectai-pmme)
+SolvedClosed
+### [GitHub to Vercel deployment issues](/t/github-to-vercel-deployment-issues/9297)
+[@syntellectai-pmme](/u/syntellectai-pmme)
+April 25, 2025
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/swarnava/288/74\_2.png)](/u/swarnava)
+9
+| |
+|
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/phantomddk/288/12751\_2.png)](/u/phantomddk)
+### [Vercel is not pulling latest updates from GitHub repository](/t/vercel-is-not-pulling-latest-updates-from-github-repository/29633)
+[@phantomddk](/u/phantomddk)
+buildsgithub
+December 10, 2025
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/jacobparis/288/6106\_2.png)](/u/jacobparis)
+1
+|
+[![](https://community-avatars.vercel.app/purple-orange.svg)](/u/blanketfys-6333)
+SolvedClosed
+### [Vercel is not building any of my commit, not even triggering the build](/t/vercel-is-not-building-any-of-my-commit-not-even-triggering-the-build/17468)
+[@blanketfys-6333](/u/blanketfys-6333)
+nextjs
+July 31, 2025
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/amyegan/288/11811\_2.png)](/u/amyegan)
+2
+|
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/himhammonde-1480/288/12751\_2.png)](/u/himhammonde-1480)
+SolvedClosed
+### [Vercel not auto-deploying after git push](/t/vercel-not-auto-deploying-after-git-push/29330)
+[@himhammonde-1480](/u/himhammonde-1480)
+builds
+December 6, 2025
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/amyegan/288/11811\_2.png)](/u/amyegan)
+2
+|
+[![](https://community-avatars.vercel.app/purple-orange.svg)](/u/littlenudge)
+SolvedClosed
+### [Vercel Deployment Cloning Wrong Commit Hash](/t/vercel-deployment-cloning-wrong-commit-hash/8908)
+[@littlenudge](/u/littlenudge)
+April 18, 2025
+[![](https://sea1.discourse-cdn.com/vercel/user\_avatar/community.vercel.com/amyegan/288/11811\_2.png)](/u/amyegan)
+3
+Vercel Community is built using Discourse.org, an open source discussion platform. For more information on privacy practices, visit discourse.org/privacy.
+[Code of Conduct](/guidelines)[About](/about)[Privacy Notice](/privacy)
+Invalid dateInvalid date

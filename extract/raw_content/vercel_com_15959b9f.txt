@@ -1,0 +1,351 @@
+# Source URL: https://vercel.com/kb/guide/why-aren-t-commits-triggering-deployments-on-vercel
+# Content Length: 14341 characters
+# Extracted at: 2026-01-20 09:57:01
+#============================================================
+
+
+[![]()![]()](/home)![]()![]()
+
+* Products
+  + ##### [AI Cloud](/ai)
+    
+    - [v0
+      
+      Build applications with AI](https://v0.app)
+    - [AI SDK
+      
+      The AI Toolkit for TypeScript](https://sdk.vercel.ai/)
+    - [AI Gateway
+      
+      One endpoint, all your models](/ai-gateway)
+    - [Vercel Agent
+      
+      An agent that knows your stack](/agent)
+    - [Sandbox
+      
+      AI workflows in live environments](/sandbox)
+  + ##### Core Platform
+    
+    - [CI/CD
+      
+      Helping teams ship 6× faster](/products/previews)
+    - [Content Delivery
+      
+      Fast, scalable, and reliable](/products/rendering)
+    - [Fluid Compute
+      
+      Servers, in serverless form](/fluid)
+    - [Observability
+      
+      Trace every step](/products/observability)
+  + ##### [Security](/security)
+    
+    - [Bot Management
+      
+      Scalable bot protection](/security/bot-management)
+    - [BotID
+      
+      Invisible CAPTCHA](/botid)
+    - [Platform Security
+      
+      DDoS Protection, Firewall](/security)
+    - [Web Application Firewall
+      
+      Granular, custom protection](/security/web-application-firewall)
+* Resources
+  + ##### Company
+    
+    - [Customers
+      
+      Trusted by the best teams](/customers)
+    - [Blog
+      
+      The latest posts and changes](/blog)
+    - [Changelog
+      
+      See what shipped](/changelog)
+    - [Press
+      
+      Read the latest news](/press)
+    - [Events
+      
+      Join us at an event](/events)
+  + ##### Learn
+    
+    - [Docs
+      
+      Vercel documentation](/docs)
+    - [Academy
+      
+      Linear courses to level up](/academy)
+    - [Knowledge Base
+      
+      Find help quickly](/kb)
+    - [Community
+      
+      Join the conversation](https://community.vercel.com/)
+  + ##### Open Source
+    
+    - [Next.js
+      
+      The native Next.js platform](/frameworks/nextjs)
+    - [Nuxt
+      
+      The progressive web framework](https://nuxt.com/)
+    - [Svelte
+      
+      The web’s efficient UI framework](https://svelte.dev/)
+    - [Turborepo
+      
+      Speed with Enterprise scale](/solutions/turborepo)
+* Solutions
+  + ##### Use Cases
+    
+    - [AI Apps
+      
+      Deploy at the speed of AI](/ai)
+    - [Composable Commerce
+      
+      Power storefronts that convert](/solutions/composable-commerce)
+    - [Marketing Sites
+      
+      Launch campaigns fast](/solutions/marketing-sites)
+    - [Multi-tenant Platforms
+      
+      Scale apps with one codebase](/solutions/multi-tenant-saas)
+    - [Web Apps
+      
+      Ship features, not infrastructure](/solutions/web-apps)
+  + ##### Tools
+    
+    - [Marketplace
+      
+      Extend and automate workflows](/marketplace)
+    - [Templates
+      
+      Jumpstart app development](/templates)
+    - [Partner Finder
+      
+      Get help from solution partners](/partners/solution-partners)
+  + ##### Users
+    
+    - [Platform Engineers
+      
+      Automate away repetition](/solutions/platform-engineering)
+    - [Design Engineers
+      
+      Deploy for every idea](/solutions/design-engineering)
+* [Enterprise](/enterprise)
+* [Pricing](/pricing)
+Search Knowledge BaseSearch...`⌘ K`Ask AISearch Knowledge BaseSearch...`⌘ K`Ask AI 
+
+Why aren't commits triggering deployments on Vercel?
+====================================================
+
+Learn about why commits that you've pushed aren't triggering new Vercel Deployments.
+
+![]()CSE Team [Knowledge Base](/kb)4 min read Copy pageAsk AI about this pageLast updated November 24, 2025
+
+You have been working on a feature and have committed some code ready to be pushed up. You are looking forward to a live URL that demonstrates your changes. You see that the commit has been pushed up, but there isn't an accompanying Vercel [Deployment](https://vercel.com/docs/platform/deployments) or you see the `Git author must have access to project` error in your repository or Vercel Team Activity. Read on to learn about why this might happen and what you can do to fix it.
+
+[Double check Git Integration Installation](#double-check-git-integration-installation)
+---------------------------------------------------------------------------------------
+
+You need to make sure that you have correctly set up the [git login connection](https://vercel.com/docs/accounts/create-an-account#login-methods-and-connections) within the Authentication section of [your account settings](https://vercel.com/account/authentication). This is the most common issue and without this authentication your commits will fail to create deployments for your project even if you are a member or owner of the Vercel team.
+
+When you installed the [Vercel for Git integration](https://vercel.com/docs/concepts/git), if you only granted permission for a limited set of repositories, there is a chance that the repository you are trying to push to doesn't have the necessary permissions. You can resolve this from the Git provider side by either granting permissions for all of your repositories, or you can make sure the repository in question is added to the list.
+
+You should also check that your git user has the required permissions to set the connection up on the repository as well. For GitHub, [collaborator access is required](https://vercel.com/docs/deployments/git/vercel-for-github#missing-git-repository), on GitLab you [must be a Maintainer](https://vercel.com/docs/deployments/git/vercel-for-gitlab#missing-git-repository) and for BitBucket this requires an [Admin](https://vercel.com/docs/deployments/git/vercel-for-bitbucket#missing-git-repository).
+
+[Private Repositories](#private-repositories)
+---------------------------------------------
+
+If you are pushing commits to a private repository connected to a Vercel project that belongs to a [Team](https://vercel.com/docs/platform/users-and-teams), you [must be a member of that Pro team](https://vercel.com/docs/deployments/git#using-teams) or the [Owner of the Hobby team](https://vercel.com/docs/deployments/git#using-hobby-teams) on Vercel in order for the deployment to trigger successfully. You can read more about this in [our documentation](https://vercel.com/docs/deployments/git#deploying-private-git-repositories).
+
+If you have pushed a commit to your Git repository and don't see a deployment being created in Vercel, [check for any commit comments](https://vercel.com/guides/why-aren-t-commits-triggering-deployments-on-vercel#look-for-commit-comments), as this will provide further information and explain if the issue is related to the commit author not being a member of the team. There will be a link to request access here, once you have been added to the Team, your commits will deploy as expected. You will also be able to see these commits in your [Activity log](https://vercel.com/docs/activity-log) with the failure reason shown here too.
+
+Learn how to [invite others into your team](https://vercel.com/docs/concepts/teams/members#inviting-new-team-members).
+
+If you are already a member of the team, check the commit author details and make sure this is the same Git user that is linked to your Vercel account. You may need to [edit your local Git config](https://vercel.com/guides/why-aren-t-commits-triggering-deployments-on-vercel#correctly-configured-metadata) to make sure commits are always linked to the correct username and email address of the Git account that you use with Vercel, especially if you have a second Git account that might be used locally instead.
+
+If the commit author looks correct, you may have multiple accounts on Vercel that are connected to the same Git account. Currently it is not possible to have more than one Vercel account linked to the same Git account so when you set up the link on a second account it will remove the link with your other one. This can lead to the Git connection swapping between both Vercel accounts, showing these errors unexpectedly when it was working previously.
+
+[Public Repositories](#public-repositories)
+-------------------------------------------
+
+Pushed commits will deploy automatically for public repositories. However, if the `vercel.json` file changed or the project has [Environment Variables](https://vercel.com/docs/concepts/projects/environment-variables), a [Team Member](https://vercel.com/docs/concepts/teams/members) on Vercel will have to authorize the Deployment. This is a security measure that ensures changes to Environment Variables and other configuration properties are reviewed before a Deployment is created ([it can be disabled](https://vercel.com/docs/concepts/projects/overview#git-fork-protection) if you prefer). A link to authorize the Deployment will be posted as a comment on the Pull Request.
+
+[Correctly Configured Metadata](#correctly-configured-metadata)
+---------------------------------------------------------------
+
+In order for your commits to get registered properly with your Git account, you need to make sure your commit author information is appropriately configured locally. If your email does not match up with your GitHub, GitLab, or Bitbucket account, there is no way to verify that your commits are authorized for deployment.
+
+The commands for configuring your name and email are shown below:
+
+```
+1git config --global user.name <GIT_USERNAME>2git config --global user.email johndoe@example.com
+```
+
+You can use `git log -1 <commit-hash>` to check the author details attached to a specific commit. Make sure the email matches the email in your Git provider and is lowercase.
+
+[Look For Commit Comments](#look-for-commit-comments)
+-----------------------------------------------------
+
+If the Vercel for Git integration is installed properly, the Vercel Bot will leave comments on your commits that indicate success or failure. These comments may not always be present on the pull request if no Deployment could be created, this occurs when pre-deployment validation fails, for example, an incorrectly formatted `vercel.json` file.
+
+[Vercel Support](#vercel-support)
+---------------------------------
+
+If you are still having issues after considering all of the above, please visit <http://vercel.com/help> and share the most recent git SHA (full-length) in question.
+
+Was this helpful?
+
+supported.Send
+
+Read related documentation
+--------------------------
+
+* [Git Integration](/docs/git)
+* [Teams](/docs/rbac)
+
+Explore more Git Integration guides
+-----------------------------------
+
+* [How can I use the Vercel CLI for custom workflows?](/kb/guide/using-vercel-cli-for-custom-workflows)
+* [Can I connect a Pro team to a personal Git account?](/kb/guide/connecting-teams-with-personal-git-accounts)
+* [Deploy Foundation with Vercel](/kb/guide/deploying-foundation-with-vercel)
+
+Products
+--------
+
+* [AI](/ai)
+* [Enterprise](/enterprise)
+* [Fluid Compute](/fluid)
+* [Next.js](/solutions/nextjs)
+* [Observability](/products/observability)
+* [Previews](/products/previews)
+* [Rendering](/products/rendering)
+* [Security](/security)
+* [Turbo](/solutions/turborepo)
+* [Domains](/domains)
+* [Sandbox](/sandbox)
+* [Workflow](/workflow)
+* [v0](https://v0.app/)
+
+Resources
+---------
+
+* [Community](https://community.vercel.com/)
+* [Docs](/docs)
+* [Knowledge Base](/kb)
+* [Academy](/academy)
+* [Help](/help)
+* [Integrations](/integrations)
+* [Platforms](/platforms)
+* [Pricing](/pricing)
+* [Resources](/resources)
+* [Solution Partners](/partners/solution-partners)
+* [Startups](/startups)
+* [Templates](/templates)
+* SDKs by Vercel
+  + [AI SDK](https://sdk.vercel.ai/)
+  + [Workflow DevKit](https://useworkflow.dev/)
+  + [Flags SDK](https://flags-sdk.dev/)
+  + [Chat SDK](https://chat-sdk.dev/)
+  + [Streamdown AI](https://streamdown.ai/)
+
+Company
+-------
+
+* [About](/about)
+* [Blog](/blog)
+* [Careers](/careers)
+* [Changelog](/changelog)
+* [Contact Us](/contact)
+* [Customers](/customers)
+* [Events](/events)
+* [Partners](/partners)
+* [Shipped](/shipped)
+* [Privacy Policy](/legal/privacy-policy)
+* Legal
+
+Social
+------
+
+* [GitHub](https://github.com/vercel)
+* [LinkedIn](https://linkedin.com/company/vercel)
+* [Twitter](https://x.com/vercel)
+* [YouTube](https://youtube.com/@VercelHQ)
+[Loading status…](https://vercel-status.com)Select a display theme:system lightdarkProducts[v0
+
+Build applications with AI](https://v0.app)[AI SDK
+
+The AI Toolkit for TypeScript](https://sdk.vercel.ai/)[AI Gateway
+
+One endpoint, all your models](/ai-gateway)[Vercel Agent
+
+An agent that knows your stack](/agent)[Sandbox
+
+AI workflows in live environments](/sandbox)[CI/CD
+
+Helping teams ship 6× faster](/products/previews)[Content Delivery
+
+Fast, scalable, and reliable](/products/rendering)[Fluid Compute
+
+Servers, in serverless form](/fluid)[Observability
+
+Trace every step](/products/observability)[Bot Management
+
+Scalable bot protection](/security/bot-management)[BotID
+
+Invisible CAPTCHA](/botid)[Platform Security
+
+DDoS Protection, Firewall](/security)[Web Application Firewall
+
+Granular, custom protection](/security/web-application-firewall)Resources[Customers
+
+Trusted by the best teams](/customers)[Blog
+
+The latest posts and changes](/blog)[Changelog
+
+See what shipped](/changelog)[Press
+
+Read the latest news](/press)[Events
+
+Join us at an event](/events)[Docs
+
+Vercel documentation](/docs)[Academy
+
+Linear courses to level up](/academy)[Knowledge Base
+
+Find help quickly](/kb)[Community
+
+Join the conversation](https://community.vercel.com/)[Next.js
+
+The native Next.js platform](/frameworks/nextjs)[Nuxt
+
+The progressive web framework](https://nuxt.com/)[Svelte
+
+The web’s efficient UI framework](https://svelte.dev/)[Turborepo
+
+Speed with Enterprise scale](/solutions/turborepo)Solutions[AI Apps
+
+Deploy at the speed of AI](/ai)[Composable Commerce
+
+Power storefronts that convert](/solutions/composable-commerce)[Marketing Sites
+
+Launch campaigns fast](/solutions/marketing-sites)[Multi-tenant Platforms
+
+Scale apps with one codebase](/solutions/multi-tenant-saas)[Web Apps
+
+Ship features, not infrastructure](/solutions/web-apps)[Marketplace
+
+Extend and automate workflows](/marketplace)[Templates
+
+Jumpstart app development](/templates)[Partner Finder
+
+Get help from solution partners](/partners/solution-partners)[Platform Engineers
+
+Automate away repetition](/solutions/platform-engineering)[Design Engineers
+
+Deploy for every idea](/solutions/design-engineering)Ask AI Copy pageWhy aren't commits triggering deployments on Vercel? | Vercel Knowledge Base
