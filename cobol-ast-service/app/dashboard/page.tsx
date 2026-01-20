@@ -46,7 +46,7 @@ import {
 } from "lucide-react";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase, saveAnalysis, loadHistory, deleteAnalysis, AnalysisHistory, getAnalysisWithShadowTest } from "@/lib/supabase";
-import { postProcessPythonCode, generatePropertyTests } from "@/lib/postprocess";
+import { postProcessPythonCode, generatePropertyTests, generateUnitTests } from "@/lib/postprocess";
 
 // Configure Monaco loader at module level (runs once on client)
 import { loader } from "@monaco-editor/react";
@@ -1428,7 +1428,10 @@ export default function Home() {
       
       // ALWAYS apply post-processing as final step to clean any remaining artifacts
       finalPythonCode = postProcessPythonCode(finalPythonCode, filename || 'PROGRAM');
-      
+
+      // v9.1: Generate unit tests to improve Production Readiness score
+      finalPythonCode = generateUnitTests(finalPythonCode);
+
       setPythonCode(finalPythonCode);
       // v9.0: Regenerate security warnings based on FIXED Python code, not original COBOL
       const regeneratedSecurityWarnings = generateSecurityWarningsForPython(finalPythonCode);
