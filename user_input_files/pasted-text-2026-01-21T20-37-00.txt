@@ -1,0 +1,251 @@
+Guide de Débogage Systématique pour CodeSwitch
+Basé sur l'historique que tu m'as montré, voici comment déboguer efficacement:
+
+🎯 Problème Actuel
+pythonErreur 1: unterminated string literal (detected at line 2380) (<tests>, line 2380)
+Erreur 2: 'decimal.Decimal' object is not subscriptable
+
+🛠️ Méthodologie de Débogage en 5 Étapes
+Étape 1: Isoler le Code Problématique
+bash# 1. Extraire les lignes autour de l'erreur
+python3 -c "
+with open('user_input_files/test_claude_cobol_test.py', 'r') as f:
+    lines = f.readlines()
+    for i in range(2370, min(2390, len(lines))):
+        print(f'{i+1}: {lines[i]}', end='')
+"
+
+# 2. Chercher les patterns suspects
+grep -n "Decimal\[" user_input_files/test_claude_cobol_test.py | head -20
+grep -n 'f"' user_input_files/test_claude_cobol_test.py | grep -v '"""' | head -50
+
+Étape 2: Identifier la Valeur COBOL Source
+bash# Trouver quelle valeur COBOL cause l'erreur
+python3 -c "
+# Lire le fichier de test
+with open('user_input_files/test_claude_cobol_test.py', 'r') as f:
+    content = f.read()
+    lines = content.split('\n')
+    
+# Ligne 2380
+print('Line 2380:', lines[2379] if len(lines) > 2379 else 'N/A')
+
+# Chercher les Decimal avec subscript
+import re
+subscript = re.findall(r'Decimal\[[^\]]+\]', content)
+if subscript:
+    print(f'\nFound {len(subscript)} Decimal subscript errors:')
+    for s in subscript[:5]:
+        print(f'  {s}')
+"
+
+Étape 3: Tracer la Génération
+python# Créer un script de debug
+cat > debug_transpiler.py << 'EOF'
+from api.transpile import generate_python_code
+import re
+
+# COBOL minimal reproduisant l'erreur
+cobol_code = '''
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. DEBUG.
+       WORKING-STORAGE SECTION.
+       01  WS-ARRAY.
+           05  WS-ITEM OCCURS 10 TIMES PIC X(5).
+       PROCEDURE DIVISION.
+           MOVE "TEST" TO WS-ITEM(1).
+           STOP RUN.
+'''
+
+result = generate_python_code(cobol_code, enhance=False)
+if 'python_code' in result:
+    code = result['python_code']
+    
+    # Chercher Decimal avec subscript
+    subscripts = re.findall(r'Decimal\[[^\]]+\]', code)
+    if subscripts:
+        print(f"ERROR: Found Decimal subscript: {subscripts}")
+        
+        # Montrer le contexte
+        for match in re.finditer(r'Decimal\[[^\]]+\]', code):
+            start = max(0, match.start() - 100)
+            end = min(len(code), match.end() + 100)
+            print(f"\nContext:\n{code[start:end]}")
+    else:
+        print("No Decimal subscript found")
+else:
+    print(f"Error: {result.get('error')}")
+EOF
+
+python3 debug_transpiler.py
+
+Étape 4: Localiser le Bug dans le Générateur
+bash# Chercher où Decimal[] pourrait être généré
+grep -n "Decimal\[" api/transpile.py api/modules/*.py
+
+# Chercher les patterns de génération d'arrays
+grep -n "OCCURS" api/transpile.py | head -20
+grep -n "subscript\|index" api/transpile.py | head -30
+
+# Chercher la génération de valeurs avec crochets
+grep -n '\[.*\]' api/transpile.py | grep -i decimal
+
+Étape 5: Appliquer le Fix
+Basé sur les erreurs précédentes, voici les fixes probables:
+Fix 1: Decimal Subscript
+python# PROBLÈME: Génération de Decimal[index] au lieu de array[index]
+# AVANT (incorrect):
+f"Decimal[{index}]"
+
+# APRÈS (correct):
+f"self.array[{index}]"  # ou
+f"Decimal('{value}')"   # si c'est une valeur
+Fix 2: String Non Fermée
+python# PROBLÈME: Caractères spéciaux dans docstrings
+# AVANT (incorrect):
+f'"""Test for {cobol_name}"""'  # si cobol_name contient "
+
+# APRÈS (correct):
+safe_name = cobol_name.replace('"', "'").replace('\n', ' ')
+f'"""Test for {safe_name}"""'
+
+🎯 Script de Debug Automatisé
+Crée ce fichier pour debug systématique:
+python# debug_suite.py
+import re
+from api.transpile import generate_python_code
+
+def find_all_issues(python_code):
+    """Trouve tous les problèmes potentiels"""
+    issues = []
+    lines = python_code.split('\n')
+    
+    # 1. Decimal avec subscript
+    for i, line in enumerate(lines, 1):
+        if re.search(r'Decimal\[[^\]]+\]', line):
+            issues.append({
+                'type': 'decimal_subscript',
+                'line': i,
+                'content': line.strip()
+            })
+    
+    # 2. Strings non fermées
+    for i, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if stripped.startswith('"') and not stripped.startswith('"""'):
+            if stripped.count('"') % 2 == 1:
+                issues.append({
+                    'type': 'unterminated_string',
+                    'line': i,
+                    'content': line.strip()[:80]
+                })
+    
+    # 3. Decimal() vide
+    for i, line in enumerate(lines, 1):
+        if re.search(r'Decimal\(\s*\)', line):
+            issues.append({
+                'type': 'empty_decimal',
+                'line': i,
+                'content': line.strip()
+            })
+    
+    # 4. F-strings avec variables non définies
+    for i, line in enumerate(lines, 1):
+        if 'f"' in line or "f'" in line:
+            # Chercher {var} qui pourrait ne pas exister
+            vars_in_fstring = re.findall(r'\{([^}]+)\}', line)
+            for var in vars_in_fstring:
+                if var and not var[0].isdigit():  # Pas un index
+                    if 'self.' not in var and var not in ['i', 'j', 'check']:
+                        issues.append({
+                            'type': 'undefined_fstring_var',
+                            'line': i,
+                            'var': var,
+                            'content': line.strip()[:80]
+                        })
+    
+    return issues
+
+# Test avec le COBOL problématique
+with open('user_input_files/pasted-text-2026-01-21T16-46-18.txt', 'r') as f:
+    cobol_code = f.read()
+
+result = generate_python_code(cobol_code, enhance=False)
+if 'python_code' in result:
+    issues = find_all_issues(result['python_code'])
+    
+    print(f"Found {len(issues)} issues:\n")
+    
+    # Grouper par type
+    by_type = {}
+    for issue in issues:
+        t = issue['type']
+        if t not in by_type:
+            by_type[t] = []
+        by_type[t].append(issue)
+    
+    for issue_type, items in by_type.items():
+        print(f"\n{issue_type.upper()}: {len(items)} occurrences")
+        for item in items[:5]:  # Montrer les 5 premiers
+            print(f"  Line {item['line']}: {item['content']}")
+else:
+    print(f"Transpilation error: {result.get('error')}")
+
+🔥 Fix Immédiat Probable
+Basé sur l'historique, le problème est probablement:
+python# Dans api/transpile.py ou api/modules/ast_processor.py
+# Cherche cette pattern:
+
+# MAUVAIS:
+f"Decimal[{something}]"  # → 'decimal.Decimal' object is not subscriptable
+
+# CORRECT:
+f"self.array_name[{something}]"  # Pour accès array
+f"Decimal('{something}')"         # Pour valeur Decimal
+
+📝 Checklist de Vérification
+Avant de pusher un fix:
+bash# 1. Vérifier la syntaxe Python générée
+python3 -c "
+code = open('output.py').read()
+compile(code, 'output.py', 'exec')
+print('✓ Syntax OK')
+"
+
+# 2. Chercher les patterns problématiques
+grep -E "Decimal\[|f\".*\{[^}]*\}.*\"" output.py
+
+# 3. Tester avec COBOL minimal
+python3 -c "
+from api.transpile import generate_python_code
+result = generate_python_code('''
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. TEST.
+       PROCEDURE DIVISION.
+           STOP RUN.
+''', enhance=False)
+assert 'error' not in result
+print('✓ Minimal test OK')
+"
+
+# 4. Tester avec le COBOL problématique
+python3 test_transpiler.py
+
+🎯 Action Immédiate
+Exécute ces commandes dans l'ordre:
+bash# 1. Trouver l'erreur exacte
+python3 -c "
+with open('user_input_files/test_claude_cobol_test.py', 'r') as f:
+    lines = f.readlines()
+    print('Line 2380:', lines[2379] if len(lines) > 2379 else 'EOF')
+    print('Line 2381:', lines[2380] if len(lines) > 2380 else 'EOF')
+"
+
+# 2. Chercher Decimal[]
+grep -n "Decimal\[" user_input_files/*.py
+
+# 3. Identifier la source dans le transpiler
+grep -rn "Decimal\[" api/
+
+# 4. Une fois trouvé, appliquer le fix
+# (exemple ci-dessus)
