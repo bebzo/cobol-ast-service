@@ -1,0 +1,1511 @@
+IDENTIFICATION DIVISION.
+       PROGRAM-ID. ENTERPRISE-SECURITY-FORTRESS.
+       AUTHOR. ENTERPRISE-ARCHITECT.
+       DATE-WRITTEN. 1987-11-30.
+       DATE-COMPILED. 2024-01-15.
+       SECURITY. LEVEL-4 ENCRYPTED-AUDIT.
+       REMARKS. CRITICAL FINANCIAL PROCESSING SYSTEM
+                WITH MULTI-LAYER SECURITY, ENCRYPTION,
+                FRAUD DETECTION, AND REGULATORY COMPLIANCE.
+      *****************************************************************
+      * COMPLEXITY SCORE: 95/100 (ENTERPRISE NIGHTMARE)              *
+      * - Multi-threaded transactions with locking                   *
+      * - Triple-layer encryption (AES-256, RSA, 3DES)              *
+      * - Biometric authentication with fallback                     *
+      * - Real-time fraud detection with ML scoring                  *
+      * - GDPR/PCI-DSS/SOX compliance checks                        *
+      * - Distributed transaction coordination                       *
+      * - Rate limiting & DDoS protection                           *
+      * - Hardware security module (HSM) integration                *
+      * - Quantum-resistant cryptography preparation                *
+      *****************************************************************
+
+       ENVIRONMENT DIVISION.
+       CONFIGURATION SECTION.
+       SOURCE-COMPUTER. IBM-Z15 WITH DEBUGGING MODE.
+       OBJECT-COMPUTER. IBM-Z15 WITH CRYPTO-ENGINE
+                        WITH QUANTUM-SAFE-MODULE.
+       SPECIAL-NAMES.
+           CURRENCY SIGN IS '€'
+           DECIMAL-POINT IS COMMA.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT MASTER-ACCOUNT-FILE
+               ASSIGN TO DISK-ACCT-MASTER
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS ACCT-KEY-PRIMARY
+               ALTERNATE RECORD KEY IS ACCT-KEY-SSN WITH DUPLICATES
+               ALTERNATE RECORD KEY IS ACCT-KEY-BIOMETRIC
+               FILE STATUS IS FS-MASTER
+               LOCK MODE IS AUTOMATIC WITH LOCK ON MULTIPLE RECORDS
+               WITH ROLLBACK.
+
+           SELECT TRANSACTION-LOG-FILE
+               ASSIGN TO DISK-TRANS-LOG
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS FS-TRANS-LOG
+               ENCRYPTION KEY IS MASTER-ENCRYPTION-KEY
+               WITH WRITE VERIFY
+               WITH AUDIT TRAIL.
+
+           SELECT ENCRYPTION-KEY-FILE
+               ASSIGN TO HSM-KEY-VAULT
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS RANDOM
+               RECORD KEY IS KEY-IDENTIFIER
+               FILE STATUS IS FS-KEY-VAULT
+               EXTERNAL SECURITY REQUIRED.
+
+           SELECT BIOMETRIC-DATA-FILE
+               ASSIGN TO SECURE-BIO-STORAGE
+               ORGANIZATION IS RELATIVE
+               ACCESS MODE IS DYNAMIC
+               RELATIVE KEY IS BIO-RECORD-NUMBER
+               FILE STATUS IS FS-BIOMETRIC
+               ENCRYPTION LEVEL IS MAXIMUM.
+
+           SELECT FRAUD-DETECTION-CONFIG
+               ASSIGN TO ML-MODEL-STORAGE
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS SEQUENTIAL
+               FILE STATUS IS FS-FRAUD-CONFIG.
+
+           SELECT AUDIT-TRAIL-FILE
+               ASSIGN TO IMMUTABLE-AUDIT-LOG
+               ORGANIZATION IS SEQUENTIAL
+               ACCESS MODE IS APPEND-ONLY
+               FILE STATUS IS FS-AUDIT
+               WITH BLOCKCHAIN-HASH
+               WITH TIMESTAMP-VERIFICATION.
+
+           SELECT GEO-LOCATION-DATABASE
+               ASSIGN TO GEO-IP-DB
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS RANDOM
+               RECORD KEY IS GEO-IP-KEY
+               FILE STATUS IS FS-GEO.
+
+           SELECT REGULATORY-RULES-FILE
+               ASSIGN TO COMPLIANCE-ENGINE
+               ORGANIZATION IS INDEXED
+               ACCESS MODE IS DYNAMIC
+               RECORD KEY IS RULE-ID
+               FILE STATUS IS FS-COMPLIANCE.
+
+       DATA DIVISION.
+       FILE SECTION.
+       
+       FD  MASTER-ACCOUNT-FILE
+           BLOCK CONTAINS 0 RECORDS
+           RECORD CONTAINS 2048 CHARACTERS
+           RECORDING MODE IS F
+           LABEL RECORDS ARE STANDARD
+           DATA RECORD IS ACCOUNT-MASTER-RECORD.
+       
+       01  ACCOUNT-MASTER-RECORD.
+           05  ACCT-KEY-PRIMARY.
+               10  ACCT-BANK-CODE          PIC 9(4).
+               10  ACCT-BRANCH-CODE        PIC 9(4).
+               10  ACCT-ACCOUNT-NUMBER     PIC 9(12).
+               10  ACCT-CHECK-DIGIT        PIC 9(2).
+           05  ACCT-KEY-SSN.
+               10  ACCT-SSN-ENCRYPTED      PIC X(256).
+               10  ACCT-SSN-HASH           PIC X(64).
+           05  ACCT-KEY-BIOMETRIC.
+               10  BIO-FINGERPRINT-HASH    PIC X(128).
+               10  BIO-FACE-RECOGNITION-ID PIC X(64).
+               10  BIO-IRIS-SCAN-ID        PIC X(64).
+           05  ACCT-CUSTOMER-INFO.
+               10  CUST-FIRST-NAME         PIC X(50).
+               10  CUST-LAST-NAME          PIC X(50).
+               10  CUST-MIDDLE-INITIAL     PIC X(1).
+               10  CUST-DATE-OF-BIRTH      PIC 9(8).
+               10  CUST-NATIONALITY        PIC X(3).
+               10  CUST-TAX-RESIDENCY      PIC X(3) OCCURS 5 TIMES.
+           05  ACCT-SECURITY-PROFILE.
+               10  SEC-PASSWORD-HASH       PIC X(256).
+               10  SEC-PASSWORD-SALT       PIC X(64).
+               10  SEC-PASSWORD-ITERATIONS PIC 9(6).
+               10  SEC-PASSWORD-ALGORITHM  PIC X(20).
+                   88  ALGO-BCRYPT         VALUE 'BCRYPT'.
+                   88  ALGO-ARGON2         VALUE 'ARGON2ID'.
+                   88  ALGO-SCRYPT         VALUE 'SCRYPT'.
+               10  SEC-2FA-ENABLED         PIC X(1).
+                   88  TWO-FACTOR-ACTIVE   VALUE 'Y'.
+                   88  TWO-FACTOR-INACTIVE VALUE 'N'.
+               10  SEC-2FA-SECRET          PIC X(128).
+               10  SEC-2FA-BACKUP-CODES    PIC X(16) OCCURS 10 TIMES.
+               10  SEC-BIOMETRIC-ENABLED   PIC X(1).
+                   88  BIO-AUTH-REQUIRED   VALUE 'Y'.
+               10  SEC-DEVICE-FINGERPRINTS.
+                   15  DEVICE-ID           PIC X(64) OCCURS 20 TIMES.
+                   15  DEVICE-LAST-SEEN    PIC 9(14) OCCURS 20 TIMES.
+               10  SEC-IP-WHITELIST.
+                   15  WHITELIST-IP        PIC X(45) OCCURS 50 TIMES.
+                   15  WHITELIST-MASK      PIC 9(3) OCCURS 50 TIMES.
+               10  SEC-GEO-RESTRICTIONS.
+                   15  GEO-ALLOWED-COUNTRIES PIC X(3) OCCURS 30 TIMES.
+                   15  GEO-BLOCKED-COUNTRIES PIC X(3) OCCURS 30 TIMES.
+               10  SEC-SESSION-TOKEN       PIC X(256).
+               10  SEC-SESSION-EXPIRY      PIC 9(14).
+               10  SEC-FAILED-LOGIN-COUNT  PIC 9(3).
+               10  SEC-ACCOUNT-LOCKED      PIC X(1).
+                   88  ACCOUNT-ACTIVE      VALUE 'N'.
+                   88  ACCOUNT-LOCKED      VALUE 'Y'.
+                   88  ACCOUNT-SUSPENDED   VALUE 'S'.
+                   88  ACCOUNT-FROZEN      VALUE 'F'.
+               10  SEC-LOCK-REASON         PIC X(100).
+               10  SEC-LOCK-TIMESTAMP      PIC 9(14).
+               10  SEC-LAST-LOGIN          PIC 9(14).
+               10  SEC-LAST-IP-ADDRESS     PIC X(45).
+               10  SEC-LAST-DEVICE-ID      PIC X(64).
+               10  SEC-RISK-SCORE          PIC 9(3)V9(2).
+                   88  RISK-LOW            VALUE 000.00 THRU 025.00.
+                   88  RISK-MEDIUM         VALUE 025.01 THRU 075.00.
+                   88  RISK-HIGH           VALUE 075.01 THRU 090.00.
+                   88  RISK-CRITICAL       VALUE 090.01 THRU 100.00.
+           05  ACCT-ENCRYPTION-METADATA.
+               10  ENC-ALGORITHM           PIC X(20).
+                   88  ENC-AES-256-GCM     VALUE 'AES-256-GCM'.
+                   88  ENC-CHACHA20-POLY   VALUE 'CHACHA20-POLY1305'.
+               10  ENC-KEY-ID              PIC X(64).
+               10  ENC-IV-NONCE            PIC X(32).
+               10  ENC-AUTH-TAG            PIC X(32).
+               10  ENC-KEY-ROTATION-DATE   PIC 9(8).
+               10  ENC-ENCRYPTION-VERSION  PIC 9(3).
+           05  ACCT-FINANCIAL-DATA.
+               10  FIN-BALANCE-ENCRYPTED   PIC X(256).
+               10  FIN-BALANCE-CHECKSUM    PIC X(64).
+               10  FIN-CURRENCY-CODE       PIC X(3).
+               10  FIN-ACCOUNT-TYPE        PIC X(2).
+                   88  TYPE-CHECKING       VALUE 'CK'.
+                   88  TYPE-SAVINGS        VALUE 'SV'.
+                   88  TYPE-INVESTMENT     VALUE 'IN'.
+                   88  TYPE-CRYPTO-WALLET  VALUE 'CR'.
+               10  FIN-AVAILABLE-BALANCE   PIC S9(15)V9(2) COMP-3.
+               10  FIN-PENDING-DEBITS      PIC S9(15)V9(2) COMP-3.
+               10  FIN-PENDING-CREDITS     PIC S9(15)V9(2) COMP-3.
+               10  FIN-DAILY-LIMIT         PIC 9(12)V9(2) COMP-3.
+               10  FIN-DAILY-USED          PIC 9(12)V9(2) COMP-3.
+               10  FIN-MONTHLY-LIMIT       PIC 9(15)V9(2) COMP-3.
+               10  FIN-MONTHLY-USED        PIC 9(15)V9(2) COMP-3.
+               10  FIN-OVERDRAFT-LIMIT     PIC S9(12)V9(2) COMP-3.
+               10  FIN-CREDIT-SCORE        PIC 9(3).
+               10  FIN-INTEREST-RATE       PIC 9(2)V9(5) COMP-3.
+               10  FIN-LAST-INTEREST-DATE  PIC 9(8).
+           05  ACCT-COMPLIANCE-FLAGS.
+               10  COMP-KYC-VERIFIED       PIC X(1).
+                   88  KYC-COMPLETE        VALUE 'Y'.
+                   88  KYC-PENDING         VALUE 'P'.
+                   88  KYC-FAILED          VALUE 'F'.
+               10  COMP-KYC-LEVEL          PIC 9(1).
+                   88  KYC-LEVEL-BASIC     VALUE 1.
+                   88  KYC-LEVEL-STANDARD  VALUE 2.
+                   88  KYC-LEVEL-ENHANCED  VALUE 3.
+               10  COMP-AML-CHECKED        PIC X(1).
+                   88  AML-CLEAR           VALUE 'C'.
+                   88  AML-FLAGGED         VALUE 'F'.
+                   88  AML-UNDER-REVIEW    VALUE 'R'.
+               10  COMP-SANCTIONS-CHECKED  PIC X(1).
+               10  COMP-PEP-STATUS         PIC X(1).
+                   88  PEP-NOT-IDENTIFIED  VALUE 'N'.
+                   88  PEP-DOMESTIC        VALUE 'D'.
+                   88  PEP-FOREIGN         VALUE 'F'.
+                   88  PEP-INTERNATIONAL   VALUE 'I'.
+               10  COMP-TAX-REPORTING      PIC X(1).
+                   88  TAX-FATCA-REQUIRED  VALUE 'F'.
+                   88  TAX-CRS-REQUIRED    VALUE 'C'.
+                   88  TAX-BOTH-REQUIRED   VALUE 'B'.
+               10  COMP-GDPR-CONSENT       PIC X(1).
+               10  COMP-DATA-RETENTION-DATE PIC 9(8).
+           05  ACCT-FRAUD-DETECTION.
+               10  FRAUD-SCORE-CURRENT     PIC 9(3)V9(2).
+               10  FRAUD-SCORE-HISTORY.
+                   15  FRAUD-SCORE-DAILY   PIC 9(3)V9(2) OCCURS 30 TIMES.
+               10  FRAUD-ALERTS-COUNT      PIC 9(5).
+               10  FRAUD-LAST-ALERT-DATE   PIC 9(14).
+               10  FRAUD-BEHAVIOR-PROFILE.
+                   15  BEHAVIOR-AVG-TRANS-AMT    PIC 9(12)V9(2) COMP-3.
+                   15  BEHAVIOR-AVG-TRANS-FREQ   PIC 9(3).
+                   15  BEHAVIOR-TYPICAL-HOURS.
+                       20  HOUR-FREQUENCY  PIC 9(5) OCCURS 24 TIMES.
+                   15  BEHAVIOR-TYPICAL-MERCHANTS.
+                       20  MERCHANT-ID     PIC X(20) OCCURS 100 TIMES.
+                       20  MERCHANT-FREQ   PIC 9(5) OCCURS 100 TIMES.
+                   15  BEHAVIOR-GEO-PATTERN.
+                       20  GEO-COUNTRY     PIC X(3) OCCURS 20 TIMES.
+                       20  GEO-CITY        PIC X(50) OCCURS 20 TIMES.
+                       20  GEO-FREQUENCY   PIC 9(5) OCCURS 20 TIMES.
+           05  ACCT-AUDIT-TRAIL.
+               10  AUDIT-CREATED-DATE      PIC 9(8).
+               10  AUDIT-CREATED-TIME      PIC 9(6).
+               10  AUDIT-CREATED-BY        PIC X(50).
+               10  AUDIT-LAST-MODIFIED     PIC 9(14).
+               10  AUDIT-MODIFIED-BY       PIC X(50).
+               10  AUDIT-VERSION-NUMBER    PIC 9(10).
+               10  AUDIT-CHANGE-COUNT      PIC 9(8).
+           05  FILLER                      PIC X(100).
+
+       FD  TRANSACTION-LOG-FILE
+           BLOCK CONTAINS 0 RECORDS
+           RECORD CONTAINS 1024 CHARACTERS.
+       
+       01  TRANSACTION-LOG-RECORD.
+           05  TRANS-ID                    PIC X(36).
+           05  TRANS-TIMESTAMP             PIC 9(14).
+           05  TRANS-TYPE                  PIC X(3).
+               88  TRANS-DEPOSIT           VALUE 'DEP'.
+               88  TRANS-WITHDRAWAL        VALUE 'WDR'.
+               88  TRANS-TRANSFER          VALUE 'TRF'.
+               88  TRANS-PAYMENT           VALUE 'PAY'.
+               88  TRANS-FEE               VALUE 'FEE'.
+               88  TRANS-INTEREST          VALUE 'INT'.
+               88  TRANS-REVERSAL          VALUE 'REV'.
+               88  TRANS-ADJUSTMENT        VALUE 'ADJ'.
+           05  TRANS-AMOUNT-ENCRYPTED      PIC X(256).
+           05  TRANS-SOURCE-ACCOUNT        PIC X(22).
+           05  TRANS-TARGET-ACCOUNT        PIC X(22).
+           05  TRANS-STATUS                PIC X(1).
+               88  TRANS-PENDING           VALUE 'P'.
+               88  TRANS-COMPLETED         VALUE 'C'.
+               88  TRANS-FAILED            VALUE 'F'.
+               88  TRANS-CANCELLED         VALUE 'X'.
+               88  TRANS-UNDER-REVIEW      VALUE 'R'.
+           05  TRANS-SECURITY-CONTEXT.
+               10  SEC-USER-ID             PIC X(64).
+               10  SEC-SESSION-ID          PIC X(256).
+               10  SEC-IP-ADDRESS          PIC X(45).
+               10  SEC-DEVICE-FINGERPRINT  PIC X(64).
+               10  SEC-GEO-LOCATION.
+                   15  GEO-COUNTRY-CODE    PIC X(3).
+                   15  GEO-REGION          PIC X(50).
+                   15  GEO-CITY            PIC X(50).
+                   15  GEO-LATITUDE        PIC S9(2)V9(6).
+                   15  GEO-LONGITUDE       PIC S9(3)V9(6).
+               10  SEC-AUTH-METHOD         PIC X(20).
+                   88  AUTH-PASSWORD       VALUE 'PASSWORD'.
+                   88  AUTH-BIOMETRIC      VALUE 'BIOMETRIC'.
+                   88  AUTH-2FA            VALUE '2FA'.
+                   88  AUTH-OAUTH          VALUE 'OAUTH2'.
+               10  SEC-RISK-ASSESSMENT     PIC 9(3)V9(2).
+           05  TRANS-ENCRYPTION-DATA.
+               10  ENC-TRANSACTION-KEY-ID  PIC X(64).
+               10  ENC-SIGNATURE           PIC X(512).
+               10  ENC-HASH-ALGORITHM      PIC X(20).
+           05  FILLER                      PIC X(100).
+
+       FD  ENCRYPTION-KEY-FILE.
+       01  ENCRYPTION-KEY-RECORD.
+           05  KEY-IDENTIFIER              PIC X(64).
+           05  KEY-TYPE                    PIC X(20).
+               88  KEY-MASTER              VALUE 'MASTER'.
+               88  KEY-SESSION             VALUE 'SESSION'.
+               88  KEY-TRANSPORT           VALUE 'TRANSPORT'.
+           05  KEY-ENCRYPTED-VALUE         PIC X(512).
+           05  KEY-CREATION-DATE           PIC 9(8).
+           05  KEY-EXPIRATION-DATE         PIC 9(8).
+           05  KEY-ROTATION-POLICY         PIC 9(3).
+           05  KEY-USAGE-COUNTER           PIC 9(10).
+           05  KEY-MAX-USAGE               PIC 9(10).
+
+       FD  BIOMETRIC-DATA-FILE.
+       01  BIOMETRIC-DATA-RECORD.
+           05  BIO-RECORD-ID               PIC 9(10).
+           05  BIO-USER-ID                 PIC X(64).
+           05  BIO-FINGERPRINT-DATA        PIC X(2048).
+           05  BIO-FACE-RECOGNITION-DATA   PIC X(4096).
+           05  BIO-IRIS-SCAN-DATA          PIC X(2048).
+           05  BIO-VOICE-PRINT             PIC X(1024).
+           05  BIO-QUALITY-SCORE           PIC 9(3).
+           05  BIO-ENROLLMENT-DATE         PIC 9(14).
+
+       FD  FRAUD-DETECTION-CONFIG.
+       01  FRAUD-CONFIG-RECORD.
+           05  ML-MODEL-VERSION            PIC X(20).
+           05  ML-MODEL-ACCURACY           PIC 9(3)V9(4).
+           05  ML-THRESHOLD-SCORE          PIC 9(3)V9(2).
+           05  ML-FEATURE-WEIGHTS          PIC S9(3)V9(4) OCCURS 50 TIMES.
+           05  ML-LAST-TRAINING-DATE       PIC 9(8).
+
+       FD  AUDIT-TRAIL-FILE.
+       01  AUDIT-TRAIL-RECORD.
+           05  AUDIT-ID                    PIC X(36).
+           05  AUDIT-TIMESTAMP             PIC 9(14)V9(6).
+           05  AUDIT-ACTION                PIC X(50).
+           05  AUDIT-USER-ID               PIC X(64).
+           05  AUDIT-IP-ADDRESS            PIC X(45).
+           05  AUDIT-DETAILS               PIC X(500).
+           05  AUDIT-HASH-PREVIOUS         PIC X(64).
+           05  AUDIT-HASH-CURRENT          PIC X(64).
+
+       FD  GEO-LOCATION-DATABASE.
+       01  GEO-LOCATION-RECORD.
+           05  GEO-IP-KEY.
+               10  GEO-IP-START            PIC 9(10).
+               10  GEO-IP-END              PIC 9(10).
+           05  GEO-COUNTRY-CODE            PIC X(3).
+           05  GEO-COUNTRY-NAME            PIC X(50).
+           05  GEO-RISK-LEVEL              PIC 9(1).
+               88  GEO-RISK-LOW            VALUE 1.
+               88  GEO-RISK-MEDIUM         VALUE 2.
+               88  GEO-RISK-HIGH           VALUE 3.
+               88  GEO-RISK-BLOCKED        VALUE 9.
+
+       FD  REGULATORY-RULES-FILE.
+       01  REGULATORY-RULE-RECORD.
+           05  RULE-ID                     PIC X(20).
+           05  RULE-JURISDICTION           PIC X(3).
+           05  RULE-TYPE                   PIC X(20).
+               88  RULE-AML                VALUE 'AML'.
+               88  RULE-KYC                VALUE 'KYC'.
+               88  RULE-SANCTIONS          VALUE 'SANCTIONS'.
+               88  RULE-FATCA              VALUE 'FATCA'.
+               88  RULE-GDPR               VALUE 'GDPR'.
+           05  RULE-SEVERITY               PIC 9(1).
+           05  RULE-CONDITION              PIC X(500).
+           05  RULE-ACTION                 PIC X(100).
+
+       WORKING-STORAGE SECTION.
+       
+       01  WS-PROGRAM-CONSTANTS.
+           05  WS-PROGRAM-NAME             PIC X(30) VALUE 
+               'ENTERPRISE-SECURITY-FORTRESS'.
+           05  WS-VERSION                  PIC X(10) VALUE 'v4.7.2-SEC'.
+           05  WS-MAX-LOGIN-ATTEMPTS       PIC 9(2) VALUE 3.
+           05  WS-SESSION-TIMEOUT-MINUTES  PIC 9(3) VALUE 30.
+           05  WS-PASSWORD-MIN-LENGTH      PIC 9(2) VALUE 16.
+           05  WS-PASSWORD-COMPLEXITY      PIC 9(1) VALUE 4.
+               88  COMPLEXITY-HIGH         VALUE 4.
+           05  WS-ENCRYPTION-STRENGTH      PIC 9(3) VALUE 256.
+           05  WS-MAX-TRANSACTIONS-PER-HOUR PIC 9(5) VALUE 1000.
+           05  WS-FRAUD-THRESHOLD          PIC 9(3)V9(2) VALUE 85.00.
+           05  WS-HSM-TIMEOUT-SECONDS      PIC 9(3) VALUE 30.
+
+       01  WS-FILE-STATUS-CODES.
+           05  FS-MASTER                   PIC XX.
+               88  FS-MASTER-OK            VALUE '00'.
+               88  FS-MASTER-EOF           VALUE '10'.
+               88  FS-MASTER-LOCKED        VALUE '92'.
+               88  FS-MASTER-NOT-FOUND     VALUE '23'.
+           05  FS-TRANS-LOG                PIC XX.
+           05  FS-KEY-VAULT                PIC XX.
+           05  FS-BIOMETRIC                PIC XX.
+           05  FS-FRAUD-CONFIG             PIC XX.
+           05  FS-AUDIT                    PIC XX.
+           05  FS-GEO                      PIC XX.
+           05  FS-COMPLIANCE               PIC XX.
+
+       01  WS-SECURITY-WORKING-STORAGE.
+           05  WS-CURRENT-SESSION-TOKEN    PIC X(256).
+           05  WS-ENCRYPTION-KEY-CACHE.
+               10  CACHE-KEY-ID            PIC X(64) OCCURS 10 TIMES.
+               10  CACHE-KEY-VALUE         PIC X(512) OCCURS 10 TIMES.
+               10  CACHE-KEY-EXPIRY        PIC 9(14) OCCURS 10 TIMES.
+           05  WS-BIOMETRIC-MATCH-SCORE    PIC 9(3)V9(2).
+           05  WS-PASSWORD-HASH-OUTPUT     PIC X(256).
+           05  WS-HMAC-SIGNATURE           PIC X(64).
+           05  WS-NONCE-GENERATOR          PIC 9(18) COMP.
+           05  WS-CHALLENGE-RESPONSE       PIC X(128).
+
+       01  WS-TRANSACTION-CONTEXT.
+           05  WS-TRANS-ID                 PIC X(36).
+           05  WS-TRANS-AMOUNT             PIC S9(15)V9(2) COMP-3.
+           05  WS-TRANS-CURRENCY           PIC X(3).
+           05  WS-TRANS-EXCHANGE-RATE      PIC 9(3)V9(6) COMP-3.
+           05  WS-TRANS-CONVERTED-AMOUNT   PIC S9(15)V9(2) COMP-3.
+           05  WS-TRANS-FEE                PIC 9(12)V9(2) COMP-3.
+           05  WS-TRANS-TAX                PIC 9(12)V9(2) COMP-3.
+           05  WS-TRANS-TOTAL              PIC S9(15)V9(2) COMP-3.
+
+       01  WS-FRAUD-DETECTION-VARIABLES.
+           05  WS-FRAUD-SCORE-CALCULATED   PIC 9(3)V9(2).
+           05  WS-FRAUD-FEATURES.
+               10  FEAT-AMOUNT-ZSCORE      PIC S9(3)V9(4).
+               10  FEAT-FREQUENCY-ZSCORE   PIC S9(3)V9(4).
+               10  FEAT-LOCATION-DISTANCE  PIC 9(7)V9(2).
+               10  FEAT-TIME-ANOMALY       PIC 9(3)V9(2).
+               10  FEAT-MERCHANT-RISK      PIC 9(3)V9(2).
+               10  FEAT-DEVICE-TRUST       PIC 9(3)V9(2).
+               10  FEAT-VELOCITY-CHECK     PIC 9(3)V9(2).
+           05  WS-FRAUD-DECISION           PIC X(10).
+               88  FRAUD-ALLOW             VALUE 'ALLOW'.
+               88  FRAUD-CHALLENGE         VALUE 'CHALLENGE'.
+               88  FRAUD-BLOCK             VALUE 'BLOCK'.
+               88  FRAUD-REVIEW            VALUE 'REVIEW'.
+
+       01  WS-COMPLIANCE-CHECKS.
+           05  WS-KYC-RESULT               PIC X(1).
+           05  WS-AML-RESULT               PIC X(1).
+           05  WS-SANCTIONS-RESULT         PIC X(1).
+           05  WS-PEP-CHECK-RESULT         PIC X(1).
+           05  WS-TAX-REPORTING-REQUIRED   PIC X(1).
+           05  WS-REGULATORY-VIOLATIONS    PIC 9(3).
+
+       01  WS-CRYPTOGRAPHIC-VARIABLES.
+           05  WS-PLAINTEXT-BUFFER         PIC X(8192).
+           05  WS-ENCRYPTED-BUFFER         PIC X(16384).
+           05  WS-DECRYPTED-BUFFER         PIC X(8192).
+           05  WS-AES-KEY                  PIC X(32).
+           05  WS-AES-IV                   PIC X(16).
+           05  WS-RSA-PUBLIC-KEY           PIC X(512).
+           05  WS-RSA-PRIVATE-KEY          PIC X(2048).
+           05  WS-HMAC-KEY                 PIC X(64).
+           05  WS-HASH-SHA256              PIC X(64).
+           05  WS-HASH-SHA512              PIC X(128).
+
+       01  WS-RATE-LIMITING.
+           05  WS-RATE-LIMIT-BUCKETS.
+               10  BUCKET-USER-ID          PIC X(64) OCCURS 1000 TIMES
+                                           INDEXED BY BUCKET-IDX.
+               10  BUCKET-REQUEST-COUNT    PIC 9(5) OCCURS 1000 TIMES.
+               10  BUCKET-WINDOW-START     PIC 9(14) OCCURS 1000 TIMES.
+           05  WS-RATE-LIMIT-EXCEEDED      PIC X(1).
+               88  RATE-LIMIT-OK           VALUE 'N'.
+               88  RATE-LIMIT-BLOCKED      VALUE 'Y'.
+
+       01  WS-DISTRIBUTED-TRANSACTION.
+           05  WS-TRANSACTION-COORDINATOR  PIC X(64).
+           05  WS-TRANSACTION-STATE        PIC X(20).
+               88  STATE-INITIALIZED       VALUE 'INITIALIZED'.
+               88  STATE-PREPARED          VALUE 'PREPARED'.
+               88  STATE-COMMITTED         VALUE 'COMMITTED'.
+               88  STATE-ABORTED           VALUE 'ABORTED'.
+           05  WS-PARTICIPANT-COUNT        PIC 9(3).
+           05  WS-PARTICIPANTS.
+               10  PARTICIPANT-ID          PIC X(64) OCCURS 20 TIMES.
+               10  PARTICIPANT-STATUS      PIC X(10) OCCURS 20 TIMES.
+                   88  PART-READY          VALUE 'READY'.
+                   88  PART-COMMITTED      VALUE 'COMMITTED'.
+                   88  PART-ABORTED        VALUE 'ABORTED'.
+
+       01  WS-ERROR-HANDLING.
+           05  WS-ERROR-CODE               PIC X(10).
+           05  WS-ERROR-MESSAGE            PIC X(200).
+           05  WS-ERROR-SEVERITY           PIC X(10).
+               88  SEVERITY-INFO           VALUE 'INFO'.
+               88  SEVERITY-WARNING        VALUE 'WARNING'.
+               88  SEVERITY-ERROR          VALUE 'ERROR'.
+               88  SEVERITY-CRITICAL       VALUE 'CRITICAL'.
+           05  WS-ERROR-STACK.
+               10  ERROR-ENTRY             PIC X(100) OCCURS 20 TIMES.
+           05  WS-ERROR-COUNT              PIC 9(3).
+
+       01  WS-PERFORMANCE-METRICS.
+           05  WS-START-TIMESTAMP          PIC 9(14)V9(6).
+           05  WS-END-TIMESTAMP            PIC 9(14)V9(6).
+           05  WS-ELAPSED-MICROSECONDS     PIC 9(10).
+           05  WS-TRANSACTIONS-PROCESSED   PIC 9(10).
+           05  WS-TPS-CURRENT              PIC 9(7)V9(2).
+           05  WS-CPU-USAGE-PERCENT        PIC 9(3).
+           05  WS-MEMORY-USAGE-MB          PIC 9(7).
+        01  WS-DATETIME-WORK.
+       05  WS-CURRENT-TIMESTAMP        PIC 9(14).
+       05  WS-CURRENT-DATE-TIME.
+           10  WS-CURRENT-YEAR         PIC 9(4).
+           10  WS-CURRENT-MONTH        PIC 9(2).
+           10  WS-CURRENT-DAY          PIC 9(2).
+           10  WS-CURRENT-HOUR         PIC 9(2).
+           10  WS-CURRENT-MINUTE       PIC 9(2).
+           10  WS-CURRENT-SECOND       PIC 9(2).
+           10  WS-CURRENT-MILLISECOND  PIC 9(3).
+       05  WS-TIMESTAMP-BUFFER         PIC X(30).
+
+   01  WS-LINKAGE-AREAS.
+       05  WS-HSM-REQUEST.
+           10  HSM-OPERATION           PIC X(20).
+           10  HSM-KEY-ID              PIC X(64).
+           10  HSM-DATA-IN             PIC X(8192).
+           10  HSM-DATA-OUT            PIC X(16384).
+           10  HSM-STATUS              PIC XX.
+       05  WS-ML-FRAUD-REQUEST.
+           10  ML-FEATURES             PIC X(1000).
+           10  ML-PREDICTION-SCORE     PIC 9(3)V9(2).
+           10  ML-STATUS               PIC XX.
+
+   01  WS-FLAGS.
+       05  WS-DEBUG-MODE               PIC X(1) VALUE 'N'.
+           88  DEBUG-ENABLED           VALUE 'Y'.
+       05  WS-AUDIT-ENABLED            PIC X(1) VALUE 'Y'.
+           88  AUDITING-ON             VALUE 'Y'.
+       05  WS-ENCRYPTION-REQUIRED      PIC X(1) VALUE 'Y'.
+           88  ENCRYPT-ALL-DATA        VALUE 'Y'.
+       05  WS-BIOMETRIC-REQUIRED       PIC X(1) VALUE 'N'.
+       05  WS-GEO-RESTRICTION-ENABLED  PIC X(1) VALUE 'Y'.
+       05  WS-FRAUD-DETECTION-ENABLED  PIC X(1) VALUE 'Y'.
+
+   01  WS-INDEXES-AND-COUNTERS.
+       05  WS-I                        PIC 9(5) COMP.
+       05  WS-J                        PIC 9(5) COMP.
+       05  WS-K                        PIC 9(5) COMP.
+       05  WS-LOOP-COUNTER             PIC 9(10) COMP.
+       05  WS-RETRY-COUNTER            PIC 9(2).
+       05  WS-MAX-RETRIES              PIC 9(2) VALUE 3.
+
+   LINKAGE SECTION.
+   01  LS-TRANSACTION-REQUEST.
+       05  LS-USER-ID                  PIC X(64).
+       05  LS-SESSION-TOKEN            PIC X(256).
+       05  LS-TRANSACTION-TYPE         PIC X(3).
+       05  LS-SOURCE-ACCOUNT           PIC X(22).
+       05  LS-TARGET-ACCOUNT           PIC X(22).
+       05  LS-AMOUNT                   PIC S9(15)V9(2) COMP-3.
+       05  LS-CURRENCY                 PIC X(3).
+       05  LS-DESCRIPTION              PIC X(200).
+       05  LS-METADATA                 PIC X(1000).
+
+   01  LS-TRANSACTION-RESPONSE.
+       05  LS-STATUS-CODE              PIC 9(4).
+       05  LS-STATUS-MESSAGE           PIC X(200).
+       05  LS-TRANSACTION-ID           PIC X(36).
+       05  LS-CONFIRMATION-NUMBER      PIC X(20).
+       05  LS-BALANCE-AFTER            PIC S9(15)V9(2) COMP-3.
+
+   PROCEDURE DIVISION USING LS-TRANSACTION-REQUEST
+                             LS-TRANSACTION-RESPONSE.
+
+   000-MAIN-CONTROLLER SECTION.
+       PERFORM 100-INITIALIZE-SYSTEM
+       PERFORM 200-VALIDATE-SESSION-SECURITY
+       IF WS-ERROR-CODE = SPACES
+           PERFORM 300-AUTHENTICATE-USER
+           IF WS-ERROR-CODE = SPACES
+               PERFORM 400-CHECK-RATE-LIMITING
+               IF RATE-LIMIT-OK
+                   PERFORM 500-VALIDATE-GEO-LOCATION
+                   IF WS-ERROR-CODE = SPACES
+                       PERFORM 600-PROCESS-TRANSACTION
+                       PERFORM 700-FRAUD-DETECTION-ANALYSIS
+                       PERFORM 800-COMPLIANCE-VERIFICATION
+                       IF WS-ERROR-CODE = SPACES
+                           PERFORM 900-COMMIT-DISTRIBUTED-TRANSACTION
+                       ELSE
+                           PERFORM 950-ROLLBACK-TRANSACTION
+                       END-IF
+                   END-IF
+               ELSE
+                   MOVE 'RATE_LIMIT' TO WS-ERROR-CODE
+                   MOVE 'Rate limit exceeded' TO WS-ERROR-MESSAGE
+               END-IF
+           END-IF
+       END-IF
+       
+       PERFORM 990-FINALIZE-AND-RESPOND
+       PERFORM 999-AUDIT-LOG-TRANSACTION
+       STOP RUN.
+
+   100-INITIALIZE-SYSTEM SECTION.
+       MOVE FUNCTION CURRENT-DATE TO WS-CURRENT-DATE-TIME
+       MOVE FUNCTION WHEN-COMPILED TO WS-TIMESTAMP-BUFFER
+       
+       OPEN INPUT ENCRYPTION-KEY-FILE
+       OPEN INPUT FRAUD-DETECTION-CONFIG
+       OPEN INPUT GEO-LOCATION-DATABASE
+       OPEN INPUT REGULATORY-RULES-FILE
+       OPEN INPUT BIOMETRIC-DATA-FILE
+       
+       OPEN I-O MASTER-ACCOUNT-FILE
+       OPEN EXTEND TRANSACTION-LOG-FILE
+       OPEN EXTEND AUDIT-TRAIL-FILE
+       
+       IF FS-MASTER NOT = '00'
+           MOVE 'FILE_ERROR' TO WS-ERROR-CODE
+           STRING 'Failed to open MASTER-ACCOUNT-FILE: '
+                  FS-MASTER
+                  DELIMITED BY SIZE
+                  INTO WS-ERROR-MESSAGE
+           PERFORM 9000-LOG-CRITICAL-ERROR
+       END-IF
+       
+       PERFORM 110-LOAD-ENCRYPTION-KEYS
+       PERFORM 120-LOAD-FRAUD-MODEL
+       PERFORM 130-INITIALIZE-RATE-LIMITER.
+
+   110-LOAD-ENCRYPTION-KEYS SECTION.
+       MOVE 'MASTER-KEY-2024' TO KEY-IDENTIFIER
+       READ ENCRYPTION-KEY-FILE KEY IS KEY-IDENTIFIER
+           INVALID KEY
+               MOVE 'KEY_NOT_FOUND' TO WS-ERROR-CODE
+               MOVE 'Master encryption key not found in HSM' 
+                    TO WS-ERROR-MESSAGE
+               PERFORM 9000-LOG-CRITICAL-ERROR
+       END-READ
+       
+       IF FS-KEY-VAULT = '00'
+           PERFORM 111-DECRYPT-MASTER-KEY
+           PERFORM 112-CACHE-SESSION-KEYS
+       END-IF.
+
+   111-DECRYPT-MASTER-KEY SECTION.
+       MOVE 'DECRYPT' TO HSM-OPERATION
+       MOVE KEY-IDENTIFIER TO HSM-KEY-ID
+       MOVE KEY-ENCRYPTED-VALUE TO HSM-DATA-IN
+       
+       CALL 'HSM-CRYPTO-ENGINE' USING WS-HSM-REQUEST
+       
+       IF HSM-STATUS NOT = '00'
+           MOVE 'HSM_ERROR' TO WS-ERROR-CODE
+           MOVE 'Hardware Security Module failure' 
+                TO WS-ERROR-MESSAGE
+           PERFORM 9000-LOG-CRITICAL-ERROR
+       ELSE
+           MOVE HSM-DATA-OUT TO WS-AES-KEY
+       END-IF.
+
+   112-CACHE-SESSION-KEYS SECTION.
+       PERFORM VARYING WS-I FROM 1 BY 1 UNTIL WS-I > 10
+           MOVE KEY-IDENTIFIER TO CACHE-KEY-ID(WS-I)
+           MOVE KEY-ENCRYPTED-VALUE TO CACHE-KEY-VALUE(WS-I)
+           ADD 3600 TO WS-CURRENT-TIMESTAMP 
+               GIVING CACHE-KEY-EXPIRY(WS-I)
+       END-PERFORM.
+
+   120-LOAD-FRAUD-MODEL SECTION.
+       READ FRAUD-DETECTION-CONFIG
+           AT END
+               MOVE 'MODEL_ERROR' TO WS-ERROR-CODE
+               MOVE 'Fraud detection model not loaded' 
+                    TO WS-ERROR-MESSAGE
+       END-READ.
+
+   130-INITIALIZE-RATE-LIMITER SECTION.
+       PERFORM VARYING BUCKET-IDX FROM 1 BY 1 UNTIL BUCKET-IDX > 1000
+           MOVE SPACES TO BUCKET-USER-ID(BUCKET-IDX)
+           MOVE ZERO TO BUCKET-REQUEST-COUNT(BUCKET-IDX)
+           MOVE WS-CURRENT-TIMESTAMP TO BUCKET-WINDOW-START(BUCKET-IDX)
+       END-PERFORM.
+
+   200-VALIDATE-SESSION-SECURITY SECTION.
+       IF LS-SESSION-TOKEN = SPACES
+           MOVE 'AUTH_REQUIRED' TO WS-ERROR-CODE
+           MOVE 'Session token is required' TO WS-ERROR-MESSAGE
+           EXIT SECTION
+       END-IF
+       
+       PERFORM 210-VERIFY-SESSION-TOKEN
+       IF WS-ERROR-CODE = SPACES
+           PERFORM 220-CHECK-SESSION-EXPIRY
+           PERFORM 230-VERIFY-IP-ADDRESS
+           PERFORM 240-CHECK-DEVICE-FINGERPRINT
+       END-IF.
+
+   210-VERIFY-SESSION-TOKEN SECTION.
+       MOVE LS-USER-ID TO ACCT-KEY-PRIMARY
+       READ MASTER-ACCOUNT-FILE KEY IS ACCT-KEY-PRIMARY
+           INVALID KEY
+               MOVE 'USER_NOT_FOUND' TO WS-ERROR-CODE
+               MOVE 'User account not found' TO WS-ERROR-MESSAGE
+       END-READ
+       
+       IF FS-MASTER = '00'
+           IF SEC-SESSION-TOKEN NOT = LS-SESSION-TOKEN
+               MOVE 'INVALID_SESSION' TO WS-ERROR-CODE
+               MOVE 'Session token is invalid' TO WS-ERROR-MESSAGE
+               PERFORM 9100-LOG-SECURITY-EVENT
+           END-IF
+       END-IF.
+
+   220-CHECK-SESSION-EXPIRY SECTION.
+       IF WS-CURRENT-TIMESTAMP > SEC-SESSION-EXPIRY
+           MOVE 'SESSION_EXPIRED' TO WS-ERROR-CODE
+           MOVE 'Session has expired' TO WS-ERROR-MESSAGE
+           PERFORM 221-INVALIDATE-SESSION
+       END-IF.
+
+   221-INVALIDATE-SESSION SECTION.
+       MOVE SPACES TO SEC-SESSION-TOKEN
+       MOVE ZERO TO SEC-SESSION-EXPIRY
+       REWRITE ACCOUNT-MASTER-RECORD
+           INVALID KEY
+               MOVE 'UPDATE_ERROR' TO WS-ERROR-CODE
+       END-REWRITE.
+
+   230-VERIFY-IP-ADDRESS SECTION.
+       PERFORM 231-CHECK-IP-WHITELIST
+       IF WS-ERROR-CODE = SPACES
+           PERFORM 232-CHECK-GEO-RESTRICTIONS
+       END-IF.
+
+   231-CHECK-IP-WHITELIST SECTION.
+       SET WS-I TO 1
+       SEARCH WHITELIST-IP
+           AT END
+               CONTINUE
+           WHEN WHITELIST-IP(WS-I) = LS-METADATA(1:45)
+               CONTINUE
+       END-SEARCH
+       
+       IF WS-I > 50
+           ADD 10 TO WS-FRAUD-SCORE-CALCULATED
+       END-IF.
+
+   232-CHECK-GEO-RESTRICTIONS SECTION.
+       PERFORM 2321-LOOKUP-GEO-DATABASE
+       IF GEO-RISK-BLOCKED
+           MOVE 'GEO_BLOCKED' TO WS-ERROR-CODE
+           STRING 'Access from ' GEO-COUNTRY-NAME 
+                  ' is not allowed'
+                  DELIMITED BY SIZE
+                  INTO WS-ERROR-MESSAGE
+           PERFORM 9100-LOG-SECURITY-EVENT
+       END-IF.
+
+   2321-LOOKUP-GEO-DATABASE SECTION.
+       MOVE 0 TO GEO-IP-START
+       MOVE 4294967295 TO GEO-IP-END
+       READ GEO-LOCATION-DATABASE KEY IS GEO-IP-KEY
+           INVALID KEY
+               MOVE 'UNKNOWN' TO GEO-COUNTRY-CODE
+               MOVE 2 TO GEO-RISK-LEVEL
+       END-READ.
+
+   240-CHECK-DEVICE-FINGERPRINT SECTION.
+       SET WS-I TO 1
+       SEARCH DEVICE-ID
+           AT END
+               PERFORM 241-REGISTER-NEW-DEVICE
+           WHEN DEVICE-ID(WS-I) = LS-METADATA(100:64)
+               MOVE WS-CURRENT-TIMESTAMP TO DEVICE-LAST-SEEN(WS-I)
+       END-SEARCH.
+
+   241-REGISTER-NEW-DEVICE SECTION.
+       PERFORM VARYING WS-I FROM 1 BY 1 UNTIL WS-I > 20
+           IF DEVICE-ID(WS-I) = SPACES
+               MOVE LS-METADATA(100:64) TO DEVICE-ID(WS-I)
+               MOVE WS-CURRENT-TIMESTAMP TO DEVICE-LAST-SEEN(WS-I)
+               EXIT PERFORM
+           END-IF
+       END-PERFORM
+       
+       REWRITE ACCOUNT-MASTER-RECORD
+           INVALID KEY
+               MOVE 'UPDATE_ERROR' TO WS-ERROR-CODE
+       END-REWRITE.
+
+   300-AUTHENTICATE-USER SECTION.
+       PERFORM 310-VERIFY-PASSWORD-OR-BIOMETRIC
+       IF WS-ERROR-CODE = SPACES
+           IF TWO-FACTOR-ACTIVE
+               PERFORM 320-VERIFY-2FA-TOKEN
+           END-IF
+           IF BIO-AUTH-REQUIRED AND WS-ERROR-CODE = SPACES
+               PERFORM 330-VERIFY-BIOMETRIC-DATA
+           END-IF
+       END-IF
+       
+       IF WS-ERROR-CODE = SPACES
+           PERFORM 340-UPDATE-LOGIN-SUCCESS
+       ELSE
+           PERFORM 350-HANDLE-LOGIN-FAILURE
+       END-IF.
+
+   310-VERIFY-PASSWORD-OR-BIOMETRIC SECTION.
+       EVALUATE TRUE
+           WHEN AUTH-PASSWORD
+               PERFORM 311-VERIFY-PASSWORD-HASH
+           WHEN AUTH-BIOMETRIC
+               PERFORM 312-VERIFY-BIOMETRIC-AUTH
+           WHEN OTHER
+               MOVE 'INVALID_AUTH_METHOD' TO WS-ERROR-CODE
+       END-EVALUATE.
+
+   311-VERIFY-PASSWORD-HASH SECTION.
+       MOVE LS-METADATA(200:256) TO WS-PASSWORD-HASH-OUTPUT
+       
+       CALL 'ARGON2-VERIFY' USING 
+           WS-PASSWORD-HASH-OUTPUT
+           SEC-PASSWORD-HASH
+           SEC-PASSWORD-SALT
+           SEC-PASSWORD-ITERATIONS
+           HSM-STATUS
+       
+       IF HSM-STATUS NOT = '00'
+           MOVE 'INVALID_PASSWORD' TO WS-ERROR-CODE
+           MOVE 'Password verification failed' TO WS-ERROR-MESSAGE
+       END-IF.
+
+   312-VERIFY-BIOMETRIC-AUTH SECTION.
+       MOVE LS-USER-ID TO BIO-USER-ID
+       READ BIOMETRIC-DATA-FILE KEY IS BIO-USER-ID
+           INVALID KEY
+               MOVE 'BIO_NOT_ENROLLED' TO WS-ERROR-CODE
+               MOVE 'Biometric data not enrolled' TO WS-ERROR-MESSAGE
+       END-READ
+       
+       IF FS-BIOMETRIC = '00'
+           PERFORM 3121-COMPARE-BIOMETRIC-DATA
+       END-IF.
+
+   3121-COMPARE-BIOMETRIC-DATA SECTION.
+       CALL 'BIOMETRIC-MATCHER' USING
+           LS-METADATA(500:2048)
+           BIO-FINGERPRINT-DATA
+           WS-BIOMETRIC-MATCH-SCORE
+           HSM-STATUS
+       
+       IF WS-BIOMETRIC-MATCH-SCORE < 98.00
+           MOVE 'BIO_MISMATCH' TO WS-ERROR-CODE
+           MOVE 'Biometric authentication failed' TO WS-ERROR-MESSAGE
+       END-IF.
+
+   320-VERIFY-2FA-TOKEN SECTION.
+       MOVE LS-METADATA(300:6) TO WS-CHALLENGE-RESPONSE
+       
+       CALL 'TOTP-VERIFY' USING
+           WS-CHALLENGE-RESPONSE
+           SEC-2FA-SECRET
+           WS-CURRENT-TIMESTAMP
+           HSM-STATUS
+       
+       IF HSM-STATUS NOT = '00'
+           PERFORM 321-TRY-BACKUP-CODE
+       END-IF.
+
+   321-TRY-BACKUP-CODE SECTION.
+       PERFORM VARYING WS-I FROM 1 BY 1 UNTIL WS-I > 10
+           IF SEC-2FA-BACKUP-CODES(WS-I) = WS-CHALLENGE-RESPONSE
+               MOVE SPACES TO SEC-2FA-BACKUP-CODES(WS-I)
+               EXIT PERFORM
+           END-IF
+       END-PERFORM
+       
+       IF WS-I > 10
+           MOVE 'INVALID_2FA' TO WS-ERROR-CODE
+           MOVE '2FA token verification failed' TO WS-ERROR-MESSAGE
+       END-IF.
+
+   330-VERIFY-BIOMETRIC-DATA SECTION.
+       PERFORM 312-VERIFY-BIOMETRIC-AUTH.
+
+   340-UPDATE-LOGIN-SUCCESS SECTION.
+       MOVE WS-CURRENT-TIMESTAMP TO SEC-LAST-LOGIN
+       MOVE LS-METADATA(1:45) TO SEC-LAST-IP-ADDRESS
+       MOVE LS-METADATA(100:64) TO SEC-LAST-DEVICE-ID
+       MOVE ZERO TO SEC-FAILED-LOGIN-COUNT
+       
+       COMPUTE SEC-RISK-SCORE = WS-FRAUD-SCORE-CALCULATED
+       
+       REWRITE ACCOUNT-MASTER-RECORD
+           INVALID KEY
+               MOVE 'UPDATE_ERROR' TO WS-ERROR-CODE
+       END-REWRITE
+       
+       PERFORM 9200-LOG-AUDIT-TRAIL.
+
+   350-HANDLE-LOGIN-FAILURE SECTION.
+       ADD 1 TO SEC-FAILED-LOGIN-COUNT
+       
+       IF SEC-FAILED-LOGIN-COUNT >= WS-MAX-LOGIN-ATTEMPTS
+           PERFORM 351-LOCK-ACCOUNT
+       END-IF
+       
+       REWRITE ACCOUNT-MASTER-RECORD
+       PERFORM 9100-LOG-SECURITY-EVENT.
+
+   351-LOCK-ACCOUNT SECTION.
+       MOVE 'Y' TO SEC-ACCOUNT-LOCKED
+       MOVE 'Maximum login attempts exceeded' TO SEC-LOCK-REASON
+       MOVE WS-CURRENT-TIMESTAMP TO SEC-LOCK-TIMESTAMP
+       
+       PERFORM 9300-SEND-SECURITY-ALERT.
+
+   400-CHECK-RATE-LIMITING SECTION.
+       PERFORM 410-FIND-OR-CREATE-BUCKET
+       PERFORM 420-EVALUATE-RATE-LIMIT.
+
+   410-FIND-OR-CREATE-BUCKET SECTION.
+       SET BUCKET-IDX TO 1
+       SEARCH BUCKET-USER-ID
+           AT END
+               PERFORM 411-CREATE-NEW-BUCKET
+           WHEN BUCKET-USER-ID(BUCKET-IDX) = LS-USER-ID
+               PERFORM 412-UPDATE-BUCKET-WINDOW
+       END-SEARCH.
+
+   411-CREATE-NEW-BUCKET SECTION.
+       PERFORM VARYING BUCKET-IDX FROM 1 BY 1 UNTIL BUCKET-IDX > 1000
+           IF BUCKET-USER-ID(BUCKET-IDX) = SPACES
+               MOVE LS-USER-ID TO BUCKET-USER-ID(BUCKET-IDX)
+               MOVE 1 TO BUCKET-REQUEST-COUNT(BUCKET-IDX)
+               MOVE WS-CURRENT-TIMESTAMP 
+                    TO BUCKET-WINDOW-START(BUCKET-IDX)
+               EXIT PERFORM
+           END-IF
+       END-PERFORM.
+
+   412-UPDATE-BUCKET-WINDOW SECTION.
+       COMPUTE WS-ELAPSED-MICROSECONDS =
+           WS-CURRENT-TIMESTAMP - BUCKET-WINDOW-START(BUCKET-IDX)
+       
+       IF WS-ELAPSED-MICROSECONDS > 3600000000
+           MOVE 1 TO BUCKET-REQUEST-COUNT(BUCKET-IDX)
+           MOVE WS-CURRENT-TIMESTAMP 
+                TO BUCKET-WINDOW-START(BUCKET-IDX)
+       ELSE
+           ADD 1 TO BUCKET-REQUEST-COUNT(BUCKET-IDX)
+       END-IF.
+
+   420-EVALUATE-RATE-LIMIT SECTION.
+       IF BUCKET-REQUEST-COUNT(BUCKET-IDX) > 
+          WS-MAX-TRANSACTIONS-PER-HOUR
+           SET RATE-LIMIT-BLOCKED TO TRUE
+           PERFORM 9100-LOG-SECURITY-EVENT
+       ELSE
+           SET RATE-LIMIT-OK TO TRUE
+       END-IF.
+
+   500-VALIDATE-GEO-LOCATION SECTION.
+       PERFORM 510-EXTRACT-GEO-FROM-IP
+       PERFORM 520-CHECK-GEO-RESTRICTIONS
+       PERFORM 530-CALCULATE-GEO-RISK.
+
+   510-EXTRACT-GEO-FROM-IP SECTION.
+       MOVE LS-METADATA(1:45) TO WS-PLAINTEXT-BUFFER
+       CALL 'IP-TO-GEO' USING
+           WS-PLAINTEXT-BUFFER
+           GEO-COUNTRY-CODE
+           GEO-LATITUDE
+           GEO-LONGITUDE
+           HSM-STATUS.
+
+   520-CHECK-GEO-RESTRICTIONS SECTION.
+       PERFORM VARYING WS-I FROM 1 BY 1 UNTIL WS-I > 30
+           IF GEO-BLOCKED-COUNTRIES(WS-I) = GEO-COUNTRY-CODE
+               MOVE 'GEO_BLOCKED' TO WS-ERROR-CODE
+               EXIT PERFORM
+           END-IF
+       END-PERFORM.
+
+   530-CALCULATE-GEO-RISK SECTION.
+       IF SEC-LAST-IP-ADDRESS NOT = SPACES
+           PERFORM 531-CALCULATE-DISTANCE
+           IF FEAT-LOCATION-DISTANCE > 1000.00
+               ADD 15 TO WS-FRAUD-SCORE-CALCULATED
+           END-IF
+       END-IF.
+
+   531-CALCULATE-DISTANCE SECTION.
+       CALL 'HAVERSINE-DISTANCE' USING
+           SEC-GEO-LOCATION
+           GEO-LATITUDE
+           GEO-LONGITUDE
+           FEAT-LOCATION-DISTANCE.
+
+   600-PROCESS-TRANSACTION SECTION.
+       PERFORM 610-VALIDATE-TRANSACTION-PARAMETERS
+       IF WS-ERROR-CODE = SPACES
+           PERFORM 620-LOCK-ACCOUNTS
+           PERFORM 630-VERIFY-SUFFICIENT-BALANCE
+           IF WS-ERROR-CODE = SPACES
+               PERFORM 640-CALCULATE-FEES-AND-TAXES
+               PERFORM 650-ENCRYPT-TRANSACTION-DATA
+               PERFORM 660-EXECUTE-TRANSACTION
+           END-IF
+           PERFORM 670-UNLOCK-ACCOUNTS
+       END-IF.
+
+   610-VALIDATE-TRANSACTION-PARAMETERS SECTION.
+       IF LS-AMOUNT <= ZERO
+           MOVE 'INVALID_AMOUNT' TO WS-ERROR-CODE
+           MOVE 'Transaction amount must be positive' 
+                TO WS-ERROR-MESSAGE
+           EXIT SECTION
+       END-IF
+       
+       IF LS-AMOUNT > FIN-DAILY-LIMIT
+           MOVE 'LIMIT_EXCEEDED' TO WS-ERROR-CODE
+           MOVE 'Transaction exceeds daily limit' TO WS-ERROR-MESSAGE
+           EXIT SECTION
+       END-IF
+       
+       COMPUTE WS-TRANS-TOTAL = FIN-DAILY-USED + LS-AMOUNT
+       IF WS-TRANS-TOTAL > FIN-DAILY-LIMIT
+           MOVE 'DAILY_LIMIT' TO WS-ERROR-CODE
+           MOVE 'Daily transaction limit would be exceeded' 
+                TO WS-ERROR-MESSAGE
+       END-IF.
+
+   620-LOCK-ACCOUNTS SECTION.
+       MOVE LS-SOURCE-ACCOUNT TO ACCT-KEY-PRIMARY
+       READ MASTER-ACCOUNT-FILE KEY IS ACCT-KEY-PRIMARY
+           WITH LOCK
+           INVALID KEY
+               MOVE 'ACCOUNT_NOT_FOUND' TO WS-ERROR-CODE
+           NOT INVALID KEY
+               IF ACCOUNT-LOCKED OR ACCOUNT-SUSPENDED OR ACCOUNT-FROZEN
+                   MOVE 'ACCOUNT_LOCKED' TO WS-ERROR-CODE
+               END-IF
+       END-READ
+       
+       IF LS-TRANSACTION-TYPE = 'TRF' AND WS-ERROR-CODE = SPACES
+           PERFORM 621-LOCK-TARGET-ACCOUNT
+       END-IF.
+
+   621-LOCK-TARGET-ACCOUNT SECTION.
+       MOVE LS-TARGET-ACCOUNT TO ACCT-KEY-PRIMARY
+       READ MASTER-ACCOUNT-FILE KEY IS ACCT-KEY-PRIMARY
+           WITH LOCK
+           INVALID KEY
+               MOVE 'TARGET_NOT_FOUND' TO WS-ERROR-CODE
+       END-READ.
+
+   630-VERIFY-SUFFICIENT-BALANCE SECTION.
+       PERFORM 631-DECRYPT-BALANCE
+       
+       IF FIN-AVAILABLE-BALANCE < LS-AMOUNT
+           IF FIN-AVAILABLE-BALANCE + FIN-OVERDRAFT-LIMIT >= LS-AMOUNT
+               CONTINUE
+           ELSE
+               MOVE 'INSUFFICIENT_FUNDS' TO WS-ERROR-CODE
+               MOVE 'Insufficient funds for transaction' 
+                    TO WS-ERROR-MESSAGE
+           END-IF
+       END-IF.
+
+   631-DECRYPT-BALANCE SECTION.
+       MOVE 'DECRYPT' TO HSM-OPERATION
+       MOVE ENC-KEY-ID TO HSM-KEY-ID
+       MOVE FIN-BALANCE-ENCRYPTED TO HSM-DATA-IN
+       
+       CALL 'HSM-CRYPTO-ENGINE' USING WS-HSM-REQUEST
+       
+       IF HSM-STATUS = '00'
+           MOVE HSM-DATA-OUT TO WS-DECRYPTED-BUFFER
+           MOVE WS-DECRYPTED-BUFFER TO FIN-AVAILABLE-BALANCE
+       ELSE
+           MOVE 'DECRYPTION_ERROR' TO WS-ERROR-CODE
+       END-IF.
+
+   640-CALCULATE-FEES-AND-TAXES SECTION.
+       EVALUATE LS-TRANSACTION-TYPE
+           WHEN 'WDR'
+               COMPUTE WS-TRANS-FEE = LS-AMOUNT * 0.015
+               IF WS-TRANS-FEE < 5.00
+                   MOVE 5.00 TO WS-TRANS-FEE
+               END-IF
+           WHEN 'TRF'
+               COMPUTE WS-TRANS-FEE = LS-AMOUNT * 0.010
+               IF WS-TRANS-FEE < 10.00
+                   MOVE 10.00 TO WS-TRANS-FEE
+               END-IF
+           WHEN OTHER
+               MOVE ZERO TO WS-TRANS-FEE
+       END-EVALUATE
+       
+       COMPUTE WS-TRANS-TAX = WS-TRANS-FEE * 0.19
+       COMPUTE WS-TRANS-TOTAL = LS-AMOUNT + WS-TRANS-FEE + WS-TRANS-TAX.
+
+   650-ENCRYPT-TRANSACTION-DATA SECTION.
+       MOVE LS-AMOUNT TO WS-PLAINTEXT-BUFFER
+       
+       PERFORM 651-GENERATE-TRANSACTION-KEY
+       
+       MOVE 'ENCRYPT' TO HSM-OPERATION
+       MOVE ENC-KEY-ID TO HSM-KEY-ID
+       MOVE WS-PLAINTEXT-BUFFER TO HSM-DATA-IN
+       
+       CALL 'HSM-CRYPTO-ENGINE' USING WS-HSM-REQUEST
+       
+       IF HSM-STATUS = '00'
+           MOVE HSM-DATA-OUT TO TRANS-AMOUNT-ENCRYPTED
+       ELSE
+           MOVE 'ENCRYPTION_ERROR' TO WS-ERROR-CODE
+       END-IF.
+
+   651-GENERATE-TRANSACTION-KEY SECTION.
+       CALL 'UUID-GENERATE-V4' USING WS-TRANS-ID
+       
+       MOVE WS-TRANS-ID TO ENC-TRANSACTION-KEY-ID
+       
+       PERFORM 652-GENERATE-NONCE.
+
+   652-GENERATE-NONCE SECTION.
+       CALL 'RANDOM-BYTES' USING
+           16
+           WS-AES-IV
+           HSM-STATUS.
+
+   660-EXECUTE-TRANSACTION SECTION.
+       PERFORM 661-DEBIT-SOURCE-ACCOUNT
+       IF WS-ERROR-CODE = SPACES AND LS-TRANSACTION-TYPE = 'TRF'
+           PERFORM 662-CREDIT-TARGET-ACCOUNT
+       END-IF
+       
+       IF WS-ERROR-CODE = SPACES
+           PERFORM 663-LOG-TRANSACTION
+           ADD WS-TRANS-TOTAL TO FIN-DAILY-USED
+           REWRITE ACCOUNT-MASTER-RECORD
+       END-IF.
+
+   661-DEBIT-SOURCE-ACCOUNT SECTION.
+       SUBTRACT WS-TRANS-TOTAL FROM FIN-AVAILABLE-BALANCE
+       
+       IF FIN-AVAILABLE-BALANCE < ZERO
+           IF FIN-AVAILABLE-BALANCE + FIN-OVERDRAFT-LIMIT < ZERO
+               MOVE 'INSUFFICIENT_FUNDS' TO WS-ERROR-CODE
+               ADD WS-TRANS-TOTAL TO FIN-AVAILABLE-BALANCE
+           END-IF
+       END-IF
+       
+       PERFORM 631-DECRYPT-BALANCE.
+
+   662-CREDIT-TARGET-ACCOUNT SECTION.
+       ADD LS-AMOUNT TO FIN-AVAILABLE-BALANCE
+       PERFORM 631-DECRYPT-BALANCE.
+
+   663-LOG-TRANSACTION SECTION.
+       MOVE WS-TRANS-ID TO TRANS-ID
+       MOVE WS-CURRENT-TIMESTAMP TO TRANS-TIMESTAMP
+       MOVE LS-TRANSACTION-TYPE TO TRANS-TYPE
+       MOVE TRANS-AMOUNT-ENCRYPTED TO TRANS-AMOUNT-ENCRYPTED
+       MOVE LS-SOURCE-ACCOUNT TO TRANS-SOURCE-ACCOUNT
+       MOVE LS-TARGET-ACCOUNT TO TRANS-TARGET-ACCOUNT
+       MOVE 'C' TO TRANS-STATUS
+       
+       MOVE LS-USER-ID TO SEC-USER-ID
+       MOVE LS-SESSION-TOKEN TO SEC-SESSION-ID
+       MOVE LS-METADATA(1:45) TO SEC-IP-ADDRESS
+       MOVE LS-METADATA(100:64) TO SEC-DEVICE-FINGERPRINT
+       
+       WRITE TRANSACTION-LOG-RECORD
+           INVALID KEY
+               MOVE 'LOG_ERROR' TO WS-ERROR-CODE
+       END-WRITE.
+
+   670-UNLOCK-ACCOUNTS SECTION.
+       UNLOCK MASTER-ACCOUNT-FILE ALL RECORDS.
+
+        700-FRAUD-DETECTION-ANALYSIS SECTION.
+       PERFORM 710-CALCULATE-FRAUD-FEATURES
+       PERFORM 720-ML-FRAUD-PREDICTION
+       PERFORM 730-EVALUATE-FRAUD-DECISION.
+
+   710-CALCULATE-FRAUD-FEATURES SECTION.
+       PERFORM 711-CALCULATE-AMOUNT-ZSCORE
+       PERFORM 712-CALCULATE-FREQUENCY-PATTERN
+       PERFORM 713-CALCULATE-TIME-ANOMALY
+       PERFORM 714-CALCULATE-MERCHANT-RISK
+       PERFORM 715-CALCULATE-DEVICE-TRUST
+       PERFORM 716-CALCULATE-VELOCITY.
+
+   711-CALCULATE-AMOUNT-ZSCORE SECTION.
+       COMPUTE FEAT-AMOUNT-ZSCORE =
+           (LS-AMOUNT - BEHAVIOR-AVG-TRANS-AMT) / 
+           (BEHAVIOR-AVG-TRANS-AMT * 0.3).
+
+   712-CALCULATE-FREQUENCY-PATTERN SECTION.
+       COMPUTE FEAT-FREQUENCY-ZSCORE =
+           (1 - BEHAVIOR-AVG-TRANS-FREQ) / 
+           (BEHAVIOR-AVG-TRANS-FREQ * 0.2).
+
+   713-CALCULATE-TIME-ANOMALY SECTION.
+       MOVE WS-CURRENT-HOUR TO WS-I
+       COMPUTE FEAT-TIME-ANOMALY =
+           100 - (HOUR-FREQUENCY(WS-I) / 10).
+
+   714-CALCULATE-MERCHANT-RISK SECTION.
+       MOVE 50.00 TO FEAT-MERCHANT-RISK.
+
+   715-CALCULATE-DEVICE-TRUST SECTION.
+       SET WS-I TO 1
+       SEARCH DEVICE-ID
+           AT END
+               MOVE 80.00 TO FEAT-DEVICE-TRUST
+           WHEN DEVICE-ID(WS-I) = LS-METADATA(100:64)
+               MOVE 10.00 TO FEAT-DEVICE-TRUST
+       END-SEARCH.
+
+   716-CALCULATE-VELOCITY SECTION.
+       COMPUTE FEAT-VELOCITY-CHECK = FIN-DAILY-USED / FIN-DAILY-LIMIT * 100.
+
+   720-ML-FRAUD-PREDICTION SECTION.
+       STRING 
+           FEAT-AMOUNT-ZSCORE ','
+           FEAT-FREQUENCY-ZSCORE ','
+           FEAT-LOCATION-DISTANCE ','
+           FEAT-TIME-ANOMALY ','
+           FEAT-MERCHANT-RISK ','
+           FEAT-DEVICE-TRUST ','
+           FEAT-VELOCITY-CHECK
+           DELIMITED BY SIZE
+           INTO ML-FEATURES
+       
+       CALL 'ML-FRAUD-MODEL' USING WS-ML-FRAUD-REQUEST
+       
+       IF ML-STATUS = '00'
+           MOVE ML-PREDICTION-SCORE TO WS-FRAUD-SCORE-CALCULATED
+       END-IF.
+
+   730-EVALUATE-FRAUD-DECISION SECTION.
+       EVALUATE TRUE
+           WHEN WS-FRAUD-SCORE-CALCULATED < 25.00
+               SET FRAUD-ALLOW TO TRUE
+           WHEN WS-FRAUD-SCORE-CALCULATED < 75.00
+               SET FRAUD-CHALLENGE TO TRUE
+               PERFORM 731-SEND-CHALLENGE-REQUEST
+           WHEN WS-FRAUD-SCORE-CALCULATED < 90.00
+               SET FRAUD-REVIEW TO TRUE
+               PERFORM 732-QUEUE-FOR-MANUAL-REVIEW
+           WHEN OTHER
+               SET FRAUD-BLOCK TO TRUE
+               PERFORM 733-BLOCK-TRANSACTION
+       END-EVALUATE.
+
+   731-SEND-CHALLENGE-REQUEST SECTION.
+       CALL 'SEND-2FA-CHALLENGE' USING
+           LS-USER-ID
+           SEC-2FA-SECRET
+           WS-CHALLENGE-RESPONSE
+           HSM-STATUS.
+
+   732-QUEUE-FOR-MANUAL-REVIEW SECTION.
+       MOVE 'R' TO TRANS-STATUS
+       REWRITE TRANSACTION-LOG-RECORD.
+
+   733-BLOCK-TRANSACTION SECTION.
+       MOVE 'FRAUD_DETECTED' TO WS-ERROR-CODE
+       MOVE 'Transaction blocked due to fraud detection' 
+            TO WS-ERROR-MESSAGE
+       PERFORM 9300-SEND-SECURITY-ALERT.
+
+   800-COMPLIANCE-VERIFICATION SECTION.
+       PERFORM 810-VERIFY-KYC-STATUS
+       PERFORM 820-CHECK-AML-REQUIREMENTS
+       PERFORM 830-CHECK-SANCTIONS-LIST
+       PERFORM 840-VERIFY-PEP-STATUS
+       PERFORM 850-CHECK-TAX-REPORTING.
+
+   810-VERIFY-KYC-STATUS SECTION.
+       IF NOT KYC-COMPLETE
+           MOVE 'KYC_REQUIRED' TO WS-ERROR-CODE
+           MOVE 'KYC verification required' TO WS-ERROR-MESSAGE
+       END-IF.
+
+   820-CHECK-AML-REQUIREMENTS SECTION.
+       IF LS-AMOUNT > 10000.00
+           PERFORM 821-RUN-AML-CHECK
+       END-IF.
+
+   821-RUN-AML-CHECK SECTION.
+       CALL 'AML-SCREENING-SERVICE' USING
+           ACCT-CUSTOMER-INFO
+           LS-AMOUNT
+           WS-COMPLIANCE-CHECKS
+           HSM-STATUS
+       
+       IF WS-AML-RESULT = 'F'
+           MOVE 'AML_FLAGGED' TO WS-ERROR-CODE
+           PERFORM 9100-LOG-SECURITY-EVENT
+       END-IF.
+
+   830-CHECK-SANCTIONS-LIST SECTION.
+       CALL 'SANCTIONS-SCREENING' USING
+           CUST-FIRST-NAME
+           CUST-LAST-NAME
+           CUST-DATE-OF-BIRTH
+           WS-SANCTIONS-RESULT
+           HSM-STATUS
+       
+       IF WS-SANCTIONS-RESULT = 'M'
+           MOVE 'SANCTIONS_MATCH' TO WS-ERROR-CODE
+           MOVE 'Account matched sanctions list' TO WS-ERROR-MESSAGE
+           PERFORM 9000-LOG-CRITICAL-ERROR
+       END-IF.
+
+   840-VERIFY-PEP-STATUS SECTION.
+       IF PEP-FOREIGN OR PEP-INTERNATIONAL
+           IF LS-AMOUNT > 50000.00
+               PERFORM 841-ENHANCED-DUE-DILIGENCE
+           END-IF
+       END-IF.
+
+   841-ENHANCED-DUE-DILIGENCE SECTION.
+       CALL 'EDD-PROCESS' USING
+           ACCT-CUSTOMER-INFO
+           LS-TRANSACTION-REQUEST
+           WS-COMPLIANCE-CHECKS
+           HSM-STATUS.
+
+   850-CHECK-TAX-REPORTING SECTION.
+       IF LS-AMOUNT > 10000.00
+           PERFORM 851-GENERATE-TAX-REPORT
+       END-IF.
+
+   851-GENERATE-TAX-REPORT SECTION.
+       CALL 'TAX-REPORTING-SERVICE' USING
+           ACCT-KEY-PRIMARY
+           LS-AMOUNT
+           WS-CURRENT-TIMESTAMP
+           HSM-STATUS.
+
+   900-COMMIT-DISTRIBUTED-TRANSACTION SECTION.
+       PERFORM 910-INITIALIZE-2PC-COORDINATOR
+       PERFORM 920-PREPARE-PHASE
+       IF WS-ERROR-CODE = SPACES
+           PERFORM 930-COMMIT-PHASE
+       ELSE
+           PERFORM 940-ABORT-PHASE
+       END-IF.
+
+   910-INITIALIZE-2PC-COORDINATOR SECTION.
+       CALL 'UUID-GENERATE-V4' USING WS-TRANSACTION-COORDINATOR
+       MOVE 'INITIALIZED' TO WS-TRANSACTION-STATE
+       MOVE 3 TO WS-PARTICIPANT-COUNT
+       
+       MOVE 'ACCOUNT-SERVICE' TO PARTICIPANT-ID(1)
+       MOVE 'LEDGER-SERVICE' TO PARTICIPANT-ID(2)
+       MOVE 'AUDIT-SERVICE' TO PARTICIPANT-ID(3).
+
+   920-PREPARE-PHASE SECTION.
+       PERFORM VARYING WS-I FROM 1 BY 1 
+               UNTIL WS-I > WS-PARTICIPANT-COUNT
+           CALL 'PREPARE-TRANSACTION' USING
+               PARTICIPANT-ID(WS-I)
+               WS-TRANSACTION-COORDINATOR
+               LS-TRANSACTION-REQUEST
+               PARTICIPANT-STATUS(WS-I)
+               HSM-STATUS
+           
+           IF PARTICIPANT-STATUS(WS-I) NOT = 'READY'
+               MOVE 'PREPARE_FAILED' TO WS-ERROR-CODE
+               EXIT PERFORM
+           END-IF
+       END-PERFORM
+       
+       IF WS-ERROR-CODE = SPACES
+           MOVE 'PREPARED' TO WS-TRANSACTION-STATE
+       END-IF.
+
+   930-COMMIT-PHASE SECTION.
+       PERFORM VARYING WS-I FROM 1 BY 1 
+               UNTIL WS-I > WS-PARTICIPANT-COUNT
+           CALL 'COMMIT-TRANSACTION' USING
+               PARTICIPANT-ID(WS-I)
+               WS-TRANSACTION-COORDINATOR
+               HSM-STATUS
+           
+           MOVE 'COMMITTED' TO PARTICIPANT-STATUS(WS-I)
+       END-PERFORM
+       
+       MOVE 'COMMITTED' TO WS-TRANSACTION-STATE
+       MOVE 0 TO LS-STATUS-CODE
+       MOVE 'Transaction successful' TO LS-STATUS-MESSAGE
+       MOVE WS-TRANS-ID TO LS-TRANSACTION-ID.
+
+   940-ABORT-PHASE SECTION.
+       PERFORM VARYING WS-I FROM 1 BY 1 
+               UNTIL WS-I > WS-PARTICIPANT-COUNT
+           CALL 'ABORT-TRANSACTION' USING
+               PARTICIPANT-ID(WS-I)
+               WS-TRANSACTION-COORDINATOR
+               HSM-STATUS
+           
+           MOVE 'ABORTED' TO PARTICIPANT-STATUS(WS-I)
+       END-PERFORM
+       
+       MOVE 'ABORTED' TO WS-TRANSACTION-STATE.
+
+   950-ROLLBACK-TRANSACTION SECTION.
+       PERFORM 951-REVERSE-ACCOUNT-CHANGES
+       PERFORM 952-LOG-ROLLBACK.
+
+   951-REVERSE-ACCOUNT-CHANGES SECTION.
+       ADD WS-TRANS-TOTAL TO FIN-AVAILABLE-BALANCE
+       REWRITE ACCOUNT-MASTER-RECORD.
+
+   952-LOG-ROLLBACK SECTION.
+       MOVE 'REV' TO TRANS-TYPE
+       MOVE 'X' TO TRANS-STATUS
+       WRITE TRANSACTION-LOG-RECORD.
+
+   990-FINALIZE-AND-RESPOND SECTION.
+       IF WS-ERROR-CODE NOT = SPACES
+           MOVE 4000 TO LS-STATUS-CODE
+           MOVE WS-ERROR-MESSAGE TO LS-STATUS-MESSAGE
+       ELSE
+           MOVE FIN-AVAILABLE-BALANCE TO LS-BALANCE-AFTER
+       END-IF
+       
+       PERFORM 991-CLOSE-FILES.
+
+   991-CLOSE-FILES SECTION.
+       CLOSE MASTER-ACCOUNT-FILE
+       CLOSE TRANSACTION-LOG-FILE
+       CLOSE ENCRYPTION-KEY-FILE
+       CLOSE BIOMETRIC-DATA-FILE
+       CLOSE FRAUD-DETECTION-CONFIG
+       CLOSE AUDIT-TRAIL-FILE
+       CLOSE GEO-LOCATION-DATABASE
+       CLOSE REGULATORY-RULES-FILE.
+
+   999-AUDIT-LOG-TRANSACTION SECTION.
+       CALL 'UUID-GENERATE-V4' USING AUDIT-ID
+       MOVE FUNCTION CURRENT-DATE TO AUDIT-TIMESTAMP
+       
+       STRING 'TRANSACTION: ' 
+              LS-TRANSACTION-TYPE ' '
+              LS-SOURCE-ACCOUNT ' -> '
+              LS-TARGET-ACCOUNT ' '
+              LS-AMOUNT
+              DELIMITED BY SIZE
+              INTO AUDIT-ACTION
+       
+       MOVE LS-USER-ID TO AUDIT-USER-ID
+       MOVE LS-METADATA(1:45) TO AUDIT-IP-ADDRESS
+       MOVE WS-ERROR-MESSAGE TO AUDIT-DETAILS
+       
+       PERFORM 9991-CALCULATE-BLOCKCHAIN-HASH
+       
+       WRITE AUDIT-TRAIL-RECORD.
+
+   9000-LOG-CRITICAL-ERROR SECTION.
+       MOVE 'CRITICAL' TO WS-ERROR-SEVERITY
+       PERFORM 9999-LOG-ERROR.
+
+   9100-LOG-SECURITY-EVENT SECTION.
+       STRING 'SECURITY EVENT: ' 
+              WS-ERROR-CODE ' - '
+              WS-ERROR-MESSAGE
+              DELIMITED BY SIZE
+              INTO AUDIT-ACTION
+       
+       MOVE LS-USER-ID TO AUDIT-USER-ID
+       WRITE AUDIT-TRAIL-RECORD.
+
+   9200-LOG-AUDIT-TRAIL SECTION.
+       STRING 'LOGIN SUCCESS: ' 
+              LS-USER-ID ' from '
+              SEC-LAST-IP-ADDRESS
+              DELIMITED BY SIZE
+              INTO AUDIT-ACTION
+       
+       WRITE AUDIT-TRAIL-RECORD.
+
+   9300-SEND-SECURITY-ALERT SECTION.
+       CALL 'SECURITY-ALERT-SERVICE' USING
+           LS-USER-ID
+           WS-ERROR-CODE
+           WS-ERROR-MESSAGE
+           HSM-STATUS.
+
+   9991-CALCULATE-BLOCKCHAIN-HASH SECTION.
+       CALL 'SHA256-HASH' USING
+           AUDIT-TRAIL-RECORD
+           AUDIT-HASH-CURRENT
+           HSM-STATUS.
+
+   9999-LOG-ERROR SECTION.
+       ADD 1 TO WS-ERROR-COUNT
+       
+       IF WS-ERROR-COUNT <= 20
+           STRING WS-ERROR-CODE ': ' WS-ERROR-MESSAGE
+                  DELIMITED BY SIZE
+                  INTO ERROR-ENTRY(WS-ERROR-COUNT)
+       END-IF
+       
+       DISPLAY 'ERROR [' WS-ERROR-SEVERITY ']: ' 
+               WS-ERROR-CODE ' - ' WS-ERROR-MESSAGE.
+
+   END PROGRAM ENTERPRISE-SECURITY-FORTRESS.
