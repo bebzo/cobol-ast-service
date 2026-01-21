@@ -3678,11 +3678,13 @@ class SQLContext:
 def generate_record_dataclass(record_name: str, fields: List[CobolVariable]) -> str:
     """Generate a dataclass for a COBOL record"""
     class_name = to_pascal_case(record_name)
+    # Escape record_name for safe embedding in docstrings
+    safe_record_name = _escape_for_docstring(record_name)
     
     lines = []
     lines.append('@dataclass')
     lines.append(f'class {class_name}:')
-    lines.append(f'    """Data record from COBOL: {record_name}"""')
+    lines.append(f'    """Data record from COBOL: {safe_record_name}"""')
     
     if not fields:
         lines.append('    pass')
