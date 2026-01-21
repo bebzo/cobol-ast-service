@@ -515,6 +515,31 @@ from api.v6_features import (
     get_defensive_comment,
 )
 
+# v9.0.0: Import AST processing functions from dedicated module
+# This reduces transpile.py size and improves maintainability
+try:
+    from api.modules.ast_processor import (
+        generate_python_ast_v4,
+        generate_config_dataclass,
+        generate_init_body_v4,
+        generate_redefines_properties,
+        generate_method_from_paragraph_v4,
+        transpile_statements_v4,
+        generate_main_block,
+        to_snake_case,
+        to_pascal_case,
+        pic_to_python_type,
+        cobol_value_to_python_v3,
+        is_flag_variable,
+        is_numeric_88_value,
+        format_88_value_for_comparison,
+    )
+    AST_PROCESSOR_AVAILABLE = True
+except ImportError as e:
+    # Fallback to local definitions if module not available
+    AST_PROCESSOR_AVAILABLE = False
+    print(f"Warning: ast_processor module not available ({e}), using local definitions")
+
 
 # ============================================================
 # v5.7.26: Global context for field metadata
