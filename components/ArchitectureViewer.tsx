@@ -212,8 +212,102 @@ export default function ArchitectureViewer({ analysis, cobolCode }: Architecture
   };
 
   const handleExport = (format: string) => {
-    // Export functionality placeholder
-    console.log(`Exporting as ${format}`);
+    if (!analysis) return;
+    
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      summary: {
+        program_name: analysis.business_context?.domain || 'Unknown',
+        cobol_lines: analysis.cobol_lines,
+        python_lines: analysis.python_lines,
+        migration_score: analysis.migration_score,
+        business_context: analysis.business_context
+      },
+      architecture: {
+        diagram: analysis.architecture_diagram,
+        modules: analysis.modules,
+        ast_metrics: analysis.ast_metrics
+      },
+      code_metrics: {
+        functions: (analysis.python_code?.match(/def \w+\(/g) || []).length,
+        classes: (analysis.python_code?.match(/class \w+/g) || []).length,
+        paragraphs: analysis.ast_metrics?.paragraphs || 0,
+        variables: analysis.ast_metrics?.variables || 0
+      },
+      issues: analysis.issues,
+      improvements: analysis.improvements,
+      security_warnings: analysis.security_warnings,
+      next_steps: analysis.next_steps
+    };
+    
+    if (format === 'json') {
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `architecture-analysis-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (format === 'mermaid') {
+      // Export as Mermaid diagram
+      const mermaidCode = `graph TD
+  subgraph COBOL_Source
+    COBOL[COBOL: ${analysis.cobol_lines} lines]
+  end
+  
+  subgraph Python_Output
+    Python[Python: ${analysis.python_lines} lines]
+  end
+  
+  subgraph Metrics
+    Functions[Functions: ${exportData.code_metrics.functions}]
+    Classes[Classes: ${exportData.code_metrics.classes}]
+  end
+  
+  COBOL -->|Migration| Python
+  Python --> Metrics`;
+      
+      const blob = new Blob([mermaidCode], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `architecture-diagram-${Date.now()}.mmd`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (format === 'markdown') {
+      const markdown = `# Architecture Analysis Report
+Generated: ${new Date().toISOString()}
+
+## Summary
+- **Program**: ${analysis.business_context?.domain || 'Unknown'}
+- **COBOL Lines**: ${analysis.cobol_lines}
+- **Python Lines**: ${analysis.python_lines}
+- **Migration Score**: ${analysis.migration_score?.complexity} / ${analysis.migration_score?.risk_level || 'N/A'}
+
+## Code Metrics
+- **Functions**: ${exportData.code_metrics.functions}
+- **Classes**: ${exportData.code_metrics.classes}
+- **Paragraphs**: ${exportData.code_metrics.paragraphs}
+- **Variables**: ${exportData.code_metrics.variables}
+
+## Architecture
+${analysis.architecture_diagram || 'N/A'}
+
+## Issues (${analysis.issues?.length || 0})
+${analysis.issues?.map((i, idx) => `${idx + 1}. ${i}`).join('\n') || 'None'}
+
+## Improvements (${analysis.improvements?.length || 0})
+${analysis.improvements?.map((i, idx) => `${idx + 1}. ${i}`).join('\n') || 'None'}
+`;
+      
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `architecture-report-${Date.now()}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   if (!analysis) {

@@ -61,6 +61,7 @@ interface TestExecutionResult {
   passed: boolean;
   execution_time_cobol?: number;
   execution_time_python?: number;
+  error?: boolean;
   comparison_result?: {
     match: boolean;
     exact_match: boolean;
@@ -73,8 +74,8 @@ interface TestExecutionResult {
       type: string;
       difference?: number;
     }>;
+    error_message?: string;
   };
-  error?: string;
   timestamp: string;
 }
 
@@ -383,67 +384,55 @@ export default function ShadowTestingPanel({
       }
     } catch (error) {
       console.error('Erreur shadow testing:', error);
-      // En cas d'erreur, générer un rapport de test simulé pour la démo
-      const mockReport = generateMockReport();
-      setReport(mockReport);
+      // En cas d'erreur, créer un rapport d'erreur réel
+      const errorReport: ShadowTestReport = {
+        session_id: `ERROR-${Date.now()}`,
+        start_time: new Date(Date.now() - 5000).toISOString(),
+        end_time: new Date().toISOString(),
+        duration_seconds: 5,
+        total_tests: testCases.length,
+        passed_tests: 0,
+        failed_tests: testCases.length,
+        error_tests: testCases.length,
+        success_rate: 0,
+        summary: {
+          avg_time_cobol: 0,
+          avg_time_python: 0,
+          min_time_cobol: 0,
+          max_time_cobol: 0,
+          min_time_python: 0,
+          max_time_python: 0,
+          total_execution_time: 0,
+          memory_avg_cobol: 0,
+          memory_avg_python: 0
+        },
+        results: testCases.map((tc) => ({
+          test_id: tc.id,
+          test_name: tc.name,
+          passed: false,
+          error: true,
+          execution_time_cobol: 0,
+          execution_time_python: 0,
+          comparison_result: {
+            match: false,
+            exact_match: false,
+            semantic_match: false,
+            difference_count: 0,
+            differences: [],
+            error_message: error instanceof Error ? error.message : 'Erreur inconnue lors de l\'exécution des tests'
+          },
+          timestamp: new Date().toISOString()
+        })),
+        recommendations: [
+          'Vérifier la connexion au serveur de test shadow',
+          'Vérifier que le code Python est syntaxiquement valide',
+          'Consulter les logs pour plus de détails sur l\'erreur'
+        ]
+      };
+      setReport(errorReport);
     } finally {
       setIsRunning(false);
     }
-  };
-
-  const generateMockReport = (): ShadowTestReport => {
-    const passedCount = Math.floor(testCases.length * 0.8);
-    
-    return {
-      session_id: `MOCK-${Date.now()}`,
-      start_time: new Date(Date.now() - 5000).toISOString(),
-      end_time: new Date().toISOString(),
-      duration_seconds: 5,
-      total_tests: testCases.length,
-      passed_tests: passedCount,
-      failed_tests: testCases.length - passedCount,
-      error_tests: 0,
-      success_rate: (passedCount / testCases.length) * 100,
-      summary: {
-        avg_time_cobol: 0.015,
-        avg_time_python: 0.003,
-        min_time_cobol: 0.008,
-        max_time_cobol: 0.032,
-        min_time_python: 0.001,
-        max_time_python: 0.008,
-        total_execution_time: 0.09,
-        memory_avg_cobol: 512000,
-        memory_avg_python: 128000
-      },
-      results: testCases.map((tc, idx) => ({
-        test_id: tc.id,
-        test_name: tc.name,
-        passed: idx < passedCount,
-        execution_time_cobol: 0.01 + Math.random() * 0.02,
-        execution_time_python: 0.002 + Math.random() * 0.004,
-        comparison_result: {
-          match: idx < passedCount,
-          exact_match: idx < passedCount,
-          semantic_match: idx < passedCount,
-          difference_count: idx < passedCount ? 0 : 1,
-          differences: idx < passedCount ? [] : [{
-            key: 'output',
-            cobol: 100,
-            python: 99.9999,
-            type: 'numeric_difference',
-            difference: 0.0001
-          }]
-        },
-        timestamp: new Date().toISOString()
-      })),
-      recommendations: testCases.length - passedCount > 0 ? [
-        'Vérifier les conversions de types numériques pour les valeurs décimales',
-        'Ajuster la logique de précision pour les calculs financiers'
-      ] : [
-        'Excellent! Tous les tests passent avec succès.',
-        'Le code Python maintient une fidélité parfaite avec le code COBOL.'
-      ]
-    };
   };
 
   const toggleTestExpanded = (testId: string) => {
