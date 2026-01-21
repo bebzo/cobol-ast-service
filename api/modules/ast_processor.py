@@ -180,7 +180,8 @@ def format_88_value_for_comparison(value: str, is_numeric: bool) -> str:
     """Format 88-level value for Python comparison."""
     clean_val = value.strip().strip("'\"")
     if is_numeric:
-        return f"Decimal('{clean_val}')"
+        # Use repr() to safely escape any special characters in the value
+        return f"Decimal({repr(clean_val)})"
     else:
         return repr(clean_val)
 
