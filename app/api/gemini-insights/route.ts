@@ -154,6 +154,15 @@ Return ONLY valid JSON, no markdown.`,
 
 CRITICAL OBJECTIVE: Maximize test coverage for COBOL-Python equivalence validation.
 
+CRITICAL SAFETY RULE - STRING ESCAPING:
+- When embedding COBOL values in Python test assertions, you MUST use repr() for ALL values
+- For string values: use repr(value) to properly escape quotes and special characters
+- For numeric values: use Decimal(repr(value)) to preserve precision and escape properly
+- NEVER embed raw values directly in strings - ALWAYS use repr()
+- Example CORRECT: assert field == repr("O'BRIEN")
+- Example WRONG: assert field == "O'BRIEN" (will cause syntax error)
+- Example CORRECT: assert amount == Decimal(repr("123.45"))
+
 Python Code:
 \`\`\`python
 ${truncateAtLine(python, 15000)}
@@ -221,6 +230,8 @@ Return JSON with this EXACT structure:
 RULES:
 - Generate REAL, EXECUTABLE pytest code (not pseudo-code)
 - Use Decimal for ALL monetary values
+- Use repr() for ALL string values in assertions to escape special characters
+- Use Decimal(repr()) for all numeric COBOL values in assertions
 - Include specific assertions with expected values
 - Test BOTH success and failure paths
 - Minimum 20 test methods total
