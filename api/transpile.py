@@ -9496,8 +9496,24 @@ def generate_python_code(
                 gemini_stats['rollback_reason'] = f"Enrichment syntax error: {e.msg} at line {e.lineno}"
         
         class_name = to_pascal_case(cobol_ast.program_id)
-        test_code = generate_unit_tests_v4(cobol_ast, class_name, python_code)
-        
+
+        # v10.0: Try string-based tests first, fallback to AST-based if syntax error
+        try:
+            test_code = generate_unit_tests_v4(cobol_ast, class_name, python_code)
+            # Validate the generated test code is syntactically valid
+            try:
+                compile(test_code, '<test>', 'exec')
+            except SyntaxError as e:
+                # Fallback to AST-based generator which avoids escaping issues
+                print(f"WARNING: String-based test generation failed with syntax error: {e.msg}")
+                print("Falling back to AST-based test generator (v10.0)...")
+                test_code = generate_unit_tests_via_ast(cobol_ast, class_name, python_code)
+        except Exception as e:
+            # Complete fallback to AST-based generator
+            print(f"WARNING: Test generation failed: {e}")
+            print("Using AST-based test generator (v10.0) as fallback...")
+            test_code = generate_unit_tests_via_ast(cobol_ast, class_name, python_code)
+
         # v9.0.0: Also generate deterministic tests (AST-based, replaces Gemini Test Oracle)
         try:
             deterministic_tests = generate_deterministic_tests(python_code, class_name)
@@ -9740,8 +9756,17 @@ def generate_production_tests(cobol_ast: 'CobolAST', class_name: str, python_cod
     test_lines.append('        # Check that numeric attributes use Decimal')
     test_lines.append('        # This test validates type annotations are effective')
     test_lines.append('')
-    
-    return '\n'.join(test_lines)
+
+    # v10.0: Validate generated tests, fallback to AST-based if invalid
+    test_code = '\n'.join(test_lines)
+    try:
+        compile(test_code, '<test>', 'exec')
+        return test_code
+    except SyntaxError as e:
+        # Fallback to AST-based generator
+        print(f"WARNING: generate_production_tests failed with syntax error: {e.msg}")
+        print("Falling back to generate_unit_tests_via_ast...")
+        return generate_unit_tests_via_ast(cobol_ast, class_name, python_code)
 
 
 # ============================================================
