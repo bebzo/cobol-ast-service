@@ -5886,7 +5886,7 @@ def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
         
         # Convert literal numbers to Decimal for precision
         # v5.7.13: Exclude numbers that are array indices (preceded by '[')
-        expr_str = re.sub(r'(?<!\[)\b(\d+\.\d+)\b', r"Decimal('\1')", expr_str)
+        expr_str = re.sub(r'(?<!\[)\b(\d+\.\d+)\b', lambda m: f"Decimal({repr(m.group(1))})", expr_str)
         expr_str = re.sub(r'(?<!\[)(?<!\.)\b(\d+)\b(?![.\]])', lambda m: f"Decimal({repr(m.group(1))})", expr_str)
         
         try:
