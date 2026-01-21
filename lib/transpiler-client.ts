@@ -14,6 +14,7 @@ export interface TranspileResult {
   python_code: string;
   pythonCode: string;
   unit_tests: string;
+  deterministic_tests?: string;  // v9.0: Tests déterministes (AST-based, sans Gemini)
   version: string;
   architecture: string;
   stats: {
