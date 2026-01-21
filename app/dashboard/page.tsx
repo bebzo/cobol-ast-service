@@ -772,7 +772,7 @@ export default function Home() {
   const [selectedDddFile, setSelectedDddFile] = useState<string>("shared.py");
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
-  const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("issues");
+  const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("security");
   // v8.7: Architecture sub-tabs state
   const [activeArchSubTab, setActiveArchSubTab] = useState<"code" | "tests" | "config" | "security">("code");
   // v8.7: Tests sub-tabs state
