@@ -5102,13 +5102,14 @@ def generate_method_from_paragraph_v4(para: CobolParagraph) -> ast.FunctionDef:
             method_body.pop()
     
     # Enhanced traceability docstring
-    docstring = f"""Business logic from COBOL paragraph: {para.name}
-    
+    safe_para_name = _escape_for_docstring(para.name)
+    docstring = f"""Business logic from COBOL paragraph: {safe_para_name}
+
     COBOL Traceability:
         - Source: Lines {para.line_start}-{para.line_end}
-        - Paragraph: {para.name}
+        - Paragraph: {safe_para_name}
         - Statements: {len(para.statements)}
-    
+
     Original COBOL (first 3 statements):
         {chr(10).join('        ' + s.strip() for s in para.statements[:3])}
     """
@@ -8589,7 +8590,8 @@ Output ONLY the method body (8-space indent), NO 'def' line:"""
                 # CRITICAL FIX: Normalize indentation by removing ALL leading spaces first,
                 # then apply consistent 8-space indentation for method body
                 new_method = f"    def {method_name}(self) -> None:\n"
-                new_method += f'        """Business logic from COBOL paragraph: {method_name.upper().replace("_", "-")}"""\n'
+                safe_method_name = _escape_for_docstring(method_name.upper().replace("_", "-"))
+                new_method += f'        """Business logic from COBOL paragraph: {safe_method_name}"""\n'
                 
                 lines = new_body.split('\n')
                 for line in lines:
@@ -9158,7 +9160,8 @@ def generate_architecture_diagram(cobol_ast: 'CobolAST', program_name: str = Non
     para_count = min(len(cobol_ast.paragraphs), 10)
     for para in cobol_ast.paragraphs[:para_count]:
         method_name = to_snake_case(para.name)
-        lines.append(f"            {method_name}[\"{para.name}\"]")
+        safe_para_name = _escape_for_docstring(para.name)
+        lines.append(f"            {method_name}[\"{safe_para_name}\"]")
     if len(cobol_ast.paragraphs) > 10:
         lines.append(f"            MORE[\"... +{len(cobol_ast.paragraphs) - 10} more\"]")
     lines.append("        end")
@@ -9650,17 +9653,20 @@ def generate_python_code(
 
 def generate_production_tests(cobol_ast: 'CobolAST', class_name: str, python_code: str) -> str:
     """Génère une suite de tests complète pour le code de production.
-    
+
     Args:
         cobol_ast: AST COBOL parsé
         class_name: Nom de la classe Python générée
         python_code: Code Python généré (inclus pour tests auto-référentiels)
-    
+
     Returns:
         Code de tests pytest complet
     """
     test_lines = []
-    
+
+    # Escape class_name for docstrings to prevent unterminated string literal errors
+    safe_class_name = _escape_for_docstring(class_name)
+
     # En-tête du fichier de tests
     test_lines.append('"""')
     test_lines.append(f'Comprehensive Test Suite for {class_name}')
@@ -9684,10 +9690,10 @@ def generate_production_tests(cobol_ast: 'CobolAST', class_name: str, python_cod
     
     # Classe de test d'initialisation
     test_lines.append(f'class Test{class_name}Initialization:')
-    test_lines.append(f'    """Tests for {class_name} initialization."""')
+    test_lines.append(f'    """Tests for {safe_class_name} initialization."""')
     test_lines.append('')
     test_lines.append('    def test_instantiation(self):')
-    test_lines.append(f'        """Verify {class_name} can be instantiated."""')
+    test_lines.append(f'        """Verify {safe_class_name} can be instantiated."""')
     test_lines.append(f'        instance = {class_name}()')
     test_lines.append('        assert instance is not None')
     test_lines.append(f'        assert isinstance(instance, {class_name})')
@@ -9706,7 +9712,7 @@ def generate_production_tests(cobol_ast: 'CobolAST', class_name: str, python_cod
     
     # Tests pour chaque paragraph/méthode
     test_lines.append(f'class Test{class_name}Methods:')
-    test_lines.append(f'    """Tests for {class_name} transpiled methods."""')
+    test_lines.append(f'    """Tests for {safe_class_name} transpiled methods."""')
     test_lines.append('')
     
     for para in cobol_ast.paragraphs[:15]:  # Limiter à 15 pour éviter les fichiers trop longs
@@ -9891,10 +9897,10 @@ class _TestAnalyzer(ast.NodeVisitor):
         return 'Any'
 
 
-def _generate_professional_test_suite(analyzer: _TestAnalyzer, class_name: str, 
+def _generate_professional_test_suite(analyzer: _TestAnalyzer, class_name: str,
                                         source_code: str) -> str:
     """Générer une suite de tests professionnelle selon les normes de l'industrie.
-    
+
     Normes de l'industrie (pytest):
     - 3-5 cas de test minimum par fonction
     - Tests positives et négatifs
@@ -9903,6 +9909,8 @@ def _generate_professional_test_suite(analyzer: _TestAnalyzer, class_name: str,
     - Utilisation de fixtures pytest
     - Assertions explicites avec messages
     """
+    # Escape class_name for docstrings to prevent unterminated string literal errors
+    safe_class_name = _escape_for_docstring(class_name)
     lines: List[str] = []
     
     # En-tête professionnel
@@ -9937,7 +9945,7 @@ def _generate_professional_test_suite(analyzer: _TestAnalyzer, class_name: str,
     lines.append('')
     lines.append(f'@pytest.fixture(scope="class")')
     lines.append(f'def {class_name.lower()}_instance(request):')
-    lines.append(f'    """Fixture: Instance de {class_name} pour tous les tests."""')
+    lines.append(f'    """Fixture: Instance de {safe_class_name} pour tous les tests."""')
     lines.append('    try:')
     lines.append(f'        from generated_code import {class_name}')
     lines.append(f'        instance = {class_name}()')
@@ -10187,18 +10195,19 @@ def _generate_function_tests(func: Dict[str, Any], class_name: str) -> List[str]
     """
     lines: List[str] = []
     func_name = func['name']
+    safe_func_name = _escape_for_docstring(func_name)
     args = func['args']
     returns = func['returns']
     
     # Classe de test pour cette fonction
     lines.append(f'class Test{func_name.title().replace("_", "")}:')
-    lines.append(f'    """Tests pour la fonction {func_name}."""')
+    lines.append(f'    """Tests pour la fonction {safe_func_name}."""')
     lines.append('')
     
     # Test 1: Existence et callable
     instance_name = class_name.lower()
     lines.append(f'    def test_{func_name}_exists(self, {instance_name}_instance):')
-    lines.append(f'        """Vérifier que {func_name} existe et est callable."""')
+    lines.append(f'        """Vérifier que {safe_func_name} existe et est callable."""')
     lines.append(f'        assert hasattr({instance_name}_instance, "{func_name}")')
     lines.append(f'        assert callable({instance_name}_instance.{func_name})')
     lines.append('')
@@ -10207,7 +10216,7 @@ def _generate_function_tests(func: Dict[str, Any], class_name: str) -> List[str]
     if args:
         test_args = _generate_test_args(args, returns)
         lines.append(f'    def test_{func_name}_happy_path(self, {instance_name}_instance):')
-        lines.append(f'        """Test typique (happy path) pour {func_name}."""')
+        lines.append(f'        """Test typique (happy path) pour {safe_func_name}."""')
         if test_args:
             lines.append(f'        args = {test_args}')
             lines.append(f'        try:')
@@ -10226,7 +10235,7 @@ def _generate_function_tests(func: Dict[str, Any], class_name: str) -> List[str]
             lines.append('')
     else:
         lines.append(f'    def test_{func_name}_execution(self, {instance_name}_instance):')
-        lines.append(f'        """Exécuter {func_name} sans erreur."""')
+        lines.append(f'        """Exécuter {safe_func_name} sans erreur."""')
         lines.append(f'        try:')
         lines.append(f'            {instance_name}_instance.{func_name}()')
         lines.append(f'        except Exception as e:')
@@ -10235,7 +10244,7 @@ def _generate_function_tests(func: Dict[str, Any], class_name: str) -> List[str]
     
     # Test 3: Cas limites (boundary values)
     lines.append(f'    def test_{func_name}_boundary_values(self, {instance_name}_instance):')
-    lines.append(f'        """Test cas limites pour {func_name}."""')
+    lines.append(f'        """Test cas limites pour {safe_func_name}."""')
     lines.append('        # Valeurs limites numériques')
     lines.append('        boundary_values = [')
     lines.append('            Decimal("0"),')
@@ -10254,7 +10263,7 @@ def _generate_function_tests(func: Dict[str, Any], class_name: str) -> List[str]
     # Test 4: Test de chaîne vide (edge case)
     if returns == 'str' or any('str' in a.lower() for a in args):
         lines.append(f'    def test_{func_name}_empty_string(self, {instance_name}_instance):')
-        lines.append(f'        """Test chaine vide pour {func_name}."""')
+        lines.append(f'        """Test cadena vide pour {safe_func_name}."""')
         lines.append('        try:')
         lines.append('            empty_arg = repr("")')
         lines.append('            # L argument vide ne doit pas causer d erreur')
@@ -10346,15 +10355,15 @@ def _generate_syntax_error_tests(source_code: str, class_name: str, error: str) 
 
 
 def generate_unit_tests_v4(
-        cobol_ast: CobolAST, 
-        class_name: str, 
+        cobol_ast: CobolAST,
+        class_name: str,
         python_code: str = '',
         include_type_tests: bool = True,
         include_error_handling_tests: bool = True,
         include_logging_tests: bool = True
     ) -> str:
     """Generate comprehensive unit tests with Golden Tests (v9.0 - Production Edition)
-    
+
     Args:
         cobol_ast: Parsed COBOL AST
         class_name: Name of the generated Python class
@@ -10362,8 +10371,8 @@ def generate_unit_tests_v4(
         include_type_tests: Include tests for type annotations
         include_error_handling_tests: Include tests for error handling
         include_logging_tests: Include tests for logging statements
-    
-    
+
+
     Includes:
     - Initialization tests
     - Golden tests (business logic assertions)
@@ -10371,12 +10380,15 @@ def generate_unit_tests_v4(
     - FileManager tests
     - Enum tests
     - Method callable tests
-    
+
     Args:
         cobol_ast: Parsed COBOL AST
         class_name: Name of the generated Python class
         python_code: The generated Python code (included as header for self-contained tests)
     """
+    # Escape class_name for docstrings to prevent unterminated string literal errors
+    safe_class_name = _escape_for_docstring(class_name)
+
     # Determine if Config class exists
     has_config = any(
         any(kw in var.name.upper() for kw in ['RATE', 'FEE', 'CHARGE', 'PREMIUM', 'PCT'])
@@ -10577,7 +10589,7 @@ def generate_unit_tests_v4(
     tests.append('')
     tests.append('@pytest.fixture')
     tests.append('def processor():')
-    tests.append(f'    """Create a fresh {class_name} instance for each test."""')
+    tests.append(f'    """Create a fresh {safe_class_name} instance for each test."""')
     tests.append(f'    return {class_name}()')
     tests.append('')
     tests.append('@pytest.fixture')
@@ -10595,7 +10607,7 @@ def generate_unit_tests_v4(
     tests.append('# ════════════════════════════════════════════════════════════════')
     tests.append('')
     tests.append(f'class Test{class_name}Initialization:')
-    tests.append(f'    """Test {class_name} initialization and core attributes."""')
+    tests.append(f'    """Test {safe_class_name} initialization and core attributes."""')
     tests.append('')
     tests.append('    def test_instantiation(self, processor):')
     tests.append('        """Verify processor can be instantiated."""')
