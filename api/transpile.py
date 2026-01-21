@@ -10098,13 +10098,14 @@ def _generate_professional_test_suite(analyzer: _TestAnalyzer, class_name: str,
         
         unique_exceptions = list(set(analyzer.exceptions))[:5]
         for exc in unique_exceptions:
+            safe_exc = _escape_for_docstring(exc)
             lines.append(f'    def test_{exc.lower()}_exists(self):')
-            lines.append(f'        """Vérifier que {exc} est définie."""')
+            lines.append(f'        """Vérifier que {safe_exc} est définie."""')
             lines.append(f'        try:')
             lines.append(f'            from generated_code import {exc}')
             lines.append(f'            assert {exc} is not None')
             lines.append(f'        except ImportError:')
-            lines.append(f'            pytest.skip(f"{exc} non définie")')
+            lines.append(f'            pytest.skip(f"{safe_exc} non définie")')
             lines.append('')
         
         lines.append('')
