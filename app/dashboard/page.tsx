@@ -3122,15 +3122,15 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     {activeReportTab === "security" && (() => {
                       const rawWarnings = analysis.security_warnings || [];
                       const warnings = rawWarnings.filter((w): w is SecurityWarning => typeof w === 'object' && w !== null);
-                      const activeIssues = warnings.filter((w) => 
+                      const activeIssues = warnings.filter((w) =>
                         w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM'
                       );
-                      const fixedIssues = warnings.filter((w) => 
+                      const fixedIssues = warnings.filter((w) =>
                         w.severity === 'INFO' || w.severity === 'LOW'
                       );
-                      const summaryItem = warnings.find((w) => w.summary);
-                      const score = summaryItem?.summary?.score || (activeIssues.length === 0 ? 100 : Math.max(0, 100 - activeIssues.length * 15));
-                      const grade = score >= 90 ? 'A+' : score >= 80 ? 'A' : score >= 70 ? 'B' : score >= 60 ? 'C' : 'D';
+                      // Use the same calculateSecurityScore function as Transformation Metrics for consistency
+                      const securityData = calculateSecurityScore(analysis.security_warnings || []);
+                      const { score, grade } = securityData;
                       const isSecure = activeIssues.length === 0;
                       
                       return (
@@ -3663,15 +3663,27 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </p>
                   <p className="text-xs text-slate-400 mt-1">Total</p>
                 </div>
-                {/* Issues - with auto-corrected badge */}
-                <Tooltip content={METRIC_TOOLTIPS.issues.content} title={METRIC_TOOLTIPS.issues.title}>
-                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center cursor-help relative">
-                    <div className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded-full">✓ Fixed</div>
-                    <p className="text-2xl font-bold text-green-400 tabular-nums">{Array.isArray(analysis.issues) ? analysis.issues.length : 1}</p>
-                    <p className="text-xs text-slate-400 mt-1">Issues</p>
-                    <p className="text-[10px] text-green-400">Auto-corrected</p>
-                  </div>
-                </Tooltip>
+                {/* Issues - filtered to show only active issues (CRITICAL, HIGH, MEDIUM) */}
+                {(() => {
+                  const allIssues = Array.isArray(analysis.issues) ? analysis.issues : [];
+                  const activeIssues = allIssues.filter((w: any) =>
+                    w && (w.severity === 'CRITICAL' || w.severity === 'HIGH' || w.severity === 'MEDIUM')
+                  );
+                  const autoFixedCount = allIssues.length - activeIssues.length;
+
+                  return (
+                    <Tooltip content={autoFixedCount > 0 ? `${autoFixedCount} issue(s) auto-corrected, ${activeIssues.length} active issue(s) require attention` : `${activeIssues.length} active issue(s) require attention`} title="Active Issues">
+                      <div className={`${activeIssues.length === 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'} rounded-lg p-3 text-center cursor-help relative`}>
+                        {autoFixedCount > 0 && (
+                          <div className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded-full">✓ {autoFixedCount} Fixed</div>
+                        )}
+                        <p className={`text-2xl font-bold tabular-nums ${activeIssues.length === 0 ? 'text-green-400' : 'text-amber-400'}`}>{activeIssues.length}</p>
+                        <p className="text-xs text-slate-400 mt-1">Issues</p>
+                        <p className="text-[10px] text-slate-500">Active only</p>
+                      </div>
+                    </Tooltip>
+                  );
+                })()}
                 {/* Improvements */}
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-cyan-400 tabular-nums">{Array.isArray(analysis.improvements) ? analysis.improvements.length : 0}</p>
