@@ -233,51 +233,51 @@ def escape_python_string_for_template(code: str) -> str:
     return result
 
 
-def validate_python_code(python_code: str) -> Tuple[bool, Optional[str]]:
+def validate_python_code(python_code: str) -> List[str]:
     """
-    Valide le code Python généré en utilisant ast.parse().
+    Valide le code Python généré et retourne une liste d'avertissements.
     
-    Cette fonction détecte les erreurs de syntaxe comme:
+    Cette fonction détecte les problèmes potentiels comme:
     - "unterminated string literal"
     - "Decimal object is not subscriptable" (via analyse AST)
+    
+    Ne bloque PAS l'analyse - retourne simplement des avertissements.
     
     Args:
         python_code: Code Python généré par le transpiler
     
     Returns:
-        Tuple[bool, Optional[str]]: (est_valide, message_erreur)
+        Liste d'avertissements (vide si tout est OK)
     """
+    warnings = []
+    
     try:
         # Valider la syntaxe Python avec ast.parse()
         ast.parse(python_code)
         
-        # Vérifications supplémentaires pour détecter les patterns problématiques
-        # Ces vérifications complètent ast.parse() pour des cas spécifiques
-        
-        # 1. Détecter les subscript sur Decimal (pattern: Decimal(...)[...])
-        decimal_subscript_pattern = re.compile(r"Decimal\([^)]+\)\s*\[")
-        matches = decimal_subscript_pattern.findall(python_code)
-        if matches:
-            return False, f"'decimal.Decimal' object is not subscriptable - Found pattern: {matches[0]}"
-        
-        # 2. Détecter les chaînes non échappées avec apostrophes
-        # Pattern pour trouver des chaînes qui pourraient avoir des problèmes
-        unterminated_pattern = re.compile(r"'(?:[^'\\]|\\.)*$")
-        lines = python_code.split('\n')
-        for i, line in enumerate(lines, 1):
-            if "'" in line and not line.strip().startswith('#'):
-                # Vérifier si la ligne contient une chaîne potentiellement non fermée
-                single_quotes = line.count("'") - line.count("\\'")
-                double_quotes = line.count('"') - line.count('\\"')
-                if single_quotes % 2 == 1 and double_quotes % 2 == 0:
-                    return False, f"unterminated string literal (detected at line {i})"
-        
-        return True, None
-        
     except SyntaxError as e:
-        return False, f"Python syntax error: {e}"
-    except Exception as e:
-        return False, f"Validation error: {str(e)}"
+        warnings.append(f"Python syntax error: {e}")
+    
+    # Vérifications supplémentaires pour détecter les patterns problématiques
+    
+    # 1. Détecter les subscript sur Decimal (pattern: Decimal(...)[...])
+    decimal_subscript_pattern = re.compile(r"Decimal\([^)]+\)\s*\[")
+    matches = decimal_subscript_pattern.findall(python_code)
+    if matches:
+        warnings.append(f"'decimal.Decimal' object is not subscriptable - Found pattern: {matches[0]}")
+    
+    # 2. Détecter les chaînes non échappées avec apostrophes
+    lines = python_code.split('\n')
+    for i, line in enumerate(lines, 1):
+        if "'" in line and not line.strip().startswith('#'):
+            # Vérifier si la ligne contient une chaîne potentiellement non fermée
+            single_quotes = line.count("'") - line.count("\\'")
+            double_quotes = line.count('"') - line.count('\\"')
+            if single_quotes % 2 == 1 and double_quotes % 2 == 0:
+                warnings.append(f"unterminated string literal (detected at line {i})")
+                break
+    
+    return warnings
 
 
 def analyze_function_type(func_name: str, func_code: str = '') -> Dict[str, Any]:
@@ -12013,17 +12013,13 @@ class handler(BaseHTTPRequestHandler):
                                           exception_mode=exception_mode,
                                           minified_mode=minified_mode)
             
-            # v6.1.2: Validate generated Python code before returning
+            # v6.1.2: Validate generated Python code and add warnings if needed
+            # NOTE: L'analyse continue même s'il y a des avertissements
             python_code = result.get('python_code', '')
             if python_code:
-                is_valid, error_msg = validate_python_code(python_code)
-                if not is_valid:
-                    self.send_error_response({
-                        'error': error_msg,
-                        'validation_failed': True,
-                        'suggestion': 'Check COBOL syntax for issues'
-                    })
-                    return
+                warnings = validate_python_code(python_code)
+                if warnings:
+                    result['validation_warnings'] = warnings
             
             # Add preprocessor stats to result
             if copybook_stats:
