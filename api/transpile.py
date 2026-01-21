@@ -4438,7 +4438,15 @@ def _initialize_field(self, field_name: str) -> None:
                 target = call_match.group(1)
                 using_clause = call_match.group(2) or ''
                 params = re.findall(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*', using_clause)
-                param_names = tuple(to_snake_case(p) for p in params)
+                # v9.0.0: Remove duplicates while preserving order (CALL 'PROG' USING I I → call_prog(i))
+                seen = set()
+                unique_params = []
+                for p in params:
+                    p_lower = p.lower()
+                    if p_lower not in seen:
+                        seen.add(p_lower)
+                        unique_params.append(p)
+                param_names = tuple(to_snake_case(p) for p in unique_params)
                 if target not in call_targets_with_params:
                     call_targets_with_params[target] = set()
                 call_targets_with_params[target].add(param_names)
