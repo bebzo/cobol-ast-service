@@ -812,25 +812,25 @@ def print_production_status(self):
     if status["checks_passed"]:
         print("Passed checks:")
         for check in status["checks_passed"]:
-            print(f"  * {check}")
+            print(f"  * {{check}}")
     
     if status["checks_failed"]:
         print()
         print("Failed checks:")
         for check in status["checks_failed"]:
-            print(f"  * {check}")
+            print(f"  * {{check}}")
     
     if status["missing_calls"]:
         print()
         print("Missing external CALLs:")
         for call in status["missing_calls"]:
-            print(f"  * {call}")
+            print(f"  * {{call}}")
     
     if status["warnings"]:
         print()
         print("Warnings:")
         for warn in status["warnings"]:
-            print(f"  * {warn}")
+            print(f"  * {{warn}}")
         
         print("=" * 60)
         return status
