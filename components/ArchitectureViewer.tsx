@@ -294,10 +294,10 @@ Generated: ${new Date().toISOString()}
 ${analysis.architecture_diagram || 'N/A'}
 
 ## Issues (${analysis.issues?.length || 0})
-${analysis.issues?.map((i, idx) => `${idx + 1}. ${i}`).join('\n') || 'None'}
+${analysis.issues?.map((i: string, idx: number) => `${idx + 1}. ${i}`).join('\n') || 'None'}
 
 ## Improvements (${analysis.improvements?.length || 0})
-${analysis.improvements?.map((i, idx) => `${idx + 1}. ${i}`).join('\n') || 'None'}
+${analysis.improvements?.map((i: string, idx: number) => `${idx + 1}. ${i}`).join('\n') || 'None'}
 `;
       
       const blob = new Blob([markdown], { type: 'text/markdown' });
