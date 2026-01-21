@@ -1126,8 +1126,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Security analysis
     const securityWarnings = generateSecurityWarnings(cobolCode);
 
-    // Generate unit tests (use what Python returned or generate stubs)
-    const generatedTests = transpileResult.unit_tests || `"""Auto-generated unit tests for ${className}"""
+    // Generate unit tests - v9.0: Use deterministic tests instead of Gemini-generated tests!
+    // The deterministic_tests field contains AST-based tests without Gemini dependency
+    const generatedTests = (transpileResult as any).deterministic_tests || (transpileResult as any).unit_tests || `"""Auto-generated unit tests for ${className}"""
 import pytest
 from decimal import Decimal
 
