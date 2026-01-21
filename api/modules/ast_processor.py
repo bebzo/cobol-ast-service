@@ -6,7 +6,7 @@ Separated from transpile.py for better maintainability and faster loading.
 
 import ast
 import re
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 def to_snake_case(name: str) -> str:
