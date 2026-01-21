@@ -6168,9 +6168,12 @@ def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
                          lambda m: f'self.{to_snake_case(m.group(1))}', expr_str)
         
         # Convert literal numbers to Decimal for precision
-        # v5.7.13: Exclude numbers that are array indices (preceded by '[')
+        # v5.7.14: Exclude numbers that are array indices, function arguments, or decimal parts
+        # - (?<!\[) prevents matching numbers preceded by '[' (array indices)
+        # - (?<!\.) prevents matching numbers preceded by '.' (parts of decimals)
+        # - (?![.\]\)]) prevents matching numbers followed by '.', ']', or ')' (indices, args, decimals)
         expr_str = re.sub(r'(?<!\[)\b(\d+\.\d+)\b', lambda m: f"Decimal({repr(m.group(1))})", expr_str)
-        expr_str = re.sub(r'(?<!\[)(?<!\.)\b(\d+)\b(?![.\]])', lambda m: f"Decimal({repr(m.group(1))})", expr_str)
+        expr_str = re.sub(r'(?<!\[)(?<!\.)\b(\d+)\b(?![.\]\)])', lambda m: f"Decimal({repr(m.group(1))})", expr_str)
         
         try:
             expr_ast = ast.parse(expr_str, mode='eval').body
