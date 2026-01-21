@@ -1726,7 +1726,7 @@ ${analysis.summary}
 ## Issues Detected
 ${(analysis.issues || []).map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
 
-## Improvements
+## Benefits (Transpilation Gains)
 ${(analysis.improvements || []).map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
 
 ## Security Warnings
@@ -3689,10 +3689,11 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </Tooltip>
                   );
                 })()}
-                {/* Improvements */}
+                {/* Benefits */}
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-cyan-400 tabular-nums">{Array.isArray(analysis.improvements) ? analysis.improvements.length : 0}</p>
-                  <p className="text-xs text-slate-400 mt-1">Improvements</p>
+                  <p className="text-xs text-slate-400 mt-1">Benefits</p>
+                  <p className="text-[10px] text-slate-500">Transpilation gains</p>
                 </div>
                 
                 {/* Security Score - Calculated from real security_warnings */}
