@@ -3698,16 +3698,12 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 {(() => {
                   const benefits = Array.isArray(analysis.improvements) ? analysis.improvements : [];
                   const benefitCount = benefits.length;
+                  const benefitText = benefits.map((b: any) => 
+                    `${b.icon || '✓'} ${b.title}${b.description ? ' - ' + b.description : ''}`
+                  ).join('\n');
                   
                   return (
-                    <Tooltip content={
-                      <div className="max-w-xs">
-                        <p className="font-semibold mb-2">Transpilation Benefits:</p>
-                        {benefits.map((b: any, i: number) => (
-                          <p key={i} className="text-xs mb-1">{b.icon || '✓'} {b.title}</p>
-                        ))}
-                      </div>
-                    } title="Benefits">
+                    <Tooltip content={benefitText || 'Analyzing code...'} title="Benefits (Real Analysis)">
                       <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center cursor-help">
                         <p className="text-2xl font-bold text-cyan-400 tabular-nums">{benefitCount}</p>
                         <p className="text-xs text-slate-400 mt-1">Benefits</p>
