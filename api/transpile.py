@@ -3498,8 +3498,10 @@ def generate_88_level_properties(conditions: List[Cobol88Condition], variables: 
                         # String parent: always use string comparison
                         value_checks.append(f"self.{parent} == {repr(clean_v)}")
                     elif parent_type == 'numeric':
-                        # Numeric parent: use Decimal
-                        value_checks.append(f"self.{parent} == Decimal('{clean_v}')")
+                        # Numeric parent: use Decimal - properly escaped
+                        # Use repr() to safely escape any special characters in the value
+                        escaped_val = repr(clean_v)
+                        value_checks.append(f"self.{parent} == Decimal({escaped_val})")
                     else:
                         # Unknown: fallback to value-based detection (legacy behavior)
                         is_numeric = is_numeric_88_value(v)
@@ -3523,7 +3525,10 @@ def generate_88_level_properties(conditions: List[Cobol88Condition], variables: 
                 elif parent_type == 'string':
                     formatted_assign = repr(first_value)
                 elif parent_type == 'numeric':
-                    formatted_assign = f"Decimal('{first_value}')"
+                    # Numeric parent: use Decimal - properly escaped
+                    # Use repr() to safely escape any special characters in the value
+                    escaped_val = repr(first_value)
+                    formatted_assign = f"Decimal({escaped_val})"
                 else:
                     is_numeric = is_numeric_88_value(values[0])
                     formatted_assign = format_88_value_for_comparison(values[0], is_numeric)
