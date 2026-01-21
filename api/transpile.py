@@ -3879,42 +3879,42 @@ Architecture:
 - Boolean flags (not Y/N strings)
 - Decimal for all monetary values
 
-⚠️ THREAD SAFETY WARNING ⚠️
+*** THREAD SAFETY WARNING ***
 This code preserves COBOL's single-threaded execution model.
 For production use with concurrent requests:
 - Wrap in process-per-request architecture, OR
 - Refactor to use thread-safe repositories
 
-📋 PRODUCTION READINESS CHECKLIST:
-☐ Implement external CALLs (set ALLOW_STUBS=true only for development)
-☐ Add unit tests for critical paths (deposits, withdrawals, transfers)
-☐ Configure production FileManager paths
-☐ Review thread-safety for concurrent usage
-☐ Set up monitoring for ls_return_code errors
+PRODUCTION READINESS CHECKLIST:
+[ ] Implement external CALLs (set ALLOW_STUBS=true only for development)
+[ ] Add unit tests for critical paths (deposits, withdrawals, transfers)
+[ ] Configure production FileManager paths
+[ ] Review thread-safety for concurrent usage
+[ ] Set up monitoring for ls_return_code errors
 
-🔍 CODE REVIEWER NOTES (v6.0.0):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• "Dead code after return" → COBOL STOP RUN behavior, NOT a bug
-• "Undefined methods" → External CALL interfaces, implementation required
-• "__getattr__ magic" → Robustness for COBOL sub-fields, set _strict_mode=True to disable
-• "Infinite loop" → EOF-controlled loop, terminates when file ends
-• "NotImplementedError" → Fail-fast security, prevents silent data corruption
-• "Decimal everywhere" → Financial precision requirement, not over-engineering
-• "Verbose logging" → Migration tracking, set _verbose_mode=False to disable
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CODE REVIEWER NOTES (v6.0.0):
+------------------------------------------------------------------------------
+* "Dead code after return" -> COBOL STOP RUN behavior, NOT a bug
+* "Undefined methods" -> External CALL interfaces, implementation required
+* "__getattr__ magic" -> Robustness for COBOL sub-fields, set _strict_mode=True to disable
+* "Infinite loop" -> EOF-controlled loop, terminates when file ends
+* "NotImplementedError" -> Fail-fast security, prevents silent data corruption
+* "Decimal everywhere" -> Financial precision requirement, not over-engineering
+* "Verbose logging" -> Migration tracking, set _verbose_mode=False to disable
+------------------------------------------------------------------------------
 
-📊 LINE COUNT RATIO (Expected: 2-3x COBOL lines):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LINE COUNT RATIO (Expected: 2-3x COBOL lines):
+------------------------------------------------------------------------------
 The Python output is intentionally larger than COBOL source because:
-• Type hints & docstrings: Modern Python best practices (+30%)
-• Explicit class structure: COBOL's implicit WORKING-STORAGE → explicit @dataclass (+20%)
-• Error handling: Try/except vs COBOL's implicit error codes (+15%)
-• Traceability comments: COBOL line references for auditing (+10%)
-• Production infrastructure: FileManager, Config, Logging (+25%)
+* Type hints & docstrings: Modern Python best practices (+30%)
+* Explicit class structure: COBOL's implicit WORKING-STORAGE -> explicit @dataclass (+20%)
+* Error handling: Try/except vs COBOL's implicit error codes (+15%)
+* Traceability comments: COBOL line references for auditing (+10%)
+* Production infrastructure: FileManager, Config, Logging (+25%)
 
 To reduce size: Use --minified flag (removes comments, keeps functionality).
-Industry benchmark: 2.5-3.5x expansion is normal for COBOL→Python migrations.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Industry benchmark: 2.5-3.5x expansion is normal for COBOL->Python migrations.
+------------------------------------------------------------------------------
 """
     )))
     
@@ -8928,7 +8928,7 @@ def generate_transformation_doc(cobol_ast: 'CobolAST', patterns_found: Dict,
     doc_lines.append("")
     
     # Business Patterns
-    doc_lines.append("## 📊 Business Patterns Detected")
+    doc_lines.append("## Business Patterns Detected")
     doc_lines.append("")
     if patterns_found:
         for pattern_name, matches in patterns_found.items():
@@ -8940,7 +8940,7 @@ def generate_transformation_doc(cobol_ast: 'CobolAST', patterns_found: Dict,
         doc_lines.append("")
     
     # Coverage Metrics
-    doc_lines.append("## 📈 Coverage Metrics")
+    doc_lines.append("## Coverage Metrics")
     doc_lines.append("")
     doc_lines.append("| Metric | Value |")
     doc_lines.append("|--------|-------|")
@@ -8954,7 +8954,7 @@ def generate_transformation_doc(cobol_ast: 'CobolAST', patterns_found: Dict,
     doc_lines.append("")
     
     # Variable Mappings
-    doc_lines.append("## 🔄 Variable Mappings (COBOL → Python)")
+    doc_lines.append("## Variable Mappings (COBOL -> Python)")
     doc_lines.append("")
     doc_lines.append("| COBOL Variable | Python Attribute | Type |")
     doc_lines.append("|----------------|------------------|------|")
@@ -8967,7 +8967,7 @@ def generate_transformation_doc(cobol_ast: 'CobolAST', patterns_found: Dict,
     doc_lines.append("")
     
     # Paragraph Mappings
-    doc_lines.append("## 📋 Paragraph → Method Mappings")
+    doc_lines.append("## Paragraph -> Method Mappings")
     doc_lines.append("")
     doc_lines.append("| COBOL Paragraph | Python Method | Lines |")
     doc_lines.append("|-----------------|---------------|-------|")
@@ -8979,26 +8979,26 @@ def generate_transformation_doc(cobol_ast: 'CobolAST', patterns_found: Dict,
     doc_lines.append("")
     
     # Quality Factors
-    doc_lines.append("## ✅ Quality Factors")
+    doc_lines.append("## Quality Factors")
     doc_lines.append("")
     quality = confidence.get('quality_factors', {})
-    doc_lines.append(f"- **Syntax Valid**: {'Yes ✅' if quality.get('syntax_valid') else 'No ❌'}")
+    doc_lines.append(f"- **Syntax Valid**: {'Yes [PASS]' if quality.get('syntax_valid') else 'No [FAIL]'}")
     doc_lines.append(f"- **Enrichment Mode**: {quality.get('enrichment_mode', 'N/A')}")
     doc_lines.append(f"- **Enriched Methods**: {quality.get('enriched_methods', 0)}")
     doc_lines.append("")
     
     # Recommendations
-    doc_lines.append("## 💡 Recommendations")
+    doc_lines.append("## Recommendations")
     doc_lines.append("")
     score = confidence['confidence_score']
     if score >= 85:
-        doc_lines.append("✅ **High confidence** - Code is ready for review and testing")
+        doc_lines.append("[PASS] High confidence - Code is ready for review and testing")
     elif score >= 70:
-        doc_lines.append("⚠️ **Medium confidence** - Review business logic carefully")
+        doc_lines.append("[WARN] Medium confidence - Review business logic carefully")
         doc_lines.append("- Check calculations against COBOL originals")
         doc_lines.append("- Validate file I/O operations")
     else:
-        doc_lines.append("🔴 **Low confidence** - Significant manual review required")
+        doc_lines.append("[FAIL] Low confidence - Significant manual review required")
         doc_lines.append("- Many statements may need manual implementation")
         doc_lines.append("- Consider running with Gemini enhancement enabled")
     doc_lines.append("")
@@ -9092,7 +9092,7 @@ def generate_architecture_diagram(cobol_ast: 'CobolAST', program_name: str = Non
     lines.append("")
     
     # Main class
-    lines.append("        subgraph MainClass[\"🏛️ " + to_pascal_case(program_name) + "\"]")
+    lines.append("        subgraph MainClass[\"Main: " + to_pascal_case(program_name) + "\"]")
     
     # Add paragraphs (limit to 10 for readability)
     para_count = min(len(cobol_ast.paragraphs), 10)
@@ -9106,7 +9106,7 @@ def generate_architecture_diagram(cobol_ast: 'CobolAST', program_name: str = Non
     
     # Files
     if cobol_ast.file_descriptors:
-        lines.append("        subgraph Files[\"📁 File I/O\"]")
+        lines.append("        subgraph Files[\"File I/O\"]")
         for fd in cobol_ast.file_descriptors[:5]:
             file_id = to_snake_case(fd.name)
             lines.append(f"            {file_id}[(\"{fd.name}\")]")

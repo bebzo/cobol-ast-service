@@ -799,38 +799,38 @@ def print_production_status(self):
     status = self.validate_production_ready()
     
     print("=" * 60)
-    print("🔍 PRODUCTION READINESS CHECK")
+    print("PRODUCTION READINESS CHECK")
     print("=" * 60)
     
     if status["ready"]:
-        print("✅ STATUS: READY FOR PRODUCTION")
+        print("[PASS] STATUS: READY FOR PRODUCTION")
     else:
-        print("❌ STATUS: NOT READY")
+        print("[FAIL] STATUS: NOT READY")
     
     print()
     
     if status["checks_passed"]:
-        print("✓ Passed checks:")
+        print("Passed checks:")
         for check in status["checks_passed"]:
-            print(f"  • {{check}}")
+            print(f"  * {check}")
     
     if status["checks_failed"]:
         print()
-        print("✗ Failed checks:")
+        print("Failed checks:")
         for check in status["checks_failed"]:
-            print(f"  • {{check}}")
+            print(f"  * {check}")
     
     if status["missing_calls"]:
         print()
-        print("⚠️  Missing external CALLs:")
+        print("Missing external CALLs:")
         for call in status["missing_calls"]:
-            print(f"  • {{call}}")
+            print(f"  * {call}")
     
     if status["warnings"]:
         print()
-        print("⚠️  Warnings:")
+        print("Warnings:")
         for warn in status["warnings"]:
-            print(f"  • {{warn}}")
+            print(f"  * {warn}")
         
         print("=" * 60)
         return status
@@ -842,7 +842,7 @@ def generate_quick_start_snippet(class_name: str, has_external_calls: bool) -> s
     
     return f'''
 # ============================================================
-# 🚀 QUICK START GUIDE
+# QUICK START GUIDE
 # ============================================================
 #
 # 1. DEVELOPMENT MODE (with stubs):
