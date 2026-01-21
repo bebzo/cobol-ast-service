@@ -670,7 +670,18 @@ def generate_error_codes_class(extracted_codes: List[ExtractedErrorCode]) -> str
             
             @classmethod
             def get_message(cls, code: str) -> str:
-                return cls._MESSAGES.get(code, f"Unknown error: {code}")
+                if code in cls._MESSAGES:
+                    return cls._MESSAGES[code]
+                # Provide helpful fallback for unknown error codes
+                if code.isdigit():
+                    code_type = int(code[0])
+                    if code_type == 9:
+                        return f"Business error {code}: See COBOL source for details"
+                    elif code_type == 1:
+                        return f"File status error {code}: Check file operations"
+                    elif code_type == 0:
+                        return f"Successful completion (code {code})"
+                return f"Unresolved error {code}: Review COBOL logic for DISPLAY/RAISE statements"
     """
     if not extracted_codes:
         return ""
@@ -704,8 +715,19 @@ def generate_error_codes_class(extracted_codes: List[ExtractedErrorCode]) -> str
     lines.append("    ")
     lines.append("    @classmethod")
     lines.append("    def get_message(cls, code: str) -> str:")
-    lines.append('        """Get error message for a code"""')
-    lines.append('        return cls._MESSAGES.get(code, f"Unknown error: {code}")')
+    lines.append('        """Get error message for a code - provides helpful context for unknown codes."""')
+    lines.append('        if code in cls._MESSAGES:')
+    lines.append('            return cls._MESSAGES[code]')
+    lines.append('        # Provide helpful fallback for unknown error codes')
+    lines.append('        if code.isdigit():')
+    lines.append('            code_type = int(code[0])')
+    lines.append('            if code_type == 9:')
+    lines.append('                return f"Business error {code}: See COBOL source for details"')
+    lines.append('            elif code_type == 1:')
+    lines.append('                return f"File status error {code}: Check file operations"')
+    lines.append('            elif code_type == 0:')
+    lines.append('                return f"Successful completion (code {code})"')
+    lines.append('        return f"Unresolved error {code}: Review COBOL logic for DISPLAY/RAISE statements"')
     lines.append("")
     
     return "\n".join(lines)
