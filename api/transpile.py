@@ -5280,6 +5280,74 @@ def parse_cobol_substring(expr: str) -> ast.expr:
     return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=to_snake_case(expr), ctx=ast.Load())
 
 
+def fix_cobol_substring_patterns(python_code: str) -> str:
+    """
+    v9.0.0: Post-process generated Python code to fix any remaining COBOL substring patterns.
+    
+    This is a safety net that catches COBOL-style substring notation that might have
+    slipped through the AST-based parsing. COBOL uses 1-based indexing, Python uses 0-based.
+    
+    Examples of patterns fixed:
+    - self.ls_metadata(1:45)    -> self.ls_metadata[0:45]
+    - var(1:10)                 -> str(var)[0:10]
+    - MY-VAR(5:8)               -> str(my_var)[4:12]
+    
+    Args:
+        python_code: The generated Python code string
+    
+    Returns:
+        Python code with COBOL substring patterns fixed
+    """
+    # Pattern: COBOL-style VAR(numeric_start:numeric_length) that wasn't converted
+    # This catches patterns like "self.var(1:45)" or "var(1:10)" that need conversion
+    
+    def fix_single_substring(match):
+        """Fix a single COBOL substring pattern to Python slice notation."""
+        full_match = match.group(0)
+        prefix = match.group(1)  # Optional prefix like "self." or nothing
+        var_part = match.group(2)  # Variable name part
+        start = int(match.group(3))  # COBOL start (1-based)
+        length = int(match.group(4))  # Length
+        
+        # Convert COBOL 1-based to Python 0-based
+        py_start = start - 1
+        py_end = py_start + length
+        
+        # Convert variable name to snake_case if needed
+        var_snake = to_snake_case(var_part)
+        
+        # Build the result - if there's a prefix, use it; otherwise wrap in str()
+        if prefix:
+            return f'{prefix}{var_snake}[{py_start}:{py_end}]'
+        else:
+            return f'str(self.{var_snake})[{py_start}:{py_end}]'
+    
+    # Pattern 1: self.VAR(1:45) or self.VAR-NAME(1:10)
+    # Matches: self.optional_prefix(VARNAME)(start:length)
+    pattern1 = r'(self\.)?([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*(\d+)\s*:\s*(\d+)\s*\)'
+    python_code = re.sub(pattern1, fix_single_substring, python_code, flags=re.IGNORECASE)
+    
+    # Pattern 2: Bare VAR(1:45) without self prefix (less common but possible)
+    # This might occur in expressions or string concatenation
+    pattern2 = r'(?<![a-zA-Z0-9_.])([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*(\d+)\s*:\s*(\d+)\s*\)'
+    
+    def fix_bare_substring(match):
+        """Fix a bare COBOL substring without self prefix."""
+        var_part = match.group(1)
+        start = int(match.group(2))
+        length = int(match.group(3))
+        
+        py_start = start - 1
+        py_end = py_start + length
+        var_snake = to_snake_case(var_part)
+        
+        return f'str(self.{var_snake})[{py_start}:{py_end}]'
+    
+    python_code = re.sub(pattern2, fix_bare_substring, python_code, flags=re.IGNORECASE)
+    
+    return python_code
+
+
 def parse_cobol_function(expr: str) -> Optional[ast.expr]:
     """
     Parse COBOL intrinsic functions and convert to Python.
@@ -5969,6 +6037,7 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     - Complex conditions: X > 10 AND Y < 20 OR Z = 'C'
     - Numeric literals: 0, 100, 5.5
     - v5.7.7: Abbreviated OR: X = 'A' OR 'B' OR 'C'
+    - COBOL substring: VAR(1:16) -> str(self.var)[0:16]
     """
     # Clean the condition - remove COBOL comments
     cond = condition.strip()
@@ -5977,6 +6046,28 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     
     # Remove trailing period
     cond = cond.rstrip('.')
+    
+    # v9.0.0: Handle COBOL substring notation BEFORE any other processing
+    # COBOL: VAR(1:16) means characters 1-16 (1-based), Python is 0-based
+    # We need to convert to str(var)[0:16] to handle both string and numeric types
+    def convert_cobol_substring_to_python(match):
+        """Convert COBOL substring VAR(start:length) to Python str(VAR)[start:length]"""
+        var_name = match.group(1)
+        start = int(match.group(2))  # COBOL is 1-based
+        length = int(match.group(3))
+        py_start = start - 1  # Convert to Python 0-based
+        py_end = py_start + length
+        var_snake = to_snake_case(var_name)
+        return f'str(self.{var_snake})[{py_start}:{py_end}]'
+    
+    # Pattern: VAR(numeric_start:numeric_length) - convert to str(var)[start:end]
+    # This handles both string and numeric types by wrapping in str()
+    cond = re.sub(
+        r'\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*(\d+)\s*:\s*(\d+)\s*\)',
+        convert_cobol_substring_to_python,
+        cond,
+        flags=re.IGNORECASE
+    )
     
     # v5.7.7: Expand COBOL abbreviated OR syntax
     # Pattern: VAR = 'value1' OR 'value2' OR 'value3'
@@ -9002,6 +9093,10 @@ def generate_python_code(
         python_ast = generate_python_ast_v4(cobol_ast)
         python_code = ast.unparse(python_ast)
         
+        # v9.0.0: Post-process to fix any remaining COBOL substring patterns
+        # This is a safety net for patterns that weren't caught by AST-based parsing
+        python_code = fix_cobol_substring_patterns(python_code)
+        
         # v5.7.27: Extract error codes from COBOL source
         extracted_error_codes, error_code_map = extract_error_codes(cobol_source)
         
@@ -9072,6 +9167,9 @@ def generate_python_code(
         
         class_name = to_pascal_case(cobol_ast.program_id)
         test_code = generate_unit_tests_v4(cobol_ast, class_name, python_code)
+        
+        # v9.0.0: Also fix COBOL substring patterns in test code
+        test_code = fix_cobol_substring_patterns(test_code)
         
         # v5.2.0: Business pattern detection
         patterns_found = detect_business_patterns(cobol_source)
