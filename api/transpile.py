@@ -2315,7 +2315,7 @@ def extract_all_used_variables(source: str) -> Set[str]:
     var_pattern = re.compile(r'\b([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\b', re.IGNORECASE)
     
     # Pattern to detect paragraph definitions (line with just a name and period)
-    para_pattern = re.compile(r'^\s*([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\.\s*$', re.IGNORECASE)
+    para_pattern = re.compile(r'^\s*([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*(?:SECTION)?\s*\.\s*$', re.IGNORECASE)
     
     # Pattern to detect PERFORM targets
     perform_pattern = re.compile(r'\bPERFORM\s+([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)', re.IGNORECASE)
@@ -2546,7 +2546,7 @@ def parse_paragraphs(lines: List[str], linkage_names: Optional[set] = None) -> L
         if not upper or (len(line) > 6 and line[6] in ('*', '/')):
             continue
         
-        para_match = re.match(r'^\s*([A-Z0-9][-A-Z0-9_]*)\s*\.\s*$', line, re.IGNORECASE)
+        para_match = re.match(r'^\s*([A-Z0-9][-A-Z0-9_]*)\s*(?:SECTION)?\s*\.\s*$', line, re.IGNORECASE)
         if para_match:
             name = para_match.group(1).upper()
             # v5.7.6: Also exclude LINKAGE SECTION variable names
