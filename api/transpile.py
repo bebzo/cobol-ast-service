@@ -11123,33 +11123,6 @@ class Test{class_name}:
                 pass  # Just verify no exceptions
 '''
         return fallback
-                        args=[
-                            ast.Name(id='processor', ctx=ast.Load()),
-                            ast.Constant(value=to_snake_case(numeric_vars[0].name))
-                        ],
-                        keywords=[]
-                    ),
-                    msg='Processor should have numeric attribute'
-                )
-            ]
-        )
-        test_class.body.append(type_test)
-
-    # Add test class to module
-    test_module.body.append(test_class)
-
-    # Compile and unparse to get code string
-    try:
-        ast.fix_missing_locations(test_module)
-        compiled = compile(test_module, '<test>', 'exec')
-        # Execute to get the module dict, then extract code
-        exec_globals = {}
-        exec(compiled, exec_globals)
-        # Get the source by unparsing
-        return ast.unparse(test_module)
-    except Exception as e:
-        # Fallback to empty test file on error
-        return f'# Error generating tests via AST: {e}\n# Fallback to manual implementation'
 
 
 # ============================================================
