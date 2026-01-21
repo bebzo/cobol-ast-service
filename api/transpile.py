@@ -2513,7 +2513,8 @@ def format_88_value_for_comparison(value: str, is_numeric: bool) -> str:
     """
     clean = value.strip().strip("'\"")
     if is_numeric:
-        return f"Decimal('{clean}')"
+        # Use repr() to safely escape any special characters in the value
+        return f"Decimal({repr(clean)})"
     else:
         return repr(clean)
 
@@ -3961,7 +3962,8 @@ def _call_external_module(self, target: str, **kwargs):
                 elif parent_type == 'string':
                     value_check = f'self.{parent} == {repr(clean_val)}'
                 elif parent_type == 'numeric':
-                    value_check = f"self.{parent} == Decimal('{clean_val}')"
+                    # Use repr() to safely escape any special characters in the value
+                    value_check = f"self.{parent} == Decimal({repr(clean_val)})"
                 else:
                     # Fallback: use value-based detection
                     is_numeric = is_numeric_88_value(first_val)
@@ -5885,7 +5887,7 @@ def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
         # Convert literal numbers to Decimal for precision
         # v5.7.13: Exclude numbers that are array indices (preceded by '[')
         expr_str = re.sub(r'(?<!\[)\b(\d+\.\d+)\b', r"Decimal('\1')", expr_str)
-        expr_str = re.sub(r'(?<!\[)(?<!\.)\b(\d+)\b(?![.\]])', r"Decimal('\1')", expr_str)
+        expr_str = re.sub(r'(?<!\[)(?<!\.)\b(\d+)\b(?![.\]])', lambda m: f"Decimal({repr(m.group(1))})", expr_str)
         
         try:
             expr_ast = ast.parse(expr_str, mode='eval').body
@@ -6244,8 +6246,8 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     # Match standalone decimal numbers (not part of variable names)
     def replace_decimal_literal(match):
         num = match.group(0)
-        # Check if it's a standalone number (preceded by operator or space, not alphanumeric)
-        return f"Decimal('{num}')"
+        # Use repr() to safely format the number
+        return f"Decimal({repr(num)})"
     
     # Replace decimal literals like 5.0, 10.00, -3.14 with Decimal('value')
     # Negative lookahead/lookbehind to avoid matching inside identifiers
