@@ -136,20 +136,26 @@ def check_syntax(code):
 }
 
 // Calculate real Security Score from security_warnings
+// v8.7: Modified to be consistent with Issues display - only count CRITICAL/HIGH/MEDIUM
 function calculateSecurityScore(securityWarnings: any[]): { score: number; grade: string; critical: number; high: number; medium: number; low: number } {
-  // Default values if no warnings
-  if (!securityWarnings || securityWarnings.length === 0) {
+  // Count by severity - only CRITICAL/HIGH/MEDIUM affect the score (consistent with Issues display)
+  let critical = 0, high = 0, medium = 0, low = 0;
+  
+  // v8.7: Filter out auto-remediated issues (those with severity INFO or LOW that were fixed)
+  const activeWarnings = securityWarnings?.filter((w: any) => {
+    const severity = (w.severity || 'LOW').toUpperCase();
+    // Only count CRITICAL, HIGH, MEDIUM as active issues (consistent with Issues panel)
+    return severity === 'CRITICAL' || severity === 'HIGH' || severity === 'MEDIUM';
+  }) || [];
+  
+  if (activeWarnings.length === 0) {
     return { score: 100, grade: 'A+', critical: 0, high: 0, medium: 0, low: 0 };
   }
   
-  // Count by severity
-  let critical = 0, high = 0, medium = 0, low = 0;
-  
-  securityWarnings.forEach((w: any) => {
-    const severity = (w.severity || w.summary?.severity || 'LOW').toUpperCase();
-    const cvss = w.cvss_score || w.summary?.score || 0;
+  activeWarnings.forEach((w: any) => {
+    const severity = (w.severity || 'LOW').toUpperCase();
+    const cvss = w.cvss_score || 0;
     
-    // Prioritize explicit severity over CVSS
     if (severity === 'CRITICAL' || cvss >= 9.0) critical++;
     else if (severity === 'HIGH' || cvss >= 7.0) high++;
     else if (severity === 'MEDIUM' || cvss >= 4.0) medium++;
@@ -161,7 +167,6 @@ function calculateSecurityScore(securityWarnings: any[]): { score: number; grade
   score -= critical * 25;  // -25 per CRITICAL
   score -= high * 15;      // -15 per HIGH
   score -= medium * 5;     // -5 per MEDIUM
-  score -= low * 1;        // -1 per LOW
   score = Math.max(0, score); // Ensure score doesn't go below 0
   
   // Determine grade
