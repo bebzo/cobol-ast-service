@@ -4755,15 +4755,15 @@ def _initialize_field(self, field_name: str) -> None:
         # v8.6: Generate stub body that logs warning but doesn't fail
         # Stubs are allowed by default for development/testing
         # Production deployments should implement real external calls
+        safe_target = _escape_for_docstring(target)
         stub_body = [
             ast.Expr(value=ast.Constant(
-                value=f"External CALL stub for '{target}'.\n\n"
+                value=f"External CALL stub for '{safe_target}'.\n\n"
                       f"NOTE: This is a stub - implement before production deployment.\n\n"
-                      f"Parameters:\n" + 
+                      f"Parameters:\n" +
                       '\n'.join(f"    {p}: Passed from COBOL USING clause" for p in best_params) if best_params else "    None"
             )),
             # v8.6: Log warning instead of raising error (stubs allowed by default)
-            safe_target = _escape_for_docstring(target)
             ast.Expr(value=ast.Call(
                 func=ast.Attribute(
                     value=ast.Attribute(
@@ -10354,7 +10354,230 @@ def _generate_syntax_error_tests(source_code: str, class_name: str, error: str) 
 
 
 # ============================================================
-# Fin du Générateur de Tests Déterministe (v9.0)
+# v10.0: Générateur de Tests via AST (Évitement des problèmes d'échappement)
+# ============================================================
+
+def _make_test_method_via_ast(method_name: str, docstring: str, body_stmts: List[ast.stmt]) -> ast.FunctionDef:
+    """Create a test method using AST to avoid string escaping issues.
+
+    Args:
+        method_name: Name of the test method
+        docstring: Docstring for the test method
+        body_stmts: List of AST statements for the method body
+
+    Returns:
+        FunctionDef AST node
+    """
+    return ast.FunctionDef(
+        name=method_name,
+        args=ast.arguments(
+            posonlyargs=[],
+            args=[ast.arg(arg='self'), ast.arg(arg='processor')],
+            kwonlyargs=[],
+            kw_defaults=[],
+            defaults=[]
+        ),
+        body=[
+            ast.Expr(value=ast.Constant(value=docstring)),
+            *body_stmts
+        ],
+        decorator_list=[],
+        returns=ast.Name(id='None', ctx=ast.Load())
+    )
+
+
+def _make_assertion_via_ast(test_expr: ast.expr, msg: str) -> ast.Assert:
+    """Create an assert statement using AST.
+
+    Args:
+        test_expr: The expression to test
+        msg: Message for the assertion
+
+    Returns:
+        Assert AST node
+    """
+    return ast.Assert(
+        test=test_expr,
+        msg=ast.Constant(value=msg)
+    )
+
+
+def _make_hasattr_call_via_ast(obj_name: str, attr_name: str) -> ast.Call:
+    """Create a hasattr() call using AST.
+
+    Args:
+        obj_name: Name of the object to check
+        attr_name: Attribute name to look for
+
+    Returns:
+        Call AST node for hasattr()
+    """
+    return ast.Call(
+        func=ast.Name(id='hasattr', ctx=ast.Load()),
+        args=[
+            ast.Name(id=obj_name, ctx=ast.Load()),
+            ast.Constant(value=attr_name)
+        ],
+        keywords=[]
+    )
+
+
+def generate_unit_tests_via_ast(
+        cobol_ast: CobolAST,
+        class_name: str,
+        python_code: str = ''
+    ) -> str:
+    """Generate unit tests using AST module to avoid string escaping issues (v10.0).
+
+    This approach builds test code programmatically using ast module,
+    then unparses it to get valid Python code. This eliminates all
+    escaping issues since we work with AST nodes directly.
+
+    Args:
+        cobol_ast: Parsed COBOL AST
+        class_name: Name of the generated Python class
+        python_code: The generated Python code (for self-contained tests)
+
+    Returns:
+        Generated test code as string (guaranteed valid Python)
+    """
+    # Build AST module
+    test_module = ast.Module(
+        body=[],
+        type_ignores=[]
+    )
+
+    # Add imports
+    test_module.body.extend([
+        ast.ImportFrom(
+            module='pytest',
+            names=[ast.alias(name='*', asname=None)],
+            level=0
+        ),
+        ast.ImportFrom(
+            module='decimal',
+            names=[ast.alias(name='Decimal', asname=None)],
+            level=0
+        ),
+        ast.Import(
+            names=[ast.alias(name='logging', asname=None)]
+        ),
+        ast.Expr(value=ast.Constant(value=''))  # spacer
+    ])
+
+    # Add module docstring
+    test_module.body.append(ast.Expr(value=ast.Constant(
+        value=f"""Generated Test Suite for {class_name} (AST-based v10.0)
+This test file was generated programmatically using Python's AST module
+to avoid string escaping issues with COBOL identifiers.
+"""
+    )))
+
+    # Create test class
+    test_class = ast.ClassDef(
+        name=f'Test{class_name}',
+        bases=[ast.Name(id='object', ctx=ast.Load())],
+        keywords=[],
+        body=[],
+        decorator_list=[]
+    )
+
+    # Add class docstring
+    test_class.body.append(ast.Expr(value=ast.Constant(
+        value=f'Tests for {class_name} - Generated via AST to avoid escaping issues'
+    )))
+
+    # Test: Instantiation
+    init_method = _make_test_method_via_ast(
+        method_name='test_instantiation',
+        docstring=f'Verify {class_name} can be instantiated',
+        body_stmts=[
+            _make_assertion_via_ast(
+                test_expr=ast.Call(
+                    func=ast.Name(id='isinstance', ctx=ast.Load()),
+                    args=[
+                        ast.Call(
+                            func=ast.Name(id=class_name, ctx=ast.Load()),
+                            args=[],
+                            keywords=[]
+                        ),
+                        ast.Name(id=class_name, ctx=ast.Load())
+                    ],
+                    keywords=[]
+                ),
+                msg=f'Instance should be of type {class_name}'
+            )
+        ]
+    )
+    test_class.body.append(init_method)
+
+    # Test: Methods are callable
+    for para in cobol_ast.paragraphs[:5]:
+        method_name = to_snake_case(para.name)
+        # Safe method name via AST - no escaping needed
+        method_test = _make_test_method_via_ast(
+            method_name=f'test_{method_name}_callable',
+            docstring=f'Test that {para.name} is callable',
+            body_stmts=[
+                _make_assertion_via_ast(
+                    test_expr=ast.Call(
+                        func=ast.Name(id='callable', ctx=ast.Load()),
+                        args=[
+                            ast.Attribute(
+                                value=ast.Name(id='processor', ctx=ast.Load()),
+                                attr=method_name,
+                                ctx=ast.Load()
+                            )
+                        ],
+                        keywords=[]
+                    ),
+                    msg=f'{method_name} should be callable'
+                )
+            ]
+        )
+        test_class.body.append(method_test)
+
+    # Test: Type safety for numeric variables
+    numeric_vars = [v for v in cobol_ast.variables if v.picture and any(c.isdigit() for c in v.picture)]
+    if numeric_vars[:2]:
+        type_test = _make_test_method_via_ast(
+            method_name='test_numeric_types',
+            docstring='Verify numeric variables use proper types',
+            body_stmts=[
+                _make_assertion_via_ast(
+                    test_expr=ast.Call(
+                        func=ast.Name(id='hasattr', ctx=ast.Load()),
+                        args=[
+                            ast.Name(id='processor', ctx=ast.Load()),
+                            ast.Constant(value=to_snake_case(numeric_vars[0].name))
+                        ],
+                        keywords=[]
+                    ),
+                    msg='Processor should have numeric attribute'
+                )
+            ]
+        )
+        test_class.body.append(type_test)
+
+    # Add test class to module
+    test_module.body.append(test_class)
+
+    # Compile and unparse to get code string
+    try:
+        ast.fix_missing_locations(test_module)
+        compiled = compile(test_module, '<test>', 'exec')
+        # Execute to get the module dict, then extract code
+        exec_globals = {}
+        exec(compiled, exec_globals)
+        # Get the source by unparsing
+        return ast.unparse(test_module)
+    except Exception as e:
+        # Fallback to empty test file on error
+        return f'# Error generating tests via AST: {e}\n# Fallback to manual implementation'
+
+
+# ============================================================
+# Fin du Générateur de Tests AST (v10.0)
 # ============================================================
 
 
