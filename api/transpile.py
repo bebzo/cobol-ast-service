@@ -9651,8 +9651,10 @@ def generate_production_tests(cobol_ast: 'CobolAST', class_name: str, python_cod
     
     for para in cobol_ast.paragraphs[:15]:  # Limiter à 15 pour éviter les fichiers trop longs
         method_name = to_snake_case(para.name)
+        # Sanitize para.name for docstring
+        safe_para_name = para.name.replace('"', "'").replace('\n', ' ')
         test_lines.append(f'    def test_{method_name}_exists(self):')
-        test_lines.append(f'        """Test that {para.name} was transpiled as callable method."""')
+        test_lines.append(f'        """Test that {safe_para_name} was transpiled as callable method."""')
         test_lines.append(f'        instance = {class_name}()')
         test_lines.append(f'        assert hasattr(instance, "{method_name}")')
         test_lines.append(f'        assert callable(instance.{method_name})')
@@ -10569,7 +10571,9 @@ def generate_unit_tests_v4(
         for var in numeric_vars[:3]:
             py_name = to_snake_case(var.name)
             if var.value and var.value.upper() not in ('ZEROS', 'ZEROES', 'SPACES'):
-                tests.append(f'        # {var.name} should be initialized')
+                # Sanitize var.name for comment
+                safe_var_name = var.name.replace('"', "'").replace('\n', ' ')
+                tests.append(f'        # {safe_var_name} should be initialized')
                 tests.append(f'        assert hasattr(processor, "{py_name}")')
         tests.append('')
     
@@ -10664,8 +10668,11 @@ def generate_unit_tests_v4(
         for cond in cobol_ast.conditions_88[:5]:
             prop_name = to_snake_case(cond.name)
             parent_name = to_snake_case(cond.parent_var)
+            # Sanitize for docstring (same as AST-based generator)
+            safe_cond_name = cond.name.replace('"', "'").replace('\n', ' ')
+            safe_parent = cond.parent_var.replace('"', "'").replace('\n', ' ')
             tests.append(f'    def test_{prop_name}_property(self, processor):')
-            tests.append(f'        """Test 88-level: {cond.name} (parent: {cond.parent_var})."""')
+            tests.append(f'        """Test 88-level: {safe_cond_name} (parent: {safe_parent})."""')
             tests.append(f'        # Verify property exists')
             tests.append(f'        assert hasattr(type(processor), "{prop_name}")')
             tests.append(f'        # Verify it returns bool')
@@ -10676,7 +10683,7 @@ def generate_unit_tests_v4(
             # Test setter if values exist
             if cond.values:
                 tests.append(f'    def test_{prop_name}_setter(self, processor):')
-                tests.append(f'        """Test setting {cond.name} to True sets parent correctly."""')
+                tests.append(f'        """Test setting {safe_cond_name} to True sets parent correctly."""')
                 tests.append(f'        processor.{prop_name} = True')
                 tests.append(f'        assert processor.{prop_name} == True')
                 tests.append('')
@@ -10782,8 +10789,10 @@ def generate_unit_tests_v4(
     
     for para in cobol_ast.paragraphs[:10]:
         method_name = to_snake_case(para.name)
+        # Sanitize para.name for docstring
+        safe_para_name = para.name.replace('"', "'").replace('\n', ' ')
         tests.append(f'    def test_{method_name}_exists(self, processor):')
-        tests.append(f'        """Verify {para.name} was transpiled."""')
+        tests.append(f'        """Verify {safe_para_name} was transpiled."""')
         tests.append(f'        assert hasattr(processor, "{method_name}")')
         tests.append(f'        assert callable(processor.{method_name})')
         tests.append('')
