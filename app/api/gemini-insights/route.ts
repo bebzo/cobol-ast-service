@@ -180,7 +180,7 @@ function generateDeterministicTests(pythonCode: string, className: string = "Pro
       }
     });
     
-    lines.push(`class Test${func.name.replace('_', '').title()}:`);
+    lines.push(`class Test${func.name.replace(/_/g, '').replace(/^./, (c) => c.toUpperCase())}:`);
     lines.push(`    """Tests pour ${func.name}."""`);
     lines.push('');
     lines.push(`    def test_${func.name}_exists(self, ${className.toLowerCase()}_instance):`);
@@ -243,9 +243,9 @@ function generateDeterministicTests(pythonCode: string, className: string = "Pro
   lines.push('        assert max_val == Decimal(repr("9999999.99"))');
   lines.push('');
   lines.push('    def test_string_escaping(self):');
-  lines.push('        """Test échappement chaînes avec repr().""",');
-  lines.push('        # Toutes les chaînes utilisent repr() pour éviter les erreurs');
-  lines.push('        test_val = repr("O\\'Brien")');
+  lines.push('        """Test echappement chaines avec repr()."""');
+  lines.push('        # Toutes les chaines utilisent repr() pour eviter les erreurs');
+  lines.push('        test_val = repr("O\\\\\'Brien")')
   lines.push('        assert isinstance(eval(test_val), str)');
   lines.push('');
   
