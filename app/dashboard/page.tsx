@@ -1724,10 +1724,15 @@ ${analysis.summary}
 - Confidence: ${analysis.migration_score?.confidence || 'N/A'}
 
 ## Issues Detected
-${(analysis.issues || []).map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
+${(analysis.issues || []).map((i: any, idx: number) => `${idx + 1}. ${i.title || i}`).join('\n')}
 
-## Benefits (Transpilation Gains)
-${(analysis.improvements || []).map((i, idx) => `${idx + 1}. ${i}`).join('\n')}
+## Benefits (Transpilation Gains - Real Analysis)
+${(analysis.improvements || []).map((b: any, idx: number) => {
+  const title = b.title || b;
+  const desc = b.description ? ` - ${b.description}` : '';
+  const icon = b.icon || '✓';
+  return `${idx + 1}. ${icon} ${title}${desc}`;
+}).join('\n')}
 
 ## Security Warnings
 ${(analysis.security_warnings || []).map((w: any, idx) => `${idx + 1}. ${w.title || w}: ${w.description || ''}`).join('\n')}
@@ -3689,12 +3694,28 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </Tooltip>
                   );
                 })()}
-                {/* Benefits */}
-                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-cyan-400 tabular-nums">{Array.isArray(analysis.improvements) ? analysis.improvements.length : 0}</p>
-                  <p className="text-xs text-slate-400 mt-1">Benefits</p>
-                  <p className="text-[10px] text-slate-500">Transpilation gains</p>
-                </div>
+                {/* Benefits - Real values from Python analysis */}
+                {(() => {
+                  const benefits = Array.isArray(analysis.improvements) ? analysis.improvements : [];
+                  const benefitCount = benefits.length;
+                  
+                  return (
+                    <Tooltip content={
+                      <div className="max-w-xs">
+                        <p className="font-semibold mb-2">Transpilation Benefits:</p>
+                        {benefits.map((b: any, i: number) => (
+                          <p key={i} className="text-xs mb-1">{b.icon || '✓'} {b.title}</p>
+                        ))}
+                      </div>
+                    } title="Benefits">
+                      <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center cursor-help">
+                        <p className="text-2xl font-bold text-cyan-400 tabular-nums">{benefitCount}</p>
+                        <p className="text-xs text-slate-400 mt-1">Benefits</p>
+                        <p className="text-[10px] text-slate-500">Real analysis</p>
+                      </div>
+                    </Tooltip>
+                  );
+                })()}
                 
                 {/* Security Score - Calculated from real security_warnings */}
                 {(() => {

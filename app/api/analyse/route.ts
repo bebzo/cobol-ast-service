@@ -524,6 +524,101 @@ function generateShadowTestingPlan(cobolCode: string, pythonCode: string, quickP
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Python Code Analysis for Real Benefits (v8.7)
+// ═══════════════════════════════════════════════════════════════════════════
+function analyzePythonBenefits(pythonCode: string, cobolLines: number): any[] {
+  const benefits: any[] = [];
+  const lines = pythonCode.split('\n');
+  
+  if (!pythonCode || lines.length < 5) {
+    return ['Code analysis pending'];
+  }
+  
+  // 1. Count dataclasses (Clean Architecture)
+  const dataclassCount = (pythonCode.match(/@dataclass/g) || []).length;
+  if (dataclassCount > 0) {
+    benefits.push({
+      title: `${dataclassCount} dataclasses defined`,
+      description: 'Clean Architecture with type-safe data structures',
+      icon: '📦'
+    });
+  }
+  
+  // 2. Count Decimal usage (financial precision)
+  const decimalCount = (pythonCode.match(/Decimal\(['"]/g) || []).length;
+  if (decimalCount > 0) {
+    benefits.push({
+      title: `${decimalCount} Decimal values`,
+      description: 'Precise financial calculations (no floating point errors)',
+      icon: '💰'
+    });
+  }
+  
+  // 3. Count type annotations (code clarity)
+  const typeAnnotCount = (pythonCode.match(/:\s*(str|int|Decimal|Bool|bool|List|Dict|Any|Optional)/g) || []).length;
+  if (typeAnnotCount > 0) {
+    benefits.push({
+      title: `${typeAnnotCount} type annotations`,
+      description: 'Self-documenting code with type safety',
+      icon: '📝'
+    });
+  }
+  
+  // 4. Count try/except blocks (robust error handling)
+  const tryExceptCount = (pythonCode.match(/try:|except/g) || []).length / 2;
+  if (tryExceptCount > 0) {
+    benefits.push({
+      title: `${Math.floor(tryExceptCount)} error handlers`,
+      description: 'Robust exception handling for production',
+      icon: '🛡️'
+    });
+  }
+  
+  // 5. Count logging statements (observability)
+  const loggingCount = (pythonCode.match(/self\.logger\.|logging\./g) || []).length;
+  if (loggingCount > 0) {
+    benefits.push({
+      title: `${loggingCount} log statements`,
+      description: 'Production-ready logging and monitoring',
+      icon: '📊'
+    });
+  }
+  
+  // 6. Code reduction metric
+  const pythonLines = lines.length;
+  const reduction = cobolLines > 0 ? Math.round(((cobolLines - pythonLines) / cobolLines) * 100) : 0;
+  if (reduction > 0) {
+    benefits.push({
+      title: `${reduction}% code reduction`,
+      description: `${cobolLines} → ${pythonLines} lines (cleaner, maintainable)`,
+      icon: '✂️'
+    });
+  }
+  
+  // 7. Test coverage indicator
+  const testCount = (pythonCode.match(/def test_/g) || []).length;
+  if (testCount > 0) {
+    benefits.push({
+      title: `${testCount} test methods`,
+      description: 'Auto-generated unit tests for validation',
+      icon: '✅'
+    });
+  }
+  
+  // 8. Security features
+  const securityFeatures = (pythonCode.match(/get_secure_credential|mask_pii|hash_pii|validate_input/g) || []).length;
+  if (securityFeatures > 0) {
+    benefits.push({
+      title: `${securityFeatures} security features`,
+      description: 'Built-in credential management and PII protection',
+      icon: '🔐'
+    });
+  }
+  
+  return benefits;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Security Analysis Engine
 // ═══════════════════════════════════════════════════════════════════════════
 function generateSecurityWarnings(cobolCode: string): any[] {
@@ -1023,15 +1118,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (cobolCode.toLowerCase().includes('goto')) issues.push({ title: 'GOTO detected', severity: 'MEDIUM', description: 'Unstructured control flow', recommendation: 'Replace with structured loops' });
     if (issues.length === 0) issues.push({ title: 'Clean transpilation', severity: 'INFO', description: 'No major issues', recommendation: 'Proceed with testing' });
 
-    // Improvements
-    const improvements = [
-      `${transpileResult.stats?.paragraphs || quickParse.paragraphs.length} methods transpiled`,
-      '100% syntax-valid Python code guaranteed',
-      'Clean Architecture with dataclasses',
-      'Boolean flags (not Y/N strings)',
-      'Decimal for all monetary values',
-      'Unified Python transpiler engine'
-    ];
+    // Real benefits from Python code analysis (v8.7)
+    const pythonCode = transpileResult.python_code || '';
+    const improvements = analyzePythonBenefits(pythonCode, totalLines);
 
     // Security analysis
     const securityWarnings = generateSecurityWarnings(cobolCode);
