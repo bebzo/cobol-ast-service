@@ -9143,6 +9143,29 @@ def generate_python_code(
             syntax_valid = True
         except SyntaxError as e:
             syntax_valid = False
+            # v9.0.0: Provide specific error guidance for common COBOL transpilation issues
+            error_guidance = ""
+            if "duplicate argument" in str(e):
+                error_guidance = "DUPLICATE ARGUMENT: Check CALL USING or PERFORM WITH USING clauses for duplicate parameter names"
+            elif "invalid syntax" in str(e) and ":" in str(e):
+                error_guidance = "POSSIBLE ISSUE: COBOL slice notation may not have been converted properly"
+            
+        # v9.0.0: Additional validation for common COBOL patterns that could cause issues
+        validation_warnings = []
+        
+        # Check for duplicate argument patterns in generated code
+        # Pattern: def method(self, param, param) - duplicate parameter
+        duplicate_param_pattern = re.compile(r'def\s+\w+\s*\([^)]*,\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*,\s*\1\s*\)')
+        matches = duplicate_param_pattern.findall(python_code)
+        if matches:
+            validation_warnings.append(f"Duplicate parameters detected: {set(matches)}")
+        
+        # Check for COBOL-style slice notation that wasn't converted
+        # Pattern: something(var:num) - COBOL slice that should be Python [0:num]
+        cobol_slice_pattern = re.compile(r'\bself\.[a-z_]+\s*\(\s*\d+\s*:\s*\d+\s*\)')
+        slice_matches = cobol_slice_pattern.findall(python_code)
+        if slice_matches:
+            validation_warnings.append(f"COBOL slice notation not converted: {slice_matches[:3]}")
         
         gemini_stats = {'syntax_valid': syntax_valid, 'enrichment_mode': 'ast_only'}
         
@@ -9293,6 +9316,7 @@ def generate_python_code(
                 'dead_code_warnings': dead_code_warnings,
                 'exception_mode': exception_mode,
                 'minified_mode': minified_mode,  # v6.1.1
+                'validation_warnings': validation_warnings,  # v9.0.0: COBOL pattern validation
                 **gemini_stats,
                 **confidence['coverage'],
                 **confidence['quality_factors']
