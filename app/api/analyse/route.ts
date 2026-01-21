@@ -1081,8 +1081,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const resolvedCode = await resolveTodosWithGemini(transpileResult.python_code, expandedCobolCode);
       transpileResult = {
         ...transpileResult,
-        python_code: resolvedCode,
-        pythonCode: resolvedCode
+        python_code: resolvedCode
       };
     }
 
@@ -1118,8 +1117,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (cobolCode.toLowerCase().includes('goto')) issues.push({ title: 'GOTO detected', severity: 'MEDIUM', description: 'Unstructured control flow', recommendation: 'Replace with structured loops' });
     if (issues.length === 0) issues.push({ title: 'Clean transpilation', severity: 'INFO', description: 'No major issues', recommendation: 'Proceed with testing' });
 
-    // Real benefits from Python code analysis (v8.7)
+    // Generate rich configuration from Python code (v8.7)
     const pythonCode = transpileResult.python_code || '';
+    
+    // Real benefits from Python code analysis
     const improvements = analyzePythonBenefits(pythonCode, totalLines);
 
     // Security analysis
@@ -1150,7 +1151,6 @@ class Test${className}:
 `;
 
     // Generate rich configuration from COBOL and Python code
-    const pythonCode = transpileResult.python_code;
     const upperCobol = cobolCode.toUpperCase();
     
     // Extract rates, fees, percentages from Python code
@@ -1335,7 +1335,6 @@ class Test${className}:
     return NextResponse.json({
       // Core output
       python_code: transpileResult.python_code,
-      pythonCode: transpileResult.python_code,
       unit_tests: generatedTests,
       tests: generatedTests,
       config_json: JSON.stringify(configData, null, 2),
