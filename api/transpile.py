@@ -330,10 +330,10 @@ def generate_appropriate_test(func_name: str, func_type_info: Dict[str, Any]) ->
                 assert ctx is not None
         except TypeError as e:
             if "argument" in str(e).lower():
-                pytest.skip(f"{func_name} n'est pas un context manager")
+                pytest.skip(f"{safe_func_name} n'est pas un context manager")
             raise
         except AttributeError:
-            pytest.skip(f"{func_name} n'a pas de méthode __enter__")
+            pytest.skip(f"{safe_func_name} n'a pas de méthode __enter__")
 '''
     elif func_type == 'no_args':
         return f'''
@@ -345,7 +345,7 @@ def generate_appropriate_test(func_name: str, func_type_info: Dict[str, Any]) ->
             assert result is not None or result is None  # Accepter les deux
         except TypeError as e:
             if "argument" in str(e).lower():
-                pytest.fail(f"{func_name} appelée avec arguments incorrects: {{e}}")
+                pytest.fail(f"{safe_func_name} appelée avec arguments incorrects: {{e}}")
             raise
 '''
     elif func_type == 'stub':
@@ -356,13 +356,13 @@ def generate_appropriate_test(func_name: str, func_type_info: Dict[str, Any]) ->
         # Le test vérifie juste qu'elle existe
         assert hasattr(self, '{func_name}')
         # Ne pas exécuter car c'est un stub
-        pytest.skip(f"{func_name} est un stub - implémentation requise")
+        pytest.skip(f"{safe_func_name} est un stub - implémentation requise")
 '''
     else:
         # Fonction normale - générer test générique
         return f'''
     def test_{func_name}_basic(self):
-        """Test basique pour {func_name}."""
+        """Test basique pour {safe_func_name}."""
         assert hasattr(self, '{func_name}')
         assert callable(self.{func_name}')
 '''
@@ -4506,6 +4506,8 @@ def _initialize_field(self, field_name: str) -> None:
     # v5.7.19: Generate error handler methods from DECLARATIVES sections
     for decl_para in declaratives_paragraphs:
         handler_name = f'_error_handler_{to_snake_case(decl_para.name)}'
+        # Escape decl_para.name for strings/docstrings to prevent unterminated string literal errors
+        safe_decl_para_name = _escape_for_docstring(decl_para.name)
         # Extract file name from USE AFTER statement if present
         file_name = None
         for stmt in decl_para.statements:
@@ -4516,12 +4518,12 @@ def _initialize_field(self, field_name: str) -> None:
             if use_match:
                 file_name = to_snake_case(use_match.group(1))
                 break
-        
+
         # Generate handler body - transpile the statements
         handler_body = transpile_statements_v4(decl_para.statements)
         if not handler_body:
             handler_body = [ast.Pass()]
-        
+
         # Add logging at start
         log_stmt = ast.Expr(value=ast.Call(
             func=ast.Attribute(
@@ -4529,13 +4531,13 @@ def _initialize_field(self, field_name: str) -> None:
                                    attr='logger', ctx=ast.Load()),
                 attr='error', ctx=ast.Load()
             ),
-            args=[ast.Constant(value=f"File error handler triggered: {decl_para.name}")],
+            args=[ast.Constant(value=f"File error handler triggered: {safe_decl_para_name}")],
             keywords=[]
         ))
         handler_body.insert(0, log_stmt)
-        
+
         # Create the error handler method
-        docstring = f"Error handler from DECLARATIVES section: {decl_para.name}"
+        docstring = f"Error handler from DECLARATIVES section: {safe_decl_para_name}"
         if file_name:
             docstring += f"\nHandles errors for file: {file_name}"
         
@@ -4761,6 +4763,7 @@ def _initialize_field(self, field_name: str) -> None:
                       '\n'.join(f"    {p}: Passed from COBOL USING clause" for p in best_params) if best_params else "    None"
             )),
             # v8.6: Log warning instead of raising error (stubs allowed by default)
+            safe_target = _escape_for_docstring(target)
             ast.Expr(value=ast.Call(
                 func=ast.Attribute(
                     value=ast.Attribute(
@@ -4769,7 +4772,7 @@ def _initialize_field(self, field_name: str) -> None:
                     ),
                     attr='warning', ctx=ast.Load()
                 ),
-                args=[ast.Constant(value=f"STUB: External program '{target}' called - implement for production")],
+                args=[ast.Constant(value=f"STUB: External program '{safe_target}' called - implement for production")],
                 keywords=[]
             )),
             # v5.7.31: Use real external_calls implementation if available
@@ -6674,9 +6677,10 @@ def transpile_perform_v4(stmt: str) -> Optional[ast.stmt]:
         # Return a list wrapped in a Module for multiple statements
         # We need to return a single statement, so wrap in a helper
         # Use a placeholder: create inline statements
+        safe_target = _escape_for_docstring(target)
         return ast.Expr(value=ast.Tuple(elts=[
             ast.parse(f"self.{loop_var} = {from_val}" if from_val.isdigit() else f"self.{loop_var} = self.{to_snake_case(from_val)}").body[0].value,
-            ast.Constant(value=f"# PERFORM {target} VARYING {loop_var} - see generated while loop")
+            ast.Constant(value=f"# PERFORM {safe_target} VARYING {loop_var} - see generated while loop")
         ], ctx=ast.Load()))
     
     # 2. PERFORM para THRU para-end (execute range of paragraphs)
@@ -10275,7 +10279,7 @@ def _generate_function_tests(func: Dict[str, Any], class_name: str) -> List[str]
     # Test 5: Test de type Decimal
     if returns == 'Decimal' or 'decimal' in returns.lower() or func.get('has_decimal_param'):
         lines.append(f'    def test_{func_name}_decimal_precision(self, {instance_name}_instance):')
-        lines.append(f'        """Test précision Decimal pour {func_name}."""')
+        lines.append(f'        """Test précision Decimal pour {safe_func_name}."""')
         lines.append('        # Vérifier que les opérations Decimal sont précises')
         lines.append('        d1 = Decimal(repr("100.00"))')
         lines.append('        d2 = Decimal(repr("50.00"))')
