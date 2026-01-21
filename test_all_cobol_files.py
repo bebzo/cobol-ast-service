@@ -23,25 +23,39 @@ for cobol_file in sorted(cobol_files):
 
         result = generate_python_code(cobol_code, enhance=False)
 
+        # Check if transpilation was successful
+        if not result.get('success', True):
+            errors_found.append((filename, 'validation', result.get('error', 'Unknown validation error')))
+            print(f"❌ {filename}: VALIDATION ERROR - {result.get('error', 'Unknown')}")
+            continue
+        
+        if not result.get('python_code'):
+            errors_found.append((filename, 'empty', 'No Python code generated'))
+            print(f"❌ {filename}: No Python code generated")
+            continue
+
         # Vérifier la compilation du code Python
         try:
             compile(result['python_code'], '<python>', 'exec')
         except SyntaxError as e:
             errors_found.append((filename, 'python_code', f"SyntaxError: {e}"))
+            print(f"❌ {filename}: SyntaxError in Python code")
 
         # Vérifier la compilation des tests
         try:
             compile(result['unit_tests'], '<tests>', 'exec')
         except SyntaxError as e:
             errors_found.append((filename, 'unit_tests', f"SyntaxError: {e}"))
+            print(f"❌ {filename}: SyntaxError in tests")
         except TypeError as e:
             errors_found.append((filename, 'unit_tests', f"TypeError: {e}"))
+            print(f"❌ {filename}: TypeError in tests")
 
         print(f"✓ {filename}: OK")
 
     except Exception as e:
         errors_found.append((filename, 'exception', str(e)))
-        print(f"✗ {filename}: ERREUR - {e}")
+        print(f"❌ {filename}: ERREUR - {e}")
 
 print("=" * 80)
 

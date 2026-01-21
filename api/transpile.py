@@ -1284,6 +1284,12 @@ def validate_cobol_input(source: str) -> Tuple[bool, List[str]]:
     """
     warnings = []
     
+    # Check if input appears to be Python code (already transpiled)
+    if detect_python_code(source):
+        warnings.append("Input appears to be Python code, not COBOL. This file has already been transpiled.")
+        is_valid = False
+        return is_valid, warnings
+    
     # Check for minimum structure
     if 'IDENTIFICATION DIVISION' not in source.upper() and 'PROGRAM-ID' not in source.upper():
         warnings.append("Missing IDENTIFICATION DIVISION or PROGRAM-ID")
@@ -1305,6 +1311,43 @@ def validate_cobol_input(source: str) -> Tuple[bool, List[str]]:
     
     is_valid = len([w for w in warnings if 'Missing' in w]) == 0
     return is_valid, warnings
+
+
+def detect_python_code(source: str) -> bool:
+    """Detect if source appears to be Python code (already transpiled).
+    
+    Returns:
+        True if source appears to be Python code
+    """
+    lines = source.split('\n')
+    
+    # Python-specific patterns
+    python_patterns = [
+        r'^"""[\s\S]+Auto-transpiled from COBOL',  # Docstring header from transpiler
+        r'^from decimal import Decimal',  # Python import
+        r'^from dataclasses import',  # Python import
+        r'^from __future__ import annotations',  # Python future import
+        r'^class \w+\(.*\):',  # Python class definition
+        r'^\s+def \w+\(self',  # Python method definition
+        r'^\s+self\.\w+ = Decimal\(',  # Python Decimal assignment
+        r'^# v\d+\.\d+\.\d+',  # Version comments from transpiler
+        r'^Auto-transpiled from COBOL',  # Transpiler header
+    ]
+    
+    # Check first 30 lines for Python patterns
+    check_lines = min(30, len(lines))
+    
+    for i in range(check_lines):
+        line = lines[i]
+        for pattern in python_patterns:
+            if re.search(pattern, line):
+                return True
+    
+    # Check if file starts with triple quotes (Python docstring)
+    if len(lines) > 0 and lines[0].strip().startswith('"""'):
+        return True
+    
+    return False
 
 
 def filter_non_cobol_content(source: str) -> str:
@@ -9201,6 +9244,16 @@ def generate_python_code(
     try:
         # v5.7.14: Validate input COBOL source
         is_valid, input_warnings = validate_cobol_input(cobol_source)
+        
+        # v9.0.0: If validation fails, return error immediately
+        if not is_valid:
+            return {
+                'success': False,
+                'error': 'COBOL validation failed: ' + '; '.join(input_warnings),
+                'python_code': '',
+                'confidence_score': 0,
+                'validation_warnings': input_warnings
+            }
         
         cobol_ast = parse_cobol(cobol_source)
         
