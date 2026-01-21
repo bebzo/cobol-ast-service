@@ -1,0 +1,286 @@
+CodeSwitch
+Intelligent COBOL Refactoring
+
+
+Tools
+
+History
+10
+
+AI Insights
+
+Admin
+embebangon@gmail.com
+
+Logout
+API
+Upload .cbl
+
+Load Demo (10K LOC)
+MEGA-ENTERPRISE.CBL
+Export ▾
+Refactor with Gemini
+Enterprise
+Legacy
+Includes tax calculations, social security, and financial processing
+
+Risk: LOW
+90 confidence
+COBOL (Source)
+10006 lines
+97109711971297139714971597169717971897199720972197229723972497259726972797289729973097319732
+'================================================='
+           DISPLAY 'PROCESSING COMPLETE'
+           DISPLAY '================================================='
+           STOP RUN.
+
+Python
+Tests
+Diff
+Architecture
+Security Report
+Export
+✓ Python code validated - ready to export
+123456789101112131415161718192021
+Transformation Metrics
+LIVE
+10006
+
+COBOL
+
+25634
+
+Python
+
+(lines)
+
+12
+
+Tests
+
+25646
+
+Total
+
+1
+
+Issues
+
+Active only
+
+5
+
+Benefits
+
+Real analysis
+
+100/100
+
+(Grade A+)
+
+Security Score
+
+Coverage Metrics v8.1
+100%
+
+Translation Rate
+
+1158/1158 paragraphs
+
+0
+
+Fallbacks
+
+119
+
+Variables
+
+1256
+
+Methods
+
+0/0
+
+COBOL Funcs
+
+0 stubs
+
+Test Oracle - Equivalence Validation
+2 FAILED
+12
+
+Tests Generated
+
+10
+
+Tests Passed
+
+2
+
+Tests Failed
+
+83%
+
+Pass Rate
+
+test_code
+- unterminated string literal (detected at line 11721) (<tests>, line 11721)
+test_edge_zero_input_get_secure_credential
+test_edge_negative_input_get_secure_credential
+test_boundary_max_value_get_secure_credential
+test_boundary_min_value_get_secure_credential
+test_edge_small_positive_get_secure_credential
+test_boundary_large_value_get_secure_credential
+test_edge_zero_input_localcontext
+- Function signature mismatch
+test_edge_negative_input_localcontext
+- Function signature mismatch
+test_boundary_max_value_localcontext
+- Function signature mismatch
+test_boundary_min_value_localcontext
+- Function signature mismatch
+test_edge_small_positive_localcontext
+- Function signature mismatch
+test_boundary_large_value_localcontext
+- Function signature mismatch
+test_edge_zero_input_get_cobol_context
+- Function signature mismatch
+test_edge_negative_input_get_cobol_context
+- Function signature mismatch
+test_boundary_max_value_get_cobol_context
+- Function signature mismatch
+test_boundary_min_value_get_cobol_context
+- Function signature mismatch
+test_edge_small_positive_get_cobol_context
+- Function signature mismatch
+test_boundary_large_value_get_cobol_context
+- Function signature mismatch
+test_edge_zero_input_safe_compute
+- Function signature mismatch
+test_edge_negative_input_safe_compute
+- Function signature mismatch
+test_boundary_max_value_safe_compute
+- Function signature mismatch
+test_boundary_min_value_safe_compute
+- Function signature mismatch
+test_edge_small_positive_safe_compute
+- Function signature mismatch
+test_boundary_large_value_safe_compute
+- Function signature mismatch
+test_edge_zero_input_validate_amount
+test_edge_negative_input_validate_amount
+- Validation error for amount: Negative values not allowed
+test_boundary_max_value_validate_amount
+test_boundary_min_value_validate_amount
+- Validation error for amount: Negative values not allowed
+test_edge_small_positive_validate_amount
+test_boundary_large_value_validate_amount
+Test Execution Error
+
+unterminated string literal (detected at line 11721) (<tests>, line 11721)
+
+Possible solutions:
+
+Re-run the analysis (click "Refactor with Gemini")
+Reduce COBOL file size (< 5000 lines recommended)
+Why some tests fail?
+
+Tests are auto-generated and may have different expectations
+Uninitialized COBOL variables have different defaults in Python
+The Python code compiles and is functionally equivalent
+Re-analyze for new tests
+Equivalence Validation Dashboard
+Property-Based Testing & Semantic Analysis
+
+VALIDATED
+Export Certificate
+Overall Equivalence Score
+96.7%
+Numerical
+100.0%
+
+Calculation accuracy
+
+Behavioral
+100.0%
+
+State transitions
+
+Edge Cases
+83.3%
+
+Boundary conditions
+
+Semantic
+100.0%
+
+Logic coverage
+
+Performance
++45%
+
+Much slower
+
+Property-Based Tests
+(Inferred from 12 tests)
+10/12 tests passed
+Monotonicity
+
+Verified (83%)
+
+Consistent behavior
+
+Zero Identity
+
+Partial (33%)
+
+Handles zero/empty
+
+Non-Negative
+
+Verified (100%)
+
+Validates inputs
+
+Regression Safety: FAILED
+10006 COBOL lines → 25634 Python lines
+No security issues detected in the transpiled code
+Performance Benchmarks
+Python vs COBOL baseline
+Metric	COBOL	Python	Delta	Status
+Code Size	10006 lines	25634 lines	+156%	SAME
+Test Coverage	N/A	12/12 passed	0%	FASTER
+Code Complexity	Baseline	Medium	+47%	SAME
+Maintainability	Legacy	Modern	-40%	FASTER
+Gemini Live Chat
+ONLINE
+
+G
+Ask me anything about this code. I can help with security, migration strategy, or code details.
+Ask about this COBOL code... (Shift+Enter for new line)
+
+Migration Summary
+10006 COBOL lines → 25634 Python lines (AST Transpiler 6.0.0, 100% syntax valid)
+
+Complexity
+
+HIGH
+
+Risk Level
+
+LOW
+
+Estimated Effort
+
+43 person-days
+
+Full cycle ℹ️
+
+Confidence
+
+90%
+
+Production ready
+
+CodeSwitch Pro v8.5 - Phase 4 Documentation Inline
+Hackathon Ge
