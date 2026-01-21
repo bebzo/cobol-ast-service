@@ -3760,7 +3760,10 @@ def generate_88_level_properties(conditions: List[Cobol88Condition], variables: 
             lines.append('')
             lines.append(f'    @property')
             lines.append(f'    def {prop_name}(self) -> bool:')
-            lines.append(f'        """88-level condition: {cond.name} (parent: {parent})"""')
+            # Escape cond.name and parent for safe embedding in docstrings
+            safe_cond_name = _escape_for_docstring(cond.name)
+            safe_parent = _escape_for_docstring(parent)
+            lines.append(f'        """88-level condition: {safe_cond_name} (parent: {safe_parent})"""')
             
             if values:
                 # v5.7.12: Use parent type to determine comparison format
@@ -3792,7 +3795,7 @@ def generate_88_level_properties(conditions: List[Cobol88Condition], variables: 
             lines.append('')
             lines.append(f'    @{prop_name}.setter')
             lines.append(f'    def {prop_name}(self, value: bool) -> None:')
-            lines.append(f'        """Set {parent} to first condition value when True"""')
+            lines.append(f'        """Set {safe_parent} to first condition value when True"""')
             if values:
                 first_value = values[0].strip().strip("'\"")
                 if parent_type == 'bool':
