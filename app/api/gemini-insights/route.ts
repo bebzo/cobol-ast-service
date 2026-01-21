@@ -34,6 +34,13 @@ interface InsightResponse {
     unitTests: string;
     edgeCases: string[];
     coverage: string;
+    testCounts?: {
+      numerical: number;
+      behavioral: number;
+      edgeCases: number;
+      golden: number;
+    };
+    source?: string;
   };
   optimization?: {
     suggestions: Array<{ type: string; description: string; impact: 'high' | 'medium' | 'low'; code?: string }>;
