@@ -2627,6 +2627,35 @@ def to_pascal_case(name: str) -> str:
     return ''.join(word.capitalize() for word in name.replace('-', '_').split('_'))
 
 
+def _escape_for_docstring(text: str) -> str:
+    """Escape special characters for safe use in docstrings.
+    
+    This prevents 'unterminated string literal' errors when COBOL names
+    contain special characters like quotes, backslashes, or triple quotes.
+    
+    Args:
+        text: The text to escape
+        
+    Returns:
+        Escaped text safe for use in docstrings
+    """
+    # Replace backslashes first (to avoid double-escaping)
+    text = text.replace('\\', '\\\\')
+    # Escape triple quotes and regular quotes
+    text = text.replace('"""', '\\\"\"\"')
+    text = text.replace("'''", "\\'''")
+    text = text.replace('"', '\\"')
+    text = text.replace("'", "\\'")
+    # Handle other escape sequences
+    text = text.replace('\r', '\\r')
+    text = text.replace('\t', '\\t')
+    # Restore newlines (convert to spaces for docstrings)
+    text = text.replace('\n', ' ')
+    return text
+    text = text.replace('\n', ' ')
+    return text
+
+
 def pic_to_python_type(pic: Optional[str], value: Optional[str] = None) -> Tuple[str, ast.expr]:
     """Convert PIC clause to Python type and default value
     
@@ -4202,9 +4231,9 @@ def _call_external_module(self, target: str, **kwargs):
                 ))]
             
             # v5.7.12: FIX - Create getter OUTSIDE of if/else block (was incorrectly inside else)
-            # Sanitize condition name for docstring
-            safe_cond_name = cond.name.replace('"', "'").replace('\n', ' ')
-            safe_parent = parent.replace('"', "'").replace('\n', ' ')
+            # Escape condition name for docstring to prevent unterminated string literal errors
+            safe_cond_name = _escape_for_docstring(cond.name)
+            safe_parent = _escape_for_docstring(parent)
             docstring_text = f"COBOL 88-level condition: {safe_cond_name}\n\nParent variable: {safe_parent}"
             
             getter = ast.FunctionDef(
@@ -9651,8 +9680,8 @@ def generate_production_tests(cobol_ast: 'CobolAST', class_name: str, python_cod
     
     for para in cobol_ast.paragraphs[:15]:  # Limiter à 15 pour éviter les fichiers trop longs
         method_name = to_snake_case(para.name)
-        # Sanitize para.name for docstring
-        safe_para_name = para.name.replace('"', "'").replace('\n', ' ')
+        # Escape para.name for docstring to prevent unterminated string literal errors
+        safe_para_name = _escape_for_docstring(para.name)
         test_lines.append(f'    def test_{method_name}_exists(self):')
         test_lines.append(f'        """Test that {safe_para_name} was transpiled as callable method."""')
         test_lines.append(f'        instance = {class_name}()')
@@ -10571,8 +10600,8 @@ def generate_unit_tests_v4(
         for var in numeric_vars[:3]:
             py_name = to_snake_case(var.name)
             if var.value and var.value.upper() not in ('ZEROS', 'ZEROES', 'SPACES'):
-                # Sanitize var.name for comment
-                safe_var_name = var.name.replace('"', "'").replace('\n', ' ')
+                # Escape var.name for comment to prevent issues
+                safe_var_name = _escape_for_docstring(var.name)
                 tests.append(f'        # {safe_var_name} should be initialized')
                 tests.append(f'        assert hasattr(processor, "{py_name}")')
         tests.append('')
@@ -10668,9 +10697,9 @@ def generate_unit_tests_v4(
         for cond in cobol_ast.conditions_88[:5]:
             prop_name = to_snake_case(cond.name)
             parent_name = to_snake_case(cond.parent_var)
-            # Sanitize for docstring (same as AST-based generator)
-            safe_cond_name = cond.name.replace('"', "'").replace('\n', ' ')
-            safe_parent = cond.parent_var.replace('"', "'").replace('\n', ' ')
+            # Escape for docstring to prevent unterminated string literal errors
+            safe_cond_name = _escape_for_docstring(cond.name)
+            safe_parent = _escape_for_docstring(cond.parent_var)
             tests.append(f'    def test_{prop_name}_property(self, processor):')
             tests.append(f'        """Test 88-level: {safe_cond_name} (parent: {safe_parent})."""')
             tests.append(f'        # Verify property exists')
@@ -10789,8 +10818,8 @@ def generate_unit_tests_v4(
     
     for para in cobol_ast.paragraphs[:10]:
         method_name = to_snake_case(para.name)
-        # Sanitize para.name for docstring
-        safe_para_name = para.name.replace('"', "'").replace('\n', ' ')
+        # Escape para.name for docstring to prevent unterminated string literal errors
+        safe_para_name = _escape_for_docstring(para.name)
         tests.append(f'    def test_{method_name}_exists(self, processor):')
         tests.append(f'        """Verify {safe_para_name} was transpiled."""')
         tests.append(f'        assert hasattr(processor, "{method_name}")')
