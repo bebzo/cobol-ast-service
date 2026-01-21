@@ -1307,6 +1307,157 @@ def validate_cobol_input(source: str) -> Tuple[bool, List[str]]:
     return is_valid, warnings
 
 
+def filter_non_cobol_content(source: str) -> str:
+    """Filter out non-COBOL content from source code.
+    
+    This function removes common non-COBOL text patterns that can interfere
+    with parsing, such as:
+    - Certificate headers and footers
+    - Report text and documentation
+    - Non-COBOL markers and labels
+    - Instruction text before COBOL code
+    - Test scenarios and documentation after COBOL code
+    
+    The approach is to:
+    1. Find the first COBOL structure marker and only keep content from that point
+    2. Skip lines that don't have proper COBOL structure (column 7 indicators, etc.)
+    3. Stop processing at obvious documentation/test section markers
+    
+    Returns:
+        Filtered source code with only COBOL-like content
+    """
+    lines = source.split('\n')
+    filtered_lines = []
+    
+    # COBOL structure markers that indicate the start of actual COBOL code
+    cobol_start_patterns = [
+        r'^\s*IDENTIFICATION DIVISION',
+        r'^\s*PROGRAM-ID',
+        r'^\s*ENVIRONMENT DIVISION',
+        r'^\s*DATA DIVISION',
+        r'^\s*PROCEDURE DIVISION',
+        r'^\s*[\s\d]{6}[A-Z]',  # COBOL column 7 indicator (like . or * or /)
+        r'^cobol$',  # Markdown code block marker
+        r'^```cobol',  # Markdown code block marker
+    ]
+    
+    cobol_start_regexes = [re.compile(pattern, re.IGNORECASE) for pattern in cobol_start_patterns]
+    
+    # Documentation/test section markers that indicate end of COBOL code
+    doc_section_patterns = [
+        r'^🧪\s*',  # Emoji section markers
+        r'^🎯\s*',
+        r'^📜\s*',
+        r'^🏆\s*',
+        r'^✅\s*',
+        r'^❌\s*',
+        r'^⚠️\s*',
+        r'^💡\s*',
+        r'^SCÉNARIOS DE BUGS',
+        r'^SCENARIOS DE BUGS',
+        r'^ELEMENTS COMPLEXES',
+        r'^ELEMENTS COMPLEXES',
+        r'^TEST SCENARIOS',
+        r'^BUG EXPECTATIONS',
+        r'^ANALYSE DU CERTIFICAT',
+        r'^CONCLUSION\s*:',
+        r'^="\*"{10,}',  # Long separator lines
+    ]
+    
+    doc_section_regexes = [re.compile(pattern, re.IGNORECASE) for pattern in doc_section_patterns]
+    
+    # Common non-COBOL patterns to skip (explicit lines)
+    skip_patterns = [
+        r'^CodeSwitch Pro',
+        r'^Equivalence Validation',
+        r'^CERTIFIED',
+        r'^Validated on',
+        r'^Overall Equivalence',
+        r'^Numerical Equivalence',
+        r'^Behavioral Equivalence',
+        r'^Edge Case Coverage',
+        r'^Semantic Coverage',
+        r'^Test Summary',
+        r'^COBOL Lines Analyzed',
+        r'^Python Lines Generated',
+        r'^Tests Executed',
+        r'^Tests Passed',
+        r'^Tests Failed',
+        r'^Security Warnings',
+        r'^Confidence Score',
+        r'^Known Limitations',
+        r'^Property-based tests',
+        r'^Performance metrics',
+        r'^Manual review recommended',
+        r'^Validated by',
+        r'^Certificate ID',
+        r'^Risk Level',
+        r'^This certificate',
+        r'^© \d{4} CodeSwitch Pro',
+        r'^ANALYSE DU CERTIFICAT',
+        r'^CE CERTIFICAT EST',
+        r'^CodeSwitch ne se contente',
+        r'^🏆 ANALYSE',
+        r'^📜 CE CERTIFICAT',
+        r'^Je vais créer',
+        r'^Voici un programme',
+        r'^Voici le code COBOL',
+        r'^cobol$',
+        r'^```$',
+        r'^={10,}$',  # Long separator lines
+    ]
+    
+    skip_regexes = [re.compile(pattern, re.IGNORECASE) for pattern in skip_patterns]
+    
+    found_cobol_start = False
+    in_doc_section = False
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Check if we've entered a documentation section
+        if not in_doc_section:
+            for regex in doc_section_regexes:
+                if regex.match(stripped):
+                    in_doc_section = True
+                    break
+        
+        if in_doc_section:
+            continue
+        
+        # Check if this line indicates the start of COBOL code
+        if not found_cobol_start:
+            for regex in cobol_start_regexes:
+                if regex.match(stripped):
+                    found_cobol_start = True
+                    break
+        
+        # Check if line matches any skip pattern
+        skip_line = False
+        for regex in skip_regexes:
+            if regex.match(stripped):
+                skip_line = True
+                break
+        
+        # Skip lines that are entirely numeric or have no alphabetic characters (not COBOL)
+        if not skip_line and not found_cobol_start:
+            if stripped:
+                # If we haven't found COBOL start and line doesn't have uppercase words
+                # typical of COBOL structure, skip it
+                if not re.search(r'[A-Z]{2,}', stripped):
+                    skip_line = True
+                # Also skip lines that look like regular sentences (lowercase words)
+                elif re.search(r'\b[a-z]{4,}\b', stripped) and not re.search(r'^\s*\d{2,4}-[A-Z]', stripped):
+                    # Line has lowercase words and doesn't look like a paragraph name
+                    # Likely instruction text, not COBOL
+                    skip_line = True
+        
+        if not skip_line:
+            filtered_lines.append(line)
+    
+    return '\n'.join(filtered_lines)
+
+
 def validate_condition_logic(condition: str) -> Tuple[str, List[str]]:
     """Validate and fix potentially problematic conditions.
     
@@ -6228,7 +6379,7 @@ def parse_cobol_condition(condition: str) -> ast.expr:
         if single_quotes % 2 == 1 or double_quotes % 2 == 1:
             return ident
         # Skip Python keywords and built-ins
-        if ident.lower() in ('and', 'or', 'not', 'true', 'false', 'none', 'self'):
+        if ident.lower() in ('and', 'or', 'not', 'true', 'false', 'none', 'self', 'when'):
             return ident.lower()
         return f'self.{to_snake_case(ident)}'
     
@@ -9039,6 +9190,10 @@ def generate_python_code(
         cobol_source, cics_commands, _ = preprocess_cics(cobol_source)
     if sql_commands is None and 'EXEC SQL' in cobol_source.upper():
         cobol_source, sql_commands, _ = preprocess_sql(cobol_source)
+    
+    # v9.0.0: Filter out non-COBOL content (certificates, documentation, etc.)
+    # This prevents text like "AVEC" from being picked up as paragraph names
+    cobol_source = filter_non_cobol_content(cobol_source)
     
     cics_commands = cics_commands or []
     sql_commands = sql_commands or []
