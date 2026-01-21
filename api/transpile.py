@@ -317,12 +317,14 @@ def generate_appropriate_test(func_name: str, func_type_info: Dict[str, Any]) ->
     Returns:
         Code de test approprié
     """
+    # Escape func_name for safe embedding in docstrings
+    safe_func_name = _escape_for_docstring(func_name)
     func_type = func_type_info['type']
     
     if func_type == 'context_manager':
         return f'''
     def test_{func_name}_is_context_manager(self):
-        """Test que {func_name} fonctionne comme context manager."""
+        """Test que {safe_func_name} fonctionne comme context manager."""
         try:
             with {func_name}() as ctx:
                 assert ctx is not None
@@ -336,7 +338,7 @@ def generate_appropriate_test(func_name: str, func_type_info: Dict[str, Any]) ->
     elif func_type == 'no_args':
         return f'''
     def test_{func_name}_execution(self):
-        """Test que {func_name} peut être appelée sans argument."""
+        """Test que {safe_func_name} peut être appelée sans argument."""
         try:
             result = self.{func_name}()
             # Le résultat peut être None ou une valeur
@@ -349,7 +351,7 @@ def generate_appropriate_test(func_name: str, func_type_info: Dict[str, Any]) ->
     elif func_type == 'stub':
         return f'''
     def test_{func_name}_is_stub(self):
-        """Test pour {func_name} (stub - à implémenter)."""
+        """Test pour {safe_func_name} (stub - à implémenter)."""
         # Cette fonction est un stub et lève NotImplementedError
         # Le test vérifie juste qu'elle existe
         assert hasattr(self, '{func_name}')
@@ -848,8 +850,10 @@ def generate_test_method_template(method_name: str, paragraph_name: str) -> str:
     Returns:
         Template de test pytest
     """
+    # Escape paragraph_name for safe embedding in docstrings
+    safe_paragraph_name = _escape_for_docstring(paragraph_name)
     return f'''    def test_{method_name}(self):
-        """Test for COBOL paragraph: {paragraph_name}"""
+        """Test for COBOL paragraph: {safe_paragraph_name}"""
         # Setup
         self.{method_name}()
         # Assert
