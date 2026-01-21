@@ -135,6 +135,47 @@ def check_syntax(code):
   }
 }
 
+// Calculate real Security Score from security_warnings
+function calculateSecurityScore(securityWarnings: any[]): { score: number; grade: string; critical: number; high: number; medium: number; low: number } {
+  // Default values if no warnings
+  if (!securityWarnings || securityWarnings.length === 0) {
+    return { score: 100, grade: 'A+', critical: 0, high: 0, medium: 0, low: 0 };
+  }
+  
+  // Count by severity
+  let critical = 0, high = 0, medium = 0, low = 0;
+  
+  securityWarnings.forEach((w: any) => {
+    const severity = (w.severity || w.summary?.severity || 'LOW').toUpperCase();
+    const cvss = w.cvss_score || w.summary?.score || 0;
+    
+    // Prioritize explicit severity over CVSS
+    if (severity === 'CRITICAL' || cvss >= 9.0) critical++;
+    else if (severity === 'HIGH' || cvss >= 7.0) high++;
+    else if (severity === 'MEDIUM' || cvss >= 4.0) medium++;
+    else low++;
+  });
+  
+  // Calculate score: start at 100, deduct based on severity
+  let score = 100;
+  score -= critical * 25;  // -25 per CRITICAL
+  score -= high * 15;      // -15 per HIGH
+  score -= medium * 5;     // -5 per MEDIUM
+  score -= low * 1;        // -1 per LOW
+  score = Math.max(0, score); // Ensure score doesn't go below 0
+  
+  // Determine grade
+  let grade = 'A+';
+  if (score >= 90) grade = 'A+';
+  else if (score >= 80) grade = 'A';
+  else if (score >= 70) grade = 'B';
+  else if (score >= 60) grade = 'C';
+  else if (score >= 50) grade = 'D';
+  else grade = 'F';
+  
+  return { score, grade, critical, high, medium, low };
+}
+
 
 // Run tests using Pyodide (v8.5: improved error handling and fallback)
 async function runTestsWithPyodide(pythonCode: string, testCode: string): Promise<{total: number; passed: number; failed: number; details: {name: string; status: string; error?: string}[]}> {
@@ -3633,18 +3674,26 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 </Tooltip>
                 {/* Improvements */}
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-cyan-400 tabular-nums">{Array.isArray(analysis.improvements) ? analysis.improvements.length : 5}</p>
+                  <p className="text-2xl font-bold text-cyan-400 tabular-nums">{Array.isArray(analysis.improvements) ? analysis.improvements.length : 0}</p>
                   <p className="text-xs text-slate-400 mt-1">Improvements</p>
                 </div>
                 
-                {/* Confidence */}
-                <Tooltip content={METRIC_TOOLTIPS.confidence.content} title={METRIC_TOOLTIPS.confidence.title}>
-                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center cursor-help">
-                    <p className="text-2xl font-bold text-green-400 tabular-nums">{typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0}%</p>
-                    <p className="text-xs text-slate-400 mt-1">Confidence</p>
-                    <p className="text-[10px] text-slate-500">{(typeof analysis.migration_score?.confidence === 'number' ? analysis.migration_score.confidence : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, ''))) < 70 ? '(needs review)' : '(validated)'}</p>
-                  </div>
-                </Tooltip>
+                {/* Security Score - Calculated from real security_warnings */}
+                {(() => {
+                  const securityData = calculateSecurityScore(analysis.security_warnings || []);
+                  const scoreColor = securityData.score >= 90 ? 'text-green-400' : securityData.score >= 70 ? 'text-yellow-400' : 'text-red-400';
+                  const gradeColor = securityData.score >= 90 ? 'bg-green-500/20' : securityData.score >= 70 ? 'bg-yellow-500/20' : 'bg-red-500/20';
+                  
+                  return (
+                    <Tooltip content={`Security Analysis: ${securityData.critical} CRITICAL, ${securityData.high} HIGH, ${securityData.medium} MEDIUM, ${securityData.low} LOW vulnerabilities detected`} title="Security Score">
+                      <div className={`${gradeColor} border ${securityData.score >= 90 ? 'border-green-500/30' : securityData.score >= 70 ? 'border-yellow-500/30' : 'border-red-500/30'} rounded-lg p-3 text-center cursor-help`}>
+                        <p className={`text-2xl font-bold ${scoreColor} tabular-nums`}>{securityData.score}/100</p>
+                        <p className={`text-[10px] font-bold ${scoreColor} mt-0.5`}>(Grade {securityData.grade})</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">Security Score</p>
+                      </div>
+                    </Tooltip>
+                  );
+                })()}
               </div>
               
               {/* v8.1: Coverage Metrics Panel */}
