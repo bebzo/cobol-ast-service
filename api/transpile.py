@@ -8307,27 +8307,19 @@ Output ONLY the method body (8-space indent), NO 'def' line:"""
                 new_body = re.sub(r'^    def \w+\([^)]*\):\s*\n', '', new_body)
                 
                 # Build new method with proper indentation
+                # CRITICAL FIX: Normalize indentation by removing ALL leading spaces first,
+                # then apply consistent 8-space indentation for method body
                 new_method = f"    def {method_name}(self) -> None:\n"
                 new_method += f'        """Business logic from COBOL paragraph: {method_name.upper().replace("_", "-")}"""\n'
                 
                 lines = new_body.split('\n')
-                base_indent = None
-                
                 for line in lines:
-                    stripped = line.lstrip()
+                    stripped = line.strip()
                     if not stripped:
-                        continue
-                    
-                    # Detect base indentation from first non-empty line
-                    if base_indent is None:
-                        base_indent = len(line) - len(stripped)
-                    
-                    # Calculate relative indentation
-                    current_indent = len(line) - len(stripped)
-                    relative_indent = max(0, current_indent - base_indent)
-                    
-                    # Add 8-space base indent + relative indentation
-                    new_method += ' ' * (8 + relative_indent) + stripped + '\n'
+                        new_method += '\n'
+                    else:
+                        # Always use 8-space indent for method body content
+                        new_method += f'        {stripped}\n'
                 
                 # Ensure method has at least a pass statement
                 if 'pass' not in new_method and 'return' not in new_method and 'self.' not in new_method:
