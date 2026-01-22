@@ -622,7 +622,7 @@ export default function EquivalenceDashboard({
         }`}>
           <div className="flex items-center gap-2 mb-2">
             <perfStatus.icon className={`w-4 h-4 ${perfStatus.color}`} />
-            <span className="text-xs text-slate-400">Line Expansion</span>
+            <span className="text-xs text-slate-400">Ratio</span>
           </div>
           <p className={`text-2xl font-bold tabular-nums ${perfStatus.color}`}>
             {animatedMetrics.performanceDeviation > 0 ? "+" : ""}
@@ -633,7 +633,7 @@ export default function EquivalenceDashboard({
           <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-50 w-72">
             <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl">
               <p className="text-xs font-semibold text-indigo-400 mb-2 flex items-center gap-1">
-                <Zap className="w-3 h-3" /> Line Expansion Analysis
+                <Zap className="w-3 h-3" /> Ratio Analysis
               </p>
               <ul className="space-y-1 text-[10px]">
                 <li className="text-slate-300">
@@ -647,7 +647,7 @@ export default function EquivalenceDashboard({
                 </li>
               </ul>
               <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
-                Python generates more lines for readability and maintainability. This does NOT indicate slower runtime.
+                Ratio shows Python/COBOL line count. Higher ratio = more verbose Python code for readability.
               </p>
             </div>
           </div>
