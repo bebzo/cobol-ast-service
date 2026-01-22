@@ -58,7 +58,6 @@ interface EquivalenceMetrics {
   behavioralEquivalence: number;
   edgeCaseCoverage: number;
   hasEdgeCaseTests: boolean;
-  performanceDeviation: number; // Always calculated from line ratio + complexity
   semanticCoverage: number;
   propertyTestsPassed: number;
   propertyTestsTotal: number;
@@ -126,7 +125,6 @@ export default function EquivalenceDashboard({
     behavioralEquivalence: 0,
     edgeCaseCoverage: 0,
     hasEdgeCaseTests: false,
-    performanceDeviation: 0,
     semanticCoverage: 0,
     propertyTestsPassed: 0,
     propertyTestsTotal: 0,
@@ -210,30 +208,6 @@ export default function EquivalenceDashboard({
       ? (controlFlowPassed / controlFlowTests.length) * 100 
       : passRate * 100; // Use overall if not enough specific tests
 
-    // Calculate performance deviation - ALWAYS from real measurable data
-    const perfData = analysis?.performance_metrics || {};
-    
-    // Calculate performance from real measurable data:
-    // - Line ratio (Python/COBOL) - always available
-    // - Complexity factor - from analysis
-    const lineRatio = pythonLines / Math.max(cobolLines, 1);
-    const complexityFactor = analysis?.migration_score?.complexity === 'HIGH' ? 1.3 
-                           : analysis?.migration_score?.complexity === 'MEDIUM' ? 1.15 
-                           : 1.0;
-    
-    // Performance estimation based on code structure:
-    // - Line ratio shows code verbosity (Python typically generates 1.5-3x more lines)
-    // - Complexity affects potential execution overhead
-    // - NOTE: This is an ESTIMATE based on code structure, not actual runtime benchmarking
-    const lineExpansionPercent = Math.round((lineRatio - 1) * 100);
-    
-    // Use actual performance metrics if available, otherwise estimate from structure
-    const estimatedDeviation = perfData.deviation_percent !== undefined 
-      ? perfData.deviation_percent 
-      : lineExpansionPercent; // Show line expansion as the metric
-    
-    const measuredDeviation = Math.min(estimatedDeviation, 50); // Cap at 50% for realism
-
     // Calculate edge case coverage from test results - ALWAYS show meaningful value
     const realEdgeCoverage = edgeCaseResults && edgeCaseResults.total > 0 
       ? edgeCaseResults.coverage 
@@ -258,8 +232,6 @@ export default function EquivalenceDashboard({
       behavioralEquivalence: behavioralScore,
       // Edge case coverage: real API results or calculated from edge tests (0 if none)
       edgeCaseCoverage: realEdgeCoverage,
-      // Performance deviation: always calculated from real code metrics (line ratio + complexity)
-      performanceDeviation: measuredDeviation,
       // Semantic coverage from backend analysis (translation rate)
       semanticCoverage: translationRate,
       propertyTestsPassed: propertyPassed,
@@ -285,7 +257,6 @@ export default function EquivalenceDashboard({
         behavioralEquivalence: newMetrics.behavioralEquivalence * eased,
         edgeCaseCoverage: newMetrics.edgeCaseCoverage * eased,
         hasEdgeCaseTests: newMetrics.hasEdgeCaseTests,
-        performanceDeviation: newMetrics.performanceDeviation * eased,
         semanticCoverage: newMetrics.semanticCoverage * eased,
         propertyTestsPassed: Math.round(newMetrics.propertyTestsPassed * eased),
         propertyTestsTotal: newMetrics.propertyTestsTotal,
@@ -592,16 +563,14 @@ export default function EquivalenceDashboard({
           </div>
         </div>
 
-        {/* Code Ratio - measured from line ratio */}
-        <div className="p-4 rounded-lg border bg-slate-700/30 border-slate-600 group relative">
+        {/* Code Ratio - simple line ratio */}
+        <div className="p-4 rounded-lg border bg-slate-700/30 border-slate-600">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs text-slate-400">Ratio</span>
           </div>
           <p className="text-2xl font-bold tabular-nums text-blue-400">
-            {animatedMetrics.performanceDeviation > 0 ? "+" : ""}
-            {animatedMetrics.performanceDeviation.toFixed(0)}%
+            {(pythonLines/Math.max(cobolLines,1)).toFixed(2)}x
           </p>
-          <p className="text-[10px] text-slate-500 mt-1">{(pythonLines/Math.max(cobolLines,1)).toFixed(2)}x expansion</p>
         </div>
       </div>
 
