@@ -71,6 +71,7 @@ const MigrationGuide = dynamic(() => import("@/components/MigrationGuide"), { ss
 const Glossary = dynamic(() => import("@/components/Glossary"), { ssr: false });
 const GeminiInsightsPanel = dynamic(() => import("@/components/GeminiInsightsPanel"), { ssr: false });
 const ErrorBoundary = dynamic(() => import("@/components/ErrorBoundary"), { ssr: false });
+import DraggablePanel from "@/components/DraggablePanel";
 import Tooltip, { METRIC_TOOLTIPS } from "@/components/Tooltip";
 import { HelpButton } from "@/components/HelpModal";
 
@@ -4171,83 +4172,76 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
         </div>
       )}
 
-      {/* Voice Assistant Panel */}
-      {showVoicePanel && (
-        <div className="fixed bottom-24 right-6 w-96 bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden z-50">
-          <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${isListening ? 'bg-red-400 animate-pulse' : isSpeaking ? 'bg-green-400 animate-pulse' : 'bg-white'}`}></div>
-              <span className="font-semibold text-white">Gemini Voice Assistant</span>
+      {/* Voice Assistant Panel - Draggable */}
+      <DraggablePanel
+        isOpen={showVoicePanel}
+        onClose={() => { setShowVoicePanel(false); setIsVoiceActive(false); stopSpeaking(); }}
+        title="Gemini Voice Assistant"
+        icon={<Mic className="w-5 h-5" />}
+        width="w-96"
+        defaultPosition={{ x: window.innerWidth - 420, y: window.innerHeight - 500 }}
+      >
+        {/* Waveform Visualizer */}
+        <div className="h-16 bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden mb-4">
+          {isListening ? (
+            <div className="flex items-center gap-1">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="w-1 bg-red-500 rounded-full animate-pulse" style={{ height: `${Math.random() * 40 + 10}px`, animationDelay: `${i * 0.1}s` }}></div>
+              ))}
             </div>
-            <button onClick={() => { setShowVoicePanel(false); setIsVoiceActive(false); stopSpeaking(); }} className="text-white/80 hover:text-white">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          
-          <div className="p-4 space-y-4">
-            {/* Waveform Visualizer */}
-            <div className="h-16 bg-slate-900 rounded-lg flex items-center justify-center overflow-hidden">
-              {isListening ? (
-                <div className="flex items-center gap-1">
-                  {[...Array(12)].map((_, i) => (
-                    <div key={i} className="w-1 bg-red-500 rounded-full animate-pulse" style={{ height: `${Math.random() * 40 + 10}px`, animationDelay: `${i * 0.1}s` }}></div>
-                  ))}
-                </div>
-              ) : isSpeaking ? (
-                <div className="flex items-center gap-1">
-                  {[...Array(12)].map((_, i) => (
-                    <div key={i} className="w-1 bg-green-500 rounded-full animate-pulse" style={{ height: `${Math.random() * 40 + 10}px`, animationDelay: `${i * 0.1}s` }}></div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-slate-500 text-sm">Press the microphone to speak</p>
-              )}
+          ) : isSpeaking ? (
+            <div className="flex items-center gap-1">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="w-1 bg-green-500 rounded-full animate-pulse" style={{ height: `${Math.random() * 40 + 10}px`, animationDelay: `${i * 0.1}s` }}></div>
+              ))}
             </div>
-
-            {/* Transcript */}
-            {voiceTranscript && (
-              <div className="bg-slate-700/50 rounded-lg p-3">
-                <p className="text-xs text-slate-400 mb-1">You said:</p>
-                <p className="text-white text-sm">{voiceTranscript}</p>
-              </div>
-            )}
-
-            {/* Response */}
-            {voiceResponse && (
-              <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg p-3">
-                <p className="text-xs text-purple-300 mb-1">Gemini:</p>
-                <p className="text-white text-sm">{voiceResponse}</p>
-              </div>
-            )}
-
-            {/* Controls */}
-            <div className="flex items-center justify-center gap-4">
-              <button
-                onClick={startListening}
-                disabled={isListening || isSpeaking}
-                className={`w-16 h-16 rounded-full flex items-center justify-center transition ${
-                  isListening ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
-                }`}
-              >
-                {isListening ? <MicOff className="w-8 h-8 text-white" /> : <Mic className="w-8 h-8 text-white" />}
-              </button>
-              
-              {isSpeaking && (
-                <button
-                  onClick={stopSpeaking}
-                  className="w-12 h-12 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center"
-                >
-                  <Volume2 className="w-6 h-6 text-white" />
-                </button>
-              )}
-            </div>
-
-            <p className="text-center text-xs text-slate-400">
-              Ask: "Explain this code" or "What are the risks?"
-            </p>
-          </div>
+          ) : (
+            <p className="text-slate-500 text-sm">Press the microphone to speak</p>
+          )}
         </div>
-      )}
+
+        {/* Transcript */}
+        {voiceTranscript && (
+          <div className="bg-slate-700/50 rounded-lg p-3 mb-4">
+            <p className="text-xs text-slate-400 mb-1">You said:</p>
+            <p className="text-white text-sm">{voiceTranscript}</p>
+          </div>
+        )}
+
+        {/* Response */}
+        {voiceResponse && (
+          <div className="bg-purple-500/20 border border-purple-500/30 rounded-lg p-3 mb-4">
+            <p className="text-xs text-purple-300 mb-1">Gemini:</p>
+            <p className="text-white text-sm">{voiceResponse}</p>
+          </div>
+        )}
+
+        {/* Controls */}
+        <div className="flex items-center justify-center gap-4 mb-4">
+          <button
+            onClick={startListening}
+            disabled={isListening || isSpeaking}
+            className={`w-16 h-16 rounded-full flex items-center justify-center transition ${
+              isListening ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+            }`}
+          >
+            {isListening ? <MicOff className="w-8 h-8 text-white" /> : <Mic className="w-8 h-8 text-white" />}
+          </button>
+          
+          {isSpeaking && (
+            <button
+              onClick={stopSpeaking}
+              className="w-12 h-12 rounded-full bg-slate-700 hover:bg-slate-600 flex items-center justify-center"
+            >
+              <Volume2 className="w-6 h-6 text-white" />
+            </button>
+          )}
+        </div>
+
+        <p className="text-center text-xs text-slate-400">
+          Ask: "Explain this code" or "What are the risks?"
+        </p>
+      </DraggablePanel>
 
       {/* Migration Guide Modal */}
       <MigrationGuide isOpen={showGuide} onClose={() => setShowGuide(false)} />
@@ -4255,14 +4249,23 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
       {/* Glossary Modal */}
       <Glossary isOpen={showGlossary} onClose={() => setShowGlossary(false)} />
 
-      {/* AI Insights Panel - Gemini 3 */}
-      <GeminiInsightsPanel
-        cobolCode={cobolCode}
-        pythonCode={pythonCode}
-        programName={filename || 'COBOL Program'}
-        isVisible={showAIInsights}
+      {/* AI Insights Panel - Draggable */}
+      <DraggablePanel
+        isOpen={showAIInsights}
         onClose={() => setShowAIInsights(false)}
-      />
+        title="AI Insights"
+        icon={<Lightbulb className="w-5 h-5" />}
+        width="w-[600px]"
+        defaultPosition={{ x: 20, y: window.innerHeight / 2 - 300 }}
+      >
+        <GeminiInsightsPanel
+          cobolCode={cobolCode}
+          pythonCode={pythonCode}
+          programName={filename || 'COBOL Program'}
+          isVisible={showAIInsights}
+          onClose={() => setShowAIInsights(false)}
+        />
+      </DraggablePanel>
 
       {/* Admin Panel Modal - only for super admin */}
       {user?.email === 'embebangon@gmail.com' && (
