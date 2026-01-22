@@ -3575,29 +3575,29 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 Transformation Metrics
                 <span className="ml-2 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full animate-pulse">LIVE</span>
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              {/* Main Metrics Row - Uniform boxes with consistent sizing */}
+              <div className="flex flex-wrap items-stretch gap-3 h-[90px]">
                 {/* COBOL Lines */}
                 <Tooltip content={METRIC_TOOLTIPS.cobolLines.content} title={METRIC_TOOLTIPS.cobolLines.title}>
-                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-center cursor-help">
+                  <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-center cursor-help flex flex-col justify-center min-w-[100px] flex-1 h-full">
                     <p className="text-2xl font-bold text-amber-400 tabular-nums">{(analyzedCobolCode || cobolCode).split('\n').length}</p>
                     <p className="text-xs text-slate-400 mt-1">COBOL</p>
                   </div>
                 </Tooltip>
                 {/* Arrow */}
-                <div className="hidden lg:flex items-center justify-center">
-                  <ArrowRight className="w-6 h-6 text-slate-500" />
+                <div className="hidden lg:flex items-center justify-center px-1 h-full py-4">
+                  <ArrowRight className="w-5 h-5 text-slate-500" />
                 </div>
                 {/* Python Lines */}
                 <Tooltip content={METRIC_TOOLTIPS.pythonLines.content} title={METRIC_TOOLTIPS.pythonLines.title}>
-                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center cursor-help">
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 text-center cursor-help flex flex-col justify-center min-w-[100px] flex-1 h-full">
                     <p className="text-2xl font-bold text-green-400 tabular-nums">{analysis.python_lines || (analysis.python_code || '').split('\n').length}</p>
                     <p className="text-xs text-slate-400 mt-1">Python</p>
-                    <p className="text-[10px] text-slate-500">(lines)</p>
                   </div>
                 </Tooltip>
                 {/* Tests */}
                 <Tooltip content={METRIC_TOOLTIPS.tests.content} title={METRIC_TOOLTIPS.tests.title}>
-                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 text-center cursor-help">
+                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 text-center cursor-help flex flex-col justify-center min-w-[100px] flex-1 h-full">
                     <p className="text-2xl font-bold text-purple-400 tabular-nums">{testResults?.total || (() => {
                       // v9.2: Compter les tests depuis toutes les sources possibles
                       const testSources = [
@@ -3618,7 +3618,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   </div>
                 </Tooltip>
                 {/* Total */}
-                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-center">
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 text-center flex flex-col justify-center min-w-[100px] flex-1 h-full">
                   <p className="text-2xl font-bold text-blue-400 tabular-nums">
                     {(analysis.python_lines || (analysis.python_code || '').split('\n').length) + (testResults?.total || (() => {
                       // v9.2: Compter les tests depuis toutes les sources possibles
@@ -3649,7 +3649,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
                   return (
                     <Tooltip content={autoFixedCount > 0 ? `${autoFixedCount} issue(s) auto-corrected, ${activeIssues.length} active issue(s) require attention` : `${activeIssues.length} active issue(s) require attention`} title="Active Issues">
-                      <div className={`${activeIssues.length === 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'} rounded-lg p-3 text-center cursor-help relative`}>
+                      <div className={`${activeIssues.length === 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'} rounded-lg p-4 text-center cursor-help relative flex flex-col justify-center min-w-[100px] flex-1 h-full`}>
                         {autoFixedCount > 0 && (
                           <div className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded-full">✓ {autoFixedCount} Fixed</div>
                         )}
@@ -3670,10 +3670,9 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   
                   return (
                     <Tooltip content={benefitText || 'Analyzing code...'} title="Benefits (Real Analysis)">
-                      <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center cursor-help">
+                      <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 text-center cursor-help flex flex-col justify-center min-w-[100px] flex-1 h-full">
                         <p className="text-2xl font-bold text-cyan-400 tabular-nums">{benefitCount}</p>
                         <p className="text-xs text-slate-400 mt-1">Benefits</p>
-                        <p className="text-[10px] text-slate-500">Real analysis</p>
                       </div>
                     </Tooltip>
                   );
@@ -3687,7 +3686,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                   
                   return (
                     <Tooltip content={`Security Analysis: ${securityData.critical} CRITICAL, ${securityData.high} HIGH, ${securityData.medium} MEDIUM, ${securityData.low} LOW vulnerabilities detected`} title="Security Score">
-                      <div className={`${gradeColor} border ${securityData.score >= 90 ? 'border-green-500/30' : securityData.score >= 70 ? 'border-yellow-500/30' : 'border-red-500/30'} rounded-lg p-3 text-center cursor-help`}>
+                      <div className={`${gradeColor} border ${securityData.score >= 90 ? 'border-green-500/30' : securityData.score >= 70 ? 'border-yellow-500/30' : 'border-red-500/30'} rounded-lg p-4 text-center cursor-help flex flex-col justify-center min-w-[120px] flex-1 h-full`}>
                         <p className={`text-2xl font-bold ${scoreColor} tabular-nums`}>{securityData.score}/100</p>
                         <p className={`text-[10px] font-bold ${scoreColor} mt-0.5`}>(Grade {securityData.grade})</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">Security Score</p>
@@ -3697,17 +3696,17 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                 })()}
               </div>
               
-              {/* v8.1: Coverage Metrics Panel */}
+              {/* v8.1: Coverage Metrics Panel - Uniform boxes with consistent sizing */}
               {analysis.coverage_metrics && (
                 <div className="mt-4 bg-gradient-to-r from-indigo-900/30 to-purple-900/30 rounded-lg p-4 border border-indigo-500/30">
                   <h4 className="text-sm font-semibold text-indigo-300 mb-3 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4" />
                     Coverage Metrics v8.1
                   </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="flex flex-wrap gap-3 h-[90px]">
                     {/* Translation Rate - Main metric */}
-                    <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/10 rounded-lg p-3 text-center border border-green-500/40 col-span-2 md:col-span-1">
-                      <p className={`text-3xl font-bold tabular-nums ${analysis.coverage_metrics.translation_rate >= 90 ? 'text-green-400' : analysis.coverage_metrics.translation_rate >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>
+                    <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/10 rounded-lg p-4 text-center border border-green-500/40 flex flex-col justify-center min-w-[120px] flex-1 h-full">
+                      <p className={`text-2xl font-bold tabular-nums ${analysis.coverage_metrics.translation_rate >= 90 ? 'text-green-400' : analysis.coverage_metrics.translation_rate >= 70 ? 'text-yellow-400' : 'text-red-400'}`}>
                         {analysis.coverage_metrics.translation_rate}%
                       </p>
                       <p className="text-xs text-slate-300 mt-1 font-medium">Translation Rate</p>
@@ -3715,33 +3714,33 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </div>
                     
                     {/* Fallbacks */}
-                    <div className="bg-slate-700/40 rounded-lg p-2.5 text-center">
+                    <div className="bg-slate-700/40 rounded-lg p-4 text-center flex flex-col justify-center min-w-[100px] flex-1 h-full">
                       <p className={`text-xl font-bold tabular-nums ${analysis.coverage_metrics.fallback_count === 0 ? 'text-green-400' : 'text-amber-400'}`}>
                         {analysis.coverage_metrics.fallback_count}
                       </p>
-                      <p className="text-[10px] text-slate-400">Fallbacks</p>
+                      <p className="text-xs text-slate-400 mt-1">Fallbacks</p>
                     </div>
                     
                     {/* Variables */}
-                    <div className="bg-slate-700/40 rounded-lg p-2.5 text-center">
+                    <div className="bg-slate-700/40 rounded-lg p-4 text-center flex flex-col justify-center min-w-[100px] flex-1 h-full">
                       <p className="text-xl font-bold text-blue-400 tabular-nums">{analysis.coverage_metrics.variables_detected}</p>
-                      <p className="text-[10px] text-slate-400">Variables</p>
+                      <p className="text-xs text-slate-400 mt-1">Variables</p>
                     </div>
                     
                     {/* Methods */}
-                    <div className="bg-slate-700/40 rounded-lg p-2.5 text-center">
+                    <div className="bg-slate-700/40 rounded-lg p-4 text-center flex flex-col justify-center min-w-[100px] flex-1 h-full">
                       <p className="text-xl font-bold text-purple-400 tabular-nums">{analysis.coverage_metrics.python_methods_generated}</p>
-                      <p className="text-[10px] text-slate-400">Methods</p>
+                      <p className="text-xs text-slate-400 mt-1">Methods</p>
                     </div>
                     
                     {/* COBOL Functions */}
-                    <div className="bg-slate-700/40 rounded-lg p-2.5 text-center">
+                    <div className="bg-slate-700/40 rounded-lg p-4 text-center flex flex-col justify-center min-w-[120px] flex-1 h-full">
                       <p className="text-xl font-bold text-cyan-400 tabular-nums">
                         {analysis.coverage_metrics.cobol_functions_ai_translated}
                         <span className="text-sm text-slate-500">/{analysis.coverage_metrics.cobol_functions_unknown}</span>
                       </p>
-                      <p className="text-[10px] text-slate-400">COBOL Funcs</p>
-                      <p className="text-[9px] text-slate-500">{analysis.coverage_metrics.cobol_functions_stubbed} stubs</p>
+                      <p className="text-xs text-slate-400 mt-1">COBOL Funcs</p>
+                      <p className="text-[10px] text-slate-500">{analysis.coverage_metrics.cobol_functions_stubbed} stubs</p>
                     </div>
                   </div>
                 </div>
