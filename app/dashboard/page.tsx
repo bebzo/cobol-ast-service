@@ -773,8 +773,7 @@ export default function Home() {
   const [showAllModules, setShowAllModules] = useState(false);
   const [selectedImpactModule, setSelectedImpactModule] = useState<string | null>(null);
   const [activeReportTab, setActiveReportTab] = useState<"issues" | "improvements" | "security" | "next">("security");
-  // v8.7: Architecture sub-tabs state
-  const [activeArchSubTab, setActiveArchSubTab] = useState<"code" | "tests" | "config" | "security">("code");
+  // v8.7: Architecture tab - Code only (Tests, Config, Security removed)
   // v8.7: Tests sub-tabs state
   const [activeTestsSubTab, setActiveTestsSubTab] = useState<"unit" | "shadow" | "readiness">("unit");
   const [isVoiceActive, setIsVoiceActive] = useState(false);
@@ -2257,48 +2256,15 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
               </div>
 
-              {/* v8.7: Architecture Sub-Tabs */}
+              {/* v8.7: Architecture Tab - Code only (Tests, Config, Security removed) */}
               {activeTab === "arch" && (
                 <div className="flex items-center gap-1 px-4 border-b border-slate-700 bg-slate-800/30">
                   <button
-                    onClick={() => setActiveArchSubTab("code")}
                     className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
-                      activeArchSubTab === "code"
-                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
-                        : "text-slate-400 border-transparent hover:text-white"
+                      "text-cyan-400 border-cyan-400 bg-cyan-500/10"
                     }`}
                   >
                     Code
-                  </button>
-                  <button
-                    onClick={() => setActiveArchSubTab("tests")}
-                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
-                      activeArchSubTab === "tests"
-                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
-                        : "text-slate-400 border-transparent hover:text-white"
-                    }`}
-                  >
-                    Tests
-                  </button>
-                  <button
-                    onClick={() => setActiveArchSubTab("config")}
-                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
-                      activeArchSubTab === "config"
-                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
-                        : "text-slate-400 border-transparent hover:text-white"
-                    }`}
-                  >
-                    Config
-                  </button>
-                  <button
-                    onClick={() => setActiveArchSubTab("security")}
-                    className={`px-4 py-2 text-sm font-medium transition border-b-2 ${
-                      activeArchSubTab === "security"
-                        ? "text-cyan-400 border-cyan-400 bg-cyan-500/10"
-                        : "text-slate-400 border-transparent hover:text-white"
-                    }`}
-                  >
-                    Security
                   </button>
                 </div>
               )}
