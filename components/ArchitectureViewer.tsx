@@ -490,11 +490,13 @@ ${analysis.improvements?.map((i: string, idx: number) => `${idx + 1}. ${i}`).joi
     });
     
     // Summary footer
+    const funcCount = (analysis.python_code?.match(/def \w+\(/g) || []).length;
+    const classCount = (analysis.python_code?.match(/class \w+/g) || []).length;
     svg += `
   <text x="60" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">COBOL: ${analysis.cobol_lines} lines</text>
   <text x="280" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">Python: ${analysis.python_lines} lines</text>
-  <text x="480" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">Functions: ${(analysis.python_code?.match(/def \\w+\\(/g) || []).length}</text>
-  <text x="700" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">Classes: ${(analysis.python_code?.match(/class \\w+/g) || []).length}</text>
+  <text x="480" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">Functions: ${funcCount}</text>
+  <text x="700" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">Classes: ${classCount}</text>
 </svg>`;
     
     return svg;
