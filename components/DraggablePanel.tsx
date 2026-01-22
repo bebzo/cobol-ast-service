@@ -82,10 +82,11 @@ export default function DraggablePanel({
   return (
     <div
       ref={panelRef}
-      className={`fixed ${width} bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden z-50 ${className}`}
+      className={`fixed ${width} bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden z-50 flex flex-col ${className}`}
       style={{
         left: position.x,
         top: position.y,
+        maxHeight: 'calc(100vh - 100px)',
         cursor: isDragging ? 'grabbing' : 'default'
       }}
     >
@@ -93,7 +94,7 @@ export default function DraggablePanel({
       <div
         onMouseDown={handleMouseDown}
         onClick={(e) => e.stopPropagation()}
-        className="bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
+        className="flex-shrink-0 bg-gradient-to-r from-purple-600 to-pink-600 px-4 py-3 flex items-center justify-between cursor-grab active:cursor-grabbing select-none"
       >
         <div className="flex items-center gap-2">
           <GripVertical className="w-4 h-4 text-white/60" />
@@ -111,8 +112,8 @@ export default function DraggablePanel({
         </button>
       </div>
 
-      {/* Content */}
-      <div className="p-4">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto p-4">
         {children}
       </div>
     </div>

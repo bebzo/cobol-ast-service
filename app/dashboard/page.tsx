@@ -4253,8 +4253,8 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
         onClose={() => setShowAIInsights(false)}
         title="AI Insights"
         icon={<Lightbulb className="w-5 h-5" />}
-        width="w-[600px]"
-        defaultPosition={{ x: 20, y: window.innerHeight / 2 - 300 }}
+        width="w-[500px]"
+        defaultPosition={{ x: 20, y: 80 }}
       >
         <GeminiInsightsPanel
           cobolCode={cobolCode}
