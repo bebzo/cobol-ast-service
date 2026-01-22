@@ -307,7 +307,197 @@ ${analysis.improvements?.map((i: string, idx: number) => `${idx + 1}. ${i}`).joi
       a.download = `architecture-report-${Date.now()}.md`;
       a.click();
       URL.revokeObjectURL(url);
+    } else if (format === 'svg') {
+      // Generate SVG diagram of the architecture
+      const layers = architectureData?.layers || [];
+      const svgWidth = 800;
+      const layerHeight = 120;
+      const svgHeight = layers.length * layerHeight + 100;
+      const padding = 40;
+      
+      let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 20px; fill: #e2e8f0; font-weight: bold; }
+      .subtitle { font-family: Arial, sans-serif; font-size: 12px; fill: #94a3b8; }
+      .layer-name { font-family: Arial, sans-serif; font-size: 14px; fill: #e2e8f0; font-weight: bold; }
+      .layer-count { font-family: Arial, sans-serif; font-size: 11px; fill: #64748b; }
+      .component { font-family: Arial, sans-serif; font-size: 11px; fill: #cbd5e1; }
+      .metric { font-family: Arial, sans-serif; font-size: 10px; fill: #94a3b8; }
+    </style>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="url(#bgGrad)" rx="8"/>
+  
+  <!-- Header -->
+  <text x="${svgWidth/2}" y="30" text-anchor="middle" class="title">Architecture Analysis</text>
+  <text x="${svgWidth/2}" y="50" text-anchor="middle" class="subtitle">${analysis.business_context?.domain || 'COBOL Migration'} - ${new Date().toLocaleDateString()}</text>
+`;
+      
+      layers.forEach((layer, idx) => {
+        const y = idx * layerHeight + 80;
+        const color = layer.color.replace('text-', '').replace('-400', '');
+        const colorHex: Record<string, string> = {
+          'emerald': '#34d399', 'blue': '#60a5fa', 'amber': '#fbbf24', 'purple': '#a78bfa', 'cyan': '#22d3ee'
+        };
+        const strokeColor = colorHex[color] || '#60a5fa';
+        
+        // Layer box
+        svgContent += `
+  <g transform="translate(20, ${y})">
+    <rect width="${svgWidth - 40}" height="${layerHeight - 20}" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-opacity="0.5" rx="8"/>
+    
+    <!-- Layer header -->
+    <text x="15" y="25" class="layer-name" fill="${strokeColor}">${layer.name}</text>
+    <text x="15" y="42" class="layer-count">${layer.components.length} components</text>
+    
+    <!-- Components -->
+    <g transform="translate(200, 10)">`;
+        
+        layer.components.forEach((comp, cidx) => {
+          const cx = cidx * 140;
+          const compColor = comp.complexity === 'critical' ? '#f87171' : 
+                           comp.complexity === 'high' ? '#fb923c' : 
+                           comp.complexity === 'medium' ? '#facc15' : '#4ade80';
+          
+          svgContent += `
+      <g transform="translate(${cx}, 5)">
+        <rect width="130" height="60" fill="#1e293b" stroke="${compColor}" stroke-width="1" rx="4"/>
+        <text x="65" y="20" text-anchor="middle" class="component" fill="${compColor}">${comp.name}</text>
+        <text x="65" y="35" text-anchor="middle" class="metric">${comp.cobolLines} → ${comp.pythonLines} LOC</text>
+        <text x="65" y="50" text-anchor="middle" class="metric">Coverage: ${comp.coverage}%</text>
+      </g>`;
+        });
+        
+        svgContent += `
+    </g>
+  </g>`;
+      });
+      
+      // Footer with summary
+      const summaryY = svgHeight - 30;
+      svgContent += `
+  
+  <!-- Summary -->
+  <text x="30" y="${summaryY}" class="metric">COBOL: ${analysis.cobol_lines} lines</text>
+  <text x="200" y="${summaryY}" class="metric">Python: ${analysis.python_lines} lines</text>
+  <text x="370" y="${summaryY}" class="metric">Functions: ${exportData.code_metrics.functions}</text>
+  <text x="530" y="${summaryY}" class="metric">Classes: ${exportData.code_metrics.classes}</text>
+</svg>`;
+      
+      const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `architecture-diagram-${Date.now()}.svg`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } else if (format === 'png') {
+      // Generate PNG using canvas from SVG
+      const svgContent = generateSvgContent(analysis, architectureData);
+      
+      // Create a canvas element
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      // Set canvas size
+      canvas.width = 1600;
+      canvas.height = 1000;
+      
+      img.onload = () => {
+        if (ctx) {
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `architecture-diagram-${Date.now()}.png`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }
+          }, 'image/png');
+        }
+      };
+      
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgContent)));
     }
+  };
+  
+  // Helper function to generate SVG content
+  const generateSvgContent = (analysis: any, architectureData: any) => {
+    const layers = architectureData?.layers || [];
+    const svgWidth = 1600;
+    const layerHeight = 200;
+    const svgHeight = layers.length * layerHeight + 150;
+    
+    let svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f172a;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#bgGrad)"/>
+  <text x="${svgWidth/2}" y="50" text-anchor="middle" font-family="Arial" font-size="32" fill="#e2e8f0" font-weight="bold">Architecture Analysis</text>
+  <text x="${svgWidth/2}" y="85" text-anchor="middle" font-family="Arial" font-size="18" fill="#94a3b8">${analysis.business_context?.domain || 'COBOL Migration'}</text>`;
+    
+    const colorMap: Record<string, string> = {
+      'emerald': '#34d399', 'blue': '#60a5fa', 'amber': '#fbbf24', 
+      'purple': '#a78bfa', 'cyan': '#22d3ee', 'red': '#f87171',
+      'orange': '#fb923c', 'yellow': '#facc15', 'green': '#4ade80'
+    };
+    
+    layers.forEach((layer: LayerData, idx: number) => {
+      const y = idx * layerHeight + 120;
+      const color = layer.color.replace('text-', '').replace('-400', '');
+      const strokeColor = colorMap[color] || '#60a5fa';
+      
+      svg += `
+  <g transform="translate(40, ${y})">
+    <rect width="${svgWidth - 80}" height="${layerHeight - 40}" fill="none" stroke="${strokeColor}" stroke-width="3" stroke-opacity="0.6" rx="12"/>
+    <text x="25" y="35" font-family="Arial" font-size="22" fill="${strokeColor}" font-weight="bold">${layer.name}</text>
+    <text x="25" y="60" font-family="Arial" font-size="14" fill="#64748b">${layer.components.length} components</text>`;
+      
+      layer.components.forEach((comp: ComponentData, cidx: number) => {
+        const compColor = comp.complexity === 'critical' ? '#f87171' : 
+                         comp.complexity === 'high' ? '#fb923c' : 
+                         comp.complexity === 'medium' ? '#facc15' : '#4ade80';
+        const cx = 350 + cidx * 280;
+        
+        svg += `
+    <g transform="translate(${cx}, 15)">
+      <rect width="260" height="110" fill="#1e293b" stroke="${compColor}" stroke-width="2" rx="8"/>
+      <text x="130" y="30" text-anchor="middle" font-family="Arial" font-size="16" fill="${compColor}" font-weight="bold">${comp.name}</text>
+      <text x="130" y="55" text-anchor="middle" font-family="Arial" font-size="14" fill="#94a3b8">${comp.cobolLines} → ${comp.pythonLines} LOC</text>
+      <text x="130" y="80" text-anchor="middle" font-family="Arial" font-size="14" fill="#64748b">Coverage: ${comp.coverage}%</text>
+      <text x="130" y="100" text-anchor="middle" font-family="Arial" font-size="12" fill="#64748b">${comp.complexity.toUpperCase()} | ${comp.risk.toUpperCase()}</text>
+    </g>`;
+      });
+      
+      svg += `
+  </g>`;
+    });
+    
+    // Summary footer
+    svg += `
+  <text x="60" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">COBOL: ${analysis.cobol_lines} lines</text>
+  <text x="280" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">Python: ${analysis.python_lines} lines</text>
+  <text x="480" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">Functions: ${(analysis.python_code?.match(/def \\w+\\(/g) || []).length}</text>
+  <text x="700" y="${svgHeight - 40}" font-family="Arial" font-size="16" fill="#64748b">Classes: ${(analysis.python_code?.match(/class \\w+/g) || []).length}</text>
+</svg>`;
+    
+    return svg;
   };
 
   if (!analysis) {
