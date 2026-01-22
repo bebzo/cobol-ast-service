@@ -1873,7 +1873,7 @@ class EnterpriseSecurityFortress:
         self.participant_id = 'AUDIT-SERVICE'
 
     def p_920_prepare_phase(self) -> None:
-        for self.i in range(1, self.participant_count + 1, 1):
+        for self.i in range(1, int(self.participant_count) + 1, 1):
             self.call_prepare_transaction(self.participant_id, self.i, self.transaction_coordinator, self.ls_transaction_request, self.participant_status, self.i, self.hsm_status)
             if self.participant_status[int(self.i) - 1]:
                 self.error_code = 'PREPARE_FAILED'
@@ -1882,7 +1882,7 @@ class EnterpriseSecurityFortress:
             self.transaction_state = 'PREPARED'
 
     def p_930_commit_phase(self) -> None:
-        for self.i in range(1, self.participant_count + 1, 1):
+        for self.i in range(1, int(self.participant_count) + 1, 1):
             self.call_commit_transaction(self.participant_id, self.i, self.transaction_coordinator, self.hsm_status)
             self.participant_status = 'COMMITTED'
         self.transaction_state = 'COMMITTED'
@@ -1891,7 +1891,7 @@ class EnterpriseSecurityFortress:
         self.ls_transaction_id = self.trans_id
 
     def p_940_abort_phase(self) -> None:
-        for self.i in range(1, self.participant_count + 1, 1):
+        for self.i in range(1, int(self.participant_count) + 1, 1):
             self.call_abort_transaction(self.participant_id, self.i, self.transaction_coordinator, self.hsm_status)
             self.participant_status = 'ABORTED'
         self.transaction_state = 'ABORTED'
@@ -2377,9 +2377,8 @@ class TestFileManager:
         
         # Write one record
         with open(temp_file, "w") as f:
-            f.write("SINGLE LINE
-")
-        
+            f.write("SINGLE LINE\n")
+
         fm.open_file("in", temp_file, "r")
         fm.read_record("in")  # Read the one line
         fm.read_record("in")  # Should hit EOF
