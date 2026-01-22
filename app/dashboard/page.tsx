@@ -1904,7 +1904,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
               title={pythonCode ? "AI-powered code insights" : "Run analysis first to enable AI Insights"}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg transition ${
                 pythonCode 
-                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white' 
+                  ? 'bg-cyan-600 hover:bg-cyan-700 text-white' 
                   : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
               }`}
             >
