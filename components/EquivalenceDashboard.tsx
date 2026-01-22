@@ -562,16 +562,6 @@ export default function EquivalenceDashboard({
             </div>
           </div>
         </div>
-
-        {/* Code Ratio - simple line ratio */}
-        <div className="p-4 rounded-lg border bg-slate-700/30 border-slate-600">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs text-slate-400">Ratio</span>
-          </div>
-          <p className="text-2xl font-bold tabular-nums text-blue-400">
-            {(pythonLines/Math.max(cobolLines,1)).toFixed(2)}x
-          </p>
-        </div>
       </div>
 
       {/* Property Tests Section - ALWAYS calculated from test results */}
