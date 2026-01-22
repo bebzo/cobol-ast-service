@@ -3661,19 +3661,17 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
                     </Tooltip>
                   );
                 })()}
-                {/* Benefits - Real values from Python analysis */}
+                {/* Ratio - COBOL to Python real ratio */}
                 {(() => {
-                  const benefits = Array.isArray(analysis.improvements) ? analysis.improvements : [];
-                  const benefitCount = benefits.length;
-                  const benefitText = benefits.map((b: any) => 
-                    `${b.icon || '✓'} ${b.title}${b.description ? ' - ' + b.description : ''}`
-                  ).join('\n');
+                  const cobolLines = (analyzedCobolCode || cobolCode).split('\n').length;
+                  const pythonLines = analysis.python_lines || (analysis.python_code || '').split('\n').length;
+                  const ratio = cobolLines > 0 ? (pythonLines / cobolLines).toFixed(2) : '0';
                   
                   return (
-                    <Tooltip content={benefitText || 'Analyzing code...'} title="Benefits (Real Analysis)">
+                    <Tooltip content={`${pythonLines} Python lines / ${cobolLines} COBOL lines`} title="Code Ratio (Python/COBOL)">
                       <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 text-center cursor-help flex flex-col justify-center min-w-[100px] flex-1 h-full">
-                        <p className="text-2xl font-bold text-cyan-400 tabular-nums">{benefitCount}</p>
-                        <p className="text-xs text-slate-400 mt-1">Benefits</p>
+                        <p className="text-2xl font-bold text-cyan-400 tabular-nums">{ratio}x</p>
+                        <p className="text-xs text-slate-400 mt-1">Ratio</p>
                       </div>
                     </Tooltip>
                   );
