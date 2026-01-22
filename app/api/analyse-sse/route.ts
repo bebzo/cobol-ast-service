@@ -465,7 +465,7 @@ export async function POST(request: NextRequest) {
         processing_time_ms: processingTime,
         code_valid: true,
         summary: `${totalLines} COBOL lines → ${pythonLines} Python lines (AST Transpiler ${result.version}, 100% syntax valid)`,
-        issues: totalLines > 5000 ? [{ title: 'Large codebase', severity: 'HIGH' }] : [{ title: 'Clean transpilation', severity: 'INFO' }],
+        issues: totalLines > 5000 ? [{ title: 'Large codebase', severity: 'INFO' }] : [{ title: 'Clean transpilation', severity: 'INFO' }],
         improvements: [
           `${result.stats?.paragraphs || 0} methods transpiled`,
           '100% syntax-valid Python',

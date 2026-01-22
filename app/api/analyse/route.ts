@@ -1113,7 +1113,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Analyze issues
     const issues: any[] = [];
-    if (totalLines > 5000) issues.push({ title: `Large codebase: ${totalLines} lines`, severity: 'HIGH', description: 'Consider splitting into modules', recommendation: 'Split into smaller files' });
+    if (totalLines > 5000) issues.push({ title: `Large codebase: ${totalLines} lines`, severity: 'INFO', description: 'Consider splitting into modules for better maintainability', recommendation: 'Split into smaller files' });
     if (cobolCode.toLowerCase().includes('goto')) issues.push({ title: 'GOTO detected', severity: 'MEDIUM', description: 'Unstructured control flow', recommendation: 'Replace with structured loops' });
     if (issues.length === 0) issues.push({ title: 'Clean transpilation', severity: 'INFO', description: 'No major issues', recommendation: 'Proceed with testing' });
 
