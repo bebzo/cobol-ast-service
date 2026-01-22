@@ -310,22 +310,6 @@ export default function EquivalenceDashboard({
     return "bg-red-500/20 border-red-500/40";
   };
 
-  const getPerformanceStatus = (deviation: number) => {
-    // Line expansion metric interpretation:
-    // - Negative = Python has fewer lines (code compression)
-    // - 0-50% = Normal range for transpiled code
-    // - 50-100% = Higher verbosity (typical for COBOL→Python)
-    // - >150% = Very high expansion (may need optimization)
-    if (deviation < -20) return { color: "text-green-400", label: "Compressed", icon: Zap };
-    if (deviation < 0) return { color: "text-blue-400", label: "Optimized", icon: Activity };
-    if (deviation <= 50) return { color: "text-blue-400", label: "Normal", icon: Activity };
-    if (deviation <= 100) return { color: "text-yellow-400", label: "Verbose", icon: Activity };
-    if (deviation <= 150) return { color: "text-orange-400", label: "High expansion", icon: AlertTriangle };
-    return { color: "text-red-400", label: "Very high expansion", icon: AlertTriangle };
-  };
-
-  const perfStatus = getPerformanceStatus(animatedMetrics.performanceDeviation);
-
   const overallScore = (
     animatedMetrics.numericalEquivalence * 0.3 +
     animatedMetrics.behavioralEquivalence * 0.25 +
@@ -608,49 +592,16 @@ export default function EquivalenceDashboard({
           </div>
         </div>
 
-        {/* Code Expansion - measured from line ratio */}
-        <div className={`p-4 rounded-lg border group relative ${
-          animatedMetrics.performanceDeviation <= 0 
-            ? "bg-green-500/20 border-green-500/40" 
-            : animatedMetrics.performanceDeviation <= 50 
-              ? "bg-blue-500/20 border-blue-500/40"
-              : animatedMetrics.performanceDeviation <= 100 
-                ? "bg-yellow-500/20 border-yellow-500/40" 
-                : animatedMetrics.performanceDeviation <= 150
-                  ? "bg-orange-500/20 border-orange-500/40"
-                  : "bg-red-500/20 border-red-500/40"
-        }`}>
+        {/* Code Ratio - measured from line ratio */}
+        <div className="p-4 rounded-lg border bg-slate-700/30 border-slate-600 group relative">
           <div className="flex items-center gap-2 mb-2">
-            <perfStatus.icon className={`w-4 h-4 ${perfStatus.color}`} />
             <span className="text-xs text-slate-400">Ratio</span>
           </div>
-          <p className={`text-2xl font-bold tabular-nums ${perfStatus.color}`}>
+          <p className="text-2xl font-bold tabular-nums text-blue-400">
             {animatedMetrics.performanceDeviation > 0 ? "+" : ""}
             {animatedMetrics.performanceDeviation.toFixed(0)}%
           </p>
-          <p className="text-[10px] text-slate-500 mt-1">{perfStatus.label}</p>
-          {/* Popup with explanation */}
-          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-50 w-72">
-            <div className="bg-slate-800 border border-slate-600 rounded-lg p-3 shadow-xl">
-              <p className="text-xs font-semibold text-indigo-400 mb-2 flex items-center gap-1">
-                <Zap className="w-3 h-3" /> Ratio Analysis
-              </p>
-              <ul className="space-y-1 text-[10px]">
-                <li className="text-slate-300">
-                  <span className="text-slate-400">Expansion:</span> {animatedMetrics.performanceDeviation > 0 ? "+" : ""}{animatedMetrics.performanceDeviation.toFixed(1)}%
-                </li>
-                <li className="text-slate-300">
-                  <span className="text-slate-400">Line Ratio:</span> {pythonLines}/{cobolLines} = {(pythonLines/Math.max(cobolLines,1)).toFixed(2)}x
-                </li>
-                <li className="text-slate-300">
-                  <span className="text-slate-400">Based on:</span> Python lines vs COBOL lines
-                </li>
-              </ul>
-              <p className="text-[9px] text-slate-500 mt-2 border-t border-slate-700 pt-2">
-                Ratio shows Python/COBOL line count. Higher ratio = more verbose Python code for readability.
-              </p>
-            </div>
-          </div>
+          <p className="text-[10px] text-slate-500 mt-1">{(pythonLines/Math.max(cobolLines,1)).toFixed(2)}x expansion</p>
         </div>
       </div>
 
