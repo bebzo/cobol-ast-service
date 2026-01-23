@@ -2729,6 +2729,24 @@ def _escape_for_docstring(text: str) -> str:
     return text
 
 
+def _escape_for_python_string(value: str) -> str:
+    """
+    Échappe une chaîne de caractères pour une utilisation sécurisée dans du code Python généré.
+
+    Cette fonction utilise repr() pour produire une chaîne qui peut être utilisée
+    directement comme littéral de chaîne dans du code Python généré. Elle gère
+    automatiquement tous les caractères spéciaux, les guillemets et les séquences
+    d'échappement.
+
+    Args:
+        value: La valeur chaîne de caractères à échapper
+
+    Returns:
+        Une chaîne échappée sûre pour être intégrée dans du code Python généré
+    """
+    return repr(value)
+
+
 def pic_to_python_type(pic: Optional[str], value: Optional[str] = None) -> Tuple[str, ast.expr]:
     """Convert PIC clause to Python type and default value
     
@@ -11638,7 +11656,7 @@ def generate_unit_tests_v4(
     tests.append('        ')
     tests.append('        # Write one record')
     tests.append('        with open(temp_file, "w") as f:')
-    tests.append('            f.write("SINGLE LINE\\n")')
+    tests.append(f'            f.write({_escape_for_python_string("SINGLE LINE\\n")})')
     tests.append('        ')
     tests.append('        fm.open_file("in", temp_file, "r")')
     tests.append('        fm.read_record("in")  # Read the one line')
