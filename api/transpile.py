@@ -899,7 +899,9 @@ def generate_test_method_template(method_name: str, paragraph_name: str) -> str:
     """
     # Escape paragraph_name for safe embedding in docstrings
     safe_paragraph_name = _escape_for_docstring(paragraph_name)
-    return f'''    def test_{method_name}(self):
+    # Also escape method_name for safe function definition
+    safe_method_name = _escape_for_docstring(method_name)
+    return f'''    def test_{safe_method_name}(self):
         """Test for COBOL paragraph: {safe_paragraph_name}"""
         # Setup
         self.{method_name}()
@@ -2723,8 +2725,6 @@ def _escape_for_docstring(text: str) -> str:
     text = text.replace('\r', '\\r')
     text = text.replace('\t', '\\t')
     # Restore newlines (convert to spaces for docstrings)
-    text = text.replace('\n', ' ')
-    return text
     text = text.replace('\n', ' ')
     return text
 
@@ -9789,7 +9789,9 @@ def generate_production_tests(cobol_ast: 'CobolAST', class_name: str, python_cod
         method_name = to_snake_case(para.name)
         # Escape para.name for docstring to prevent unterminated string literal errors
         safe_para_name = _escape_for_docstring(para.name)
-        test_lines.append(f'    def test_{method_name}_exists(self):')
+        # Also escape method_name for safe function definition
+        safe_method_name = _escape_for_docstring(method_name)
+        test_lines.append(f'    def test_{safe_method_name}_exists(self):')
         test_lines.append(f'        """Test that {safe_para_name} was transpiled as callable method."""')
         test_lines.append(f'        instance = {class_name}()')
         test_lines.append(f'        assert hasattr(instance, "{method_name}")')
@@ -11569,7 +11571,9 @@ def generate_unit_tests_v4(
             # Escape for docstring to prevent unterminated string literal errors
             safe_cond_name = _escape_for_docstring(cond.name)
             safe_parent = _escape_for_docstring(cond.parent_var)
-            tests.append(f'    def test_{prop_name}_property(self, processor):')
+            # Also escape prop_name for safe function definition
+            safe_prop_name = _escape_for_docstring(prop_name)
+            tests.append(f'    def test_{safe_prop_name}_property(self, processor):')
             tests.append(f'        """Test 88-level: {safe_cond_name} (parent: {safe_parent})."""')
             tests.append(f'        # Verify property exists')
             tests.append(f'        assert hasattr(type(processor), "{prop_name}")')
@@ -11580,7 +11584,7 @@ def generate_unit_tests_v4(
             
             # Test setter if values exist
             if cond.values:
-                tests.append(f'    def test_{prop_name}_setter(self, processor):')
+                tests.append(f'    def test_{safe_prop_name}_setter(self, processor):')
                 tests.append(f'        """Test setting {safe_cond_name} to True sets parent correctly."""')
                 tests.append(f'        processor.{prop_name} = True')
                 tests.append(f'        assert processor.{prop_name} == True')
@@ -11689,7 +11693,9 @@ def generate_unit_tests_v4(
         method_name = to_snake_case(para.name)
         # Escape para.name for docstring to prevent unterminated string literal errors
         safe_para_name = _escape_for_docstring(para.name)
-        tests.append(f'    def test_{method_name}_exists(self, processor):')
+        # Also escape method_name for safe function definition
+        safe_method_name = _escape_for_docstring(method_name)
+        tests.append(f'    def test_{safe_method_name}_exists(self, processor):')
         tests.append(f'        """Verify {safe_para_name} was transpiled."""')
         tests.append(f'        assert hasattr(processor, "{method_name}")')
         tests.append(f'        assert callable(processor.{method_name})')
