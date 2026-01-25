@@ -2745,10 +2745,12 @@ def _convert_thru_range(cond: str, subject_py: str) -> str:
     Returns:
         Python range comparison string
     """
+    cond_stripped = cond.strip()
+
     # Match pattern: value THRU value or value THROUGH value
     thru_match = re.match(
         r'^(\d+(?:,\d+)?)\s+(?:THRU|THROUGH)\s+(\d+(?:,\d+)?)$',
-        cond.strip(),
+        cond_stripped,
         re.IGNORECASE
     )
 
@@ -2761,6 +2763,50 @@ def _convert_thru_range(cond: str, subject_py: str) -> str:
             return f'(Decimal("{val1}") <= {subject_py} <= Decimal("{val2}"))'
 
     return None  # Not a THRU range
+
+
+def _convert_thru_range_v2(cond: str) -> str:
+    """v10.0: Convert COBOL THRU range to Python range comparison (enhanced version).
+
+    Handles complex patterns like:
+    - "VAR >= NUM THRU NUM" -> "(Decimal('num') <= self.var <= Decimal('num'))"
+    - "NUM THRU NUM <= VAR" -> "(Decimal('num') <= self.var <= Decimal('num'))"
+
+    Args:
+        cond: The condition string
+
+    Returns:
+        Python range comparison string, or None if not a THRU pattern
+    """
+    # Pattern 1: VAR >= NUM THRU NUM or VAR <= NUM THRU NUM
+    # Example: WS-CREDIT-SCORE >= 300 THRU 579
+    match1 = re.match(
+        r'^([A-Z][A-Z0-9-]+)\s*(>=|<=)\s*(\d+(?:,\d+)?)\s+(?:THRU|THROUGH)\s+(\d+(?:,\d+)?)$',
+        cond.strip(),
+        re.IGNORECASE
+    )
+
+    if match1:
+        var_name = to_snake_case(match1.group(1))
+        val1 = match1.group(3).replace(',', '.')
+        val2 = match1.group(4).replace(',', '.')
+        return f'(Decimal("{val1}") <= self.{var_name} <= Decimal("{val2}"))'
+
+    # Pattern 2: NUM THRU NUM >= VAR or NUM THRU NUM <= VAR
+    # Example: 300 THRU 579 <= WS-CREDIT-SCORE
+    match2 = re.match(
+        r'^(\d+(?:,\d+)?)\s+(?:THRU|THROUGH)\s+(\d+(?:,\d+)?)\s*(>=|<=)\s*([A-Z][A-Z0-9-]+)$',
+        cond.strip(),
+        re.IGNORECASE
+    )
+
+    if match2:
+        val1 = match2.group(1).replace(',', '.')
+        val2 = match2.group(2).replace(',', '.')
+        var_name = to_snake_case(match2.group(4))
+        return f'(Decimal("{val1}") <= self.{var_name} <= Decimal("{val2}"))'
+
+    return None
 
 
 def _escape_for_python_string(value: str) -> str:
@@ -7491,74 +7537,40 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
             try:
                 cond_py = cond.replace(' AND ', ' and ').replace(' OR ', ' or ')
 
-                # v10.0: Check for THRU range pattern and convert to Python range
-                # Pattern: "VAR THRU VAR" or "NUM THRU NUM" within the condition
-                def replace_thru_range(m):
-                    """Convert COBOL THRU to Python range comparison."""
-                    full_match = m.group(0)
-                    # Check if this looks like a THRU range (value THRU value)
-                    thru_inner = re.match(r'^(\S+?)\s+(?:THRU|THROUGH)\s+(\S+)$', full_match, re.IGNORECASE)
-                    if thru_inner:
-                        val1 = thru_inner.group(1)
-                        val2 = thru_inner.group(2)
-
-                        # Normalize decimal commas
-                        val1_norm = val1.replace(',', '.')
-                        val2_norm = val2.replace(',', '.')
-
-                        # Check if both are numeric literals
-                        if val1_norm.replace('.', '').isdigit() and val2_norm.replace('.', '').isdigit():
-                            # Both are numeric: (Decimal("x") <= subject <= Decimal("y"))
-                            # But we need the subject variable, not val1
-                            # This case is handled differently - see below
-                            return full_match  # Let it be handled by identifier replacement
-                        elif val1_norm.replace('.', '').isdigit():
-                            # val1 is numeric, val2 is variable: (Decimal("x") <= self.var <= Decimal("y"))
-                            var_name = to_snake_case(val2)
-                            return f'(Decimal("{val1_norm}") <= self.{var_name} <= Decimal("{val2_norm}"))'
-                        elif val2_norm.replace('.', '').isdigit():
-                            # val1 is variable, val2 is numeric: (Decimal("x") <= self.var <= Decimal("y"))
-                            var_name = to_snake_case(val1)
-                            return f'(Decimal("{val1_norm}") <= self.{var_name} <= Decimal("{val2_norm}"))'
-                        else:
-                            # Both are variables: (self.var1 <= self.var2 <= self.var3)
-                            var1 = to_snake_case(val1)
-                            var2 = to_snake_case(val2)
-                            return f'(self.{var1} <= self.{var2} <= self.{var2})'
-
-                    return full_match
-
                 # v10.0: Pre-process THRU ranges with proper handling
-                # First, handle patterns like "VAR >= NUM THRU NUM" or "NUM THRU NUM <= VAR"
-                # by identifying the subject variable
-                def preprocess_thru_condition(cond_str):
-                    """Pre-process THRU conditions to extract subject variable."""
-                    # Pattern: VAR OP NUM THRU NUM (e.g., WS-CREDIT-SCORE >= 300 THRU 579)
-                    match = re.match(r'^([A-Z][A-Z0-9-]*)\s*(>=|<=|<|>|=)\s*(\d+(?:,\d+)?)\s+(?:THRU|THROUGH)\s+(\d+(?:,\d+))$', cond_str, re.IGNORECASE)
-                    if match:
-                        var = match.group(1)
-                        op = match.group(2)
-                        val1 = match.group(3).replace(',', '.')
-                        val2 = match.group(4).replace(',', '.')
-                        return f'(Decimal("{val1}") <= self.{to_snake_case(var)} <= Decimal("{val2}"))'
-
-                    # Pattern: NUM THRU NUM OP VAR (e.g., 300 THRU 579 <= WS-CREDIT-SCORE)
-                    match = re.match(r'^(\d+(?:,\d+)?)\s+(?:THRU|THROUGH)\s+(\d+(?:,\d+)?)\s*(>=|<=|<|>|=)\s*([A-Z][A-Z0-9-]*)$', cond_str, re.IGNORECASE)
-                    if match:
-                        val1 = match.group(1).replace(',', '.')
-                        val2 = match.group(2).replace(',', '.')
-                        op = match.group(3)
-                        var = match.group(4)
-                        return f'(Decimal("{val1}") <= self.{to_snake_case(var)} <= Decimal("{val2}"))'
-
-                    return None
-
-                # Apply pre-processing for THRU ranges
-                thru_result = preprocess_thru_condition(cond_py)
+                # Handle patterns like "VAR >= NUM THRU NUM" or "NUM THRU NUM <= VAR"
+                thru_result = _convert_thru_range_v2(cond_py)
                 if thru_result:
                     cond_py = thru_result
                 else:
-                    # Apply THRU conversion for complex expressions
+                    # v10.0: Check for THRU range pattern within complex expressions
+                    # and convert to Python range comparison
+                    def replace_thru_range(m):
+                        """Convert COBOL THRU to Python range comparison."""
+                        full_match = m.group(0)
+                        thru_inner = re.match(r'^(\S+?)\s+(?:THRU|THROUGH)\s+(\S+)$', full_match, re.IGNORECASE)
+                        if thru_inner:
+                            val1 = thru_inner.group(1)
+                            val2 = thru_inner.group(2)
+                            val1_norm = val1.replace(',', '.')
+                            val2_norm = val2.replace(',', '.')
+
+                            if val1_norm.replace('.', '').isdigit() and val2_norm.replace('.', '').isdigit():
+                                # Both are numeric: need to extract subject variable from context
+                                # This is complex, so return as-is for now
+                                return full_match
+                            elif val1_norm.replace('.', '').isdigit():
+                                var_name = to_snake_case(val2)
+                                return f'(Decimal("{val1_norm}") <= self.{var_name} <= Decimal("{val2_norm}"))'
+                            elif val2_norm.replace('.', '').isdigit():
+                                var_name = to_snake_case(val1)
+                                return f'(Decimal("{val1_norm}") <= self.{var_name} <= Decimal("{val2_norm}"))'
+                            else:
+                                var1 = to_snake_case(val1)
+                                var2 = to_snake_case(val2)
+                                return f'(self.{var1} <= self.{var2} <= self.{var2})'
+                        return full_match
+
                     cond_py = re.sub(r'\S+\s+(?:THRU|THROUGH)\s+\S+', replace_thru_range, cond_py)
 
                 # v4.4.3: Replace identifiers but skip quoted content
