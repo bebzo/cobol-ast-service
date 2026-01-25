@@ -767,9 +767,11 @@ def generate_error_codes_class(extracted_codes: List[ExtractedErrorCode]) -> str
     lines.append('        """Get error message for a code - provides helpful context for unknown codes."""')
     lines.append('        if code in cls._MESSAGES:')
     lines.append('            return cls._MESSAGES[code]')
-    lines.append('        # Provide helpful fallback for unknown error codes')
-    lines.append('        if code.isdigit():')
-    lines.append('            code_type = int(code[0])')
+    lines.append('        # v5.7.28: Provide helpful fallback for unknown codes - fix Decimal subscripting')
+    lines.append('        # Convert to string first to handle both str and Decimal inputs')
+    lines.append('        code_str = str(code)')
+    lines.append('        if code_str.isdigit():')
+    lines.append('            code_type = int(code_str[0])')
     lines.append('            if code_type == 9:')
     lines.append('                return f"Business error {code}: See COBOL source for details"')
     lines.append('            elif code_type == 1:')
@@ -7449,8 +7451,10 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                                 replace_id_eval, cond_py)
                 test_ast = ast.parse(cond_py, mode='eval').body
             except Exception as e:
-                # v5.7.32: Log unparseable condition instead of silent True fallback
-                logger.warning(f"Could not parse EVALUATE condition '{cond}': {e}")
+                # v5.7.28: Log unparseable condition instead of silent True fallback
+                # v5.7.32: Use print fallback since logger may not be available during transpilation
+                import sys
+                print(f"WARNING: Could not parse EVALUATE condition '{cond}': {e}", file=sys.stderr)
                 test_ast = ast.Constant(value=True)  # Fallback but logged
         else:
             subject_py = to_snake_case(subject)
@@ -7470,7 +7474,9 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                     )
             except Exception as e:
                 # v5.7.32: Log parse failure instead of silent True fallback
-                logger.warning(f"Could not parse WHEN condition for {subject}={cond}: {e}")
+                # v5.7.28: Use print fallback since logger may not be available during transpilation
+                import sys
+                print(f"WARNING: Could not parse WHEN condition for {subject}={cond}: {e}", file=sys.stderr)
                 test_ast = ast.Constant(value=True)
         
         if result is None:

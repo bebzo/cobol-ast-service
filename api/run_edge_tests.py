@@ -87,11 +87,31 @@ class handler(BaseHTTPRequestHandler):
             return results
         
         # Find all callable functions that look like calculations
+        # v5.7.28: Fix signature mismatch - better detection of testable functions
         calc_functions = []
         for name, obj in namespace.items():
             if callable(obj) and not name.startswith('_'):
-                if any(kw in name.lower() for kw in ['calc', 'compute', 'process', 'get_', 'total', 'amount', 'rate', 'tax', 'interest', 'premium']):
-                    calc_functions.append((name, obj))
+                # Skip known non-calculation functions and context managers
+                if name in ['localcontext', 'get_cobol_context', 'safe_compute', 'validate_amount', 'format_currency', 'format_date_cobol']:
+                    continue
+                # Check if it's a context manager (has __enter__ and __exit__)
+                if hasattr(obj, '__enter__') and hasattr(obj, '__exit__'):
+                    continue
+                if any(kw in name.lower() for kw in ['calc', 'compute', 'process', 'total', 'amount', 'rate', 'tax', 'interest', 'premium']):
+                    # v5.7.28: Check function signature before adding
+                    import inspect
+                    try:
+                        sig = inspect.signature(obj)
+                        params = list(sig.parameters.values())
+                        # Skip methods that require 'self' as first param (unbound methods in namespace)
+                        if params and params[0].name == 'self' and not hasattr(obj, '__self__'):
+                            continue
+                        # Only include functions that can accept at least one positional argument
+                        if len(params) >= 1 or any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in params):
+                            calc_functions.append((name, obj))
+                    except (ValueError, TypeError):
+                        # If we can't inspect signature, skip it to avoid false positives
+                        continue
         
         # Run edge case tests for each function
         edge_tests = [
