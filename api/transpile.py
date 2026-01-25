@@ -2706,13 +2706,13 @@ def to_pascal_case(name: str) -> str:
 
 def _escape_for_docstring(text: str) -> str:
     """Escape special characters for safe use in docstrings.
-    
+
     This prevents 'unterminated string literal' errors when COBOL names
     contain special characters like quotes, backslashes, or triple quotes.
-    
+
     Args:
         text: The text to escape
-        
+
     Returns:
         Escaped text safe for use in docstrings
     """
@@ -2729,6 +2729,38 @@ def _escape_for_docstring(text: str) -> str:
     # Restore newlines (convert to spaces for docstrings)
     text = text.replace('\n', ' ')
     return text
+
+
+def _convert_thru_range(cond: str, subject_py: str) -> str:
+    """v10.0: Convert COBOL THRU range to Python range comparison.
+
+    COBOL:
+        WHEN 300 THRU 579
+        IF SCORE >= 300 AND SCORE <= 579
+
+    Args:
+        cond: The condition string (e.g., "300 THRU 579")
+        subject_py: The Python variable name (e.g., "self.cust_credit_score")
+
+    Returns:
+        Python range comparison string
+    """
+    # Match pattern: value THRU value or value THROUGH value
+    thru_match = re.match(
+        r'^(\d+(?:,\d+)?)\s+(?:THRU|THROUGH)\s+(\d+(?:,\d+)?)$',
+        cond.strip(),
+        re.IGNORECASE
+    )
+
+    if thru_match:
+        val1 = thru_match.group(1).replace(',', '.')
+        val2 = thru_match.group(2).replace(',', '.')
+
+        # Both are numeric literals - convert to Decimal range
+        if val1.replace('.', '').isdigit() and val2.replace('.', '').isdigit():
+            return f'(Decimal("{val1}") <= {subject_py} <= Decimal("{val2}"))'
+
+    return None  # Not a THRU range
 
 
 def _escape_for_python_string(value: str) -> str:
@@ -6055,13 +6087,25 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
 
 def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
     """Transpile DISPLAY statement to print() with proper variable interpolation
-    
+
     v5.3.1: Improved string parsing to handle apostrophes inside double-quoted strings
     - "CALCUL D'INTERETS" now correctly parsed as single string
     - Handles mixed text and variables: DISPLAY "Text: " WS-VAR
+    v10.0: Fixed DISPLAY UPON SYSOUT to generate proper print() without creating phantom variables
     """
     # Remove DISPLAY keyword and clean up
     display_content = re.sub(r'^DISPLAY\s+', '', stmt, flags=re.IGNORECASE).strip().rstrip('.')
+
+    # v10.0: Check for DISPLAY UPON SYSOUT pattern
+    upon_sysout_match = re.match(r'^["\']([^"\']*)["\']\s+UPON\s+SYSOUT$', display_content, re.IGNORECASE)
+    if upon_sysout_match:
+        # DISPLAY "message" UPON SYSOUT -> print("message")
+        message = upon_sysout_match.group(1)
+        return ast.Expr(value=ast.Call(
+            func=ast.Name(id='print', ctx=ast.Load()),
+            args=[ast.Constant(value=message)],
+            keywords=[]
+        ))
     
     if not display_content:
         return None
@@ -7258,10 +7302,13 @@ def transpile_multiply_v4(stmt: str) -> Optional[ast.stmt]:
     
     # Helper to build value AST (literal or variable)
     def build_value(val: str) -> ast.expr:
-        if val.replace('.', '').replace('-', '').isdigit():
-            return ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), 
-                           args=[ast.Constant(value=val)], keywords=[])
-        return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), 
+        # v10.0: Handle COBOL decimal comma (e.g., 10000,50 -> 10000.50)
+        normalized_val = val.replace(',', '.')
+
+        if normalized_val.replace('.', '').replace('-', '').isdigit():
+            return ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()),
+                           args=[ast.Constant(value=normalized_val)], keywords=[])
+        return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
                             attr=to_snake_case(val), ctx=ast.Load())
     
     # MULTIPLY X BY Y GIVING Z [ROUNDED]
@@ -7316,10 +7363,13 @@ def transpile_divide_v4(stmt: str) -> Optional[ast.stmt]:
     
     # Helper to build value AST (literal or variable)
     def build_value(val: str) -> ast.expr:
-        if val.replace('.', '').replace('-', '').isdigit():
-            return ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), 
-                           args=[ast.Constant(value=val)], keywords=[])
-        return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), 
+        # v10.0: Handle COBOL decimal comma (e.g., 10000,50 -> 10000.50)
+        normalized_val = val.replace(',', '.')
+
+        if normalized_val.replace('.', '').replace('-', '').isdigit():
+            return ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()),
+                           args=[ast.Constant(value=normalized_val)], keywords=[])
+        return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
                             attr=to_snake_case(val), ctx=ast.Load())
     
     # DIVIDE X BY Y GIVING Z REMAINDER R
@@ -7440,6 +7490,77 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
         if is_true_eval:
             try:
                 cond_py = cond.replace(' AND ', ' and ').replace(' OR ', ' or ')
+
+                # v10.0: Check for THRU range pattern and convert to Python range
+                # Pattern: "VAR THRU VAR" or "NUM THRU NUM" within the condition
+                def replace_thru_range(m):
+                    """Convert COBOL THRU to Python range comparison."""
+                    full_match = m.group(0)
+                    # Check if this looks like a THRU range (value THRU value)
+                    thru_inner = re.match(r'^(\S+?)\s+(?:THRU|THROUGH)\s+(\S+)$', full_match, re.IGNORECASE)
+                    if thru_inner:
+                        val1 = thru_inner.group(1)
+                        val2 = thru_inner.group(2)
+
+                        # Normalize decimal commas
+                        val1_norm = val1.replace(',', '.')
+                        val2_norm = val2.replace(',', '.')
+
+                        # Check if both are numeric literals
+                        if val1_norm.replace('.', '').isdigit() and val2_norm.replace('.', '').isdigit():
+                            # Both are numeric: (Decimal("x") <= subject <= Decimal("y"))
+                            # But we need the subject variable, not val1
+                            # This case is handled differently - see below
+                            return full_match  # Let it be handled by identifier replacement
+                        elif val1_norm.replace('.', '').isdigit():
+                            # val1 is numeric, val2 is variable: (Decimal("x") <= self.var <= Decimal("y"))
+                            var_name = to_snake_case(val2)
+                            return f'(Decimal("{val1_norm}") <= self.{var_name} <= Decimal("{val2_norm}"))'
+                        elif val2_norm.replace('.', '').isdigit():
+                            # val1 is variable, val2 is numeric: (Decimal("x") <= self.var <= Decimal("y"))
+                            var_name = to_snake_case(val1)
+                            return f'(Decimal("{val1_norm}") <= self.{var_name} <= Decimal("{val2_norm}"))'
+                        else:
+                            # Both are variables: (self.var1 <= self.var2 <= self.var3)
+                            var1 = to_snake_case(val1)
+                            var2 = to_snake_case(val2)
+                            return f'(self.{var1} <= self.{var2} <= self.{var2})'
+
+                    return full_match
+
+                # v10.0: Pre-process THRU ranges with proper handling
+                # First, handle patterns like "VAR >= NUM THRU NUM" or "NUM THRU NUM <= VAR"
+                # by identifying the subject variable
+                def preprocess_thru_condition(cond_str):
+                    """Pre-process THRU conditions to extract subject variable."""
+                    # Pattern: VAR OP NUM THRU NUM (e.g., WS-CREDIT-SCORE >= 300 THRU 579)
+                    match = re.match(r'^([A-Z][A-Z0-9-]*)\s*(>=|<=|<|>|=)\s*(\d+(?:,\d+)?)\s+(?:THRU|THROUGH)\s+(\d+(?:,\d+))$', cond_str, re.IGNORECASE)
+                    if match:
+                        var = match.group(1)
+                        op = match.group(2)
+                        val1 = match.group(3).replace(',', '.')
+                        val2 = match.group(4).replace(',', '.')
+                        return f'(Decimal("{val1}") <= self.{to_snake_case(var)} <= Decimal("{val2}"))'
+
+                    # Pattern: NUM THRU NUM OP VAR (e.g., 300 THRU 579 <= WS-CREDIT-SCORE)
+                    match = re.match(r'^(\d+(?:,\d+)?)\s+(?:THRU|THROUGH)\s+(\d+(?:,\d+)?)\s*(>=|<=|<|>|=)\s*([A-Z][A-Z0-9-]*)$', cond_str, re.IGNORECASE)
+                    if match:
+                        val1 = match.group(1).replace(',', '.')
+                        val2 = match.group(2).replace(',', '.')
+                        op = match.group(3)
+                        var = match.group(4)
+                        return f'(Decimal("{val1}") <= self.{to_snake_case(var)} <= Decimal("{val2}"))'
+
+                    return None
+
+                # Apply pre-processing for THRU ranges
+                thru_result = preprocess_thru_condition(cond_py)
+                if thru_result:
+                    cond_py = thru_result
+                else:
+                    # Apply THRU conversion for complex expressions
+                    cond_py = re.sub(r'\S+\s+(?:THRU|THROUGH)\s+\S+', replace_thru_range, cond_py)
+
                 # v4.4.3: Replace identifiers but skip quoted content
                 def replace_id_eval(m):
                     start = m.start()
@@ -7447,7 +7568,7 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                     if before.count("'") % 2 == 1 or before.count('"') % 2 == 1:
                         return m.group(0)
                     return f'self.{to_snake_case(m.group(1))}'
-                cond_py = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+|[A-Z]{2,}[A-Z0-9]*)', 
+                cond_py = re.sub(r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+|[A-Z]{2,}[A-Z0-9]*)',
                                 replace_id_eval, cond_py)
                 test_ast = ast.parse(cond_py, mode='eval').body
             except Exception as e:
@@ -7458,20 +7579,30 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                 test_ast = ast.Constant(value=True)  # Fallback but logged
         else:
             subject_py = to_snake_case(subject)
+            subject_attr = f'self.{subject_py}'
             try:
-                value_py = cond.strip('"\'')
-                if value_py.isdigit():
-                    test_ast = ast.Compare(
-                        left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=subject_py, ctx=ast.Load()),
-                        ops=[ast.Eq()],
-                        comparators=[ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=value_py)], keywords=[])]
-                    )
+                # v10.0: Check for THRU range first
+                thru_result = _convert_thru_range(cond, subject_attr)
+                if thru_result:
+                    test_ast = ast.parse(thru_result, mode='eval').body
                 else:
-                    test_ast = ast.Compare(
-                        left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=subject_py, ctx=ast.Load()),
-                        ops=[ast.Eq()],
-                        comparators=[ast.Constant(value=value_py)]
-                    )
+                    # v10.0: Also handle decimal comma in values
+                    value_py = cond.strip('"\'')
+                    # Convert decimal comma to dot for Decimal literals
+                    value_normalized = value_py.replace(',', '.')
+
+                    if value_normalized.replace('.', '').replace('-', '').isdigit():
+                        test_ast = ast.Compare(
+                            left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=subject_py, ctx=ast.Load()),
+                            ops=[ast.Eq()],
+                            comparators=[ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=value_normalized)], keywords=[])]
+                        )
+                    else:
+                        test_ast = ast.Compare(
+                            left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=subject_py, ctx=ast.Load()),
+                            ops=[ast.Eq()],
+                            comparators=[ast.Constant(value=value_py)]
+                        )
             except Exception as e:
                 # v5.7.32: Log parse failure instead of silent True fallback
                 # v5.7.28: Use print fallback since logger may not be available during transpilation
@@ -8104,33 +8235,53 @@ def transpile_sort_v4(stmt: str) -> Optional[ast.stmt]:
 def transpile_unstring_v4(stmt: str) -> Optional[ast.stmt]:
     """
     Transpile UNSTRING statement to Python.
-    
+
     COBOL:
         UNSTRING WS-INPUT DELIMITED BY ',' INTO WS-FIELD1 WS-FIELD2 WS-FIELD3
-    
+
     Python:
         _parts = self.ws_input.split(',')
         self.ws_field1 = _parts[0] if len(_parts) > 0 else ''
         self.ws_field2 = _parts[1] if len(_parts) > 1 else ''
         ...
+
+    v10.0: Fixed WITH POINTER parsing to avoid Python reserved keywords
+    - UNSTRING ... WITH POINTER ptr_var now properly extracts ptr_var
+    - Avoids creating self.with which is a Python reserved keyword
     """
-    # UNSTRING source DELIMITED BY delim INTO targets
-    match = re.match(
-        r'UNSTRING\s+([A-Z][A-Z0-9-]*)\s+DELIMITED\s+BY\s+["\']?([^"\']+)["\']?\s+INTO\s+(.+)',
-        stmt, re.IGNORECASE
+    # v10.0: Handle UNSTRING with WITH POINTER clause first
+    # Pattern: UNSTRING source DELIMITED BY delim INTO targets [WITH POINTER ptr]
+    pointer_match = re.match(
+        r'UNSTRING\s+([A-Z][A-Z0-9-]*)\s+DELIMITED\s+BY\s+["\']?([^"\']+)["\']?\s+INTO\s+(.+?)(?:\s+WITH\s+POINTER\s+([A-Z][A-Z0-9-]*))?$',
+        stmt, re.IGNORECASE | re.DOTALL
     )
-    if match:
-        source_var = to_snake_case(match.group(1))
-        delimiter = match.group(2).strip().strip("'\"")
-        targets_str = match.group(3)
-        
+
+    pointer_var = None
+    if pointer_match:
+        source_var = to_snake_case(pointer_match.group(1))
+        delimiter = pointer_match.group(2).strip().strip("'\"")
+        targets_str = pointer_match.group(3)
+        pointer_var = pointer_match.group(4)  # May be None
+
         # Handle special delimiters
         if delimiter.upper() in ('SPACES', 'SPACE'):
             delimiter = ' '
-        
-        # Parse target variables
-        targets = re.findall(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*', targets_str, re.IGNORECASE)
-        
+
+        # v10.0: Parse target variables, filtering out COBOL keywords like WITH
+        # Split by whitespace first, then filter
+        raw_targets = targets_str.strip().split()
+        targets = []
+        for t in raw_targets:
+            t_upper = t.upper()
+            # Skip COBOL keywords that are not variable names
+            if t_upper in ('WITH', 'DELIMITED', 'BY', 'INTO'):
+                continue
+            # v10.0: Also check for Python reserved keywords
+            import keyword
+            if keyword.iskeyword(t):
+                t = t + '_'  # Append underscore to avoid reserved keyword
+            targets.append(t)
+
         # Generate: _parts = self.source.split(delim)
         stmts = [
             ast.Assign(
@@ -8146,7 +8297,97 @@ def transpile_unstring_v4(stmt: str) -> Optional[ast.stmt]:
                 )
             )
         ]
-        
+
+        # v10.0: Handle POINTER if specified
+        if pointer_var:
+            pointer_var_snake = to_snake_case(pointer_var)
+            # Initialize pointer: set to 1 (COBOL is 1-based)
+            stmts.append(ast.Assign(
+                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                      attr=pointer_var_snake, ctx=ast.Store())],
+                value=ast.Constant(value=1)
+            ))
+
+        # Generate assignments for each target
+        for idx, target in enumerate(targets):
+            target_var = to_snake_case(target)
+            # v10.0: Update pointer for each assignment if pointer is specified
+            if pointer_var and idx > 0:
+                pointer_var_snake = to_snake_case(pointer_var)
+                stmts.append(ast.Assign(
+                    targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                          attr=pointer_var_snake, ctx=ast.Store())],
+                    value=ast.BinOp(
+                        left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                          attr=pointer_var_snake, ctx=ast.Load()),
+                        op=ast.Add(),
+                        right=ast.Constant(value=1)
+                    )
+                ))
+
+            stmts.append(ast.Assign(
+                targets=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                      attr=target_var, ctx=ast.Store())],
+                value=ast.IfExp(
+                    test=ast.Compare(
+                        left=ast.Call(func=ast.Name(id='len', ctx=ast.Load()),
+                                     args=[ast.Name(id='_parts', ctx=ast.Load())], keywords=[]),
+                        ops=[ast.Gt()],
+                        comparators=[ast.Constant(value=idx)]
+                    ),
+                    body=ast.Subscript(value=ast.Name(id='_parts', ctx=ast.Load()),
+                                      slice=ast.Constant(value=idx), ctx=ast.Load()),
+                    orelse=ast.Constant(value='')
+                )
+            ))
+
+        # Wrap multiple statements in if True block
+        if len(stmts) > 1:
+            return ast.If(test=ast.Constant(value=True), body=stmts, orelse=[])
+        return stmts[0] if stmts else None
+
+    # Fallback: original pattern without WITH POINTER
+    match = re.match(
+        r'UNSTRING\s+([A-Z][A-Z0-9-]*)\s+DELIMITED\s+BY\s+["\']?([^"\']+)["\']?\s+INTO\s+(.+)',
+        stmt, re.IGNORECASE
+    )
+    if match:
+        source_var = to_snake_case(match.group(1))
+        delimiter = match.group(2).strip().strip("'\"")
+        targets_str = match.group(3)
+
+        # Handle special delimiters
+        if delimiter.upper() in ('SPACES', 'SPACE'):
+            delimiter = ' '
+
+        # v10.0: Parse target variables, filtering out COBOL keywords
+        raw_targets = targets_str.strip().split()
+        targets = []
+        for t in raw_targets:
+            t_upper = t.upper()
+            if t_upper in ('WITH', 'DELIMITED', 'BY', 'INTO'):
+                continue
+            import keyword
+            if keyword.iskeyword(t):
+                t = t + '_'
+            targets.append(t)
+
+        # Generate: _parts = self.source.split(delim)
+        stmts = [
+            ast.Assign(
+                targets=[ast.Name(id='_parts', ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast.Attribute(
+                        value=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                           attr=source_var, ctx=ast.Load()),
+                        attr='split', ctx=ast.Load()
+                    ),
+                    args=[ast.Constant(value=delimiter)],
+                    keywords=[]
+                )
+            )
+        ]
+
         # Generate assignments for each target
         for idx, target in enumerate(targets):
             target_var = to_snake_case(target)
@@ -8165,12 +8406,12 @@ def transpile_unstring_v4(stmt: str) -> Optional[ast.stmt]:
                     orelse=ast.Constant(value='')
                 )
             ))
-        
+
         # Wrap multiple statements in if True block
         if len(stmts) > 1:
             return ast.If(test=ast.Constant(value=True), body=stmts, orelse=[])
         return stmts[0] if stmts else None
-    
+
     return None
 
 
