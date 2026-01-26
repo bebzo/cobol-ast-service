@@ -3014,10 +3014,12 @@ def cobol_value_to_python_v3(value: Optional[str], pic: Optional[str], var_name:
             val_str = str(value).strip().rstrip('.')
             if val_str.startswith('.'):
                 val_str = '0' + val_str
-            float(val_str)
+            # v10.0: Handle COBOL decimal comma (e.g., 10000,50 -> 10000.50)
+            normalized_val = val_str.replace(',', '.')
+            float(normalized_val)
             return ast.Call(
                 func=ast.Name(id='Decimal', ctx=ast.Load()),
-                args=[ast.Constant(value=val_str)],
+                args=[ast.Constant(value=normalized_val)],
                 keywords=[]
             )
         except (ValueError, TypeError):
@@ -6598,6 +6600,7 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     
     # v5.6.0: First, protect numeric literals by wrapping them temporarily
     # This prevents them from being transformed into self.xxx
+    # v10.0: Support COBOL decimal comma (e.g., 10000,50)
     # Use lowercase markers to avoid being captured by COBOL identifier pattern
     literal_map = {}
     literal_counter = [0]
@@ -6607,11 +6610,14 @@ def parse_cobol_condition(condition: str) -> ast.expr:
         # Use lowercase 'num' to avoid matching COBOL identifier pattern [A-Z]
         key = f'_num{literal_counter[0]}_'
         literal_counter[0] += 1
-        literal_map[key] = val
+        # v10.0: Normalize decimal comma to dot for proper Decimal handling
+        normalized_val = val.replace(',', '.')
+        literal_map[key] = normalized_val
         return key
     
-    # Protect numeric literals (integers and decimals, including negative)
-    cond = re.sub(r'(?<![A-Z0-9-])(-?\d+\.?\d*)(?![A-Z0-9-])', protect_literal, cond, flags=re.IGNORECASE)
+    # Protect numeric literals (integers, decimals with dot OR comma, including negative)
+    # v10.0: Added support for comma as decimal separator: \d+,\d+
+    cond = re.sub(r'(?<![A-Z0-9-])(-?\d+,?\d*\.?\d*)(?![A-Z0-9-])', protect_literal, cond, flags=re.IGNORECASE)
     
     # Convert COBOL operators to Python - CRITICAL: multi-char operators FIRST
     cond = re.sub(r'\s+NOT\s*=\s*', ' != ', cond, flags=re.IGNORECASE)
@@ -6686,15 +6692,18 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     cond = re.sub(r'\s+', ' ', cond).strip()
     
     # v5.7.17: Replace decimal literals with Decimal('value') for financial precision
+    # v10.0: Also support COBOL decimal comma (e.g., 10000,50)
     # Match standalone decimal numbers (not part of variable names)
     def replace_decimal_literal(match):
         num = match.group(0)
+        # v10.0: Normalize comma to dot for COBOL format
+        normalized_num = num.replace(',', '.')
         # Use repr() to safely format the number
-        return f"Decimal({repr(num)})"
+        return f"Decimal({repr(normalized_num)})"
     
-    # Replace decimal literals like 5.0, 10.00, -3.14 with Decimal('value')
-    # Negative lookahead/lookbehind to avoid matching inside identifiers
-    cond = re.sub(r'(?<![a-zA-Z0-9_])(-?\d+\.\d+)(?![a-zA-Z0-9_])', replace_decimal_literal, cond)
+    # Replace decimal literals like 5.0, 10.00, -3.14, 10000,50 with Decimal('value')
+    # v10.0: Added pattern for comma as decimal separator
+    cond = re.sub(r'(?<![a-zA-Z0-9_])(-?\d+,?\d*\.?\d+)(?![a-zA-Z0-9_])', replace_decimal_literal, cond)
     
     try:
         return ast.parse(cond, mode='eval').body
@@ -6728,15 +6737,17 @@ def parse_cobol_condition(condition: str) -> ast.expr:
                 op = ast.Eq()
             
             # Determine right side - v5.7.17: use Decimal for decimals (not float)
+            # v10.0: Support COBOL decimal comma
             try:
-                # Check for numeric values including decimals and negatives
-                if re.match(r'^-?\d+$', right_str):
-                    right = ast.Constant(value=int(right_str))
-                elif re.match(r'^-?\d+\.\d+$', right_str):
+                # Check for numeric values including decimals (with dot OR comma) and negatives
+                normalized_right = right_str.replace(',', '.')
+                if re.match(r'^-?\d+$', normalized_right):
+                    right = ast.Constant(value=int(normalized_right))
+                elif re.match(r'^-?\d+\.\d+$', normalized_right):
                     # v5.7.17: Generate Decimal('value') instead of float for financial precision
                     right = ast.Call(
                         func=ast.Name(id='Decimal', ctx=ast.Load()),
-                        args=[ast.Constant(value=right_str)],
+                        args=[ast.Constant(value=normalized_right)],
                         keywords=[]
                     )
                 elif right_str.startswith("'") or right_str.startswith('"'):
