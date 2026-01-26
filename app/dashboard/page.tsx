@@ -4421,6 +4421,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
           programName={filename || 'COBOL Program'}
           isVisible={showAIInsights}
           onClose={() => setShowAIInsights(false)}
+          variant="embedded"
         />
       </DraggablePanel>
 

@@ -38,6 +38,7 @@ interface GeminiInsightsPanelProps {
   programName?: string;
   isVisible: boolean;
   onClose: () => void;
+  variant?: 'modal' | 'embedded';
 }
 
 type TabType = 'review' | 'tests' | 'optimize' | 'explain' | 'architecture';
@@ -55,7 +56,8 @@ export default function GeminiInsightsPanel({
   pythonCode,
   programName = 'Program',
   isVisible,
-  onClose
+  onClose,
+  variant = 'modal'
 }: GeminiInsightsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('review');
   const [insights, setInsights] = useState<InsightData>({});
@@ -514,13 +516,51 @@ export default function GeminiInsightsPanel({
     }
   };
 
+  // v10.0: Render based on variant - embedded mode for DraggablePanel, modal mode for standalone
+  if (variant === 'embedded') {
+    return (
+      <>
+        {/* Tabs */}
+        <div className="flex border-b border-slate-700 overflow-x-auto -mx-4 px-4">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 min-w-0 px-3 py-2 text-xs font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
+                  : 'text-slate-400 hover:text-slate-300'
+              }`}
+            >
+              <span className="mr-1">{tab.icon}</span>
+              {tab.label}
+              {loadedTabs.has(tab.id) && <span className="ml-1 text-green-400">✓</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto -mx-4 px-4">
+          {renderContent()}
+        </div>
+
+        {/* Footer */}
+        <div className="p-3 border-t border-slate-700 bg-slate-800/50 -mx-4 px-4">
+          <p className="text-xs text-slate-500 text-center">
+            Powered by Gemini 3 Pro Preview
+          </p>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-      
+
       {/* Modal */}
-      <div 
+      <div
         className="fixed w-[500px] h-[600px] bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 flex flex-col"
         style={{
           left: `calc(50% - 250px + ${position.x}px)`,
@@ -528,7 +568,7 @@ export default function GeminiInsightsPanel({
         }}
       >
         {/* Header - Draggable */}
-        <div 
+        <div
           className="flex items-center justify-between p-4 border-b border-gray-700 cursor-move select-none"
           onMouseDown={handleMouseDown}
         >
@@ -537,7 +577,7 @@ export default function GeminiInsightsPanel({
             <span className="font-semibold text-white">AI Insights</span>
             <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">Gemini 3</span>
           </div>
-          <button 
+          <button
             onClick={onClose}
             onMouseDown={(e) => e.stopPropagation()}
             className="p-1 hover:bg-gray-800 rounded transition-colors"
@@ -547,37 +587,37 @@ export default function GeminiInsightsPanel({
             </svg>
           </button>
         </div>
-      
-      {/* Tabs */}
-      <div className="flex border-b border-gray-700 overflow-x-auto">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 min-w-0 px-3 py-2 text-xs font-medium transition-colors ${
-              activeTab === tab.id 
-                ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5' 
-                : 'text-gray-400 hover:text-gray-300'
-            }`}
-          >
-            <span className="mr-1">{tab.icon}</span>
-            {tab.label}
-            {loadedTabs.has(tab.id) && <span className="ml-1 text-green-400">✓</span>}
-          </button>
-        ))}
-      </div>
-      
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {renderContent()}
-      </div>
-      
-      {/* Footer */}
-      <div className="p-3 border-t border-gray-700 bg-gray-800/50">
-        <p className="text-xs text-gray-500 text-center">
-          Powered by Gemini 3 Pro Preview
-        </p>
-      </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-700 overflow-x-auto">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 min-w-0 px-3 py-2 text-xs font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'text-blue-400 border-b-2 border-blue-400 bg-blue-500/5'
+                  : 'text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <span className="mr-1">{tab.icon}</span>
+              {tab.label}
+              {loadedTabs.has(tab.id) && <span className="ml-1 text-green-400">✓</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {renderContent()}
+        </div>
+
+        {/* Footer */}
+        <div className="p-3 border-t border-gray-700 bg-gray-800/50">
+          <p className="text-xs text-gray-500 text-center">
+            Powered by Gemini 3 Pro Preview
+          </p>
+        </div>
       </div>
     </>
   );
