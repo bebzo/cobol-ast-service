@@ -1832,15 +1832,14 @@ Parent variable: error_severity"""
         AT END
     """
         self.rate_index = 1
-        if True:
-            _search_found = False
-            for _idx, _item in enumerate(self.rate_entry):
-                if _item == self.cm_account_type:
-                    self.annual_rate = self.base_rate
-                    _search_found = True
-                    break
-            if not _search_found:
-                self.annual_rate = Decimal('0.005')
+        _search_found = False
+        for _idx, _item in enumerate(self.rate_entry):
+            if _item == self.cm_account_type:
+                self.annual_rate = self.base_rate
+                _search_found = True
+                break
+        if not _search_found:
+            self.annual_rate = Decimal('0.005')
         if self.cm_account_balance > 1000000:
             self.annual_rate = (self.annual_rate + self.premium_rate[int(self.rate_index) - 1]).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
