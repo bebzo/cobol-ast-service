@@ -45,7 +45,7 @@ interface InsightResponse {
 interface ReviewInsights {
   score: number;
   grade: string;
-  issues: Array<{ severity: string; message: string; line?: number }>;
+  issues: Array<{ severity: string; message: string; line?: number; suggestedFix?: string }>;
   strengths: string[];
 }
 
@@ -386,13 +386,15 @@ Analyze this transpiled Python code and provide a review in JSON format:
   "score": 85,
   "grade": "B",
   "issues": [
-    {"severity": "warning", "message": "Description of issue", "line": 123}
+    {"severity": "warning", "message": "Description of issue", "line": 123, "suggestedFix": "# Corrected line with proper fix"}
   ],
   "strengths": [
     "Good use of Decimal for financial precision",
     "Proper error handling patterns"
   ]
 }
+
+CRITICAL: For each issue, provide a "suggestedFix" field with the exact corrected code line that should replace the problematic line. This is required for the auto-fix feature to work.
 
 Focus on:
 1. Code quality and best practices
