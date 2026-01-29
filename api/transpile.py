@@ -6075,9 +6075,11 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
         # v5.7.26: Check if this is a Y/N assignment to a flag variable
         # Will be converted to bool in create_target_assignment if target is a flag
         source_ast = ast.Constant(value=literal_value)
-    elif re.match(r'^-?\d+\.?\d*$', source_str):
-        # Numeric literal
-        source_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=source_str)], keywords=[])
+    elif re.match(r'^-?\d+(?:[.,]\d+)?$', source_str):
+        # Numeric literal - v10.1: Support COBOL decimal comma (e.g., 999999999999,99)
+        # Normalize comma to dot for Python Decimal
+        normalized = source_str.replace(',', '.')
+        source_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=normalized)], keywords=[])
     # Check for substring notation in source - v5.7.7: Also match variable indices and expressions
     # Pattern: VAR(start:length) or VAR(start:) where start can be expr like VAR+1
     elif re.match(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\s*\([^)]*:[^)]*\)', source_str, re.IGNORECASE):
@@ -6186,15 +6188,25 @@ def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
     - "CALCUL D'INTERETS" now correctly parsed as single string
     - Handles mixed text and variables: DISPLAY "Text: " WS-VAR
     v10.0: Fixed DISPLAY UPON SYSOUT to generate proper print() without creating phantom variables
+    v10.1: Fixed DISPLAY with variables and UPON SYSOUT (e.g., DISPLAY 'Text' VAR UPON SYSOUT)
     """
     # Remove DISPLAY keyword and clean up
     display_content = re.sub(r'^DISPLAY\s+', '', stmt, flags=re.IGNORECASE).strip().rstrip('.')
 
-    # v10.0: Check for DISPLAY UPON SYSOUT pattern
-    upon_sysout_match = re.match(r'^["\']([^"\']*)["\']\s+UPON\s+SYSOUT$', display_content, re.IGNORECASE)
+    # v10.1: Strip UPON SYSOUT suffix if present (handles both simple and complex cases)
+    # Pattern matches UPON SYSOUT at the end of the content
+    display_content = re.sub(r'\s+UPON\s+SYSOUT$', '', display_content, flags=re.IGNORECASE).strip()
+
+    # v10.0: Check for simple DISPLAY "message" UPON SYSOUT pattern (after stripping)
+    upon_sysout_match = re.match(r'^["\']([^"\']*)["\']$', display_content, re.IGNORECASE)
     if upon_sysout_match:
-        # DISPLAY "message" UPON SYSOUT -> print("message")
+        # DISPLAY "message" -> print("message")
         message = upon_sysout_match.group(1)
+        return ast.Expr(value=ast.Call(
+            func=ast.Name(id='print', ctx=ast.Load()),
+            args=[ast.Constant(value=message)],
+            keywords=[]
+        ))
         return ast.Expr(value=ast.Call(
             func=ast.Name(id='print', ctx=ast.Load()),
             args=[ast.Constant(value=message)],
@@ -6374,9 +6386,12 @@ def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
         
         # Convert literal numbers to Decimal for precision
         # v5.7.14: Exclude numbers that are array indices, function arguments, or decimal parts
+        # v10.1: Support COBOL decimal commas (e.g., 1000,50)
         # - (?<!\[) prevents matching numbers preceded by '[' (array indices)
         # - (?<!\.) prevents matching numbers preceded by '.' (parts of decimals)
         # - (?![.\]\)]) prevents matching numbers followed by '.', ']', or ')' (indices, args, decimals)
+        # First convert comma decimals to dot format, then wrap in Decimal()
+        expr_str = re.sub(r'\b(\d+,\d+)\b', lambda m: m.group(1).replace(',', '.'), expr_str)
         expr_str = re.sub(r'(?<!\[)\b(\d+\.\d+)\b', lambda m: f"Decimal({repr(m.group(1))})", expr_str)
         expr_str = re.sub(r'(?<!\[)(?<!\.)\b(\d+)\b(?![.\]\)])', lambda m: f"Decimal({repr(m.group(1))})", expr_str)
         
@@ -6449,10 +6464,10 @@ def transpile_add_v4(stmt: str) -> Optional[ast.stmt]:
             )
         )
     
-    # ADD literal TO variable
-    match = re.match(r'ADD\s+(\d+(?:\.\d+)?)\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
+    # ADD literal TO variable - v10.1: Support COBOL decimal comma
+    match = re.match(r'ADD\s+(\d+(?:[.,]\d+)?)\s+TO\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
     if match:
-        value = match.group(1)
+        value = match.group(1).replace(',', '.')  # Normalize comma to dot
         target = to_snake_case(match.group(2))
         return ast.AugAssign(
             target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store()),
@@ -6490,9 +6505,10 @@ def transpile_subtract_v4(stmt: str) -> Optional[ast.stmt]:
         source = to_snake_case(match.group(2))
         target = to_snake_case(match.group(3))
         
-        # Build subtrahend expression
-        if subtrahend.replace('.', '').isdigit():
-            sub_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=subtrahend)], keywords=[])
+        # Build subtrahend expression - v10.1: Support COBOL decimal comma
+        subtrahend_normalized = subtrahend.replace(',', '.')
+        if subtrahend_normalized.replace('.', '').isdigit():
+            sub_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=subtrahend_normalized)], keywords=[])
         else:
             sub_ast = ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=to_snake_case(subtrahend), ctx=ast.Load())
         
@@ -6505,10 +6521,10 @@ def transpile_subtract_v4(stmt: str) -> Optional[ast.stmt]:
             )
         )
     
-    # SUBTRACT literal FROM variable
-    match = re.match(r'SUBTRACT\s+(\d+(?:\.\d+)?)\s+FROM\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
+    # SUBTRACT literal FROM variable - v10.1: Support COBOL decimal comma
+    match = re.match(r'SUBTRACT\s+(\d+(?:[.,]\d+)?)\s+FROM\s+([A-Z0-9][-A-Z0-9]*)', upper, re.IGNORECASE)
     if match:
-        value = match.group(1)
+        value = match.group(1).replace(',', '.')  # Normalize comma to dot
         target = to_snake_case(match.group(2))
         return ast.AugAssign(
             target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store()),
