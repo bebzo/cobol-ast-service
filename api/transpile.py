@@ -10505,18 +10505,23 @@ def generate_python_code(
         sql_commands: Optional[List[SQLCommand]] = None,
         exception_mode: str = "cobol",
         minified_mode: bool = False,
-        production_quality: bool = True  # Nouveau paramètre pour génération haute qualité
+        production_quality: bool = True,
+        backend: str = "supabase"  # v11.0: Backend cible - 'vsam' ou 'supabase'
     ) -> Dict[str, Any]:
     """Main entry point: COBOL source → Python code
-    
+
+    v11.0: Nouveau paramètre backend
+    - 'supabase' (default): Génère du code compatible Supabase PostgreSQL
+    - 'vsam': Génère du code avec émulateur VSAM Lite (fichiers JSON)
+
     v6.1.1: minified_mode parameter
     - False (default): Full traceability with COBOL comments
     - True: Production-optimized code without traceability comments
-    
+
     v5.7.26: exception_mode parameter
     - 'cobol': Use return codes (COBOL-faithful)
     - 'python': Add exception wrapper with try/catch (modern Python)
-    
+
     v5.1.0: CICS and SQL support
     v4.4.2: Safe Gemini enrichment with rollback protection
     - Always validates syntax after each step
