@@ -285,6 +285,16 @@ export async function POST(request: NextRequest) {
       pythonCode, 
       analysis, 
       testResults,
+      edgeCaseResults,
+      // Full Context from ALL TABS
+      shadowTesting,           // Shadow Testing Panel data
+      productionReadiness,     // Production Readiness Panel data
+      complianceAssessment,    // Compliance Assessment data
+      cyclomaticComplexity,    // Complexity metrics
+      modules,                 // Architecture modules
+      architectureDiagram,     // Architecture diagram (Mermaid)
+      securityScore,           // Calculated security score
+      metrics,                 // Overall metrics
       // Phase 1: Enhanced context
       selectedLine,
       activeError,
@@ -311,7 +321,7 @@ export async function POST(request: NextRequest) {
     // Phase 1: Build enhanced context
     let analysisContext = '';
     if (analysis) {
-      const metrics = {
+      const metricsData = metrics || {
         cobolLines: analysis.cobol_lines || 0,
         pythonLines: analysis.python_lines || 0,
         confidence: analysis.migration_score?.confidence || 0,
@@ -333,40 +343,104 @@ export async function POST(request: NextRequest) {
       const programId = transpilerStats.program_id || 'UNKNOWN';
       
       analysisContext = `
-## ANALYSIS METRICS:
+## 📊 ANALYSIS METRICS (from ALL TABS):
+### Overall Metrics:
 - Program ID: ${programId}
-- COBOL Lines: ${metrics.cobolLines}
-- Python Lines: ${metrics.pythonLines}
+- COBOL Lines: ${metricsData.cobolLines}
+- Python Lines: ${metricsData.pythonLines}
+- Translation Rate: ${coverage.translation_rate || 100}%
+- Confidence Score: ${metricsData.confidence}%
+- Complexity: ${metricsData.complexity}
+- Risk Level: ${metricsData.riskLevel}
+- Estimated Effort: ${metricsData.effort}
+
+### COBOL Structure:
 - COBOL Paragraphs: ${paragraphs}
 - COBOL Variables: ${variables}
-- Translation Rate: ${coverage.translation_rate || 100}%
 - Methods Generated: ${coverage.python_methods_generated || 0}
-- Confidence Score: ${metrics.confidence}%
-- Complexity: ${metrics.complexity}
-- Risk Level: ${metrics.riskLevel}
-- Estimated Effort: ${metrics.effort}
+- Fallbacks Used: ${coverage.fallback_count || 0}
 
-## TEST RESULTS:
-- Tests Total: ${testResults?.total || 0}
-- Tests Passed: ${testResults?.passed || 0}
-- Tests Failed: ${testResults?.failed || 0}
+### Test Results:
+- Unit Tests Total: ${testResults?.total || 0}
+- Unit Tests Passed: ${testResults?.passed || 0}
+- Unit Tests Failed: ${testResults?.failed || 0}
 - Pass Rate: ${testResults?.total > 0 ? Math.round((testResults.passed / testResults.total) * 100) : 0}%
 
-## ISSUES FOUND (${issues.length}):
-${issues.slice(0, 5).map((i: any) => `- ${typeof i === 'string' ? i : i.title || JSON.stringify(i)}`).join('\n')}
+### Edge Case Testing:
+- Edge Cases Total: ${edgeCaseResults?.total || 0}
+- Edge Cases Passed: ${edgeCaseResults?.passed || 0}
+- Edge Cases Failed: ${edgeCaseResults?.failed || 0}
+- Coverage: ${edgeCaseResults?.coverage || 0}%
 
-## IMPROVEMENTS (${improvements.length}):
-${improvements.slice(0, 5).map((i: any) => `- ${typeof i === 'string' ? i : i}`).join('\n')}
+### Security Score: ${securityScore?.score || 'N/A'}/100 (Grade: ${securityScore?.grade || 'N/A'})
+${securityScore ? `- CRITICAL: ${securityScore.critical || 0}, HIGH: ${securityScore.high || 0}, MEDIUM: ${securityScore.medium || 0}` : ''}
 
-## SECURITY WARNINGS (${securityWarnings.length}):
+## 🔍 ISSUES FOUND (${issues.length}):
+${issues.slice(0, 8).map((i: any) => `- ${typeof i === 'string' ? i : i.title || JSON.stringify(i)}`).join('\n')}
+${issues.length > 8 ? `\n- ... and ${issues.length - 8} more issues` : ''}
+
+## 🚀 IMPROVEMENTS (${improvements.length}):
+${improvements.slice(0, 8).map((i: any) => `- ${typeof i === 'string' ? i : i}`).join('\n')}
+${improvements.length > 8 ? `\n- ... and ${improvements.length - 8} more improvements` : ''}
+
+## ⚠️ SECURITY WARNINGS (${securityWarnings.length}):
 ${securityWarnings.slice(0, 5).map((w: any) => `- [${w.severity || 'INFO'}] ${w.title || w}`).join('\n')}
 
-## NEXT STEPS:
-${nextSteps.slice(0, 4).map((s: string) => `- ${s}`).join('\n')}
+## 📋 NEXT STEPS:
+${nextSteps.slice(0, 6).map((s: string) => `- ${s}`).join('\n')}
 
-## BUSINESS CONTEXT:
+## 💼 BUSINESS CONTEXT:
 - Domain: ${analysis.business_context?.domain || 'Enterprise'}
-- Summary: ${analysis.summary || 'No summary'}
+- Detected Year: ${analysis.business_context?.detected_year || 'Unknown'}
+- Regulatory Context: ${analysis.business_context?.regulatory_context || 'None'}
+- Is Obsolete: ${analysis.business_context?.is_obsolete ? 'YES - ' + (analysis.business_context?.obsolescence_reason || 'obsolete code') : 'No'}
+
+## 🏗️ ARCHITECTURE TAB DATA:
+### Modules (${modules?.length || 0} total):
+${(modules || []).slice(0, 10).map((m: any) => `- ${m.name}: ${m.lines || 0} lines, complexity: ${m.complexity || 'MEDIUM'}, risk: ${m.risk || 'LOW'}`).join('\n')}
+${(modules?.length || 0) > 10 ? `\n- ... and ${modules.length - 10} more modules` : ''}
+
+### Architecture Diagram:
+${architectureDiagram ? 'Available (Mermaid format)' : 'Not generated'}
+
+## 📈 COMPLEXITY ANALYSIS:
+${cyclomaticComplexity ? `
+- Average Complexity: ${cyclomaticComplexity.average || 'N/A'}
+- Highest Risk: ${cyclomaticComplexity.highest?.name || 'N/A'} (complexity: ${cyclomaticComplexity.highest?.complexity || 'N/A'})
+- High Risk Paragraphs: ${cyclomaticComplexity.paragraphs?.filter((p: any) => p.risk === 'HIGH').length || 0}
+` : '- Not available'}
+
+## 🧪 SHADOW TESTING PLAN:
+${shadowTesting ? `
+- Readiness Score: ${shadowTesting.readiness_score || 'N/A'}%
+- Status: ${shadowTesting.readiness_status || 'Unknown'}
+- Estimated Duration: ${shadowTesting.estimated_duration || 'Unknown'}
+- Critical Paths: ${shadowTesting.critical_paths?.length || 0}
+- Risk Mitigation: ${shadowTesting.risk_mitigation?.length || 0} strategies
+${shadowTesting.critical_paths?.slice(0, 3).map((p: any) => `- ${p.category}: ${p.description?.substring(0, 80)}...`).join('\n') || ''}
+` : '- Not available - Run analysis to generate shadow testing plan'}
+
+## ✅ PRODUCTION READINESS:
+${productionReadiness ? `
+- Overall Score: ${productionReadiness.overallScore || 'N/A'}%
+- Categories: ${Object.keys(productionReadiness.categories || {}).join(', ') || 'None assessed'}
+- Critical Issues: ${productionReadiness.criticalIssues || 0}
+- Recommendations: ${productionReadiness.recommendations?.length || 0}
+` : '- Not available - Run production readiness assessment'}
+
+## 📜 COMPLIANCE ASSESSMENT:
+${complianceAssessment ? `
+- Overall Risk: ${complianceAssessment.overall_risk || 'Unknown'}
+- Applicable Regulations:
+${Object.entries(complianceAssessment).filter(([k]) => 
+  ['sox', 'pci_dss', 'gdpr', 'hipaa'].includes(k.toLowerCase())
+).map(([key, value]: [string, any]) => 
+  `- ${key.toUpperCase()}: ${value.status || 'N/A'} (${value.applicable ? 'applicable' : 'not applicable'})`
+).join('\n') || '- None'}
+` : '- Not available - Run compliance assessment'}
+
+## 🎯 SUMMARY:
+${analysis.summary || 'No summary available'}
 `;
     }
 
@@ -374,7 +448,7 @@ ${nextSteps.slice(0, 4).map((s: string) => `- ${s}`).join('\n')}
     let lineContext = '';
     if (selectedLine) {
       lineContext = `
-## CONTEXTE LIGNE SÉLECTIONNÉE:
+## 📍 CONTEXTE LIGNE SÉLECTIONNÉE:
 - Numéro de ligne: ${selectedLine.lineNumber}
 - Type: ${selectedLine.type} (COBOL/Python)
 - Contenu: \`${selectedLine.content}\`
@@ -386,7 +460,7 @@ ${selectedLine.mappedLine ? `- Ligne correspondante: ${selectedLine.mappedLine}`
     let errorContext = '';
     if (activeError) {
       errorContext = `
-## ERREUR ACTIVE:
+## ❌ ERREUR ACTIVE:
 - Type: ${activeError.type}
 - Message: ${activeError.message}
 - Ligne: ${activeError.line || 'N/A'}
@@ -398,8 +472,8 @@ ${selectedLine.mappedLine ? `- Ligne correspondante: ${selectedLine.mappedLine}`
     let historyContext = '';
     if (conversationHistory && conversationHistory.length > 0) {
       historyContext = `
-## HISTORIQUE DE CONVERSATION (${conversationHistory.length} messages précédents):
-${conversationHistory.slice(-5).map((h: any) => `- Q: ${h.query.substring(0, 100)}...\n  R: ${h.response.substring(0, 150)}...`).join('\n')}
+## 💬 HISTORIQUE DE CONVERSATION (${conversationHistory.length} messages précédents):
+${conversationHistory.slice(-5).map((h: any) => `- Q: ${h.query?.substring(0, 100)}...\n  R: ${h.response?.substring(0, 150)}...`).join('\n')}
 `;
     }
 
@@ -418,8 +492,8 @@ ${conversationHistory.slice(-5).map((h: any) => `- Q: ${h.query.substring(0, 100
     let docsContext = '';
     if (detectedKeywords.length > 0) {
       docsContext = `
-## RELEVANT COBOL DOCUMENTATION:
-${detectedKeywords.slice(0, 3).map(kw => `### ${kw}\n${COBOL_DOCS[kw]}`).join('\n\n')}
+## 📚 RELEVANT COBOL DOCUMENTATION:
+${detectedKeywords.slice(0, 4).map(kw => `### ${kw}\n${COBOL_DOCS[kw]}`).join('\n\n')}
 `;
     }
 
@@ -437,9 +511,10 @@ ${detectedKeywords.slice(0, 3).map(kw => `### ${kw}\n${COBOL_DOCS[kw]}`).join('\
         queryLower.includes('centime') || queryLower.includes('penny')) {
       
       roundingContext = `
-## ROUNDING ANALYSIS (Auto-detected):
+## 🔢 ROUNDING ANALYSIS (Auto-detected):
 ### COBOL ROUNDED Detection:
 - COBOL uses ROUNDED keyword: ${roundingAnalysis.hasCobolRounded ? 'YES' : 'NO'}
+${roundingAnalysis.cobolRoundedVariables.length > 0 ? `- Variables: ${roundingAnalysis.cobolRoundedVariables.join(', ')}` : ''}
 
 ### Python Rounding Methods Found:
 ${roundingAnalysis.pythonRoundingMethods.length > 0 ? roundingAnalysis.pythonRoundingMethods.map(m => `- ${m}`).join('\n') : '- No explicit rounding methods detected'}
@@ -456,8 +531,14 @@ ${roundingAnalysis.recommendations.length > 0 ? `### 💡 RECOMMENDATIONS:\n${ro
     // Build the enhanced prompt
     const prompt = `You are an expert in COBOL to Python migration, specialized in banking and financial legacy systems.
 You have deep knowledge of CobolRuntime, decimal precision, and rounding differences between COBOL and Python.
+You have access to COMPLETE ANALYSIS DATA from ALL TABS including:
+- Code Analysis, Tests, Metrics
+- Shadow Testing Plan, Production Readiness
+- Compliance Assessment, Architecture, Complexity Analysis
 
 IMPORTANT: Always respond in the same language as the user's question. If they ask in French, respond in French. If they ask in English, respond in English. Adapt to any language.
+
+USE ALL AVAILABLE CONTEXT to provide comprehensive answers. Reference specific metrics, scores, and data from the analysis.
 
 ${analysisContext}
 ${lineContext}
@@ -466,20 +547,20 @@ ${historyContext}
 ${docsContext}
 ${roundingContext}
 
-## COBOL SOURCE CODE (extract):
+## 🖥️ COBOL SOURCE CODE (extract):
 \`\`\`cobol
 ${cobolCode || 'Non fourni'}
 \`\`\`
 
-## GENERATED PYTHON CODE (extract):
+## 🐍 GENERATED PYTHON CODE (extract):
 \`\`\`python
 ${pythonCode || 'Non fourni'}
 \`\`\`
 
-## USER QUESTION:
+## ❓ USER QUESTION:
 ${query}
 
-## EXPERT KNOWLEDGE BASE (always mention when relevant):
+## 🛠️ EXPERT KNOWLEDGE BASE (always mention when relevant):
 
 ### Libraries & Tools to Reference:
 - **cobolfmt**: COPYBOOK parser for Python (parsing data structures)
@@ -512,26 +593,40 @@ ${query}
 - Database CDC (Change Data Capture) for real-time replication
 - Compensation logs for conflict resolution
 
-## RESPONSE INSTRUCTIONS:
+## 📝 RESPONSE INSTRUCTIONS:
 1. **BE SPECIFIC** - Use exact variable names, paragraph names, and line references from the code
-2. **CITE METRICS** - If relevant, give precise numbers from the analysis
+2. **CITE METRICS** - Reference precise numbers from ALL TABS (confidence score, security score, test results, etc.)
 3. **EXPLAIN WHY** - Not just what happens, but why it happens that way
-4. **Markdown Format** - Use code blocks, lists, and formatting
-5. **If suggesting code** - Put it in a copyable \`\`\`python block
-6. **ANALYZE THE ACTUAL CODE** - Reference specific lines and classes from the generated Python code
-7. **For rounding questions** - Always check the ROUNDING ANALYSIS section and propose specific fixes
-8. **Language** - Respond in the same language as the question
-9. **MENTION TOOLS** - Reference specific libraries (cobolfmt, pycobol, etc.) when applicable
-10. **PROPOSE ARCHITECTURE** - For complex questions, suggest architectural patterns with diagrams description
-11. **COMPLIANCE** - Mention SOX, PCI-DSS, GDPR implications for banking migrations
+4. **USE ALL DATA** - Reference shadow testing, production readiness, compliance data when relevant
+5. **Markdown Format** - Use code blocks, lists, and formatting
+6. **If suggesting code** - Put it in a copyable \`\`\`python block
+7. **ANALYZE THE ACTUAL CODE** - Reference specific lines and classes from the generated Python code
+8. **For rounding questions** - Always check the ROUNDING ANALYSIS section and propose specific fixes
+9. **Language** - Respond in the same language as the question
+10. **MENTION TOOLS** - Reference specific libraries (cobolfmt, pycobol, etc.) when applicable
+11. **PROPOSE ARCHITECTURE** - For complex questions, suggest architectural patterns with diagrams description
+12. **COMPLIANCE** - Mention SOX, PCI-DSS, GDPR implications for banking migrations
+13. **GIVE CONTEXTUAL ANSWERS** - Don't say "I don't have access to that data" - use all the context provided above
 
-## RESPONSE STRUCTURE:
+## 📋 RESPONSE STRUCTURE:
 - Start by directly answering the question
-- Add technical details if relevant
+- Reference SPECIFIC metrics and data from the analysis (confidence score, test pass rate, security grade, etc.)
+- Add technical details with exact line references
 - Reference specific libraries/tools when applicable
 - If rounding issues detected, propose specific code fixes with line references
 - For architecture questions, describe the recommended topology
+- Mention shadow testing and production readiness scores when relevant
 - End with 2-3 suggested follow-up questions
+
+## 🚨 IMPORTANT:
+You have access to COMPLETE DATA from ALL ANALYSIS TABS. When the user asks about:
+- "Is this production ready?" → Reference productionReadiness score, securityScore, testResults
+- "What are the risks?" → Reference migration_score.risk, securityScore, complianceAssessment
+- "How good is the translation?" → Reference confidence score, translation rate, test pass rate
+- "What should I test?" → Reference shadowTesting.critical_paths, edgeCaseResults
+- "What compliance issues?" → Reference complianceAssessment
+
+USE THIS DATA to give accurate, contextual answers!
 
 RESPONSE:`;
 
@@ -540,7 +635,7 @@ RESPONSE:`;
 
     // Phase 5: Add suggested questions if not already present
     if (!response.includes('Question') && !response.includes('?')) {
-      const suggestedQuestions = generateSuggestedQuestions(query, detectedKeywords, analysis);
+      const suggestedQuestions = generateSuggestedQuestions(query, detectedKeywords, analysis, shadowTesting, productionReadiness, complianceAssessment);
       if (suggestedQuestions.length > 0) {
         response += `\n\n---\n**💡 Questions connexes:**\n${suggestedQuestions.map(q => `- ${q}`).join('\n')}`;
       }
@@ -550,7 +645,7 @@ RESPONSE:`;
       response,
       // Return detected keywords for UI to potentially show doc links
       detectedKeywords,
-      suggestedQuestions: generateSuggestedQuestions(query, detectedKeywords, analysis)
+      suggestedQuestions: generateSuggestedQuestions(query, detectedKeywords, analysis, shadowTesting, productionReadiness, complianceAssessment)
     }, { headers: corsHeaders });
 
   } catch (error: any) {
@@ -563,7 +658,7 @@ RESPONSE:`;
 }
 
 // Phase 5: Generate contextual suggested questions
-function generateSuggestedQuestions(query: string, keywords: string[], analysis: any): string[] {
+function generateSuggestedQuestions(query: string, keywords: string[], analysis: any, shadowTesting: any, productionReadiness: any, complianceAssessment: any): string[] {
   const questions: string[] = [];
   const queryLower = query.toLowerCase();
   
@@ -591,21 +686,54 @@ function generateSuggestedQuestions(query: string, keywords: string[], analysis:
   }
   if (queryLower.includes('test')) {
     questions.push("What additional tests do you recommend?");
+    if (shadowTesting) {
+      questions.push("What are the critical paths for shadow testing?");
+    }
   }
   
   // Based on analysis state
   if (analysis?.security_warnings?.length > 0) {
-    questions.push("Explain the most critical security warning");
+    questions.push("Explain the most critical security warning and how to fix it");
   }
   if (analysis?.issues?.length > 0) {
     questions.push("How to resolve the detected issues?");
+  }
+  
+  // Production readiness context
+  if (productionReadiness) {
+    if ((productionReadiness.overallScore || 0) < 80) {
+      questions.push("What are the main blockers to production readiness?");
+    }
+    questions.push("What improvements would increase the production readiness score?");
+  }
+  
+  // Shadow testing context
+  if (shadowTesting) {
+    questions.push("What test data should I use for shadow testing?");
+    questions.push("How long will shadow testing take?");
+  }
+  
+  // Compliance context
+  if (complianceAssessment) {
+    questions.push("What are the compliance findings I need to address?");
+  }
+  
+  // Confidence context
+  if (analysis?.migration_score?.confidence) {
+    const conf = typeof analysis.migration_score.confidence === 'number' 
+      ? analysis.migration_score.confidence 
+      : parseInt(String(analysis.migration_score.confidence || '0'));
+    if (conf < 80) {
+      questions.push("What would increase the confidence score?");
+    }
   }
   
   // Default questions if none matched
   if (questions.length === 0) {
     questions.push("What are the major differences between this COBOL and the generated Python?");
     questions.push("Is this code ready for production?");
+    questions.push("What additional tests should I write?");
   }
   
-  return questions.slice(0, 3);
+  return questions.slice(0, 4);
 }

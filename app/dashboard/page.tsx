@@ -1671,26 +1671,101 @@ export default function Home() {
     }, 50);
     
     try {
-      // Phase 1: Build enhanced context
-      const enhancedPayload = { 
-        query, 
-        cobolCode: cobolCode.substring(0, 4000),  // More context
-        pythonCode: pythonCode.substring(0, 4000),
-        analysis,  // FULL analysis object with all metrics!
-        testResults: { 
-          total: testResults.total, 
-          passed: testResults.passed, 
-          failed: testResults.failed,
-          details: testResults.details.slice(0, 10) // Include some test details
+      // Build comprehensive fullContext object with all analysis data
+      const fullContext = {
+        // Source COBOL code (original and analyzed versions)
+        cobolCode: {
+          original: cobolCode,
+          analyzed: analyzedCobolCode || cobolCode
         },
-        // Phase 3: Include conversation history for context (exclude the thinking message)
-        conversationHistory: conversationHistory.slice(-5)
+        
+        // Generated Python code
+        pythonCode: pythonCode,
+        
+        // Complete analysis results with all metrics and assessments
+        analysis: analysis ? {
+          // Basic information
+          summary: analysis.summary,
+          business_context: analysis.business_context,
+          
+          // Code statistics
+          python_code: analysis.python_code,
+          cobol_lines: analysis.cobol_lines,
+          python_lines: analysis.python_lines,
+          
+          // Migration metrics and scores
+          migration_score: analysis.migration_score,
+          coverage_metrics: analysis.coverage_metrics,
+          
+          // Issues, improvements, and security
+          issues: analysis.issues,
+          improvements: analysis.improvements,
+          security_warnings: analysis.security_warnings,
+          
+          // Advanced analysis features
+          ast_metrics: analysis.ast_metrics,
+          cyclomatic_complexity: analysis.cyclomatic_complexity,
+          compliance_assessment: analysis.compliance_assessment,
+          shadow_testing_plan: analysis.shadow_testing_plan,
+          
+          // Architecture and structure
+          architecture_diagram: analysis.architecture_diagram,
+          modular_architecture: analysis.modular_architecture,
+          
+          // Generated tests and configuration
+          unit_tests: analysis.unit_tests,
+          tests: analysis.tests,
+          config_json: analysis.config_json,
+          
+          // Next steps and recommendations
+          next_steps: analysis.next_steps,
+          
+          // Modules information
+          modules: analysis.modules
+        } : null,
+        
+        // Test execution results (unit tests)
+        testResults: {
+          total: testResults.total,
+          passed: testResults.passed,
+          failed: testResults.failed,
+          running: testResults.running,
+          details: testResults.details.slice(0, 20)
+        },
+        
+        // Edge case test results
+        edgeCaseResults: {
+          total: edgeCaseResults.total,
+          passed: edgeCaseResults.passed,
+          failed: edgeCaseResults.failed,
+          coverage: edgeCaseResults.coverage,
+          running: edgeCaseResults.running,
+          details: edgeCaseResults.details.slice(0, 20)
+        },
+        
+        // Conversation history for contextual understanding
+        conversationHistory: conversationHistory.slice(-10).map(h => ({
+          query: h.query,
+          response: h.response
+        })),
+        
+        // Metadata about the current analysis session
+        metadata: {
+          filename: filename,
+          hasAnalysis: !!analysis,
+          hasPythonCode: !!pythonCode,
+          hasTests: !!(analysis?.unit_tests || analysis?.tests),
+          timestamp: Date.now()
+        }
       };
       
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(enhancedPayload)
+        body: JSON.stringify({
+          query,
+          fullContext
+        })
       });
       const data = await res.json();
       const response = data.response || "Sorry, I couldn't process your request.";
