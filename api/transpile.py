@@ -280,6 +280,230 @@ def validate_python_code(python_code: str) -> List[str]:
     return warnings
 
 
+# ===========================================================================
+# v11.0: Type Analyzer for COBOL type validation
+# ===========================================================================
+# Patch 2: Type validation for assignments to prevent type mismatches
+
+class TypeAnalyzer:
+    '''Analyzes COBOL types and validates assignments'''
+
+    def __init__(self):
+        self.warnings = []
+
+    def validate_assignment(self, target: str, source: str, pic_clauses: dict = None) -> bool:
+        '''
+        Valide qu'une affectation est compatible en types.
+
+        Args:
+            target: Nom de la variable cible
+            source: Nom de la variable source
+            pic_clauses: Dictionnaire des clauses PIC {nom: clause}
+
+        Returns:
+            True si l'affectation est valide, False si types incompatibles
+        '''
+        pic_clauses = pic_clauses or {}
+
+        target_type = self.get_type_from_pic(pic_clauses.get(target))
+        source_type = self.get_type_from_pic(pic_clauses.get(source))
+
+        # Si types incompatibles, NE PAS générer l'affectation
+        if not self.are_compatible(target_type, source_type):
+            self.warnings.append(
+                f"Type mismatch: {target} ({target_type}) = {source} ({source_type})"
+            )
+            return False
+
+        return True
+
+    def get_type_from_pic(self, pic_clause: str) -> str:
+        '''Détermine le type Python depuis PIC COBOL'''
+        if not pic_clause:
+            return 'unknown'
+
+        pic = pic_clause.upper()
+
+        # Numeric
+        if '9' in pic or 'COMP' in pic or 'PACKED' in pic:
+            return 'Decimal'
+
+        # String
+        elif 'X' in pic or 'A' in pic:
+            return 'str'
+
+        # Date
+        elif 'DATE' in pic:
+            return 'datetime'
+
+        else:
+            return 'unknown'
+
+    def are_compatible(self, type1: str, type2: str) -> bool:
+        '''Vérifie si deux types sont compatibles'''
+        if type1 == 'unknown' or type2 == 'unknown':
+            return True  # Assume OK si type inconnu
+
+        # Types identiques
+        if type1 == type2:
+            return True
+
+        # Conversions autorisées
+        compatible_pairs = [
+            ('Decimal', 'int'),
+            ('int', 'Decimal'),
+            ('str', 'bytes'),
+        ]
+
+        return (type1, type2) in compatible_pairs or (type2, type1) in compatible_pairs
+
+
+# ===========================================================================
+# v11.0: Post-Transpilation Validator
+# ===========================================================================
+# Patch 4: Detects common bugs in generated Python code
+
+class TranspilerValidator:
+    '''Validates generated Python code for common transpilation bugs'''
+
+    def __init__(self):
+        self.warnings = []
+        self.errors = []
+
+    def validate(self, python_code: str) -> tuple:
+        '''
+        Valide le code généré et retourne (is_valid, issues).
+
+        Détecte:
+        - "if True:" suspect (EVALUATE TRUE bug)
+        - "_item == _item" (SEARCH bug)
+        - Conditions avec strings littérales
+        - Variables COBOL non converties (self.zero, etc.)
+        - Affectations de types incompatibles
+        '''
+        self.warnings = []
+        self.errors = []
+
+        lines = python_code.split('\n')
+
+        # Check 1: Détecter "if True:" suspect
+        for i, line in enumerate(lines, 1):
+            if re.match(r'^\s*(if|elif)\s+True\s*:', line):
+                # Vérifier si c'est un pattern valide ou un bug
+                if not self._is_valid_true_condition(lines, i - 1):
+                    self.errors.append(
+                        f"Line {i}: Suspicious 'if True:' - likely missing condition (EVALUATE TRUE bug)"
+                    )
+
+        # Check 2: Détecter "_item == _item"
+        for i, line in enumerate(lines, 1):
+            if '_item == _item' in line:
+                self.errors.append(
+                    f"Line {i}: SEARCH bug - comparing item to itself"
+                )
+
+        # Check 3: Détecter conditions avec strings littérales
+        for i, line in enumerate(lines, 1):
+            match = re.match(r'^\s*(elif|if)\s+\'([^\']+)\'\s*:', line)
+            if match and 'print' not in line:
+                self.errors.append(
+                    f"Line {i}: Literal string condition '{match.group(2)}' - always True"
+                )
+
+        # Check 4: Détecter variables COBOL non converties
+        for i, line in enumerate(lines, 1):
+            for var in ['self.zero', 'self.zeros', 'self.spaces', 'self.high_values']:
+                if var in line.lower():
+                    self.errors.append(
+                        f"Line {i}: COBOL keyword not converted: {var}"
+                    )
+
+        # Check 5: Détecter affectations de types incompatibles (pattern size/key)
+        for i, line in enumerate(lines, 1):
+            # portfolio_size (Decimal) = pos_symbol_key (str)
+            if re.search(r'self\.\w+_size\s*=\s*self\.\w+_(key|id|symbol)', line):
+                self.warnings.append(
+                    f"Line {i}: Possible type mismatch - size variable assigned non-numeric"
+                )
+
+        # Check 6: Détecter self.Decimal au lieu de Decimal()
+        for i, line in enumerate(lines, 1):
+            if re.search(r'self\.Decimal\s*[\(\[]', line):
+                self.errors.append(
+                    f"Line {i}: 'self.Decimal' detected - should be 'Decimal()' (decimal module shadowed)"
+                )
+
+        is_valid = len(self.errors) == 0
+        all_issues = self.errors + self.warnings
+
+        return is_valid, all_issues
+
+    def _is_valid_true_condition(self, lines: list, line_idx: int) -> bool:
+        '''
+        Vérifie si "if True:" est intentionnel ou un bug.
+
+        Valide si:
+        - Suivi d'un commentaire explicatif (TODO, intentional, debug)
+        - Dans un contexte de test
+        '''
+        if line_idx < 0 or line_idx >= len(lines):
+            return False
+
+        line = lines[line_idx]
+
+        # Si commentaire explicite, OK
+        if '# ' in line and any(kw in line.lower() for kw in ['todo', 'intentional', 'debug']):
+            return True
+
+        # Si dans une fonction de test, OK
+        for i in range(max(0, line_idx - 10), line_idx):
+            if 'def test_' in lines[i] or 'def mock_' in lines[i]:
+                return True
+
+        return False
+
+    def generate_report(self) -> str:
+        '''Génère un rapport de validation'''
+        report = []
+        report.append("=" * 70)
+        report.append("TRANSPILATION VALIDATION REPORT (v11.0)")
+        report.append("=" * 70)
+        report.append("")
+
+        if not self.errors and not self.warnings:
+            report.append("✅ No issues detected")
+        else:
+            if self.errors:
+                report.append(f"❌ {len(self.errors)} ERROR(S):")
+                for error in self.errors:
+                    report.append(f"   {error}")
+                report.append("")
+
+            if self.warnings:
+                report.append(f"⚠️  {len(self.warnings)} WARNING(S):")
+                for warning in self.warnings:
+                    report.append(f"   {warning}")
+
+        report.append("")
+        report.append("=" * 70)
+
+        return '\n'.join(report)
+
+
+def validate_transpiled_code(python_code: str) -> tuple:
+    '''
+    Wrapper function for TranspilerValidator.
+
+    Args:
+        python_code: Generated Python code to validate
+
+    Returns:
+        (is_valid, issues) - is_valid is False if errors found
+    '''
+    validator = TranspilerValidator()
+    return validator.validate(python_code)
+
+
 def deduplicate_imports(python_code: str) -> str:
     """
     v10.0: Remove duplicate import statements from generated Python code.
@@ -10161,7 +10385,11 @@ def generate_python_code(
                 'validation_warnings': validation_warnings,  # v9.0.0: COBOL pattern validation
                 **gemini_stats,
                 **confidence['coverage'],
-                **confidence['quality_factors']
+                **confidence['quality_factors'],
+                # v11.0: Post-transpilation validation results (Patches 2, 4, 5)
+                'validation_passed': True,  # Will be updated by handler
+                'validation_errors': 0,
+                'validation_warnings_count': 0
             },
             # v8.5: Security hardening results
             'security': {
@@ -12597,13 +12825,32 @@ class handler(BaseHTTPRequestHandler):
                                           exception_mode=exception_mode,
                                           minified_mode=minified_mode)
             
-            # v6.1.2: Validate generated Python code and add warnings if needed
+            # v11.0: Validate generated Python code with enhanced validator
+            # Patch 5: Integrated post-transpilation validation
             # NOTE: L'analyse continue même s'il y a des avertissements
             python_code = result.get('python_code', '')
             if python_code:
-                warnings = validate_python_code(python_code)
-                if warnings:
-                    result['validation_warnings'] = warnings
+                # Run basic validation
+                basic_warnings = validate_python_code(python_code)
+
+                # Run enhanced TranspilerValidator
+                validator = TranspilerValidator()
+                is_valid, issues = validator.validate(python_code)
+
+                # Combine all warnings
+                all_warnings = basic_warnings.copy()
+                if issues:
+                    all_warnings.extend(issues)
+                    # Add validation report to result
+                    result['validation_report'] = validator.generate_report()
+
+                if all_warnings:
+                    result['validation_warnings'] = all_warnings
+
+                # v11.0: Add validation status
+                result['validation_passed'] = is_valid
+                result['validation_errors'] = len(validator.errors)
+                result['validation_warnings_count'] = len(validator.warnings)
             
             # Add preprocessor stats to result
             if copybook_stats:
