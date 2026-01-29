@@ -3471,8 +3471,31 @@ def to_snake_case(name: str) -> str:
 
 
 def to_pascal_case(name: str) -> str:
-    """Convert COBOL-STYLE-NAME to PythonStyleName"""
-    return ''.join(word.capitalize() for word in name.replace('-', '_').split('_'))
+    """Convert COBOL-STYLE-NAME to PythonStyleName
+    
+    v11.0.1: Added quote/special character handling for Python identifier safety.
+    Removes or replaces characters that would be invalid in Python class names.
+    """
+    # Remove or replace special characters that are invalid in Python identifiers
+    # Remove triple quotes, double quotes, single quotes
+    name = name.replace('"""', '').replace("'''", '').replace('"', '').replace("'", '')
+    # Remove backslashes and other problematic characters
+    name = name.replace('\\', '').replace('$', '').replace('@', '').replace('#', '')
+    # Remove parentheses and brackets
+    name = name.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
+    # Remove angle brackets
+    name = name.replace('<', '').replace('>', '')
+    # Replace hyphens and other separators with underscores first, then process
+    name = name.replace('-', '_').replace('.', '_')
+    
+    # Capitalize each word and join
+    result = ''.join(word.capitalize() for word in name.split('_'))
+    
+    # Ensure it starts with a letter (Python requirement)
+    if result and not result[0].isalpha():
+        result = 'Class' + result
+    
+    return result
 
 
 def _escape_for_docstring(text: str) -> str:
