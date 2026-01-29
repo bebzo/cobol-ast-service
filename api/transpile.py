@@ -267,16 +267,9 @@ def validate_python_code(python_code: str) -> List[str]:
     if matches:
         warnings.append(f"'decimal.Decimal' object is not subscriptable - Found pattern: {matches[0]}")
     
-    # 2. Détecter les chaînes non échappées avec apostrophes
-    lines = python_code.split('\n')
-    for i, line in enumerate(lines, 1):
-        if "'" in line and not line.strip().startswith('#'):
-            # Vérifier si la ligne contient une chaîne potentiellement non fermée
-            single_quotes = line.count("'") - line.count("\\'")
-            double_quotes = line.count('"') - line.count('\\"')
-            if single_quotes % 2 == 1 and double_quotes % 2 == 0:
-                warnings.append(f"unterminated string literal (detected at line {i})")
-                break
+    # Note: Removed naive quote counting check as it causes false positives.
+    # ast.parse() already validates syntax correctly, so we trust it.
+    # Multi-line strings (triple-quoted) and escaped quotes were incorrectly flagged.
     
     return warnings
 
