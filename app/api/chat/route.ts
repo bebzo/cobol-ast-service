@@ -297,6 +297,8 @@ export async function POST(request: NextRequest) {
       metrics,                 // Overall metrics
       // v9.4: Export tab data
       exportData,              // Export formats, frameworks, certificate data
+      // v9.5: Complete Dashboard Metrics
+      dashboardMetrics,        // ALL dashboard metrics (transformation, coverage, test oracle, equivalence, performance)
       // Phase 1: Enhanced context
       selectedLine,
       activeError,
@@ -460,6 +462,65 @@ ${exportData.certificateData ? `### Certificate Status:
 - Confidence Score: ${exportData.certificateData.confidenceScore || 0}%
 - Test Coverage: ${exportData.certificateData.testCoverage || 0}%` : ''}
 ` : '- Export data not available - Run analysis first'}
+
+## 📊 DASHBOARD METRICS COMPLETS (v9.5):
+${dashboardMetrics ? `
+### 🎯 Transformation Metrics (Live Panel):
+- COBOL Lines: ${dashboardMetrics.transformation?.cobolLines || 'N/A'}
+- Python Lines: ${dashboardMetrics.transformation?.pythonLines || 'N/A'}
+- Total Lines: ${dashboardMetrics.transformation?.totalLines || 'N/A'}
+- Tests: ${dashboardMetrics.transformation?.testsCount || 0}
+- Issues: ${dashboardMetrics.transformation?.issuesCount || 0} ${dashboardMetrics.transformation?.issuesFixed ? `(${dashboardMetrics.transformation.issuesFixed} Fixed)` : ''}
+- Ratio: ${dashboardMetrics.transformation?.ratio || 'N/A'}
+- Security Score: ${dashboardMetrics.transformation?.securityScore?.score || 'N/A'}/100 (Grade ${dashboardMetrics.transformation?.securityScore?.grade || 'N/A'})
+
+### 📈 Coverage Metrics (v8.1):
+- Translation Rate: ${dashboardMetrics.coverage?.translation_rate || 100}%
+- Paragraphs: ${dashboardMetrics.coverage?.successful_translations || 0}/${dashboardMetrics.coverage?.total_paragraphs || 0}
+- Fallbacks: ${dashboardMetrics.coverage?.fallback_count || 0}
+- Variables: ${dashboardMetrics.coverage?.variables_detected || 0}
+- Methods Generated: ${dashboardMetrics.coverage?.python_methods_generated || 0}
+- COBOL Funcs: ${dashboardMetrics.coverage?.cobol_functions_ai_translated || 0}/${dashboardMetrics.coverage?.cobol_functions_unknown || 0} ${dashboardMetrics.coverage?.cobol_functions_stubbed ? `(${dashboardMetrics.coverage.cobol_functions_stubbed} stubs)` : ''}
+
+### 🧪 Test Oracle Results:
+- Status: ${dashboardMetrics.testOracle?.status || 'UNKNOWN'}
+- Tests Generated: ${dashboardMetrics.testOracle?.testsGenerated || 0}
+- Tests Passed: ${dashboardMetrics.testOracle?.testsPassed || 0}
+- Tests Failed: ${dashboardMetrics.testOracle?.testsFailed || 0}
+- Pass Rate: ${dashboardMetrics.testOracle?.passRate || 0}%
+- Compilation: ${dashboardMetrics.testOracle?.compilationStatus || 'UNKNOWN'} ${dashboardMetrics.testOracle?.compilationError ? `- ${dashboardMetrics.testOracle.compilationError}` : ''}
+
+### ✅ Equivalence Validation Dashboard:
+- Overall Score: ${dashboardMetrics.equivalence?.overallScore || 'N/A'}%
+${dashboardMetrics.equivalence?.categories ? `
+- Numerical: ${dashboardMetrics.equivalence.categories.numerical?.score || 0}% (${dashboardMetrics.equivalence.categories.numerical?.label || 'Calculation accuracy'})
+- Behavioral: ${dashboardMetrics.equivalence.categories.behavioral?.score || 0}% (${dashboardMetrics.equivalence.categories.behavioral?.label || 'State transitions'})
+- Edge Cases: ${dashboardMetrics.equivalence.categories.edgeCases?.score || 0}% (${dashboardMetrics.equivalence.categories.edgeCases?.label || 'Boundary conditions'})
+- Semantic: ${dashboardMetrics.equivalence.categories.semantic?.score || 0}% (${dashboardMetrics.equivalence.categories.semantic?.label || 'Logic coverage'})` : ''}
+${dashboardMetrics.equivalence?.propertyTests ? `
+- Property Tests: ${dashboardMetrics.equivalence.propertyTests.inferredCount || 0} inferred, ${dashboardMetrics.equivalence.propertyTests.passedCount || 0} passed
+- Monotonicity: ${dashboardMetrics.equivalence.propertyTests.monotonicity?.verified ? 'Verified' : 'Failed'} (${dashboardMetrics.equivalence.propertyTests.monotonicity?.percentage || 0}%)
+- Zero Identity: ${dashboardMetrics.equivalence.propertyTests.zeroIdentity?.verified ? 'Verified' : 'Failed'} (${dashboardMetrics.equivalence.propertyTests.zeroIdentity?.percentage || 0}%)
+- Non-Negative: ${dashboardMetrics.equivalence.propertyTests.nonNegative?.verified ? 'Verified' : 'Failed'} (${dashboardMetrics.equivalence.propertyTests.nonNegative?.percentage || 0}%)` : ''}
+- Regression Safety: ${dashboardMetrics.equivalence?.regressionSafety || 'UNKNOWN'}
+
+### ⚡ Performance Benchmarks:
+${dashboardMetrics.performance?.codeSize ? `- Code Size: ${dashboardMetrics.performance.codeSize.cobol} lines → ${dashboardMetrics.performance.codeSize.python} lines (${dashboardMetrics.performance.codeSize.delta}) [${dashboardMetrics.performance.codeSize.status}]` : ''}
+${dashboardMetrics.performance?.testCoverage ? `- Test Coverage: ${dashboardMetrics.performance.testCoverage.cobol} → ${dashboardMetrics.performance.testCoverage.python} (${dashboardMetrics.performance.testCoverage.delta}) [${dashboardMetrics.performance.testCoverage.status}]` : ''}
+${dashboardMetrics.performance?.codeComplexity ? `- Complexity: ${dashboardMetrics.performance.codeComplexity.cobol} → ${dashboardMetrics.performance.codeComplexity.python} (${dashboardMetrics.performance.codeComplexity.delta}) [${dashboardMetrics.performance.codeComplexity.status}]` : ''}
+${dashboardMetrics.performance?.maintainability ? `- Maintainability: ${dashboardMetrics.performance.maintainability.cobol} → ${dashboardMetrics.performance.maintainability.python} (${dashboardMetrics.performance.maintainability.delta}) [${dashboardMetrics.performance.maintainability.status}]` : ''}
+
+### 📋 Migration Summary:
+${dashboardMetrics.migrationSummary ? `
+- ${dashboardMetrics.migrationSummary.cobolLines} COBOL lines → ${dashboardMetrics.migrationSummary.pythonLines} Python lines
+- Transpiler: ${dashboardMetrics.migrationSummary.transpilerVersion}
+- Syntax Valid: ${dashboardMetrics.migrationSummary.syntaxValid ? 'Yes' : 'No'}
+- Complexity: ${dashboardMetrics.migrationSummary.complexity}
+- Risk Level: ${dashboardMetrics.migrationSummary.riskLevel}
+- Effort: ${dashboardMetrics.migrationSummary.effort}
+- Confidence: ${dashboardMetrics.migrationSummary.confidence}%
+- Production Ready: ${dashboardMetrics.migrationSummary.productionReady ? 'YES' : 'NO'}` : '- Not available'}
+` : '- Dashboard metrics not available - Run analysis first'}
 
 ## 🎯 SUMMARY:
 ${analysis.summary || 'No summary available'}
