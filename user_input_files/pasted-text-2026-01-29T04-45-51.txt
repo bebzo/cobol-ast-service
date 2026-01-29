@@ -1,0 +1,580 @@
+
+Skip to content
+Emmanuel BEB A NGON's projects
+Emmanuel BEB A NGON's projects
+
+Hobby
+
+cobol-ast-service
+
+
+Find…
+F
+
+Filters
+
+Timeline
+
+Combobox Menu
+Last 30 minutes
+
+Contains Console Level
+
+​
+Warning
+6
+
+​
+Error
+1
+
+​
+Fatal
+0
+
+
+Resource
+
+
+
+
+
+Environment
+
+
+
+
+Route
+
+
+
+Request Path
+
+
+
+Status Code
+
+
+
+Request Type
+
+
+
+
+
+
+
+
+Host
+
+
+
+Request Method
+
+
+
+Cache
+
+
+
+Branch
+
+
+
+Deployment ID
+
+
+Search Logs
+Search logs…
+05:16:00
+05:25:00
+05:33:40
+05:46:00
+Time
+Status
+Host
+Request
+Messages
+Jan 29 05:42:04.47
+POST
+200
+cobol-ast-service.vercel.app
+/api/gemini-insights
+[GeminiInsights] Generating explanation...
+Jan 29 05:42:00.27
+POST
+200
+cobol-ast-service.vercel.app
+/api/gemini-insights
+[GeminiInsights] Generating explanation...
+Jan 29 05:41:16.16
+POST
+200
+cobol-ast-service.vercel.app
+/api/gemini-insights
+[GeminiInsights] Generating review...
+Jan 29 05:41:16.04
+POST
+200
+cobol-ast-service.vercel.app
+/api/gemini-insights
+[GeminiInsights] Generating review...
+Jan 29 05:41:14.21
+GET
+---
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:41:14.20
+GET
+---
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:41:14.20
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:41:13.70
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:41:13.45
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:41:13.45
+GET
+---
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:41:13.44
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:41:13.35
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:41:13.15
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:41:12.71
+GET
+---
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:41:12.71
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:41:12.71
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:41:12.68
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:41:12.68
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:41:12.68
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:41:12.62
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:41:12.61
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:41:12.61
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:41:12.53
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:41:12.53
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:41:12.53
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:41:12.17
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:41:12.13
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:41:11.74
+GET
+---
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:41:11.71
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:41:11.69
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:41:11.58
+GET
+200
+cobol-ast-service-cjbjdhtax-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:40:57.22
+GET
+404
+cobol-ast-service.vercel.app
+/stackframe.js
+Jan 29 05:40:52.89
+POST
+---
+cobol-ast-service.vercel.app
+/api/run_edge_tests
+24
+File not found: master_file.dat
+Jan 29 05:40:46.07
+POST
+200
+cobol-ast-service.vercel.app
+/api/transpile
+127.0.0.1 - - [29/Jan/2026 04:40:50] "POST /api/transpile HTTP/1.1" 200 -
+Jan 29 05:40:42.59
+POST
+---
+cobol-ast-service.vercel.app
+/api/analyse-sse
+[Transpiler] Calling https://cobol-ast-service.vercel.app/api/transpile (allow_stubs=true)
+Jan 29 05:40:40.60
+GET
+304
+cobol-ast-service.vercel.app
+/MEGA-ENTERPRISE.CBL
+Jan 29 05:39:54.38
+POST
+---
+cobol-ast-service.vercel.app
+/api/admin/users
+[Admin API] Unauthorized: No auth token in cookie
+Jan 29 05:39:48.95
+POST
+---
+cobol-ast-service.vercel.app
+/api/admin/users
+[Admin API] Unauthorized: No auth token in cookie
+Jan 29 05:39:42.74
+POST
+---
+cobol-ast-service.vercel.app
+/api/admin/users
+[Admin API] Unauthorized: No auth token in cookie
+Jan 29 05:39:38.61
+GET
+---
+cobol-ast-service.vercel.app
+/api/admin/users
+[Admin API] Unauthorized: No auth token in cookie
+Jan 29 05:39:35.60
+HEAD
+204
+cobol-ast-service.vercel.app
+/dashboard
+Jan 29 05:39:29.78
+GET
+---
+cobol-ast-service.vercel.app
+/dashboard
+Jan 29 05:38:54.65
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:38:49.80
+POST
+401
+cobol-ast-service.vercel.app
+/api/admin/users
+[Admin API] Unauthorized: No auth token in cookie
+Jan 29 05:38:05.91
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:38:05.91
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:38:05.90
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:38:05.89
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:38:05.89
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:38:05.89
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:38:05.63
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:38:05.63
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:38:05.63
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:38:05.61
+GET
+---
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:38:05.61
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:38:05.61
+GET
+---
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:38:05.14
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:38:05.13
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:38:04.78
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:38:04.76
+GET
+---
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:38:04.57
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:38:04.54
+GET
+200
+cobol-ast-service-cmnf2454q-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:37:49.08
+POST
+401
+cobol-ast-service.vercel.app
+/api/admin/users
+Jan 29 05:37:18.14
+POST
+401
+cobol-ast-service.vercel.app
+/api/admin/users
+Jan 29 05:35:28.91
+POST
+401
+cobol-ast-service.vercel.app
+/api/admin/users
+Jan 29 05:35:20.73
+POST
+---
+cobol-ast-service.vercel.app
+/api/admin/users
+Jan 29 05:35:16.38
+GET
+---
+cobol-ast-service.vercel.app
+/api/admin/users
+Jan 29 05:35:03.08
+HEAD
+204
+cobol-ast-service.vercel.app
+/dashboard
+Jan 29 05:34:57.47
+GET
+---
+cobol-ast-service.vercel.app
+/dashboard
+Jan 29 05:34:32.86
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:34:32.86
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:34:32.85
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:34:30.74
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:34:30.10
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:34:30.10
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:34:30.10
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:34:29.74
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:34:29.28
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:34:27.65
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:34:27.65
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:34:27.64
+GET
+---
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:34:27.55
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:34:27.55
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:34:27.55
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:34:27.54
+GET
+---
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/login
+Jan 29 05:34:27.54
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/dashboard
+Jan 29 05:34:27.54
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/docs
+Jan 29 05:34:27.08
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:34:27.05
+GET
+---
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:34:26.78
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:34:26.73
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:34:26.59
+GET
+200
+cobol-ast-service-azns4gzy1-emmanuel-beb-a-ngons-projects.vercel.app
+/
+Jan 29 05:16:12.66
+POST
+---
+cobol-ast-service.vercel.app
+/api/gemini-insights
+[GeminiInsights] Generating architecture analysis...
+No more logs to show within selected timeline
+
+cobol-ast-service – Logs – Vercel
+05:33:40
