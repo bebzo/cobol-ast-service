@@ -6724,10 +6724,9 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     cond = re.sub(r'^NOT\s+', 'not ', cond, flags=re.IGNORECASE)
     cond = re.sub(r'\s+NOT\s+', ' not ', cond, flags=re.IGNORECASE)
     
-    # Replace COBOL figurative constants
-    cond = re.sub(r'\bZEROS\b', '0', cond, flags=re.IGNORECASE)
-    cond = re.sub(r'\bZEROES\b', '0', cond, flags=re.IGNORECASE)
-    cond = re.sub(r'\bZERO\b', '0', cond, flags=re.IGNORECASE)
+    # Replace COBOL figurative constants - v10.1: Use Decimal('0') for ZERO to match financial precision
+    cond = re.sub(r'\bZEROS?\b', "Decimal('0')", cond, flags=re.IGNORECASE)
+    cond = re.sub(r'\bZEROES\b', "Decimal('0')", cond, flags=re.IGNORECASE)
     cond = re.sub(r'\bSPACES\b', "''", cond, flags=re.IGNORECASE)
     cond = re.sub(r'\bSPACE\b', "''", cond, flags=re.IGNORECASE)
     
