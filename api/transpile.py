@@ -9841,9 +9841,6 @@ def generate_python_code(
         lines.insert(insert_pos, infrastructure_code)
         python_code = '\n'.join(lines)
 
-        # v10.0: Deduplicate imports to prevent SyntaxError from duplicate imports
-        python_code = deduplicate_imports(python_code)
-
         # Format with black if available
         try:
             import black
@@ -10024,6 +10021,9 @@ def generate_python_code(
         except Exception as sec_error:
             # Log but don't fail transpilation
             security_issues = [{'error': str(sec_error)}]
+        
+        # v10.0: Deduplicate imports AFTER all code generation (including security hardening)
+        python_code = deduplicate_imports(python_code)
         
         return {
             'success': True,
