@@ -1214,7 +1214,7 @@ def generate_test_method_template(method_name: str, paragraph_name: str) -> str:
 # ============================================================
 
 COBOL_RUNTIME_CODE = '''
-from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP
+from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP, InvalidOperation
 from typing import Optional, Any, Union, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -9114,7 +9114,7 @@ def transpile_on_size_error_v4(statements: List[str], start_idx: int) -> Tuple[L
     Python:
         try:
             self.ws_result = self.ws_a / self.ws_b
-        except (OverflowError, ZeroDivisionError, decimal.InvalidOperation):
+        except (OverflowError, ZeroDivisionError, InvalidOperation):  # v11.0.1: Fixed
             self.ws_result = 0
     """
     stmt = statements[start_idx].strip()
@@ -9181,14 +9181,16 @@ def transpile_on_size_error_v4(statements: List[str], start_idx: int) -> Tuple[L
     
     except_body = transpile_statements_v4(size_error_stmts) if size_error_stmts else [ast.Pass()]
     
+    # v11.0.1: FIX - Use InvalidOperation directly instead of decimal.InvalidOperation
+    # The decimal module is imported in COBOL_RUNTIME_CODE, but we need the exception class
+    # Using InvalidOperation directly avoids needing 'import decimal' in generated code
     try_stmt = ast.Try(
         body=try_body,
         handlers=[ast.ExceptHandler(
             type=ast.Tuple(elts=[
                 ast.Name(id='OverflowError', ctx=ast.Load()),
                 ast.Name(id='ZeroDivisionError', ctx=ast.Load()),
-                ast.Attribute(value=ast.Name(id='decimal', ctx=ast.Load()),
-                             attr='InvalidOperation', ctx=ast.Load())
+                ast.Name(id='InvalidOperation', ctx=ast.Load())  # v11.0.1: Fixed - was decimal.InvalidOperation
             ], ctx=ast.Load()),
             name=None,
             body=except_body

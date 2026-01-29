@@ -73,6 +73,7 @@ class handler(BaseHTTPRequestHandler):
             '__name__': '__main__',
             'Decimal': Decimal,
             'ROUND_HALF_EVEN': ROUND_HALF_EVEN,
+            'InvalidOperation': InvalidOperation,  # v11.0.1: Added for ON SIZE ERROR handling
         }
         
         # Execute the main Python code to get functions/classes
