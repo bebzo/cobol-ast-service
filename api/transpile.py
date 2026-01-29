@@ -1214,7 +1214,7 @@ def generate_test_method_template(method_name: str, paragraph_name: str) -> str:
 # ============================================================
 
 COBOL_RUNTIME_CODE = '''
-from decimal import Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP, InvalidOperation
+from decimal import Decimal as _Decimal, ROUND_HALF_EVEN, ROUND_HALF_UP, ROUND_DOWN, ROUND_UP, InvalidOperation
 from typing import Optional, Any, Union, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -1222,9 +1222,9 @@ from contextlib import contextmanager
 import os
 
 # v8.5: CobolDecimal for safe COBOL numeric handling
-# v10.3: FIX - Renamed to _CobolDecimalClass to prevent namespace shadowing
-# The original 'CobolDecimal = Decimal' could cause conflicts if COBOL fields
-# have names that transpile to 'Decimal' or similar identifiers
+# v11.1: FIX - Use _Decimal alias to prevent namespace shadowing by COBOL variables
+# COBOL fields named 'DECIMAL' or similar would shadow the Decimal class import
+# Using '_Decimal' as alias protects the namespace from COBOL variable shadowing
 try:
     from lib.cobol_decimal import CobolDecimal as _CobolDecimalClass, round_cobol, OverflowError as CobolOverflowError
     COBOL_DECIMAL_AVAILABLE = True
@@ -1232,12 +1232,12 @@ try:
 except ImportError:
     # Fallback: Use regular Decimal if CobolDecimal not available
     COBOL_DECIMAL_AVAILABLE = False
-    _CobolDecimalClass = Decimal
+    _CobolDecimalClass = _Decimal
     CobolDecimal = _CobolDecimalClass  # Keep alias for backwards compatibility
     def round_cobol(value, decimal_places=2):
         from decimal import ROUND_HALF_EVEN
-        d = Decimal(str(value))
-        quantizer = Decimal('0.' + '0' * decimal_places) if decimal_places > 0 else Decimal('1')
+        d = _Decimal(str(value))
+        quantizer = _Decimal('0.' + '0' * decimal_places) if decimal_places > 0 else _Decimal('1')
         return d.quantize(quantizer, rounding=ROUND_HALF_EVEN)
 
 
@@ -1521,7 +1521,7 @@ class CobolRuntime:
             pic_str = f"S9(15)V{'9' * decimal_places}" if decimal_places > 0 else "S9(15)"
             return _CobolDecimalClass(value, pic=pic_str)
         else:
-            return Decimal(str(value))
+            return _Decimal(str(value))
     
     @staticmethod
     def compute_rounded(value: Decimal, decimal_places: int = 2, 
@@ -1538,7 +1538,7 @@ class CobolRuntime:
         """
         if rounding is None:
             rounding = CobolRuntime.DEFAULT_ROUNDING
-        quantizer = Decimal(10) ** -decimal_places
+        quantizer = _Decimal(10) ** -decimal_places
         return value.quantize(quantizer, rounding=rounding)
     
     @staticmethod
@@ -1591,7 +1591,7 @@ class CobolRuntime:
     
     @staticmethod
     def safe_divide(dividend: Decimal, divisor: Decimal, 
-                    on_zero: Decimal = Decimal("0")) -> Decimal:
+                    on_zero: Decimal = _Decimal("0")) -> Decimal:
         """Safe division with ON SIZE ERROR handling."""
         if divisor == 0:
             return on_zero
@@ -1642,7 +1642,7 @@ class BusinessLayer:
     def __init__(self, runtime: CobolRuntime = None):
         self.runtime = runtime or CobolRuntime()
     
-    def validate_amount(self, amount: Decimal, min_val: Decimal = Decimal("0"),
+    def validate_amount(self, amount: Decimal, min_val: Decimal = _Decimal("0"),
                         max_val: Decimal = None) -> bool:
         """Validate monetary amount."""
         if amount < min_val:
@@ -1654,7 +1654,7 @@ class BusinessLayer:
     def calculate_interest(self, principal: Decimal, rate: Decimal, 
                            periods: int = 1) -> Decimal:
         """Calculate simple interest with COBOL rounding."""
-        interest = principal * rate * Decimal(periods)
+        interest = principal * rate * _Decimal(periods)
         return self.runtime.compute_rounded(interest)
 
 
@@ -3618,7 +3618,7 @@ def pic_to_python_type(pic: Optional[str], value: Optional[str] = None) -> Tuple
     if 'V' in upper or re.match(r'^S?9', upper):
         default_val = parse_pic_default(upper, value)
         return 'Decimal', ast.Call(
-            func=ast.Name(id='Decimal', ctx=ast.Load()),
+            func=ast.Name(id='_Decimal', ctx=ast.Load()),
             args=[ast.Constant(value=default_val)],
             keywords=[]
         )
@@ -3776,7 +3776,7 @@ def cobol_value_to_python_v3(value: Optional[str], pic: Optional[str], var_name:
     if upper in ('ZEROS', 'ZEROES', 'ZERO'):
         default_val = parse_pic_default(pic or '9', 'ZEROS')
         return ast.Call(
-            func=ast.Name(id='Decimal', ctx=ast.Load()),
+            func=ast.Name(id='_Decimal', ctx=ast.Load()),
             args=[ast.Constant(value=default_val)],
             keywords=[]
         )
@@ -3795,7 +3795,7 @@ def cobol_value_to_python_v3(value: Optional[str], pic: Optional[str], var_name:
             normalized_val = val_str.replace(',', '.')
             float(normalized_val)
             return ast.Call(
-                func=ast.Name(id='Decimal', ctx=ast.Load()),
+                func=ast.Name(id='_Decimal', ctx=ast.Load()),
                 args=[ast.Constant(value=normalized_val)],
                 keywords=[]
             )
@@ -4783,7 +4783,7 @@ def generate_redefines_properties(variables: List[CobolVariable]) -> List[ast.Fu
                 # Numeric view
                 return_type = 'Decimal'
                 convert_expr = ast.Call(
-                    func=ast.Name(id='Decimal', ctx=ast.Load()),
+                    func=ast.Name(id='_Decimal', ctx=ast.Load()),
                     args=[ast.Call(
                         func=ast.Name(id='str', ctx=ast.Load()),
                         args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
@@ -5224,7 +5224,7 @@ def _call_external_module(self, target: str, **kwargs):
                     assign_value = ast.Constant(value=clean_val)
                 elif parent_type == 'numeric':
                     assign_value = ast.Call(
-                        func=ast.Name(id='Decimal', ctx=ast.Load()),
+                        func=ast.Name(id='_Decimal', ctx=ast.Load()),
                         args=[ast.Constant(value=clean_val)],
                         keywords=[]
                     )
@@ -5233,7 +5233,7 @@ def _call_external_module(self, target: str, **kwargs):
                     is_numeric = is_numeric_88_value(first_val)
                     if is_numeric:
                         assign_value = ast.Call(
-                            func=ast.Name(id='Decimal', ctx=ast.Load()),
+                            func=ast.Name(id='_Decimal', ctx=ast.Load()),
                             args=[ast.Constant(value=clean_val)],
                             keywords=[]
                         )
@@ -5991,7 +5991,7 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
                 py_type = 'bool'
             else:
                 py_value = ast.Call(
-                    func=ast.Name(id='Decimal', ctx=ast.Load()),
+                    func=ast.Name(id='_Decimal', ctx=ast.Load()),
                     args=[ast.Constant(value='0')],
                     keywords=[]
                 )
@@ -6773,7 +6773,7 @@ def transpile_move_v4(stmt: str) -> List[ast.stmt]:
             # Unknown function - use string representation
             source_ast = ast.Constant(value=f'<FUNCTION:{source_str}>')
     elif source_upper in ('ZERO', 'ZEROS', 'ZEROES'):
-        source_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value='0')], keywords=[])
+        source_ast = ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), args=[ast.Constant(value='0')], keywords=[])
     elif source_upper in ('SPACE', 'SPACES'):
         source_ast = ast.Constant(value='')
     elif source_upper in ('LOW-VALUE', 'LOW-VALUES'):
@@ -6810,7 +6810,7 @@ def transpile_move_v4(stmt: str) -> List[ast.stmt]:
         # Numeric literal - v10.1: Support COBOL decimal comma (e.g., 999999999999,99)
         # Normalize comma to dot for Python Decimal
         normalized = source_str.replace(',', '.')
-        source_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=normalized)], keywords=[])
+        source_ast = ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), args=[ast.Constant(value=normalized)], keywords=[])
     # Check for substring notation in source - v5.7.7: Also match variable indices and expressions
     # Pattern: VAR(start:length) or VAR(start:) where start can be expr like VAR+1
     elif re.match(r'[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\s*\([^)]*:[^)]*\)', source_str, re.IGNORECASE):
@@ -7133,7 +7133,7 @@ def transpile_compute_v4(stmt: str) -> Optional[ast.stmt]:
                         ctx=ast.Load()
                     ),
                     args=[ast.Call(
-                        func=ast.Name(id='Decimal', ctx=ast.Load()),
+                        func=ast.Name(id='_Decimal', ctx=ast.Load()),
                         args=[ast.Constant(value='0.01')],
                         keywords=[]
                     )],
@@ -7176,7 +7176,7 @@ def transpile_add_v4(stmt: str) -> Optional[ast.stmt]:
         
         # Build addend expression
         if addend.replace('.', '').isdigit():
-            addend_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=addend)], keywords=[])
+            addend_ast = ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), args=[ast.Constant(value=addend)], keywords=[])
         else:
             addend_ast = ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=to_snake_case(addend), ctx=ast.Load())
         
@@ -7197,7 +7197,7 @@ def transpile_add_v4(stmt: str) -> Optional[ast.stmt]:
         return ast.AugAssign(
             target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store()),
             op=ast.Add(),
-            value=ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=value)], keywords=[])
+            value=ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), args=[ast.Constant(value=value)], keywords=[])
         )
     
     # ADD variable TO variable
@@ -7233,7 +7233,7 @@ def transpile_subtract_v4(stmt: str) -> Optional[ast.stmt]:
         # Build subtrahend expression - v10.1: Support COBOL decimal comma
         subtrahend_normalized = subtrahend.replace(',', '.')
         if subtrahend_normalized.replace('.', '').isdigit():
-            sub_ast = ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=subtrahend_normalized)], keywords=[])
+            sub_ast = ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), args=[ast.Constant(value=subtrahend_normalized)], keywords=[])
         else:
             sub_ast = ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=to_snake_case(subtrahend), ctx=ast.Load())
         
@@ -7254,7 +7254,7 @@ def transpile_subtract_v4(stmt: str) -> Optional[ast.stmt]:
         return ast.AugAssign(
             target=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=target, ctx=ast.Store()),
             op=ast.Sub(),
-            value=ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=value)], keywords=[])
+            value=ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), args=[ast.Constant(value=value)], keywords=[])
         )
     
     # SUBTRACT variable FROM variable
@@ -7560,7 +7560,7 @@ def parse_cobol_condition(condition: str) -> ast.expr:
                 elif re.match(r'^-?\d+\.\d+$', normalized_right):
                     # v5.7.17: Generate Decimal('value') instead of float for financial precision
                     right = ast.Call(
-                        func=ast.Name(id='Decimal', ctx=ast.Load()),
+                        func=ast.Name(id='_Decimal', ctx=ast.Load()),
                         args=[ast.Constant(value=normalized_right)],
                         keywords=[]
                     )
@@ -8177,7 +8177,7 @@ def transpile_multiply_v4(stmt: str) -> Optional[ast.stmt]:
         normalized_val = val.replace(',', '.')
 
         if normalized_val.replace('.', '').replace('-', '').isdigit():
-            return ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()),
+            return ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()),
                            args=[ast.Constant(value=normalized_val)], keywords=[])
         return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
                             attr=to_snake_case(val), ctx=ast.Load())
@@ -8195,7 +8195,7 @@ def transpile_multiply_v4(stmt: str) -> Optional[ast.stmt]:
             # result.quantize(Decimal('1'), rounding=ROUND_HALF_UP)
             mult_expr = ast.Call(
                 func=ast.Attribute(value=mult_expr, attr='quantize', ctx=ast.Load()),
-                args=[ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), 
+                args=[ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), 
                               args=[ast.Constant(value='1')], keywords=[])],
                 keywords=[ast.keyword(arg='rounding', value=ast.Name(id='ROUND_HALF_UP', ctx=ast.Load()))]
             )
@@ -8238,7 +8238,7 @@ def transpile_divide_v4(stmt: str) -> Optional[ast.stmt]:
         normalized_val = val.replace(',', '.')
 
         if normalized_val.replace('.', '').replace('-', '').isdigit():
-            return ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()),
+            return ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()),
                            args=[ast.Constant(value=normalized_val)], keywords=[])
         return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
                             attr=to_snake_case(val), ctx=ast.Load())
@@ -8274,7 +8274,7 @@ def transpile_divide_v4(stmt: str) -> Optional[ast.stmt]:
         if rounded:
             div_expr = ast.Call(
                 func=ast.Attribute(value=div_expr, attr='quantize', ctx=ast.Load()),
-                args=[ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), 
+                args=[ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), 
                               args=[ast.Constant(value='1')], keywords=[])],
                 keywords=[ast.keyword(arg='rounding', value=ast.Name(id='ROUND_HALF_UP', ctx=ast.Load()))]
             )
@@ -8437,7 +8437,7 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                         test_ast = ast.Compare(
                             left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=subject_py, ctx=ast.Load()),
                             ops=[ast.Eq()],
-                            comparators=[ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=value_normalized)], keywords=[])]
+                            comparators=[ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), args=[ast.Constant(value=value_normalized)], keywords=[])]
                         )
                     else:
                         test_ast = ast.Compare(
@@ -8458,7 +8458,7 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                         test_ast = ast.Compare(
                             left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=subject_py, ctx=ast.Load()),
                             ops=[ast.Eq()],
-                            comparators=[ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=value_normalized)], keywords=[])]
+                            comparators=[ast.Call(func=ast.Name(id='_Decimal', ctx=ast.Load()), args=[ast.Constant(value=value_normalized)], keywords=[])]
                         )
                     else:
                         test_ast = parse_cobol_condition(cond)
@@ -11759,7 +11759,7 @@ def _make_decimal_literal_via_ast(value: str) -> ast.Call:
         Call AST node for Decimal()
     """
     return ast.Call(
-        func=ast.Name(id='Decimal', ctx=ast.Load()),
+        func=ast.Name(id='_Decimal', ctx=ast.Load()),
         args=[ast.Constant(value=value)],
         keywords=[]
     )
@@ -12234,7 +12234,7 @@ Test Categories:
                         func=ast.Name(id='isinstance', ctx=ast.Load()),
                         args=[
                             ast.Call(
-                                func=ast.Name(id='Decimal', ctx=ast.Load()),
+                                func=ast.Name(id='_Decimal', ctx=ast.Load()),
                                 args=[ast.Call(
                                     func=ast.Name(id='str', ctx=ast.Load()),
                                     args=[ast.Name(id='val', ctx=ast.Load())],
