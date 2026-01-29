@@ -1547,7 +1547,7 @@ class CobolRuntime:
             Rounded Decimal
         """
         import re
-        match = re.search(r"V9\\((\\d+)\\)|V(9+)", pic_spec.upper())
+        match = re.search(r"V9\\\\((\\\\d+)\\\\)|V(9+)", pic_spec.upper())
         if match:
             if match.group(1):
                 places = int(match.group(1))
@@ -1743,7 +1743,7 @@ class CobolConverter:
         has_sign = pic_upper.startswith('S')
         
         import re
-        digits_match = re.search(r'S*9\((\d+)\)', pic_upper)
+        digits_match = re.search(r'S*9\\\\((\\\\d+)\\\\)', pic_upper)
         if not digits_match:
             return int.from_bytes(data, byteorder='big', signed=True)
         
@@ -1768,7 +1768,7 @@ class CobolConverter:
         """Convertit un entier Python en COMP COBOL binaire."""
         pic_upper = pic_clause.upper()
         import re
-        digits_match = re.search(r'S*9\((\d+)\)', pic_upper)
+        digits_match = re.search(r'S*9\\\\((\\\\d+)\\\\)', pic_upper)
         num_digits = int(digits_match.group(1)) if digits_match else 9
         has_sign = pic_upper.startswith('S')
         
@@ -3487,7 +3487,7 @@ def to_pascal_case(name: str) -> str:
     name = name.replace('<', '').replace('>', '')
     # Remove other problematic characters
     name = name.replace('&', '').replace('|', '').replace('^', '').replace('~', '').replace('!', '')
-    name = name.replace('?', '*', ).replace('+', '').replace('=', '').replace('/', '')
+    name = name.replace('?', '*').replace('+', '').replace('=', '').replace('/', '')
     # Replace hyphens and other separators with underscores first, then process
     name = name.replace('-', '_').replace('.', '_').replace(' ', '_')
     # Remove any remaining non-alphanumeric characters (except underscore)

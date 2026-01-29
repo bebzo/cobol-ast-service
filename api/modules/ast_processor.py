@@ -16,8 +16,33 @@ def to_snake_case(name: str) -> str:
 
 
 def to_pascal_case(name: str) -> str:
-    """Convert name to PascalCase."""
-    return ''.join(word.capitalize() for word in name.replace('-', '_').split('_'))
+    """Convert name to PascalCase with proper identifier sanitization.
+    
+    CRITICAL: This function is used for generating Python class/function names.
+    It MUST ensure the result is always a valid Python identifier by removing
+    or replacing any characters that are not allowed in Python identifiers.
+    
+    Returns:
+        A valid PascalCase Python identifier
+    """
+    if not name:
+        return "Unknown"
+    
+    # Step 1: Replace hyphens and other separators with underscores
+    name = name.replace('-', '_').replace(' ', '_')
+    
+    # Step 2: Remove any character that is not alphanumeric or underscore
+    # This is CRITICAL for preventing syntax errors
+    name = re.sub(r'[^a-zA-Z0-9_]', '', name)
+    
+    # Step 3: Handle edge cases - ensure it starts with a letter
+    if not name or name[0].isdigit():
+        name = 'V' + name
+    
+    # Step 4: Convert to PascalCase (capitalize first letter of each word)
+    # Filter out empty strings after split
+    words = [word for word in name.split('_') if word]
+    return ''.join(word.capitalize() for word in words) if words else "Unknown"
 
 
 def pic_to_python_type(pic: Optional[str], value: Optional[str] = None) -> Tuple[str, ast.expr]:
