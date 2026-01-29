@@ -189,6 +189,7 @@ import ast
 import re
 import json
 import inspect
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from typing import Any, Dict, List, Optional, Tuple, Set, Union, Callable
 from typing import TypeVar, Generic
@@ -5806,13 +5807,6 @@ CODE REVIEWER NOTES (v6.0.0):
 """
 
     body.append(ast.Expr(value=ast.Constant(value=docstring_value)))
-* Production infrastructure: FileManager, Config, Logging (+25%)
-
-To reduce size: Use --minified flag (removes comments, keeps functionality).
-Industry benchmark: 2.5-3.5x expansion is normal for COBOL->Python migrations.
-------------------------------------------------------------------------------
-"""
-    )))
     
     # Imports
     imports = [
@@ -5975,11 +5969,12 @@ Methods:
     # v5.7.8: Pass 88-level conditions to exclude property names from attributes
     used_vars = getattr(cobol_ast, 'used_variables', None)
     property_names_88 = {to_snake_case(c.name) for c in cobol_ast.conditions_88} if cobol_ast.conditions_88 else set()
-    init_body = generate_init_body_v4(cobol_ast.variables, class_name, 
+    init_body = generate_init_body_v4(cobol_ast.variables, class_name,
                                       has_config=(config_class is not None),
                                       has_files=bool(cobol_ast.file_descriptors),
                                       used_variables=used_vars,
-                                      property_names=property_names_88)
+                                      property_names=property_names_88,
+                                      backend=backend)
     init_method = ast.FunctionDef(
         name='__init__',
         args=ast.arguments(
@@ -6701,15 +6696,20 @@ def generate_config_dataclass(config_vars: List[CobolVariable], class_name: str)
     )
 
 
-def generate_init_body_v4(variables: List[CobolVariable], class_name: str, 
+def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
                           has_config: bool = True, has_files: bool = False,
                           used_variables: Optional[Set[str]] = None,
-                          property_names: Optional[Set[str]] = None) -> List[ast.stmt]:
-    """Generate __init__ body with FileManager support and explicit variable declaration.
+                          property_names: Optional[Set[str]] = None,
+                          backend: str = "supabase") -> List[ast.stmt]:
+    """Generate __init__ body with DAL support (FileManager or SupabaseDataAccessLayer).
+    
+    Args:
+        backend: Backend to use ('supabase' or 'vsam')
     
     v5.4.0: Now accepts used_variables to pre-declare variables referenced in code,
     reducing reliance on __getattr__ dynamic creation.
     v5.7.8: Excludes property_names (88-level conditions) to prevent attr/property conflicts.
+    v11.0: Conditionally generates FileManager or SupabaseDataAccessLayer based on backend.
     """
     property_names = property_names or set()
     init_body = []
@@ -6733,19 +6733,54 @@ def generate_init_body_v4(variables: List[CobolVariable], class_name: str,
         )
     ))
     
-    # FileManager
-    init_body.append(ast.Assign(
-        targets=[ast.Attribute(
-            value=ast.Name(id='self', ctx=ast.Load()),
-            attr='file_manager',
-            ctx=ast.Store()
-        )],
-        value=ast.Call(
-            func=ast.Name(id='FileManager', ctx=ast.Load()),
-            args=[],
-            keywords=[]
-        )
-    ))
+    # v11.0: DAL initialization based on backend
+    if backend == "supabase":
+        # SupabaseDataAccessLayer with PostgreSQL backend
+        init_body.append(ast.Assign(
+            targets=[ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr='dal',
+                ctx=ast.Store()
+            )],
+            value=ast.Call(
+                func=ast.Name(id='SupabaseDataAccessLayer', ctx=ast.Load()),
+                args=[
+                    ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(id='os', ctx=ast.Load()),
+                            attr='getenv',
+                            ctx=ast.Load()
+                        ),
+                        args=[ast.Constant(value='SUPABASE_URL')],
+                        keywords=[]
+                    ),
+                    ast.Call(
+                        func=ast.Attribute(
+                            value=ast.Name(id='os', ctx=ast.Load()),
+                            attr='getenv',
+                            ctx=ast.Load()
+                        ),
+                        args=[ast.Constant(value='SUPABASE_KEY')],
+                        keywords=[]
+                    )
+                ],
+                keywords=[]
+            )
+        ))
+    else:
+        # VSAM Lite FileManager
+        init_body.append(ast.Assign(
+            targets=[ast.Attribute(
+                value=ast.Name(id='self', ctx=ast.Load()),
+                attr='file_manager',
+                ctx=ast.Store()
+            )],
+            value=ast.Call(
+                func=ast.Name(id='FileManager', ctx=ast.Load()),
+                args=[],
+                keywords=[]
+            )
+        ))
     
     # Strict mode flag (default False for backward compatibility)
     init_body.append(ast.Assign(
@@ -11526,7 +11561,7 @@ def generate_python_code(
             and v.upper() not in paragraph_names_upper
         }
         
-        python_ast = generate_python_ast_v4(cobol_ast)
+        python_ast = generate_python_ast_v4(cobol_ast, backend=backend)
         python_code = ast.unparse(python_ast)
         
         # v9.0.0: Post-process to fix any remaining COBOL substring patterns
@@ -11745,6 +11780,7 @@ def generate_python_code(
         return {
             'success': True,
             'python_code': python_code,
+            'sql_schema': getattr(cobol_ast, '_generated_sql_schema', ''),  # v11.0: SQL schema for Supabase
             'unit_tests': test_code,
             'deterministic_tests': deterministic_tests,  # v9.0.0: Tests without Gemini dependency
             'transformation_doc': transformation_doc,
