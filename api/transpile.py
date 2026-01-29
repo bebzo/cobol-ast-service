@@ -998,13 +998,18 @@ from contextlib import contextmanager
 import os
 
 # v8.5: CobolDecimal for safe COBOL numeric handling
+# v10.3: FIX - Renamed to _CobolDecimalClass to prevent namespace shadowing
+# The original 'CobolDecimal = Decimal' could cause conflicts if COBOL fields
+# have names that transpile to 'Decimal' or similar identifiers
 try:
-    from lib.cobol_decimal import CobolDecimal, round_cobol, OverflowError as CobolOverflowError
+    from lib.cobol_decimal import CobolDecimal as _CobolDecimalClass, round_cobol, OverflowError as CobolOverflowError
     COBOL_DECIMAL_AVAILABLE = True
+    CobolDecimal = _CobolDecimalClass  # Keep alias for backwards compatibility
 except ImportError:
     # Fallback: Use regular Decimal if CobolDecimal not available
     COBOL_DECIMAL_AVAILABLE = False
-    CobolDecimal = Decimal
+    _CobolDecimalClass = Decimal
+    CobolDecimal = _CobolDecimalClass  # Keep alias for backwards compatibility
     def round_cobol(value, decimal_places=2):
         from decimal import ROUND_HALF_EVEN
         d = Decimal(str(value))
@@ -1275,6 +1280,7 @@ class CobolRuntime:
     @staticmethod
     def create_decimal(value, pic: str = None, decimal_places: int = 2):
         """v8.5: Create a safe CobolDecimal with PIC-based constraints.
+        v10.3: FIX - Uses _CobolDecimalClass to prevent namespace conflicts
         
         Args:
             value: Numeric value
@@ -1282,14 +1288,14 @@ class CobolRuntime:
             decimal_places: Fallback if no PIC provided
             
         Returns:
-            CobolDecimal if available, otherwise Decimal
+            _CobolDecimalClass if available, otherwise Decimal
         """
         if COBOL_DECIMAL_AVAILABLE and pic:
-            return CobolDecimal(value, pic=pic)
+            return _CobolDecimalClass(value, pic=pic)
         elif COBOL_DECIMAL_AVAILABLE:
             # Generate PIC from decimal_places
             pic_str = f"S9(15)V{'9' * decimal_places}" if decimal_places > 0 else "S9(15)"
-            return CobolDecimal(value, pic=pic_str)
+            return _CobolDecimalClass(value, pic=pic_str)
         else:
             return Decimal(str(value))
     
@@ -2755,6 +2761,7 @@ def to_snake_case(name: str) -> str:
     """Convert COBOL-STYLE-NAME to python_style_name
     
     v5.7.7: Strip any substring notation before converting
+    v10.3: FIX - Protect against reserved Python names that could shadow built-ins
     """
     # v5.7.7: If name contains parentheses (substring notation), extract just the variable name
     if '(' in name:
@@ -2765,6 +2772,18 @@ def to_snake_case(name: str) -> str:
         result = result[3:]
     if result and result[0].isdigit():
         result = 'p_' + result
+    
+    # v10.3: Prevent shadowing of Python built-ins and decimal module
+    # This prevents 'decimal.Decimal' object is not callable errors
+    protected_names = {
+        'decimal', 'int', 'str', 'float', 'bool', 'list', 'dict', 'set', 'tuple',
+        'range', 'len', 'type', 'print', 'input', 'open', 'abs', 'all', 'any',
+        'bin', 'chr', 'divmod', 'hex', 'oct', 'ord', 'pow', 'round', 'sorted',
+        'sum', 'max', 'min', 'bytes', 'bytearray', 'memoryview', 'object'
+    }
+    if result in protected_names:
+        result = f'cobol_{result}'
+    
     return result
 
 
