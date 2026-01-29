@@ -2,6 +2,7 @@
  * Clean Architecture Transpiler API with Automatic AI Auto-Correction
  * Uses unified Python transpiler (api/transpile.py) as source of truth
  * Automatically applies AI fixes in a loop until no more issues are detected
+ * Also applies auto-correction to generated test files
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { transpileCobolViaPython, parseCobolQuick } from '@/lib/transpiler-client';
@@ -51,8 +52,8 @@ async function callGemini(prompt: string): Promise<string> {
   }
 }
 
-// Review prompt
-const REVIEW_PROMPT = (python: string, cobol: string) => `You are a senior code reviewer specializing in COBOL-to-Python migrations.
+// Review prompt for service code
+const REVIEW_PROMPT_SERVICE = (python: string, cobol?: string) => `You are a senior code reviewer specializing in COBOL-to-Python migrations.
 IMPORTANT: Respond ONLY in English.
 
 Analyze this transpiled Python code and provide a review in JSON format:
@@ -79,6 +80,39 @@ Focus on:
 
 Python code:
 ${python.substring(0, 8000)}
+
+Respond ONLY with valid JSON.`;
+
+// Review prompt for test code (focused on pytest issues)
+const REVIEW_PROMPT_TESTS = (testCode: string) => `You are a Python testing expert specializing in pytest and COBOL-to-Python test migration.
+IMPORTANT: Respond ONLY in English.
+
+Analyze this generated pytest code and find any syntax errors or issues that would prevent compilation or execution:
+{
+  "score": 85,
+  "grade": "B",
+  "issues": [
+    {"severity": "error", "message": "Description of issue", "line": 123, "suggestedFix": "# Corrected line"}
+  ],
+  "strengths": [
+    "Good pytest structure"
+  ]
+}
+
+CRITICAL: Focus on:
+1. Syntax errors (missing imports, invalid Python syntax)
+2. Reference errors (undefined variables, incorrect function calls)
+3. pytest-specific issues (fixture problems, assertion errors)
+4. Common issues with Decimal usage: ensure Decimal is imported and used correctly
+5. String escaping issues with repr()
+
+Common fixes needed:
+- If you see "Decimal object is not callable", check if a variable named 'Decimal' shadows the import
+- Fix repr() usage: repr("value") should work correctly
+- Ensure all imports are present at the top
+
+Test code:
+${testCode.substring(0, 6000)}
 
 Respond ONLY with valid JSON.`;
 
@@ -152,6 +186,89 @@ function applyFixes(code: string, issues: ReviewInsights['issues']): FixResult {
   return { code: fixedLines.join('\n'), fixCount };
 }
 
+// Auto-correct a single file with iterative loop
+async function autoCorrectCode(
+  code: string,
+  cobolCode: string | undefined,
+  promptFn: (code: string, cobol?: string) => string,
+  fileType: string,
+  sse: any,
+  startProgress: number
+): Promise<{ code: string; fixesApplied: number; finalReview: ReviewInsights | null }> {
+  let currentCode = code;
+  let totalFixesApplied = 0;
+  let finalReview: ReviewInsights | null = null;
+  let iterations = 0;
+  const maxIterations = 10;
+
+  let keepGoing = true;
+
+  while (keepGoing && iterations < maxIterations) {
+    iterations++;
+    console.log(`[TranspileClean][${fileType}] Auto-fix iteration ${iterations}/${maxIterations}`);
+
+    sse.send('status', {
+      message: `${fileType} - AI verification iteration ${iterations}...`,
+      progress: startProgress + (iterations * 2)
+    });
+
+    // Call Gemini for code review
+    const prompt = promptFn(currentCode, cobolCode);
+    const geminiResponse = await callGemini(prompt);
+    const review = parseReview(geminiResponse);
+
+    if (!review) {
+      console.warn(`[TranspileClean][${fileType}] Failed to parse review, stopping auto-fix`);
+      break;
+    }
+
+    // Send review update
+    const fixableIssues = review.issues.filter(
+      (i) => i.line && i.suggestedFix && i.severity !== 'info'
+    );
+
+    sse.send('review', {
+      fileType,
+      iteration: iterations,
+      review,
+      fixableCount: fixableIssues.length
+    });
+
+    // Check if we should stop
+    const hasFixableIssues = fixableIssues.length > 0;
+
+    if (!hasFixableIssues || review.score >= 100) {
+      console.log(`[TranspileClean][${fileType}] No more fixable issues found (score: ${review.score})`);
+      finalReview = review;
+      keepGoing = false;
+      break;
+    }
+
+    // Apply fixes
+    console.log(`[TranspileClean][${fileType}] Applying ${fixableIssues.length} fixes...`);
+    const { code: fixedCode, fixCount } = applyFixes(currentCode, review.issues);
+
+    if (fixCount === 0) {
+      console.log(`[TranspileClean][${fileType}] No fixes could be applied, stopping`);
+      finalReview = review;
+      keepGoing = false;
+      break;
+    }
+
+    totalFixesApplied += fixCount;
+    currentCode = fixedCode;
+
+    sse.send('fixes', {
+      fileType,
+      iteration: iterations,
+      fixesApplied: fixCount,
+      totalFixes: totalFixesApplied
+    });
+  }
+
+  return { code: currentCode, fixesApplied: totalFixesApplied, finalReview };
+}
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
@@ -198,88 +315,57 @@ export async function POST(request: NextRequest) {
           sse.send('transpiled', { pythonCode: result.python_code });
 
           let finalPythonCode = result.python_code;
+          let finalTestCode = result.unit_tests;
           let autoFixApplied = false;
-          let finalReview: ReviewInsights | null = null;
-          let totalFixesApplied = 0;
-          let iterations = 0;
-          const maxIterations = 10; // Maximum iterations to prevent infinite loops
+          let serviceReview: ReviewInsights | null = null;
+          let testReview: ReviewInsights | null = null;
+          let totalServiceFixes = 0;
+          let totalTestFixes = 0;
 
-          // Iterative Auto-correction loop
+          // Iterative Auto-correction loop for service code
           if (autoFix && GEMINI_API_KEY) {
-            sse.send('status', { message: 'Starting AI auto-correction...', progress: 60 });
+            sse.send('status', { message: 'Starting AI auto-correction for service code...', progress: 60 });
 
             try {
-              let currentCode = finalPythonCode;
-              let keepGoing = true;
+              const serviceResult = await autoCorrectCode(
+                finalPythonCode,
+                cobolCode,
+                REVIEW_PROMPT_SERVICE,
+                'Service',
+                sse,
+                60
+              );
 
-              while (keepGoing && iterations < maxIterations) {
-                iterations++;
-                console.log(`[TranspileClean] Auto-fix iteration ${iterations}/${maxIterations}`);
+              finalPythonCode = serviceResult.code;
+              totalServiceFixes = serviceResult.fixesApplied;
+              serviceReview = serviceResult.finalReview;
 
-                sse.send('status', {
-                  message: `AI verification iteration ${iterations}...`,
-                  progress: 60 + (iterations * 3)
-                });
-
-                // Call Gemini for code review
-                const prompt = REVIEW_PROMPT(currentCode, cobolCode);
-                const geminiResponse = await callGemini(prompt);
-                const review = parseReview(geminiResponse);
-
-                if (!review) {
-                  console.warn('[TranspileClean] Failed to parse review, stopping auto-fix');
-                  break;
-                }
-
-                // Send review update
-                const fixableIssues = review.issues.filter(
-                  (i) => i.line && i.suggestedFix && i.severity !== 'info'
-                );
-
-                sse.send('review', {
-                  iteration: iterations,
-                  review,
-                  fixableCount: fixableIssues.length,
-                  progress: 60 + (iterations * 3)
-                });
-
-                // Check if we should stop
-                const hasFixableIssues = fixableIssues.length > 0;
-
-                if (!hasFixableIssues || review.score >= 100) {
-                  console.log(`[TranspileClean] No more fixable issues found (score: ${review.score})`);
-                  finalReview = review;
-                  keepGoing = false;
-                  break;
-                }
-
-                // Apply fixes
-                console.log(`[TranspileClean] Applying ${fixableIssues.length} fixes...`);
-                const { code: fixedCode, fixCount } = applyFixes(currentCode, review.issues);
-
-                if (fixCount === 0) {
-                  console.log('[TranspileClean] No fixes could be applied, stopping');
-                  finalReview = review;
-                  keepGoing = false;
-                  break;
-                }
-
-                totalFixesApplied += fixCount;
-                currentCode = fixedCode;
+              if (totalServiceFixes > 0) {
                 autoFixApplied = true;
-
-                sse.send('fixes', {
-                  iteration: iterations,
-                  fixesApplied: fixCount,
-                  totalFixes: totalFixesApplied
-                });
-
-                // Continue loop for next iteration
               }
 
-              finalPythonCode = currentCode;
+              sse.send('status', { message: 'Starting AI auto-correction for tests...', progress: 80 });
+
+              // Also auto-correct the test file
+              const testResult = await autoCorrectCode(
+                finalTestCode,
+                '',
+                REVIEW_PROMPT_TESTS,
+                'Tests',
+                sse,
+                80
+              );
+
+              finalTestCode = testResult.code;
+              totalTestFixes = testResult.fixesApplied;
+              testReview = testResult.finalReview;
+
+              if (totalTestFixes > 0) {
+                autoFixApplied = true;
+              }
+
               sse.send('status', {
-                message: `Auto-correction complete! (${iterations} iterations, ${totalFixesApplied} fixes)`,
+                message: `Auto-correction complete! (Service: ${totalServiceFixes} fixes, Tests: ${totalTestFixes} fixes)`,
                 progress: 95
               });
 
@@ -294,7 +380,7 @@ export async function POST(request: NextRequest) {
           // Format as Clean Architecture structure
           const files: Record<string, string> = {
             [`domain/${className.toLowerCase()}_service.py`]: finalPythonCode,
-            [`tests/test_${className.toLowerCase()}.py`]: result.unit_tests,
+            [`tests/test_${className.toLowerCase()}.py`]: finalTestCode,
           };
 
           // Send complete event
@@ -304,9 +390,15 @@ export async function POST(request: NextRequest) {
             programId: parsed.programId,
             version: result.version,
             autoFixApplied,
-            review: finalReview,
-            totalFixesApplied,
-            iterations,
+            reviews: {
+              service: serviceReview,
+              tests: testReview
+            },
+            totalFixesApplied: {
+              service: totalServiceFixes,
+              tests: totalTestFixes,
+              combined: totalServiceFixes + totalTestFixes
+            },
             timestamp: new Date().toISOString()
           });
 
