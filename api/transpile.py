@@ -2762,10 +2762,15 @@ def to_snake_case(name: str) -> str:
     
     v5.7.7: Strip any substring notation before converting
     v10.3: FIX - Protect against reserved Python names that could shadow built-ins
+    v10.4: FIX - Handle COBOL decimal commas (1,000000 -> p_1000000)
     """
     # v5.7.7: If name contains parentheses (substring notation), extract just the variable name
     if '(' in name:
         name = name.split('(')[0]
+    
+    # v10.4: COBOL uses comma as decimal separator - remove it before conversion
+    # This prevents "1,000000" becoming "p_1,000000" (invalid Python identifier)
+    name = name.replace(',', '')
     
     result = name.lower().replace('-', '_').replace('.', '')
     if result.startswith('ws_'):
@@ -7720,11 +7725,16 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                                 replace_id_eval, cond_py)
                 test_ast = ast.parse(cond_py, mode='eval').body
             except Exception as e:
-                # v5.7.28: Log unparseable condition instead of silent True fallback
-                # v5.7.32: Use print fallback since logger may not be available during transpilation
+                # v10.4: FIX - Use parse_cobol_condition as robust fallback instead of True
+                # This prevents "if True:" generation and preserves the condition logic
                 import sys
                 print(f"WARNING: Could not parse EVALUATE condition '{cond}': {e}", file=sys.stderr)
-                test_ast = ast.Constant(value=True)  # Fallback but logged
+                try:
+                    test_ast = parse_cobol_condition(cond)
+                except Exception as e2:
+                    # Last resort: use False so the branch is skipped (safer than True)
+                    print(f"CRITICAL: Could not parse condition even with parse_cobol_condition: {cond}", file=sys.stderr)
+                    test_ast = ast.Constant(value=False)
         else:
             subject_py = to_snake_case(subject)
             subject_attr = f'self.{subject_py}'
@@ -7752,11 +7762,26 @@ def transpile_evaluate_v4(statements: List[str], start_idx: int) -> Tuple[Option
                             comparators=[ast.Constant(value=value_py)]
                         )
             except Exception as e:
-                # v5.7.32: Log parse failure instead of silent True fallback
-                # v5.7.28: Use print fallback since logger may not be available during transpilation
+                # v10.4: FIX - Use parse_cobol_condition as robust fallback instead of True
+                # This prevents "if True:" generation and preserves the condition logic
                 import sys
                 print(f"WARNING: Could not parse WHEN condition for {subject}={cond}: {e}", file=sys.stderr)
-                test_ast = ast.Constant(value=True)
+                try:
+                    # Try to parse as a simple condition first
+                    value_normalized = cond.strip('"\'').replace(',', '.')
+                    if value_normalized.replace('.', '').replace('-', '').isdigit():
+                        # Simple numeric comparison
+                        test_ast = ast.Compare(
+                            left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()), attr=subject_py, ctx=ast.Load()),
+                            ops=[ast.Eq()],
+                            comparators=[ast.Call(func=ast.Name(id='Decimal', ctx=ast.Load()), args=[ast.Constant(value=value_normalized)], keywords=[])]
+                        )
+                    else:
+                        test_ast = parse_cobol_condition(cond)
+                except Exception as e2:
+                    # Last resort: use False so the branch is skipped (safer than True)
+                    print(f"CRITICAL: Could not parse WHEN condition even with fallback: {cond}", file=sys.stderr)
+                    test_ast = ast.Constant(value=False)
         
         if result is None:
             result = ast.If(test=test_ast, body=body, orelse=else_body or [])
@@ -8023,19 +8048,33 @@ def transform_search_condition(condition: str, table_name: str) -> str:
     
     v5.7.18: Fix SEARCH bug where WHEN conditions used self.table[int(self.idx)-1]
              instead of _item from the enumerate loop.
+    v10.4: FIX - Only replace the table being searched, not the search key
     
     COBOL: WS-RATE-ENTRY(RATE-IDX) = WS-KEY
     Should become: _item == self.ws_key (using _item from enumerate)
     
-    Strategy: Replace TABLE(INDEX) patterns with a marker ZSEARCHITEMZ that will
-              be converted to _item in the AST (marker must be valid COBOL identifier).
+    COBOL: WS-CCY(CCY-IDX) = WS-HOLD-CURRENCY(HOLD-IDX)
+    Should become: _item == self.ws_hold_currency[int(self.hold_idx) - 1]
+                  (only replace WS-CCY subscript, not WS-HOLD-CURRENCY)
+    
+    Strategy: Replace only TABLE(INDEX) patterns that match the table_name
+              with a marker ZSEARCHITEMZ that will be converted to _item.
     """
-    # Replace references to table(index) or element(index) with special marker
-    # Match patterns like: WS-TABLE(WS-IDX), RATE-ENTRY(RATE-IDX), etc.
+    # v10.4: Convert table_name to COBOL format for comparison
+    # table_name is already in snake_case, convert to COBOL-STYLE
+    table_name_upper = table_name.upper().replace('_', '-')
+    
     def replace_table_ref(m):
-        # Return special marker that will become _item
-        # ZSEARCHITEMZ is used because it's a valid COBOL identifier (no underscores)
-        return 'ZSEARCHITEMZ'
+        var_name = m.group(1).upper()
+        # Only replace if this is the table being searched
+        if var_name == table_name_upper:
+            # Return special marker that will become _item
+            # ZSEARCHITEMZ is used because it's a valid COBOL identifier (no underscores)
+            return 'ZSEARCHITEMZ'
+        else:
+            # This is the search key - keep the subscript for proper array access
+            index_var = m.group(2)
+            return f'{var_name}({index_var})'
     
     # Match VARNAME(INDEXVAR) pattern - subscripted variable access
     pattern = r'([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\(\s*([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*)\s*\)'
