@@ -151,15 +151,8 @@ class TranspilerAudit:
             'message': "Ligne ressemblant à une définition de méthode sans 'def'",
             'suggestion': "Ajouter 'def' au début de la ligne"
         },
-        'malformed_docstring': {
-            'pattern': r'"""[^"]*"""[^"]*$',
-            'issue_type': IssueType.MALFORMED_DOCSTRING,
-            'severity': SeverityLevel.WARNING,
-            'message': "Docstring potentiellement malformée",
-            'suggestion': "Vérifier les triples guillemets"
-        },
         'mixed_indentation': {
-            'pattern': r'^\t+ | {1,3}[^\s]',
+            'pattern': r'^\t',
             'issue_type': IssueType.MIXED_TABS_SPACES,
             'severity': SeverityLevel.WARNING,
             'message': "Mélange de tabs et d'espaces détecté",
@@ -284,40 +277,13 @@ class TranspilerAudit:
         """Vérifie les chaînes de caractères mal formées."""
         logger.debug("Vérification des chaînes de caractères...")
         
-        # Vérifier les docstrings dans les classes
-        in_class = False
-        class_indent = 0
+        # NOTE: Multi-line docstrings are valid Python and should not be flagged.
+        # The old logic below incorrectly flagged valid multi-line docstrings.
+        # AST validation catches real syntax errors, so we skip detailed string analysis here.
         
-        for line_num, line in enumerate(lines, start=1):
-            stripped = line.strip()
-            
-            # Détecter le début d'une classe
-            class_match = re.match(r'^class\s+(\w+)', stripped)
-            if class_match:
-                in_class = True
-                class_indent = len(line) - len(line.lstrip())
-                continue
-            
-            # Vérifier si on est toujours dans la classe
-            if in_class:
-                current_indent = len(line) - len(line.lstrip())
-                if current_indent <= class_indent and stripped:
-                    in_class = False
-            
-            # Vérifier les docstrings孤岛
-            docstring_match = re.search(r'"""[^"]*$', stripped)
-            if docstring_match and not re.search(r'"""[^"]*"""', stripped):
-                issue = QAIssue(
-                    issue_type=IssueType.MALFORMED_DOCSTRING,
-                    severity=SeverityLevel.WARNING,
-                    line_number=line_num,
-                    column=stripped.find('"""') + 1,
-                    message="Docstring potentiellement non fermée",
-                    code_snippet=stripped[:60],
-                    suggestion="Vérifier que la docstring est fermée avec \"\"\""
-                )
-                self.issues.append(issue)
-                self.stats['malformed_docstring'] += 1
+        # This function is kept as a placeholder for future enhancements
+        # if more sophisticated string validation is needed.
+        pass
     
     def _compile_report(self, file_path: str, total_lines: int) -> ValidationReport:
         """Compile le rapport de validation final."""
