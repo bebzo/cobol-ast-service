@@ -1,7 +1,7 @@
 /**
  * Clean Architecture Transpiler API with Automatic AI Auto-Correction
  * Uses unified Python transpiler (api/transpile.py) as source of truth
- * Automatically applies AI fixes after transpilation
+ * Automatically applies AI fixes in a loop until no more issues are detected
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { transpileCobolViaPython, parseCobolQuick } from '@/lib/transpiler-client';
@@ -98,6 +98,55 @@ function createSSEStream(controller: ReadableStreamDefaultController, encoder: T
   };
 }
 
+// Parse Gemini response to extract review object
+function parseReview(response: string): ReviewInsights | null {
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as ReviewInsights;
+    }
+  } catch (e) {
+    console.warn('[TranspileClean] Failed to parse review:', e);
+  }
+  return null;
+}
+
+// Apply fixes to code
+function applyFixes(code: string, issues: ReviewInsights['issues']): string {
+  const lines = code.split('\n');
+  const fixedLines: string[] = [];
+  let fixCount = 0;
+
+  // Create a map of line numbers to issues
+  const issuesByLine: Map<number, ReviewInsights['issues'][0]> = new Map();
+  for (const issue of issues) {
+    if (issue.line && issue.suggestedFix && issue.severity !== 'info') {
+      // Only keep the first fix for each line
+      if (!issuesByLine.has(issue.line)) {
+        issuesByLine.set(issue.line, issue);
+      }
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const lineNum = i + 1;
+    let line = lines[i];
+
+    const issue = issuesByLine.get(lineNum);
+    if (issue && issue.suggestedFix) {
+      // Apply the suggested fix
+      const indent = line.match(/^(\s*)/)?.[1] || '';
+      line = indent + issue.suggestedFix;
+      fixCount++;
+      console.log(`[TranspileClean] Fixed line ${lineNum}: ${issue.message}`);
+    }
+
+    fixedLines.push(line);
+  }
+
+  return { code: fixedLines.join('\n'), fixCount };
+}
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
@@ -145,91 +194,93 @@ export async function POST(request: NextRequest) {
 
           let finalPythonCode = result.python_code;
           let autoFixApplied = false;
-          let reviewAfterFix: ReviewInsights | null = null;
+          let finalReview: ReviewInsights | null = null;
+          let totalFixesApplied = 0;
+          let iterations = 0;
+          const maxIterations = 10; // Maximum iterations to prevent infinite loops
 
-          // Auto-correction step
+          // Iterative Auto-correction loop
           if (autoFix && GEMINI_API_KEY) {
-            sse.send('status', { message: 'Analyzing code with AI...', progress: 60 });
+            sse.send('status', { message: 'Starting AI auto-correction...', progress: 60 });
 
             try {
-              // Call Gemini for code review
-              const prompt = REVIEW_PROMPT(finalPythonCode, cobolCode);
-              const geminiResponse = await callGemini(prompt);
+              let currentCode = finalPythonCode;
+              let keepGoing = true;
 
-              let review: ReviewInsights | null = null;
-              try {
-                const jsonMatch = geminiResponse.match(/\{[\s\S]*\}/);
-                if (jsonMatch) {
-                  review = JSON.parse(jsonMatch[0]) as ReviewInsights;
+              while (keepGoing && iterations < maxIterations) {
+                iterations++;
+                console.log(`[TranspileClean] Auto-fix iteration ${iterations}/${maxIterations}`);
+
+                sse.send('status', {
+                  message: `AI verification iteration ${iterations}...`,
+                  progress: 60 + (iterations * 3)
+                });
+
+                // Call Gemini for code review
+                const prompt = REVIEW_PROMPT(currentCode, cobolCode);
+                const geminiResponse = await callGemini(prompt);
+                const review = parseReview(geminiResponse);
+
+                if (!review) {
+                  console.warn('[TranspileClean] Failed to parse review, stopping auto-fix');
+                  break;
                 }
-              } catch (parseError) {
-                console.warn('[TranspileClean] Failed to parse review response:', parseError);
-              }
 
-              if (review && review.issues && review.issues.length > 0) {
-                // Count issues with suggested fixes
+                // Send review update
                 const fixableIssues = review.issues.filter(
-                  (i: { line?: number; suggestedFix?: string }) => i.line && i.suggestedFix
+                  (i) => i.line && i.suggestedFix && i.severity !== 'info'
                 );
 
-                sse.send('review', { review, fixableCount: fixableIssues.length });
+                sse.send('review', {
+                  iteration: iterations,
+                  review,
+                  fixableCount: fixableIssues.length,
+                  progress: 60 + (iterations * 3)
+                });
 
-                if (fixableIssues.length > 0) {
-                  sse.send('status', {
-                    message: `Applying ${fixableIssues.length} AI fixes...`,
-                    progress: 70
-                  });
+                // Check if we should stop
+                const hasFixableIssues = fixableIssues.length > 0;
 
-                  // Apply fixes
-                  let fixedCode = finalPythonCode;
-                  const lines = fixedCode.split('\n');
-                  const fixedLines: string[] = [];
-
-                  for (let i = 0; i < lines.length; i++) {
-                    const lineNum = i + 1;
-                    let line = lines[i];
-
-                    for (const issue of fixableIssues) {
-                      if (issue.line === lineNum && issue.severity !== 'info' && issue.suggestedFix) {
-                        // Apply the suggested fix
-                        const indent = line.match(/^(\s*)/)?.[1] || '';
-                        line = indent + issue.suggestedFix;
-                        console.log(`[TranspileClean] Fixed line ${lineNum}: ${issue.message}`);
-                      }
-                    }
-
-                    fixedLines.push(line);
-                  }
-
-                  fixedCode = fixedLines.join('\n');
-
-                  // Re-run review on fixed code
-                  sse.send('status', { message: 'Verifying fixes with AI...', progress: 85 });
-
-                  const reReviewPrompt = REVIEW_PROMPT(fixedCode, cobolCode);
-                  const reReviewResponse = await callGemini(reReviewPrompt);
-
-                  try {
-                    const jsonMatch = reReviewResponse.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                      reviewAfterFix = JSON.parse(jsonMatch[0]) as ReviewInsights;
-                    }
-                  } catch (e) {
-                    console.warn('[TranspileClean] Failed to parse re-review response');
-                  }
-
-                  finalPythonCode = fixedCode;
-                  autoFixApplied = true;
-
-                  sse.send('status', {
-                    message: 'Auto-correction complete!',
-                    progress: 95
-                  });
+                if (!hasFixableIssues || review.score >= 100) {
+                  console.log(`[TranspileClean] No more fixable issues found (score: ${review.score})`);
+                  finalReview = review;
+                  keepGoing = false;
+                  break;
                 }
+
+                // Apply fixes
+                console.log(`[TranspileClean] Applying ${fixableIssues.length} fixes...`);
+                const { code: fixedCode, fixCount } = applyFixes(currentCode, review.issues);
+
+                if (fixCount === 0) {
+                  console.log('[TranspileClean] No fixes could be applied, stopping');
+                  finalReview = review;
+                  keepGoing = false;
+                  break;
+                }
+
+                totalFixesApplied += fixCount;
+                currentCode = fixedCode;
+                autoFixApplied = true;
+
+                sse.send('fixes', {
+                  iteration: iterations,
+                  fixesApplied: fixCount,
+                  totalFixes: totalFixesApplied
+                });
+
+                // Continue loop for next iteration
               }
+
+              finalPythonCode = currentCode;
+              sse.send('status', {
+                message: `Auto-correction complete! (${iterations} iterations, ${totalFixesApplied} fixes)`,
+                progress: 95
+              });
+
             } catch (aiError: any) {
               console.warn('[TranspileClean] AI auto-correction failed:', aiError.message);
-              sse.send('warning', { message: 'AI auto-correction skipped: ' + aiError.message });
+              sse.send('warning', { message: 'AI auto-correction error: ' + aiError.message });
             }
           } else if (!GEMINI_API_KEY) {
             sse.send('warning', { message: 'AI auto-correction disabled: No Gemini API key' });
@@ -248,7 +299,9 @@ export async function POST(request: NextRequest) {
             programId: parsed.programId,
             version: result.version,
             autoFixApplied,
-            review: reviewAfterFix,
+            review: finalReview,
+            totalFixesApplied,
+            iterations,
             timestamp: new Date().toISOString()
           });
 
