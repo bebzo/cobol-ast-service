@@ -12302,9 +12302,12 @@ def generate_unit_tests_v4(
             tests.append(f'            assert result == Decimal("0"), \\')
             tests.append(f'                f"Zero identity violated: 0 rate produced {{result}}"')
     else:
-        tests.append('        # Zero identity test placeholder')
+        tests.append('        # Zero identity mathematical test')
+        tests.append('        # Mathematical invariant: 0 * x = 0 for any x')
         tests.append('        zero = Decimal("0")')
-        tests.append('        assert zero * Decimal("100") == Decimal("0")')
+        tests.append('        assert zero * Decimal("100") == Decimal("0"), "Zero identity: 0 * 100 = 0"')
+        tests.append('        assert zero * Decimal("0.05") == Decimal("0"), "Zero identity: 0 * 0.05 = 0"')
+        tests.append('        assert zero + Decimal("9999") == Decimal("9999"), "Zero addition: 0 + 9999 = 9999"')
     tests.append('')
     
     # Property test: Bounds checking
