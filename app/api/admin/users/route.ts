@@ -25,29 +25,46 @@ function getSupabaseAdmin(): SupabaseClient | null {
 }
 
 // Verify admin access
-async function verifyAdmin(request: NextRequest): Promise<boolean> {
+async function verifyAdmin(request: NextRequest): Promise<{success: boolean, reason?: string}> {
   const client = getSupabaseAdmin();
-  if (!client) return false;
+  if (!client) return { success: false, reason: 'Admin client not configured' };
   
   const authHeader = request.headers.get('cookie');
-  if (!authHeader) return false;
+  if (!authHeader) return { success: false, reason: 'No auth cookie' };
   
   // Extract token from cookie
   const tokenMatch = authHeader.match(/sb-[^=]+-auth-token=([^;]+)/);
-  if (!tokenMatch) return false;
+  if (!tokenMatch) return { success: false, reason: 'No auth token in cookie' };
   
   try {
     const tokenData = JSON.parse(decodeURIComponent(tokenMatch[1]));
     const accessToken = tokenData[0] || tokenData.access_token;
     
     const { data: { user }, error } = await client.auth.getUser(accessToken);
-    if (error || !user) return false;
+    if (error || !user) {
+      console.error('[Admin API] User verification failed:', error);
+      return { success: false, reason: 'User verification failed' };
+    }
     
-    // Check if user is admin
-    return user.user_metadata?.role === 'admin' || 
-           user.email === process.env.ADMIN_EMAIL;
-  } catch {
-    return false;
+    console.log('[Admin API] User email:', user.email);
+    console.log('[Admin API] ADMIN_EMAIL env:', process.env.ADMIN_EMAIL);
+    console.log('[Admin API] User role:', user.user_metadata?.role);
+    
+    // Check if user is admin by role or email
+    const isAdminByRole = user.user_metadata?.role === 'admin';
+    const isAdminByEmail = user.email === process.env.ADMIN_EMAIL;
+    
+    console.log('[Admin API] Is admin by role:', isAdminByRole);
+    console.log('[Admin API] Is admin by email:', isAdminByEmail);
+    
+    if (isAdminByRole || isAdminByEmail) {
+      return { success: true };
+    }
+    
+    return { success: false, reason: 'User is not admin' };
+  } catch (err) {
+    console.error('[Admin API] Verification error:', err);
+    return { success: false, reason: 'Verification exception' };
   }
 }
 
@@ -58,8 +75,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Admin API not configured' }, { status: 503 });
   }
   
-  if (!await verifyAdmin(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const adminCheck = await verifyAdmin(request);
+  if (!adminCheck.success) {
+    console.warn('[Admin API] Unauthorized:', adminCheck.reason);
+    return NextResponse.json({ error: 'Unauthorized', reason: adminCheck.reason }, { status: 401 });
   }
 
   try {
@@ -82,8 +101,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Admin API not configured' }, { status: 503 });
   }
   
-  if (!await verifyAdmin(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const adminCheck = await verifyAdmin(request);
+  if (!adminCheck.success) {
+    console.warn('[Admin API] Unauthorized:', adminCheck.reason);
+    return NextResponse.json({ error: 'Unauthorized', reason: adminCheck.reason }, { status: 401 });
   }
 
   try {
@@ -117,8 +138,10 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Admin API not configured' }, { status: 503 });
   }
   
-  if (!await verifyAdmin(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const adminCheck = await verifyAdmin(request);
+  if (!adminCheck.success) {
+    console.warn('[Admin API] Unauthorized:', adminCheck.reason);
+    return NextResponse.json({ error: 'Unauthorized', reason: adminCheck.reason }, { status: 401 });
   }
 
   try {
