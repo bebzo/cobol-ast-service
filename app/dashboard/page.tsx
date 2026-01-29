@@ -1764,7 +1764,11 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
-          fullContext
+          // v9.3: Send code as top-level strings (API expects these directly)
+          cobolCode: analyzedCobolCode || cobolCode,
+          pythonCode: pythonCode,
+          // Also spread fullContext for all other analysis data
+          ...fullContext
         })
       });
       const data = await res.json();
