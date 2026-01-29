@@ -1080,13 +1080,17 @@ def generate_method_docstring(paragraph_name: str, cobol_line: int = 0, descript
     Returns:
         Docstring formaté avec triple quotes
     """
+    # Escape special characters to prevent malformed docstrings
+    safe_paragraph_name = _escape_for_docstring(paragraph_name)
+    safe_description = _escape_for_docstring(description) if description else ""
+    
     lines = ['"""']
-    lines.append(f"Transpiled from COBOL paragraph: {paragraph_name}")
+    lines.append(f"Transpiled from COBOL paragraph: {safe_paragraph_name}")
     if cobol_line > 0:
         lines.append(f"Source line: {cobol_line}")
-    if description:
+    if safe_description:
         lines.append('')
-        lines.append(description)
+        lines.append(safe_description)
     lines.append('"""')
     return '\n'.join(lines)
 
@@ -1100,15 +1104,18 @@ def generate_error_handler(paragraph_name: str) -> str:
     Returns:
         Bloc try-except formaté avec indentation
     """
+    # Escape paragraph_name to prevent malformed f-strings in docstrings
+    safe_paragraph_name = _escape_for_docstring(paragraph_name)
+    
     return f"""        try:
             # Log d'entrée pour traçabilité
-            self.logger.debug(f"Entering {{self.__class__.__name__}}.{paragraph_name}")
+            self.logger.debug(f"Entering {{self.__class__.__name__}}.{safe_paragraph_name}")
             
             # Corps de la méthode
             pass  # ← Remplacer par la logique métier transpilée
             
         except Exception as e:
-            self.logger.error(f"Error in {{self.__class__.__name__}}.{paragraph_name}: {{e}}", exc_info=True)
+            self.logger.error(f"Error in {{self.__class__.__name__}}.{safe_paragraph_name}: {{e}}", exc_info=True)
             raise"""
 
 
@@ -1123,14 +1130,19 @@ def generate_logging_statement(level: str, message: str, variables: List[str] = 
     Returns:
         Statement de logging complet
     """
+    # Escape message to prevent issues with special characters
+    safe_message = _escape_for_docstring(message)
+    
     var_log = ""
     if variables:
-        var_log = ", ".join([f"{{'{v}': {v}}}" for v in variables])
+        # Escape variable names for safe logging
+        safe_variables = [_escape_for_docstring(v) for v in variables]
+        var_log = ", ".join([f"{{'{v}': {v}}}" for v in safe_variables])
     
     if var_log:
-        return f"self.logger.{level}(f'{message} | Variables: {var_log}')"
+        return f"self.logger.{level}(f'{safe_message} | Variables: {var_log}')"
     else:
-        return f"self.logger.{level}('{message}')"
+        return f"self.logger.{level}('{safe_message}')"
 
 
 def add_type_annotations_to_method(method_code: str) -> str:
@@ -11806,14 +11818,36 @@ def generate_python_code(
         # v11.0.3: FINAL SAFETY ESCAPE - Prevent unterminated string literal errors
         # This is a last-resort escape for any remaining problematic characters in docstrings
         try:
-            # Escape any remaining problematic characters in f-string docstrings
-            # This catches cases where COBOL identifiers with special chars weren't fully sanitized
-            python_code = re.sub(
-                r'(f?""".*?\{)([^}]*\})',
-                lambda m: m.group(1) + re.sub(r'["\'\\\r\n\t]', lambda c: f"\\{c.group()}", m.group(2)) + "}",
-                python_code,
-                flags=re.DOTALL
-            )
+            # First, try to validate the code syntax - if it fails, we need to escape
+            try:
+                ast.parse(python_code)
+                syntax_valid = True
+            except SyntaxError:
+                syntax_valid = False
+            
+            # If syntax is invalid, apply comprehensive escaping
+            if not syntax_valid:
+                # Escape all triple quotes patterns in docstrings
+                python_code = re.sub(r'"""', '\\"\\"\\"', python_code)
+                
+                # Escape backslashes first (order matters)
+                python_code = python_code.replace('\\', '\\\\')
+                
+                # Escape any remaining problematic characters in docstrings
+                # This catches cases where COBOL identifiers with special chars weren't fully sanitized
+                python_code = re.sub(
+                    r'(f?""".*?\{)([^}]*\})',
+                    lambda m: m.group(1) + re.sub(r'["\'\\\r\n\t]', lambda c: f"\\{c.group()}", m.group(2)) + "}",
+                    python_code,
+                    flags=re.DOTALL
+                )
+                
+                # Verify syntax is now valid after escaping
+                try:
+                    ast.parse(python_code)
+                except SyntaxError:
+                    # Last resort: remove all triple quotes and replace with single quotes
+                    python_code = re.sub(r'"""[\s\S]*?"""', '""', python_code)
         except:
             pass  # If escape fails, continue with original code
         
