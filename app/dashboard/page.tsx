@@ -104,6 +104,59 @@ async function validatePythonSyntax(code: string): Promise<{ valid: boolean; err
   try {
     const pyodide = await getPyodide();
     if (!pyodide) return { valid: true }; // Skip if Pyodide not available
+
+    // Check for unterminated strings using simple quote counting (v9.0: robust check)
+    let inString = false;
+    let stringChar = '';
+    let lines = code.split('\n');
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        
+        // Skip if in a comment (only applies outside strings)
+        if (!inString && char === '#') break;
+        
+        // Skip escaped characters
+        if (j > 0 && line[j-1] === '\\') continue;
+        
+        // Check for string delimiters (only when not already in a string)
+        if (!inString && (char === '"' || char === "'")) {
+          // Check for triple quotes first
+          if (j + 2 < line.length && line.substring(j, j+3) === '"""') {
+            inString = true;
+            stringChar = '"""';
+            j += 2; // Skip rest of triple quote
+          } else if (j + 2 < line.length && line.substring(j, j+3) === "'''") {
+            inString = true;
+            stringChar = "'''";
+            j += 2;
+          } else {
+            // Single or double quote
+            inString = true;
+            stringChar = char;
+          }
+        } else if (inString && char === stringChar[0]) {
+          // Check if this closes a triple quote
+          if (stringChar.length === 3) {
+            if (j + 2 < line.length && line.substring(j, j+3) === stringChar) {
+              inString = false;
+              stringChar = '';
+              j += 2;
+            }
+          } else {
+            // Single quote closes the string
+            inString = false;
+            stringChar = '';
+          }
+        }
+      }
+    }
+    
+    if (inString) {
+      return { valid: false, error: 'unterminated string literal', line: lines.length };
+    }
     
     // Use compile() to check syntax without executing
     pyodide.runPython(`
