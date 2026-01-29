@@ -379,6 +379,7 @@ async function callGemini(prompt: string): Promise<string> {
 
 const PROMPTS = {
   review: (python: string, cobol: string) => `You are a senior code reviewer specializing in COBOL-to-Python migrations.
+IMPORTANT: Respond ONLY in English.
 
 Analyze this transpiled Python code and provide a review in JSON format:
 {
@@ -409,7 +410,8 @@ Respond ONLY with valid JSON.`,
 
 This is handled by deterministic generator - no Gemini needed.`,
 
-  optimize: (python: string) => `You are a Python optimization expert...
+  optimize: (python: string) => `You are a Python optimization expert.
+IMPORTANT: Respond ONLY in English.
 
 Analyze this Python code and provide optimization suggestions in JSON format:
 {
@@ -429,7 +431,8 @@ ${python.substring(0, 8000)}
 
 Respond ONLY with valid JSON.`,
 
-  explain: (python: string, cobol: string, programName: string) => `You are a COBOL migration expert...
+  explain: (python: string, cobol: string, programName: string) => `You are a COBOL migration expert.
+IMPORTANT: Respond ONLY in English.
 
 Explain this transpiled code in JSON format:
 {
@@ -452,7 +455,8 @@ ${python.substring(0, 4000)}
 
 Respond ONLY with valid JSON.`,
 
-  architecture: (python: string, cobol: string) => `You are a software architect...
+  architecture: (python: string, cobol: string) => `You are a software architect.
+IMPORTANT: Respond ONLY in English.
 
 Analyze the architecture of this transpiled code in JSON format:
 {
