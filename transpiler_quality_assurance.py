@@ -143,7 +143,9 @@ class TranspilerAudit:
             'suggestion': "Vérifier l'indentation et la structure du code"
         },
         'method_def_without_def': {
-            'pattern': r"^\s+\w+\s*\([^)]*\)\s*:\s*$",
+            # Pattern plus précis pour éviter les faux positifs
+            # Exclut les lignes qui commencent par des mots-clés Python valides
+            'pattern': r"^\s+(?!except|with|pass|return|raise|yield|elif|if|while|for|try|finally|match|case)\w+\s*\([^)]*\)\s*:\s*$",
             'issue_type': IssueType.INVALID_SYNTAX,
             'severity': SeverityLevel.CRITICAL,
             'message': "Ligne ressemblant à une définition de méthode sans 'def'",
@@ -708,8 +710,8 @@ class TranspilerQualityAssurance:
                     if line_num < len(lines):
                         line = lines[line_num]
                         
-                        # Correction: ajouter 'def' manquant
-                        if re.search(r'^\s+\w+\s*\([^)]*\)\s*:\s*$', line):
+                        # Correction: ajouter 'def' manquant (même pattern que la détection)
+                        if re.search(r'^\s+(?!except|with|pass|return|raise|yield|elif|if|while|for|try|finally|match|case)\w+\s*\([^)]*\)\s*:\s*$', line):
                             new_line = re.sub(r'^(\s+)(\w+)(\s*\()', r'\1def \2\3', line)
                             lines[line_num] = new_line
                             fixes.append(f"Ligne {issue['line_number']}: Ajouté 'def' manquant")
