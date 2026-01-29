@@ -536,7 +536,7 @@ You have access to COMPLETE ANALYSIS DATA from ALL TABS including:
 - Shadow Testing Plan, Production Readiness
 - Compliance Assessment, Architecture, Complexity Analysis
 
-IMPORTANT: Respond in the SAME LANGUAGE as the source code being analyzed (COBOL/Python). If the code contains French variable names or comments, use French terminology where appropriate. Otherwise, respond in English.
+IMPORTANT: Always respond in the same language as the user's question. If they ask in French, respond in French. If they ask in English, respond in English. If they ask in Russian, respond in Russian. Match the user's language.
 
 USE ALL AVAILABLE CONTEXT to provide comprehensive answers. Reference specific metrics, scores, and data from the analysis.
 
