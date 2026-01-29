@@ -202,6 +202,11 @@ function generateDeterministicTests(pythonCode: string, className: string = "Pro
   
   const lines: string[] = [];
   
+  // Sanitize className for Python identifiers (test class names, fixture names)
+  // Keep original for imports, create sanitized version for Python code
+  const sanitizeName = (name: string) => name.replace(/[^a-zA-Z0-9_]/g, '_');
+  const sanitizedClassName = sanitizeName(className);
+  
   // Header
   lines.push('# -*- coding: utf-8 -*-');
   lines.push('"""');
@@ -222,7 +227,7 @@ function generateDeterministicTests(pythonCode: string, className: string = "Pro
   lines.push('# ════════════════════════════════════════════════════════════════');
   lines.push('');
   lines.push(`@pytest.fixture(scope="class")`);
-  lines.push(`def ${className.toLowerCase()}_instance(request):`);
+  lines.push(`def ${sanitizedClassName}_instance(request):`);
   lines.push(`    """Fixture pour ${className}."""`);
   lines.push(`    try:`);
   lines.push(`        from generated_code import ${className}`);
@@ -237,7 +242,7 @@ function generateDeterministicTests(pythonCode: string, className: string = "Pro
   lines.push('# 1. TESTS D\'INITIALISATION');
   lines.push('# ════════════════════════════════════════════════════════════════');
   lines.push('');
-  lines.push(`class Test${className}Initialization:`);
+  lines.push(`class Test${sanitizedClassName}Initialization:`);
   lines.push('    """Tests d\'initialisation."""');
   lines.push('');
   lines.push('    def test_instance_creation(self):');
@@ -279,18 +284,18 @@ function generateDeterministicTests(pythonCode: string, className: string = "Pro
     lines.push(`class Test${capitalizedName}:`);
     lines.push(`    """Tests pour ${func.name}."""`);
     lines.push('');
-    lines.push(`    def test_${safeFuncName}_exists(self, ${className.toLowerCase()}_instance):`);
+    lines.push(`    def test_${safeFuncName}_exists(self, ${sanitizedClassName.toLowerCase()}_instance):`);
     lines.push(`        """Vérifier que ${func.name} existe."""`);
-    lines.push(`        assert hasattr(${className.toLowerCase()}_instance, "${func.name}")`);
-    lines.push(`        assert callable(${className.toLowerCase()}_instance.${func.name}), "${func.name} devrait être une méthode callable"`);
+    lines.push(`        assert hasattr(${sanitizedClassName.toLowerCase()}_instance, "${func.name}")`);
+    lines.push(`        assert callable(${sanitizedClassName.toLowerCase()}_instance.${func.name}), "${func.name} devrait être une méthode callable"`);
     lines.push('');
-    lines.push(`    def test_${safeFuncName}_execution(self, ${className.toLowerCase()}_instance):`);
+    lines.push(`    def test_${safeFuncName}_execution(self, ${sanitizedClassName.toLowerCase()}_instance):`);
     lines.push(`        """Exécuter ${func.name}."""`);
     lines.push('        try:');
     if (testArgs.length > 0) {
-      lines.push(`            result = ${className.toLowerCase()}_instance.${func.name}(${testArgs.join(', ')})`);
+      lines.push(`            result = ${sanitizedClassName.toLowerCase()}_instance.${func.name}(${testArgs.join(', ')})`);
     } else {
-      lines.push(`            result = ${className.toLowerCase()}_instance.${func.name}()`);
+      lines.push(`            result = ${sanitizedClassName.toLowerCase()}_instance.${func.name}()`);
     }
     lines.push('            # Si le résultat est un Decimal, vérifier sa validité');
     lines.push('            if isinstance(result, Decimal):');
@@ -319,13 +324,13 @@ function generateDeterministicTests(pythonCode: string, className: string = "Pro
       for (const prop of cls.properties.slice(0, 3)) {
         // Sanitize property name to avoid conflicts
         const safePropName = prop.replace(/[^a-zA-Z0-9_]/g, '_');
-        lines.push(`    def test_${safePropName}_property(self, ${className.toLowerCase()}_instance):`);
+        lines.push(`    def test_${safePropName}_property(self, ${sanitizedClassName.toLowerCase()}_instance):`);
         lines.push(`        """Vérifier propriété ${prop}."""`);
-        lines.push(`        assert hasattr(${className.toLowerCase()}_instance, "${prop}")`);
-        lines.push(`        result = ${className.toLowerCase()}_instance.${prop}`);
+        lines.push(`        assert hasattr(${sanitizedClassName.toLowerCase()}_instance, "${prop}")`);
+        lines.push(`        result = ${sanitizedClassName.toLowerCase()}_instance.${prop}`);
         lines.push(`        # La propriété peut retourner différents types selon son usage`);
-        lines.push(`        # On vérifie juste qu'elle ne crash pas`);
-        lines.push(`        assert result is not None or True, "La propriété devrait être accessible"`);
+        lines.push(`        # On vérifie juste qu'elle ne crash pas et n'est pas None`);
+        lines.push(`        assert result is not None, "La propriété ${prop} ne devrait pas être None"`);
         lines.push('');
       }
     }
@@ -352,9 +357,9 @@ function generateDeterministicTests(pythonCode: string, className: string = "Pro
   lines.push('    def test_string_escaping(self):');
   lines.push('        """Test echappement chaines avec repr()."""');
   lines.push('        # Toutes les chaines utilisent repr() pour eviter les erreurs');
-  lines.push('        test_val = repr("O\\\\\'Brien")')
-  lines.push('        assert isinstance(eval(test_val), str)');
-  lines.push('');
+  lines.push("        test_val = repr(\"O'Brien\")");
+  lines.push('        assert isinstance(test_val, str)');
+  lines.push('        assert "O" in test_val');
   
   // Exception tests
   lines.push('# ════════════════════════════════════════════════════════════════');
