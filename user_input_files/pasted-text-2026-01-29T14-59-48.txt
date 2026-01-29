@@ -967,7 +967,7 @@ class SupabaseFile:
     def _create_table(self) -> bool:
         if not self._connection.is_connected:
             return True
-        sql = f'
+        sql = f"""
         CREATE TABLE IF NOT EXISTS {self.table_name} (
             id BIGSERIAL PRIMARY KEY,
             {self.key_column} TEXT UNIQUE NOT NULL,
@@ -978,7 +978,7 @@ class SupabaseFile:
         
         CREATE INDEX IF NOT EXISTS idx_{self.table_name}_{self.key_column}
         ON {self.table_name} ({self.key_column});
-        '
+        """
         result = self._connection.execute(sql)
         return result['error'] is None
 
