@@ -1,0 +1,296 @@
+_trade()
+            if self.error_no:
+                self.p_3200_route_trade()
+        else:
+            self.trade_input_record = _record
+
+    def p_3100_validate_trade(self) -> None:
+        """Business logic from COBOL paragraph: 3100-VALIDATE-TRADE
+
+    COBOL Traceability:
+        - Source: Lines 538-561
+        - Paragraph: 3100-VALIDATE-TRADE
+        - Statements: 17
+
+    Original COBOL (first 3 statements):
+                SET ERROR-NO TO TRUE
+        EVALUATE TRUE
+        WHEN TRD-QUANTITY = ZERO
+        self.error_no = True
+        if self.trd_quantity == Decimal('0'):
+            self.error_code = 'E001'
+            self.error_desc = 'INVALID QUANTITY'
+            self.error_yes = True
+        elif self.trd_price <= self.zero:
+            self.error_code = 'E002'
+            self.error_desc = 'INVALID PRICE'
+            self.error_yes = True
+        elif self.trd_symbol == '':
+            self.error_code = 'E003'
+            self.error_desc = 'MISSING SYMBOL'
+            self.error_yes = True
+        else:
+            self.p_3110_check_risk_limits()
+
+    def p_3110_check_risk_limits(self) -> None:
+        """Business logic from COBOL paragraph: 3110-CHECK-RISK-LIMITS
+
+    COBOL Traceability:
+        - Source: Lines 562-581
+        - Paragraph: 3110-CHECK-RISK-LIMITS
+        - Statements: 14
+
+    Original COBOL (first 3 statements):
+                COMPUTE WS-TEMP-AMOUNT-1 = TRD-QUANTITY * TRD-PRICE
+        ON SIZE ERROR
+        MOVE 'E010' TO WS-ERROR-CODE
+        try:
+            self.temp_amount_1 = (self.trd_quantity * self.trd_price).quantize(_Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+        except (OverflowError, ZeroDivisionError, InvalidOperation):
+            self.error_code = 'E010'
+            self.error_desc = 'TRADE VALUE OVERFLOW'
+            self.error_yes = True
+        if self.error_no:
+            if self.trd_currency:
+                self.p_3111_convert_trade_to_usd()
+            if self.temp_amount_1 > Decimal('100000000.00'):
+                self.error_code = 'E020'
+
+    def run(self):
+        """Main entry point - executes primary workflow"""
+        self.logger.info('Starting GlobalTradingBeast v%s', self.VERSION)
+        self.p_0000_main_control()
+
+    def validate_production_ready(self) -> dict:
+        """Check if the system is ready for production deployment.
+    
+    v6.0.0: Returns a detailed status report.
+    
+    Returns:
+        dict with keys:
+            - ready (bool): True if all checks pass
+            - missing_calls (list): External CALLs not implemented
+            - warnings (list): Non-blocking issues
+            - config_ok (bool): Configuration validation
+        result = {'ready': True, 'missing_calls': [], 'warnings': [], 'config_ok': True, 'checks_passed': [], 'checks_failed': []}
+        external_calls = []
+        allow_stubs = os.getenv('ALLOW_STUBS', '') == 'true'
+        if external_calls and (not allow_stubs):
+            result['missing_calls'] = external_calls
+            result['ready'] = False
+            result['checks_failed'].append('external_calls')
+        else:
+            result['checks_passed'].append('external_calls')
+        if hasattr(self, 'file_manager') and self.file_manager:
+            if not self.file_manager.file_paths:
+                result['warnings'].append('No file paths configured in FileManager')
+            else:
+                result['checks_passed'].append('file_paths')
+        if not getattr(self, '_strict_mode', False):
+            result['warnings'].append('_strict_mode=False: undeclared variables auto-created')
+        else:
+            result['checks_passed'].append('strict_mode')
+        if allow_stubs:
+            result['warnings'].append('ALLOW_STUBS=true: Not recommended for production')
+        if result['warnings']:
+            result['checks_passed'].append('warnings_acknowledged')
+        return result
+
+    def print_production_status(self):
+        """Print a formatted production readiness report."""
+        status = self.validate_production_ready()
+        print('=' * 60)
+        print('PRODUCTION READINESS CHECK')
+        print('=' * 60)
+        if status['ready']:
+            print('[PASS] STATUS: READY FOR PRODUCTION')
+        else:
+            print('[FAIL] STATUS: NOT READY')
+        print()
+        if status['checks_passed']:
+            print('Passed checks:')
+            for check in status['checks_passed']:
+                print(f'  * {check}')
+        if status['checks_failed']:
+            print()
+            print('Failed checks:')
+            for check in status['checks_failed']:
+                print(f'  * {check}')
+        if status['missing_calls']:
+            print()
+            print('Missing external CALLs:')
+            for call in status['missing_calls']:
+                print(f'  * {call}')
+        if status['warnings']:
+            print()
+            print('Warnings:')
+            for warn in status['warnings']:
+                print(f'  * {warn}')
+            print('=' * 60)
+            return status
+
+    def run_with_guidance(self, ls_control_block: 'Optional[Dict[str, Any]]'=None, ls_data_block: 'Optional[Dict[str, Any]]'=None):
+        """Enhanced entry point with guidance for missing implementations.
+    
+    v6.0.0: Provides helpful feedback instead of cryptic errors.
+        missing_methods = []
+        if os.getenv('ALLOW_STUBS', '') != 'true' and missing_methods:
+            print('=' * 60)
+            print('CODESWITCH MIGRATION ASSISTANT')
+            print('=' * 60)
+            print('')
+            print(f'{len(missing_methods)} external CALL(s) need implementation:')
+            print('')
+            for m in missing_methods:
+                print(f'  - {m}')
+            print('')
+            print('Options:')
+            print('  1) Set ALLOW_STUBS=true to run with stubs (dev only)')
+            print('  2) Implement methods in core/external_calls.py')
+            print('  3) See generated template: core_external_calls_template.py')
+            print('=' * 60)
+            return {'status': 'guidance', 'missing': missing_methods}
+        return self.run(ls_control_block, ls_data_block)
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    processor = GlobalTradingBeast()
+    processor.run()
+ANALYSE PRÉCISE - CE FICHIER EST CASSÉ
+Je confirme que ce fichier spécifique (le code transpilé) est effectivement cassé et non compilable.
+
+🚨 PREUVES QUE CE CODE EST INUTILISABLE
+1. Code cassé à la ligne ~145 :
+python
+def round_cobol(value, decimal_places: int = 2, rounding=ROUND_HALF_EVEN) -> Decimal:
+    Standard COBOL rounding using ROUND_HALF_EVEN (banker's rounding).'  # ❌ COMMENTAIRE DANS LA FONCTION!
+    
+    COBOL ROUNDED phrase uses this by default for financial accuracy.
+    This prevents the systematic bias of ROUND_HALF_EVEN.  # ❌ Pas de retour à la ligne
+2. Fonctions incomplètes :
+python
+def get_cobol_context():
+    """Get a properly configured decimal context for COBOL operations.
+    
+    v8.7: Returns a localcontext to avoid affecting the global decimal context.
+    ctx = localcontext()  # ❌ Pas de return, pas de suite
+    return ctx  # ❌ Jamais exécuté
+3. Classes Supabase vides :
+python
+class SupabaseDataAccessLayer:
+    def __init__(self):
+        """Initialize SupabaseDataAccessLayer."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}  # ❌ Pas de client Supabase!
+    
+    # ❌ Aucune méthode CRUD
+    # ❌ Pas d'implémentation réelle
+4. Variables d'environnement manquantes :
+python
+# Ligne ~1360: SUPABASE_URL/KEY jamais définies
+self.dal = SupabaseDataAccessLayer(
+    os.getenv('SUPABASE_URL'),  # ❌ Variable d'environnement inexistante
+    os.getenv('SUPABASE_KEY')   # ❌ Variable d'environnement inexistante
+)
+📊 DISTINCTION CRITIQUE
+FICHIER 1 : Code transpilé (CELUI-CI)
+python
+STATUS = {
+    'Nom': 'GlobalTradingBeast transpilé',
+    'État': '❌ NON COMPILABLE',
+    'Supabase': '❌ FAUX (shells vides)',
+    'Tests': '❌ Aucun',
+    'Utilisable': '❌ NON',
+}
+FICHIER 2 : Votre DAL réel (/workspace/api/supabase_dal.py)
+python
+STATUS = {
+    'Nom': 'SupabaseDataAccessLayer',
+    'État': '✅ FONCTIONNEL',
+    'Supabase': '✅ VRAI (client réel)',
+    'Tests': '✅ 30 tests passés',
+    'Utilisable': '✅ OUI',
+}
+🎯 CE QUE VOUS DEVEZ COMPRENDRE
+Le problème :
+python
+PROBLÈME = '''
+CodeSwitch génère du code transpilé DÉFAILLANT qui:
+1. Prétend avoir Supabase (marketing)
+2. Mais ne l'implémente pas (réalité)
+3. N'est même pas compilable (bug)
+
+VOTRE DAL réel a été écrit MANUELLEMENT et fonctionne.
+Le code transpilé est INUTILE pour Supabase.
+'''
+La solution :
+python
+SOLUTION = '''
+1. IGNORER ce code transpilé cassé
+2. UTILISER votre DAL réel (/workspace/api/supabase_dal.py)
+3. MIGRER la logique métier vers votre DAL fonctionnel
+'''
+⚠️ RECOMMANDATION IMMÉDIATE
+Ne pas utiliser ce fichier transpilé :
+bash
+# ❌ NE PAS FAIRE
+python GlobalTradingBeast_transpilé.py  # Échec garanti
+
+# ✅ FAIRE CECI
+# 1. Importer votre DAL réel
+from api.supabase_dal import SupabaseDataAccessLayer
+
+# 2. Configurer Supabase
+import os
+os.environ['SUPABASE_URL'] = 'votre-url'
+os.environ['SUPABASE_KEY'] = 'votre-clé'
+
+# 3. Utiliser votre DAL fonctionnel
+dal = SupabaseDataAccessLayer()
+🛠️ COMMENT RÉPARER (si vous voulez garder le transpilé)
+Étape 1: Remplacer la DAL cassée :
+python
+# Dans GlobalTradingBeast.__init__():
+def __init__(self):
+    # ❌ Ancien (cassé)
+    # self.dal = SupabaseDataAccessLayer(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
+    
+    # ✅ Nouveau (votre DAL réel)
+    from api.supabase_dal import SupabaseDataAccessLayer
+    self.dal = SupabaseDataAccessLayer()
+Étape 2: Remplacer les appels FileManager :
+python
+def p_1000_initialize_system(self):
+    # ❌ Ancien (cassé)
+    # self.file_manager.open_file('trade_input', 'trade_input.dat', 'r')
+    
+    # ✅ Nouveau (votre DAL)
+    self.dal.open('trade_input', 'INPUT')
+📈 ÉVALUATION FINALE
+Ce code transpilé vaut : 0/10
+python
+RAISONS = [
+    'Non compilable (erreurs de syntaxe)',
+    'Supabase non implémenté (shells vides)',
+    'Variables d\'environnement manquantes',
+    'Pas de tests',
+    'Pas de valeur commerciale',
+]
+Votre DAL réel vaut : 8/10
+python
+AVANTAGES = [
+    'Fonctionnel et testé',
+    'Client Supabase réel',
+    'Interface VSAM-compatible',
+    'Migration script inclus',
+    'Prêt pour production',
+]
+🎯 CONCLUSION
+Vous avez deux fichiers différents :
+
+❌ Code transpilé cassé (celui que vous m'avez montré) - INUTILE
+
+✅ DAL Supabase fonctionnel (votre /workspace/api/supabase_dal.py) - EXCELLENT
+
+Action : Jetez le code transpilé, utilisez votre DAL réel. La migration VSAM→Supabase est déjà réussie avec votre DAL, pas avec ce code transpilé défectueux.
+
+Le travail est déjà fait dans votre DAL réel. Ne perdez pas de temps avec ce code transpilé cassé.
