@@ -295,6 +295,8 @@ export async function POST(request: NextRequest) {
       architectureDiagram,     // Architecture diagram (Mermaid)
       securityScore,           // Calculated security score
       metrics,                 // Overall metrics
+      // v9.4: Export tab data
+      exportData,              // Export formats, frameworks, certificate data
       // Phase 1: Enhanced context
       selectedLine,
       activeError,
@@ -438,6 +440,26 @@ ${Object.entries(complianceAssessment).filter(([k]) =>
   `- ${key.toUpperCase()}: ${value.status || 'N/A'} (${value.applicable ? 'applicable' : 'not applicable'})`
 ).join('\n') || '- None'}
 ` : '- Not available - Run compliance assessment'}
+
+## 📦 EXPORT OPTIONS (v9.4):
+${exportData ? `
+### Available Export Formats:
+${exportData.availableFormats?.map((f: any) => `- ${f.icon} ${f.name}: ${f.description}`).join('\n') || '- No formats available'}
+
+### Recommended Frameworks:
+${exportData.recommendedFrameworks?.map((f: any) => `- [${f.priority.toUpperCase()}] ${f.name}: ${f.purpose} - ${f.description}`).join('\n') || '- No recommendations'}
+
+${exportData.packageSummary ? `### Package Summary:
+- Total Files: ${exportData.packageSummary.totalFiles || 0}
+- Code Reduction: ${exportData.packageSummary.codeReduction || 0}%
+- Has Tests: ${exportData.packageSummary.hasTests ? 'Yes' : 'No'}
+- Has Config: ${exportData.packageSummary.hasConfig ? 'Yes' : 'No'}` : ''}
+
+${exportData.certificateData ? `### Certificate Status:
+- Generated: ${exportData.certificateData.hasCertificate ? 'Yes' : 'No'}
+- Confidence Score: ${exportData.certificateData.confidenceScore || 0}%
+- Test Coverage: ${exportData.certificateData.testCoverage || 0}%` : ''}
+` : '- Export data not available - Run analysis first'}
 
 ## 🎯 SUMMARY:
 ${analysis.summary || 'No summary available'}

@@ -1756,6 +1756,68 @@ export default function Home() {
           hasPythonCode: !!pythonCode,
           hasTests: !!(analysis?.unit_tests || analysis?.tests),
           timestamp: Date.now()
+        },
+        
+        // v9.4: Export tab data
+        exportData: {
+          // Available export formats and frameworks
+          availableFormats: [
+            { id: 'python', name: 'Python', icon: '🐍', description: 'Standard Python module' },
+            { id: 'pytest', name: 'Pytest', icon: '🧪', description: 'Unit tests with pytest' },
+            { id: 'docker', name: 'Docker', icon: '🐳', description: 'Containerized deployment' },
+            { id: 'fastapi', name: 'FastAPI', icon: '⚡', description: 'REST API wrapper' },
+            { id: 'streamlit', name: 'Streamlit', icon: '📊', description: 'Interactive dashboard' },
+            { id: 'report', name: 'Report', icon: '📄', description: 'Markdown analysis report' }
+          ],
+          
+          // Framework recommendations based on analysis
+          recommendedFrameworks: pythonCode ? [
+            { 
+              name: 'CobolRuntime', 
+              purpose: 'COBOL compatibility layer',
+              priority: 'critical',
+              description: 'Handles COBOL rounding and decimal precision'
+            },
+            { 
+              name: 'pytest', 
+              purpose: 'Testing framework',
+              priority: 'high', 
+              description: 'For generated unit tests execution'
+            },
+            ...(analysis?.business_context?.domain === 'banking' || analysis?.business_context?.domain === 'finance' ? [
+              { 
+                name: 'FastAPI', 
+                purpose: 'API exposure',
+                priority: 'medium',
+                description: 'Expose legacy COBOL logic as REST API'
+              },
+              {
+                name: 'Docker',
+                purpose: 'Containerization',
+                priority: 'medium', 
+                description: 'Isolated runtime environment'
+              }
+            ] : [])
+          ] : [],
+          
+          // Certificate data (if available from analysis)
+          certificateData: analysis ? {
+            hasCertificate: !!(analysis as any).certificateGenerated,
+            confidenceScore: analysis.migration_score?.confidence || 0,
+            migrationScore: analysis.migration_score?.complexity || 'Unknown',
+            testCoverage: testResults.total > 0 ? Math.round((testResults.passed / testResults.total) * 100) : 0
+          } : null,
+          
+          // Migration package summary
+          packageSummary: analysis ? {
+            totalFiles: (analysis.modules?.length || 0) + 1,
+            codeReduction: cobolCode && analysis.python_code 
+              ? Math.round((1 - (analysis.python_code.split('\n').length / cobolCode.split('\n').length)) * 100)
+              : 0,
+            hasTests: !!(analysis.unit_tests || analysis.tests),
+            hasConfig: !!analysis.config_json,
+            hasDocs: !!analysis.next_steps?.length
+          } : null
         }
       };
       
