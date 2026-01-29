@@ -38,6 +38,7 @@ interface GeminiInsightsPanelProps {
   programName?: string;
   isVisible: boolean;
   onClose: () => void;
+  onPythonCodeUpdate?: (newCode: string) => void;
   variant?: 'modal' | 'embedded';
 }
 
@@ -57,6 +58,7 @@ export default function GeminiInsightsPanel({
   programName = 'Program',
   isVisible,
   onClose,
+  onPythonCodeUpdate,
   variant = 'modal'
 }: GeminiInsightsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('review');
@@ -67,7 +69,11 @@ export default function GeminiInsightsPanel({
   const [loadedTabs, setLoadedTabs] = useState<Set<TabType>>(new Set());
   const [analysisSteps, setAnalysisSteps] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState('');
-  
+
+  // Auto-fix state
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
+  const [autoFixProgress, setAutoFixProgress] = useState<{ fixesApplied: number; iterations: number; achieved100: boolean } | null>(null);
+
   // Draggable state
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -108,6 +114,54 @@ export default function GeminiInsightsPanel({
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isDragging]);
+
+  // ============================================================
+  // AUTO-FIX: Automatically fix issues until 100% score
+  // ============================================================
+  const autoFixCode = async () => {
+    if (!insights.review?.issues?.length || !onPythonCodeUpdate) return;
+
+    console.log('[AutoFix] Starting automatic code fixes...');
+    setIsAutoFixing(true);
+    setAutoFixProgress({ fixesApplied: 0, iterations: 0, achieved100: false });
+
+    try {
+      const response = await fetch('/api/gemini-insights', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cobolCode,
+          pythonCode,
+          issues: insights.review.issues,
+          context: { programName }
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.fixedCode) {
+        // Update parent with fixed code
+        onPythonCodeUpdate(data.fixedCode);
+
+        // Update progress
+        setAutoFixProgress({
+          fixesApplied: data.fixesApplied,
+          iterations: data.iterations,
+          achieved100: data.achieved100
+        });
+
+        console.log('[AutoFix] Complete:', data);
+
+        // Refresh analysis with new code
+        setLoadedTabs(new Set());
+        setInsights({});
+      }
+    } catch (error) {
+      console.error('[AutoFix] Error:', error);
+    } finally {
+      setIsAutoFixing(false);
+    }
+  };
 
   // Analysis step messages for each tab
   const STEP_MESSAGES: Record<TabType, string[]> = {
@@ -237,6 +291,37 @@ export default function GeminiInsightsPanel({
             {review.grade || 'N/A'}
           </div>
         </div>
+        
+        {/* Auto-Fix Progress */}
+        {autoFixProgress && (
+          <div className={`p-3 rounded-lg ${autoFixProgress.achieved100 ? 'bg-green-500/10 border border-green-500/20' : 'bg-yellow-500/10 border border-yellow-500/20'}`}>
+            <div className="flex items-center justify-between">
+              <span className={autoFixProgress.achieved100 ? 'text-green-400' : 'text-yellow-400'}>
+                {autoFixProgress.achieved100 ? '✨ Perfect score achieved!' : `🔧 Auto-fixing... ${autoFixProgress.fixesApplied} fixes applied`}
+              </span>
+              <span className="text-gray-400 text-sm">({autoFixProgress.iterations} iterations)</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Auto-Fix Button */}
+        {onPythonCodeUpdate && review.score < 100 && review.issues?.length > 0 && !isAutoFixing && (
+          <button
+            onClick={autoFixCode}
+            className="w-full py-2 px-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:opacity-90 transition-opacity font-medium flex items-center justify-center gap-2"
+          >
+            <span>🔧</span>
+            Auto-fix all issues to reach 100%
+          </button>
+        )}
+        
+        {/* Auto-Fix Loading */}
+        {isAutoFixing && (
+          <div className="flex items-center justify-center py-4">
+            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-3" />
+            <span className="text-blue-400">Automatically fixing issues...</span>
+          </div>
+        )}
         
         {/* Issues */}
         {review.issues?.length > 0 && (
