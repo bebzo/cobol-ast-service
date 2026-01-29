@@ -2553,7 +2553,7 @@ ${Array.isArray(analysis.unit_tests) ? analysis.unit_tests.join('\n') : (analysi
 
             {/* Output Editor with Tabs */}
             <div className="bg-slate-800 rounded-lg overflow-hidden">
-              <div className="flex items-center border-b border-slate-700 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center bg-green-500/10 border-b border-slate-700 overflow-x-auto scrollbar-hide">
                 <button
                   onClick={() => setActiveTab("code")}
                   className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition ${
