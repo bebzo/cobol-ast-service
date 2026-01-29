@@ -24,22 +24,42 @@ function getSupabaseAdmin(): SupabaseClient | null {
   return supabaseAdmin;
 }
 
-// Verify admin access
-async function verifyAdmin(request: NextRequest): Promise<{success: boolean, reason?: string}> {
+// Verify admin access - supports both cookie and Authorization header
+async function verifyAdmin(request: NextRequest): Promise<{success: boolean, reason?: string, user?: any}> {
   const client = getSupabaseAdmin();
   if (!client) return { success: false, reason: 'Admin client not configured' };
   
-  const authHeader = request.headers.get('cookie');
-  if (!authHeader) return { success: false, reason: 'No auth cookie' };
+  let accessToken: string | null = null;
   
-  // Extract token from cookie
-  const tokenMatch = authHeader.match(/sb-[^=]+-auth-token=([^;]+)/);
-  if (!tokenMatch) return { success: false, reason: 'No auth token in cookie' };
+  // First try Authorization header
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    accessToken = authHeader.substring(7);
+    console.log('[Admin API] Using Authorization header token');
+  }
+  
+  // Fallback to cookie
+  if (!accessToken) {
+    const cookieHeader = request.headers.get('cookie');
+    if (cookieHeader) {
+      const tokenMatch = cookieHeader.match(/sb-[^=]+-auth-token=([^;]+)/);
+      if (tokenMatch) {
+        try {
+          const tokenData = JSON.parse(decodeURIComponent(tokenMatch[1]));
+          accessToken = tokenData[0] || tokenData.access_token;
+          console.log('[Admin API] Using cookie token');
+        } catch {
+          // Invalid cookie, continue
+        }
+      }
+    }
+  }
+  
+  if (!accessToken) {
+    return { success: false, reason: 'No auth token found (cookie or Authorization header)' };
+  }
   
   try {
-    const tokenData = JSON.parse(decodeURIComponent(tokenMatch[1]));
-    const accessToken = tokenData[0] || tokenData.access_token;
-    
     const { data: { user }, error } = await client.auth.getUser(accessToken);
     if (error || !user) {
       console.error('[Admin API] User verification failed:', error);
@@ -58,7 +78,7 @@ async function verifyAdmin(request: NextRequest): Promise<{success: boolean, rea
     console.log('[Admin API] Is admin by email:', isAdminByEmail);
     
     if (isAdminByRole || isAdminByEmail) {
-      return { success: true };
+      return { success: true, user };
     }
     
     return { success: false, reason: 'User is not admin' };

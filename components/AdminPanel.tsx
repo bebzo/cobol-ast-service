@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 import {
   X, Users, UserPlus, Trash2, Shield, Activity, Database,
   TrendingUp, Clock, CheckCircle, XCircle, RefreshCw, Search,
@@ -26,6 +27,18 @@ interface User {
 interface AdminPanelProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+// Create Supabase client for getting session
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+// Helper to get access token for admin API
+async function getAccessToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
 }
 
 export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
@@ -72,7 +85,11 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/admin/users');
+      const token = await getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      const response = await fetch('/api/admin/users', { headers });
       const data = await response.json();
       
       if (data.users) {
@@ -110,9 +127,13 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
     
     setLoading(true);
     try {
+      const token = await getAccessToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
       const response = await fetch('/api/admin/users', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           email: newUserEmail,
           password: newUserPassword,
@@ -144,8 +165,13 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
     
     setLoading(true);
     try {
+      const token = await getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
       const response = await fetch(`/api/admin/users?id=${userId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers
       });
       
       const data = await response.json();
@@ -197,7 +223,11 @@ export default function AdminPanel({ isOpen, onClose }: AdminPanelProps) {
 
   const exportAnalysesJSON = async () => {
     try {
-      const response = await fetch('/api/admin/analyses');
+      const token = await getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      const response = await fetch('/api/admin/analyses', { headers });
       const data = await response.json();
       
       if (data.error) {
