@@ -696,6 +696,173 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// ============================================================
+// AUTO-FIX ENDPOINT: Automatically fix issues and retry until 100%
+// ============================================================
+
+interface AutoFixRequest {
+  cobolCode: string;
+  pythonCode: string;
+  issues: Array<{ severity: string; message: string; line?: number; suggestedFix?: string }>;
+  context?: { programName?: string };
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body: AutoFixRequest = await request.json();
+    const { cobolCode, pythonCode, issues, context } = body;
+
+    if (!pythonCode) {
+      return NextResponse.json({ error: 'pythonCode is required' }, { status: 400 });
+    }
+
+    console.log(`[AutoFix] Starting auto-fix for ${issues.length} issues...`);
+
+    let fixedCode = pythonCode;
+    let fixCount = 0;
+    const maxIterations = 10;
+    let iteration = 0;
+
+    // Auto-fix loop: apply fixes and re-analyze until 100% score
+    while (iteration < maxIterations) {
+      iteration++;
+      console.log(`[AutoFix] Iteration ${iteration}/${maxIterations}`);
+
+      // Apply auto-fixes based on issue type
+      const lines = fixedCode.split('\n');
+      const fixedLines: string[] = [];
+      let iterationFixCount = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const lineNum = i + 1;
+        let line = lines[i];
+
+        for (const issue of issues) {
+          // Skip issues that don't have line numbers or suggested fixes
+          if (!issue.line || !issue.suggestedFix) continue;
+
+          // Check if this line matches the issue
+          if (issue.line === lineNum && issue.severity !== 'info') {
+            // Apply the suggested fix
+            if (issue.suggestedFix.includes('//') || issue.suggestedFix.startsWith('#')) {
+              // Comment-based fix - replace the line
+              const indent = line.match(/^(\s*)/)?.[1] || '';
+              line = indent + issue.suggestedFix;
+              iterationFixCount++;
+              console.log(`[AutoFix] Fixed line ${lineNum}: ${issue.message}`);
+            } else if (issue.suggestedFix.includes('quantize')) {
+              // Add quantize for Decimal precision
+              const indent = line.match(/^(\s*)/)?.[1] || '';
+              if (line.includes('=') && !line.includes('quantize') && !line.includes('.quantize')) {
+                const parts = line.split('=');
+                if (parts.length === 2) {
+                  const lhs = parts[0].trim();
+                  const rhs = parts[1].trim();
+                  if (rhs.includes('Decimal')) {
+                    line = `${indent}${lhs} = ${rhs}.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)`;
+                    iterationFixCount++;
+                    console.log(`[AutoFix] Added quantize at line ${lineNum}`);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        fixedLines.push(line);
+      }
+
+      // If no fixes applied, break
+      if (iterationFixCount === 0) {
+        console.log('[AutoFix] No more fixes to apply in this iteration');
+        break;
+      }
+
+      fixCount += iterationFixCount;
+      fixedCode = fixedLines.join('\n');
+      console.log(`[AutoFix] Applied ${iterationFixCount} fixes (total: ${fixCount})`);
+    }
+
+    // Re-run review on the fixed code
+    console.log('[AutoFix] Re-running review on fixed code...');
+
+    // Call Gemini to re-analyze the fixed code
+    const reviewPrompt = PROMPTS.review(fixedCode, cobolCode || '');
+    const reviewResponse = await callGemini(reviewPrompt);
+
+    let finalReview: ReviewInsights | null = null;
+    try {
+      const jsonMatch = reviewResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        finalReview = JSON.parse(jsonMatch[0]) as ReviewInsights;
+      }
+    } catch (e) {
+      console.warn('[AutoFix] Failed to parse final review');
+    }
+
+    // If still not 100%, try one more time with enhanced prompt
+    if (finalReview && finalReview.score < 100) {
+      console.log('[AutoFix] Score still below 100%, trying enhanced fixes...');
+
+      // Try to fix remaining issues with Gemini
+      const fixPrompt = `You are an expert Python fixer. Fix ALL issues in this code and return ONLY the complete fixed Python code.
+
+Current code:
+${fixedCode}
+
+Issues to fix:
+${issues.map(i => `- Line ${i.line}: ${i.message} (${i.severity})`).join('\n')}
+
+Return ONLY the complete fixed code, no explanations:`;
+
+      try {
+        const fixResponse = await callGemini(fixPrompt);
+        const codeMatch = fixResponse.match(/```python\n([\s\S]*?)```/);
+        if (codeMatch) {
+          fixedCode = codeMatch[1].trim();
+          console.log('[AutoFix] Applied Gemini fixes');
+        } else {
+          // Try without code block markers
+          fixedCode = fixResponse.replace(/^```python\n?/gm, '').replace(/```$/gm, '').trim();
+        }
+
+        // Re-run review after Gemini fixes
+        const finalReviewPrompt = PROMPTS.review(fixedCode, cobolCode || '');
+        const finalReviewResponse = await callGemini(finalReviewPrompt);
+
+        try {
+          const jsonMatch = finalReviewResponse.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            finalReview = JSON.parse(jsonMatch[0]) as ReviewInsights;
+          }
+        } catch (e) {
+          console.warn('[AutoFix] Failed to parse final review after Gemini fixes');
+        }
+      } catch (e) {
+        console.error('[AutoFix] Gemini fix failed:', e);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      fixedCode,
+      originalCode: pythonCode,
+      fixesApplied: fixCount,
+      review: finalReview,
+      achieved100: finalReview?.score === 100,
+      iterations: iteration,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error('[AutoFix] Error:', error);
+    return NextResponse.json({
+      error: error.message || 'Auto-fix failed',
+      success: false
+    }, { status: 500 });
+  }
+}
+
 export async function GET() {
   return NextResponse.json({
     service: 'Deterministic Test Generator v10.0',

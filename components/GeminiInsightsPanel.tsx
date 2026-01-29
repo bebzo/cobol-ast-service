@@ -67,12 +67,6 @@ export default function GeminiInsightsPanel({
   const [loadedTabs, setLoadedTabs] = useState<Set<TabType>>(new Set());
   const [analysisSteps, setAnalysisSteps] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState('');
-  const [retryCount, setRetryCount] = useState<Record<TabType, number>>({
-    review: 0, tests: 0, optimize: 0, explain: 0, architecture: 0
-  });
-  const [isRetrying, setIsRetrying] = useState<Record<TabType, boolean>>({
-    review: false, tests: false, optimize: false, explain: false, architecture: false
-  });
   
   // Draggable state
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -195,53 +189,15 @@ export default function GeminiInsightsPanel({
 
         const data = await response.json();
         if (data.success && data.insights) {
-          const newInsights = { ...data.insights };
-
-          // Retry logic for review tab until 100% score is achieved
-          if (activeTab === 'review' && newInsights.review) {
-            const currentScore = newInsights.review.score || 0;
-            const maxRetries = 5;
-            const currentRetryCount = retryCount.review;
-
-            if (currentScore < 100 && currentRetryCount < maxRetries) {
-              // Trigger retry
-              setIsRetrying(prev => ({ ...prev, [activeTab]: true }));
-              setRetryCount(prev => ({ ...prev, [activeTab]: currentRetryCount + 1 }));
-              setCurrentStep(`Score ${currentScore}/100 - Retrying for better results...`);
-
-              // Small delay before retry
-              await new Promise(resolve => setTimeout(resolve, 1000));
-
-              // Recursive retry - will trigger useEffect again due to state change
-              setLoadedTabs(prev => {
-                const newSet = new Set(prev);
-                newSet.delete(activeTab);
-                return newSet;
-              });
-              return;
-            } else if (currentScore >= 100) {
-              setCurrentStep(`Perfect score achieved: ${currentScore}/100`);
-            }
-
-            setIsRetrying(prev => ({ ...prev, [activeTab]: false }));
-            setRetryCount(prev => ({ ...prev, [activeTab]: 0 }));
-          }
-
-          setInsights(prev => ({ ...prev, ...newInsights }));
+          setInsights(prev => ({ ...prev, ...data.insights }));
           setLoadedTabs(prev => new Set([...prev, activeTab]));
         } else if (data.error) {
           console.error('API returned error:', data.error);
-          if (activeTab === 'review') {
-            setIsRetrying(prev => ({ ...prev, [activeTab]: false }));
-          }
         }
       } catch (error) {
         clearInterval(stepInterval);
         console.error('Failed to load insight:', error);
         setCurrentStep('Analysis failed. Please try again.');
-        if (activeTab === 'review') {
-          setIsRetrying(prev => ({ ...prev, [activeTab]: false }));
-        }
       } finally {
         setLoading(prev => ({ ...prev, [activeTab]: false }));
       }
@@ -514,9 +470,7 @@ export default function GeminiInsightsPanel({
       return (
         <div className="flex flex-col items-center justify-center py-8">
           <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-blue-400 text-sm font-medium mb-4">
-            {isRetrying[activeTab] ? `Retrying for better score... (attempt ${retryCount[activeTab] + 1}/5)` : 'Analyzing with Gemini 3...'}
-          </p>
+          <p className="text-blue-400 text-sm font-medium mb-4">Analyzing with Gemini 3...</p>
 
           {/* Live analysis steps */}
           <div className="w-full max-w-xs space-y-2">
@@ -527,13 +481,9 @@ export default function GeminiInsightsPanel({
               </div>
             ))}
             {currentStep && !analysisSteps.includes(currentStep) && (
-              <div className={`flex items-center gap-2 text-xs ${isRetrying[activeTab] ? 'text-yellow-400' : 'animate-pulse'}`}>
-                <span className={isRetrying[activeTab] ? 'text-yellow-400' : 'text-blue-400'}>
-                  {isRetrying[activeTab] ? '↻' : '→'}
-                </span>
-                <span className={isRetrying[activeTab] ? 'text-yellow-300' : 'text-gray-300'}>
-                  {currentStep}
-                </span>
+              <div className="flex items-center gap-2 text-xs animate-pulse">
+                <span className="text-blue-400">→</span>
+                <span className="text-gray-300">{currentStep}</span>
               </div>
             )}
           </div>
