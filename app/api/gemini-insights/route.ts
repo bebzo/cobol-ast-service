@@ -110,7 +110,7 @@ function analyzePythonCode(code: string): { classes: PythonClass[], functions: P
     const classProperties: string[] = [];
     
     // Find methods in class
-    const methodRegex = new RegExp(`class\\s+${className}[\\s\\S]*?\\n(?:\\s{4}def\\s+(\\w+)\\s*\\(([^)]*)\\)\\s*(?:->\\s*([^:]+))?:`, 'g');
+    const methodRegex = new RegExp(`class\\s+${className}[\\s\\S]*?\\n(?:\\s{4}def\\s+(\\w+)\\s*\\(([^)]*)\\)\\s*(?:->\\s*([^:]+))?:)`, 'g');
     let methodMatch;
     
     while ((methodMatch = methodRegex.exec(code)) !== null) {
