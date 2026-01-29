@@ -105,6 +105,30 @@ def fix_python_code(code: str, max_iterations: int = 50) -> tuple[str, list[str]
                     lines[line_no - 1] = re.sub(pattern, '', problem_line, flags=re.I)
                     fixed = True
                     fixes.append(f"L{line_no}: Removed COBOL remnant")
+
+            # v10.0: Fix Decimal values with COBOL decimal comma (e.g., Decimal('999999,99'))
+            # Python's Decimal doesn't accept commas, so we must convert to dots
+            decimal_comma_pattern = re.compile(r"Decimal\(\s*'([^']*,\d+)'\s*\)")
+            if decimal_comma_pattern.search(problem_line):
+                lines[line_no - 1] = decimal_comma_pattern.sub(
+                    lambda m: f"Decimal('{m.group(1).replace(',', '.')}')",
+                    problem_line
+                )
+                fixed = True
+                fixes.append(f"L{line_no}: Fixed COBOL decimal comma in Decimal()")
+
+            # v10.0: Fix chained comparisons (Python doesn't support chained Decimal comparisons)
+            # Pattern: Decimal('x') <= var <= Decimal('y') -> Decimal('x') <= var and var <= Decimal('y')
+            chained_pattern = re.compile(
+                r"(Decimal\(\s*'[^']+'\s*\))\s*(<=|>=|<|>)\s*(self\.[a-z_][a-z0-9_]*)\s*(<=|>=|<|>)\s*(Decimal\(\s*'[^']+'\s*\))"
+            )
+            if chained_pattern.search(problem_line):
+                lines[line_no - 1] = chained_pattern.sub(
+                    r"\1 \2 \3 and \3 \4 \5",
+                    problem_line
+                )
+                fixed = True
+                fixes.append(f"L{line_no}: Fixed chained Decimal comparison")
             
             # Fix 10: Empty except/finally
             if problem_line.strip() in ['except:', 'except', 'finally:', 'finally']:

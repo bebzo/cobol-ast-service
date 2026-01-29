@@ -280,6 +280,52 @@ def validate_python_code(python_code: str) -> List[str]:
     return warnings
 
 
+def deduplicate_imports(python_code: str) -> str:
+    """
+    v10.0: Remove duplicate import statements from generated Python code.
+
+    COBOL transpilation can produce duplicate imports when:
+    - The same module is imported multiple times
+    - COBOL_RUNTIME_CODE and inline generation both include imports
+
+    Args:
+        python_code: The generated Python code with potential duplicate imports
+
+    Returns:
+        Python code with duplicate imports removed (first occurrence kept)
+    """
+    lines = python_code.split('\n')
+    seen_imports = set()
+    result_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        # Check for different import patterns
+        is_import = False
+        import_key = None
+
+        if stripped.startswith('import '):
+            # Simple import: import os -> import os
+            import_key = stripped
+            is_import = True
+        elif stripped.startswith('from ') and ' import ' in stripped:
+            # From import: from decimal import Decimal -> from decimal import Decimal
+            import_key = stripped
+            is_import = True
+
+        if is_import:
+            # Check if we've seen this exact import
+            if import_key not in seen_imports:
+                seen_imports.add(import_key)
+                result_lines.append(line)
+            # Skip duplicate import lines
+        else:
+            result_lines.append(line)
+
+    return '\n'.join(result_lines)
+
+
 def analyze_function_type(func_name: str, func_code: str = '') -> Dict[str, Any]:
     """
     Analyse le type de fonction pour générer le test approprié.
@@ -6487,9 +6533,10 @@ def transpile_subtract_v4(stmt: str) -> Optional[ast.stmt]:
 def parse_cobol_condition(condition: str) -> ast.expr:
     """
     Parse a COBOL condition and convert it to a Python AST expression.
+    v10.0: Fixed chained comparisons (BETWEEN/X <= Y <= Z) using explicit AND instead of Python chained comparison syntax
     v5.7.7: Fixed COBOL abbreviated OR syntax (IF X = 'A' OR 'B' means IF X = 'A' OR X = 'B')
     v5.6.0: Fixed critical bug with <= 0 generating self.== syntax errors.
-    
+
     Handles:
     - Comparisons: X > 10, Y = 'A', Z NOT = SPACES
     - Boolean operators: AND, OR, NOT
@@ -6498,6 +6545,7 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     - Numeric literals: 0, 100, 5.5
     - v5.7.7: Abbreviated OR: X = 'A' OR 'B' OR 'C'
     - COBOL substring: VAR(1:16) -> str(self.var)[0:16]
+    - v10.0: BETWEEN clauses and chained comparisons converted to explicit AND
     """
     # Clean the condition - remove COBOL comments
     cond = condition.strip()
@@ -6704,7 +6752,33 @@ def parse_cobol_condition(condition: str) -> ast.expr:
     # Replace decimal literals like 5.0, 10.00, -3.14, 10000,50 with Decimal('value')
     # v10.0: Added pattern for comma as decimal separator
     cond = re.sub(r'(?<![a-zA-Z0-9_])(-?\d+,?\d*\.?\d+)(?![a-zA-Z0-9_])', replace_decimal_literal, cond)
-    
+
+    # v10.0: FIX CHAINED COMPARISONS - Python does NOT support chained comparisons with Decimal objects
+    # Pattern: Decimal('x') <= var <= Decimal('y') or similar
+    # Convert to: Decimal('x') <= var and var <= Decimal('y')
+    # This is critical because Python's chained comparison creates intermediate boolean,
+    # which breaks when comparing Decimal objects
+    def fix_chained_comparison(match):
+        """Fix chained comparisons like 'A <= X <= B' -> 'A <= X and X <= B'"""
+        left = match.group(1)
+        operator1 = match.group(2)
+        middle = match.group(3)  # The variable
+        operator2 = match.group(4)
+        right = match.group(5)
+
+        # Only fix if both operators are comparison operators and middle looks like a variable
+        if middle.startswith('self.'):
+            return f"{left} {operator1} {middle} and {middle} {operator2} {right}"
+        return match.group(0)  # Return original if not a variable
+
+    # Pattern to match: VALUE <= var <= VALUE (with optional Decimal() wrapper)
+    # This catches patterns like: Decimal('300') <= x <= Decimal('579')
+    # Note: We match both operands being Decimal() calls or numbers
+    chained_pattern = re.compile(
+        r"""^([A-Za-z0-9_()'"]+)\s*(<=|>=|<|>)\s*(self\.[a-z_][a-z0-9_]*)\s*(<=|>=|<|>)\s*([A-Za-z0-9_()'"]+)$"""
+    )
+    cond = re.sub(chained_pattern, fix_chained_comparison, cond)
+
     try:
         return ast.parse(cond, mode='eval').body
     except SyntaxError as e:
@@ -9766,7 +9840,10 @@ def generate_python_code(
                 break
         lines.insert(insert_pos, infrastructure_code)
         python_code = '\n'.join(lines)
-        
+
+        # v10.0: Deduplicate imports to prevent SyntaxError from duplicate imports
+        python_code = deduplicate_imports(python_code)
+
         # Format with black if available
         try:
             import black
