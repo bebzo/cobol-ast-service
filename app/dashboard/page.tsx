@@ -1680,8 +1680,9 @@ export default function Home() {
           analyzed: analyzedCobolCode || cobolCode
         },
         
-        // Generated Python code
-        pythonCode: pythonCode,
+        // Generated Python code context
+        // Note: pythonCode is sent as top-level string separately
+        pythonCodeContext: pythonCode,
         
         // Complete analysis results with all metrics and assessments
         analysis: analysis ? {
