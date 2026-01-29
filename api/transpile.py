@@ -12219,9 +12219,9 @@ def generate_unit_tests_v4(
     tests.append('        """Test complete file I/O workflow with real operations."""')
     tests.append('        # Write test data to file')
     tests.append('        with open(temp_file, "w") as f:')
-    tests.append('            f.write("RECORD 1\\n")')
-    tests.append('            f.write("RECORD 2\\n")')
-    tests.append('            f.write("RECORD 3\\n")')
+    tests.append(f'            f.write({_escape_for_python_string("RECORD 1")})')
+    tests.append(f'            f.write({_escape_for_python_string("RECORD 2")})')
+    tests.append(f'            f.write({_escape_for_python_string("RECORD 3")})')
     tests.append('        ')
     tests.append('        # Configure file manager with test file')
     tests.append('        processor.file_manager = FileManager({"test": temp_file})')
@@ -12432,7 +12432,9 @@ def generate_unit_tests_v4(
     
     # Property test: Decimal precision
     tests.append('    def test_property_decimal_precision(self, processor):')
-    tests.append('        """Property: Financial calculations use Decimal, not float.\n        \n        Quality invariant: No floating point errors in monetary values."""')
+    tests.append('        """Property: Financial calculations use Decimal, not float.')
+    tests.append('        ')
+    tests.append('        Quality invariant: No floating point errors in monetary values."""')
     tests.append('        # Verify Decimal is used (not float) for monetary precision')
     tests.append('        assert Decimal("0.1") + Decimal("0.2") == Decimal("0.3"), \\')
     tests.append('            "Decimal precision test failed (should never happen)"')
@@ -12443,7 +12445,9 @@ def generate_unit_tests_v4(
     
     # Property test: Idempotency
     tests.append('    def test_property_idempotency(self, processor):')
-    tests.append('        """Property: Running same calculation twice gives same result.\n        \n        Determinism invariant: f(x) = f(x) always."""')
+    tests.append('        """Property: Running same calculation twice gives same result.')
+    tests.append('        ')
+    tests.append('        Determinism invariant: f(x) = f(x) always."""')
     if calc_paragraphs:
         method_name = to_snake_case(calc_paragraphs[0].name)
         tests.append(f'        if callable(getattr(processor, "{method_name}", None)):')
@@ -12465,7 +12469,9 @@ def generate_unit_tests_v4(
     
     # Edge cases
     tests.append('    def test_property_edge_cases(self, processor):')
-    tests.append('        """Property: Edge cases are handled gracefully.\n        \n        Robustness invariant: System handles boundary values."""')
+    tests.append('        """Property: Edge cases are handled gracefully.')
+    tests.append('        ')
+    tests.append('        Robustness invariant: System handles boundary values."""')
     tests.append('        edge_values = [')
     tests.append('            Decimal("0"),           # Zero')
     tests.append('            Decimal("0.01"),        # Minimum positive (1 cent)')
