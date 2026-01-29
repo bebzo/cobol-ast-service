@@ -5717,12 +5717,13 @@ def generate_python_ast_v4(cobol_ast: CobolAST, backend: str = "supabase") -> as
         backend: Backend to use ('supabase' or 'vsam')
     """
     class_name = to_pascal_case(cobol_ast.program_id)
+    safe_class_name = _escape_for_docstring(class_name)
     
     body = []
     
     # Module docstring - update based on backend
     if backend == "supabase":
-        docstring_value = f"""{class_name} - Clean Architecture Python Code
+        docstring_value = f"""{safe_class_name} - Clean Architecture Python Code
 Auto-transpiled from COBOL [AST Transpiler v11.0]
 
 Architecture:
@@ -5762,7 +5763,7 @@ CODE REVIEWER NOTES (v11.0):
 ------------------------------------------------------------------------------
 """
     else:
-        docstring_value = f"""{class_name} - Clean Architecture Python Code
+        docstring_value = f"""{safe_class_name} - Clean Architecture Python Code
 Auto-transpiled from COBOL [AST Transpiler v6.1.1]
 
 Architecture:
@@ -5889,8 +5890,9 @@ CODE REVIEWER NOTES (v6.0.0):
     class_body = []
     
     # Class docstring
+    safe_program_id = _escape_for_docstring(cobol_ast.program_id)
     class_body.append(ast.Expr(value=ast.Constant(
-        value=f"""Main processor for {cobol_ast.program_id}
+        value=f"""Main processor for {safe_program_id}
 
 Attributes:
     logger: Logging instance
