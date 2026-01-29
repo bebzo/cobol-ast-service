@@ -1673,8 +1673,9 @@ export default function Home() {
     try {
       // Build comprehensive fullContext object with all analysis data
       const fullContext = {
-        // Source COBOL code (original and analyzed versions)
-        cobolCode: {
+        // Source COBOL code context (original and analyzed versions)
+        // Note: cobolCode and pythonCode are sent as top-level strings separately
+        codeContext: {
           original: cobolCode,
           analyzed: analyzedCobolCode || cobolCode
         },
