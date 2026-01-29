@@ -112,7 +112,12 @@ function parseReview(response: string): ReviewInsights | null {
 }
 
 // Apply fixes to code
-function applyFixes(code: string, issues: ReviewInsights['issues']): string {
+interface FixResult {
+  code: string;
+  fixCount: number;
+}
+
+function applyFixes(code: string, issues: ReviewInsights['issues']): FixResult {
   const lines = code.split('\n');
   const fixedLines: string[] = [];
   let fixCount = 0;
