@@ -7,11 +7,13 @@ let supabaseAdmin: SupabaseClient | null = null;
 function getSupabaseAdmin(): SupabaseClient | null {
   if (supabaseAdmin) return supabaseAdmin;
   
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Support both naming conventions
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
   
   if (!url || !key) {
     console.warn('[Admin API] Supabase credentials not configured');
+    console.warn('Required: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
     return null;
   }
   
