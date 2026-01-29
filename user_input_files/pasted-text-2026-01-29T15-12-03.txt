@@ -1004,7 +1004,8 @@ class VSAMFile:
 
     """Émulateur de fichier VSAM KSDS (Key Sequenced Data Set)."""
     
-    ):
+    def __init__(self, filename: str, organization: str, access_mode: str, record_key: str, record_length: int):
+        """Initialize VSAM file with specified parameters."""
         self.filename = filename
         self.organization = FileOrganization(organization)
         self.access_mode = AccessMode(access_mode)
