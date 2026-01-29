@@ -3473,20 +3473,25 @@ def to_snake_case(name: str) -> str:
 def to_pascal_case(name: str) -> str:
     """Convert COBOL-STYLE-NAME to PythonStyleName
     
-    v11.0.1: Added quote/special character handling for Python identifier safety.
-    Removes or replaces characters that would be invalid in Python class names.
+    v11.0.2: Maximum quote/special character handling for Python identifier safety.
+    Removes ALL characters that would be invalid in Python identifiers.
     """
     # Remove or replace special characters that are invalid in Python identifiers
-    # Remove triple quotes, double quotes, single quotes
-    name = name.replace('"""', '').replace("'''", '').replace('"', '').replace("'", '')
-    # Remove backslashes and other problematic characters
-    name = name.replace('\\', '').replace('$', '').replace('@', '').replace('#', '')
+    # First, remove all types of quotes completely
+    name = name.replace('"""', '').replace("'''", '').replace('"', '').replace("'", '').replace('`', '')
+    # Remove all backslashes and common problematic characters
+    name = name.replace('\\', '').replace('$', '').replace('@', '').replace('#', '').replace('%', '')
     # Remove parentheses and brackets
-    name = name.replace('(', '').replace(')', '').replace('[', '').replace(']', '')
+    name = name.replace('(', '').replace(')', '').replace('[', '').replace(']', '').replace('{', '').replace('}', '')
     # Remove angle brackets
     name = name.replace('<', '').replace('>', '')
+    # Remove other problematic characters
+    name = name.replace('&', '').replace('|', '').replace('^', '').replace('~', '').replace('!', '')
+    name = name.replace('?', '*', ).replace('+', '').replace('=', '').replace('/', '')
     # Replace hyphens and other separators with underscores first, then process
-    name = name.replace('-', '_').replace('.', '_')
+    name = name.replace('-', '_').replace('.', '_').replace(' ', '_')
+    # Remove any remaining non-alphanumeric characters (except underscore)
+    name = re.sub(r'[^a-zA-Z0-9_]', '', name)
     
     # Capitalize each word and join
     result = ''.join(word.capitalize() for word in name.split('_'))
@@ -3495,7 +3500,10 @@ def to_pascal_case(name: str) -> str:
     if result and not result[0].isalpha():
         result = 'Class' + result
     
-    return result
+    # Final safety: ensure result only contains valid Python identifier chars
+    result = re.sub(r'[^a-zA-Z0-9_]', '', result)
+    
+    return result if result else 'UnknownClass'
 
 
 def _escape_for_docstring(text: str) -> str:
@@ -11794,6 +11802,20 @@ def generate_python_code(
         
         # v10.0: Deduplicate imports AFTER all code generation (including security hardening)
         python_code = deduplicate_imports(python_code)
+        
+        # v11.0.3: FINAL SAFETY ESCAPE - Prevent unterminated string literal errors
+        # This is a last-resort escape for any remaining problematic characters in docstrings
+        try:
+            # Escape any remaining problematic characters in f-string docstrings
+            # This catches cases where COBOL identifiers with special chars weren't fully sanitized
+            python_code = re.sub(
+                r'(f?""".*?\{)([^}]*\})',
+                lambda m: m.group(1) + re.sub(r'["\'\\\r\n\t]', lambda c: f"\\{c.group()}", m.group(2)) + "}",
+                python_code,
+                flags=re.DOTALL
+            )
+        except:
+            pass  # If escape fails, continue with original code
         
         return {
             'success': True,

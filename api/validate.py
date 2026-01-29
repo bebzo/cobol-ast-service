@@ -40,10 +40,121 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
+def _escape_text_for_docstrings(text: str) -> str:
+    """Escape special characters for safe use in docstrings.
+    
+    This prevents 'unterminated string literal' errors when COBOL names
+    or other content contain special characters like quotes, backslashes.
+    """
+    # Replace backslashes first (to avoid double-escaping)
+    text = text.replace('\\', '\\\\')
+    # Escape triple quotes and regular quotes
+    text = text.replace('"""', '\\"\\"\\"')
+    text = text.replace("'''", "\\'''")
+    text = text.replace('"', '\\"')
+    text = text.replace("'", "\\'")
+    # Handle escape sequences
+    text = text.replace('\r', '\\r')
+    text = text.replace('\t', '\\t')
+    # Convert newlines to spaces for docstrings
+    text = text.replace('\n', ' ')
+    return text
+
+
+def _escape_docstrings_aggressively(code: str) -> str:
+    """
+    Pre-process code to escape ALL problematic characters inside docstrings.
+    This is called BEFORE any other processing to prevent errors.
+    """
+    lines = code.split('\n')
+    in_docstring = False
+    docstring_start_quote = None
+    
+    for i, line in enumerate(lines):
+        # Track docstring state
+        if '"""' in line:
+            count = line.count('"""')
+            if count == 1:
+                if not in_docstring:
+                    # Starting a docstring
+                    in_docstring = True
+                    docstring_start_quote = '"""'
+                    # Escape content before the opening """
+                    before_quote = line.split('"""')[0]
+                    if before_quote.strip():
+                        # This is unusual - text before """
+                        pass
+                else:
+                    # Ending the docstring
+                    in_docstring = False
+                    docstring_start_quote = None
+            elif count >= 2:
+                # Docstring starts and ends on same line, or multiple docstrings
+                if not in_docstring:
+                    # Check for docstring on this line
+                    if line.strip().startswith('"""') or line.strip().endswith('"""'):
+                        # Find all docstring content and escape it
+                        parts = re.split(r'(""".*?""")', line)
+                        new_parts = []
+                        for j, part in enumerate(parts):
+                            if part.startswith('"""') and part.endswith('"""'):
+                                # Complete docstring - escape internal content if needed
+                                content = part[3:-3]
+                                escaped = _escape_text_for_docstrings(content)
+                                new_parts.append('"""' + escaped + '"""')
+                            else:
+                                new_parts.append(part)
+                        lines[i] = ''.join(new_parts)
+        
+        elif "'''" in line:
+            count = line.count("'''")
+            if count == 1:
+                if not in_docstring:
+                    in_docstring = True
+                    docstring_start_quote = "'''"
+                else:
+                    in_docstring = False
+                    docstring_start_quote = None
+            elif count >= 2:
+                if not in_docstring:
+                    if line.strip().startswith("'''") or line.strip().endswith("'''"):
+                        parts = re.split(r"('''.*?''')", line)
+                        new_parts = []
+                        for j, part in enumerate(parts):
+                            if part.startswith("'''") and part.endswith("'''"):
+                                content = part[3:-3]
+                                escaped = _escape_text_for_docstrings(content)
+                                new_parts.append("'''" + escaped + "'''")
+                            else:
+                                new_parts.append(part)
+                        lines[i] = ''.join(new_parts)
+        
+        elif in_docstring and docstring_start_quote:
+            # We're inside a docstring - escape problematic characters
+            # But preserve line structure
+            escaped_line = _escape_text_for_docstrings(line)
+            # But don't escape the leading spaces (indentation)
+            leading_spaces = len(line) - len(line.lstrip())
+            if escaped_line.startswith(' ' * leading_spaces):
+                lines[i] = escaped_line
+            else:
+                lines[i] = ' ' * leading_spaces + escaped_line.lstrip()
+    
+    return '\n'.join(lines)
+
+
 def validate_and_fix(code: str) -> dict:
     """Validate Python code and fix ALL errors aggressively."""
     original_lines = len(code.split('\n'))
     fixes_applied = 0
+    
+    # === PHASE -1: AGGRESSIVE DOCSTRING ESCAPING (NEW) ===
+    # This is the FIRST thing we do - escape all special chars in docstrings
+    # before they can cause any issues
+    try:
+        code = _escape_docstrings_aggressively(code)
+    except:
+        pass
     
     # === PHASE 0: autopep8 automatic fixes ===
     if HAS_AUTOPEP8:
