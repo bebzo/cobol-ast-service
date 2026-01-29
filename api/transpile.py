@@ -5431,9 +5431,9 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
         # The traceability is preserved in method docstrings instead
         
         if upper.startswith('MOVE '):
-            py_stmt = transpile_move_v4(stmt)
-            if py_stmt:
-                result.append(py_stmt)
+            py_stmts = transpile_move_v4(stmt)
+            if py_stmts:
+                result.extend(py_stmts)
         
         elif upper.startswith('DISPLAY '):
             py_stmt = transpile_display_v4(stmt)
@@ -5967,7 +5967,7 @@ def parse_cobol_function(expr: str) -> Optional[ast.expr]:
     return None
 
 
-def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
+def transpile_move_v4(stmt: str) -> List[ast.stmt]:
     """Transpile MOVE statement with multi-target support
     
     v5.5.0: Enhanced to handle:
@@ -5999,7 +5999,7 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
         to_positions = [m.start() for m in re.finditer(r'\s+TO\s+', stmt_clean, re.IGNORECASE)]
         
         if not to_positions:
-            return None
+            return []
         
         # Try from the last TO position backwards to find valid parse
         source_str = None
@@ -6017,7 +6017,7 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
             # Fallback to original regex
             move_match = re.match(r'MOVE\s+(.+?)\s+TO\s+(.+)', stmt_clean, re.IGNORECASE)
             if not move_match:
-                return None
+                return []
             source_str = move_match.group(1).strip()
             targets_str = move_match.group(2).strip()
     
@@ -6051,7 +6051,7 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
         remaining = remaining[1:] if remaining else ''
     
     if not target_names:
-        return None
+        return []
     
     # Determine source value
     source_upper = source_str.upper()
@@ -6191,19 +6191,11 @@ def transpile_move_v4(stmt: str) -> Optional[ast.stmt]:
             )
     
     if len(target_names) == 1:
-        return create_target_assignment(target_names[0], source_ast)
+        return [create_target_assignment(target_names[0], source_ast)]
     else:
-        # Multiple targets - create compound statement with multiple assignments
-        # For simplicity, return just the first; the caller handles the rest
-        # Note: For proper multi-target with substrings, each needs separate handling
+        # Multiple targets - create list of assignments
         assignments = [create_target_assignment(t, source_ast) for t in target_names]
-        if len(assignments) == 1:
-            return assignments[0]
-        # Return a list wrapped - but AST expects single stmt, so use first
-        # v10.2: For multi-target MOVE statements (MOVE X TO A B C),
-        # we return the first assignment and emit additional assignments as separate statements
-        # The caller (transpile_statements_v4) handles this by returning all assignments
-        return assignments[0]
+        return assignments
 
 
 def transpile_display_v4(stmt: str) -> Optional[ast.stmt]:
@@ -11956,24 +11948,24 @@ def generate_unit_tests_v4(
     tests.append('        # processor.input_value = Decimal("100.00")')
     tests.append('        # processor.calculate_result()')
     tests.append('        # assert processor.output_value == Decimal("110.00"), "Expected 10% increase"')
-    tests.append('        # v10.2: Real business logic tests based on COBOL structure
-        # Test 1: Data initialization verification
-        for attr in dir(processor):
-            if attr.startswith(("ws_", "trx_", "cust_")):
-                val = getattr(processor, attr, None)
-                if val is not None:
-                    assert isinstance(val, (Decimal, str, int, bool)), \
-                        f"{attr} should be valid type"
-        # Test 2: Arithmetic operations
-        if hasattr(processor, "calculate_interest"):
-            result = processor.calculate_interest(Decimal("1000.00"), Decimal("0.05"))
-            assert result == Decimal("50.00"), "5% interest on 1000 = 50"
-        # Test 3: Status transitions
-        if hasattr(processor, "trx_success"):
-            processor.trx_status = "00"
-            assert processor.trx_success == True
-            processor.trx_status = "23"
-            assert processor.trx_success == False')
+    tests.append('        # v10.2: Real business logic tests based on COBOL structure')
+    tests.append('        # Test 1: Data initialization verification')
+    tests.append('        for attr in dir(processor):')
+    tests.append('            if attr.startswith(("ws_", "trx_", "cust_")):')
+    tests.append('                val = getattr(processor, attr, None)')
+    tests.append('                if val is not None:')
+    tests.append('                    assert isinstance(val, (Decimal, str, int, bool)), \\')
+    tests.append('                        f"{attr} should be valid type"')
+    tests.append('        # Test 2: Arithmetic operations')
+    tests.append('        if hasattr(processor, "calculate_interest"):')
+    tests.append('            result = processor.calculate_interest(Decimal("1000.00"), Decimal("0.05"))')
+    tests.append('            assert result == Decimal("50.00"), "5% interest on 1000 = 50"')
+    tests.append('        # Test 3: Status transitions')
+    tests.append('        if hasattr(processor, "trx_success"):')
+    tests.append('            processor.trx_status = "00"')
+    tests.append('            assert processor.trx_success == True')
+    tests.append('            processor.trx_status = "23"')
+    tests.append('            assert processor.trx_success == False')
     tests.append('')
     
     # 88-level conditions tests
