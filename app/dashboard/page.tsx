@@ -1922,8 +1922,12 @@ export default function Home() {
             complexity: analysis.migration_score?.complexity || 'Unknown',
             riskLevel: analysis.migration_score?.risk_level || 'Unknown',
             effort: analysis.migration_score?.estimated_effort || 'Unknown',
-            confidence: analysis.migration_score?.confidence || 0,
-            productionReady: (analysis.migration_score?.confidence || 0) >= 95
+            confidence: typeof analysis.migration_score?.confidence === 'number' 
+              ? analysis.migration_score.confidence 
+              : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0,
+            productionReady: (typeof analysis.migration_score?.confidence === 'number' 
+              ? analysis.migration_score.confidence 
+              : parseInt(String(analysis.migration_score?.confidence || '0').replace(/[^0-9]/g, '')) || 0) >= 95
           } : null
         }
       };
