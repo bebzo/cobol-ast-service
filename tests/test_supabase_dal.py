@@ -71,10 +71,15 @@ class TestCobolConverter:
         """Test conversion Python -> COMP."""
         converter = CobolConverter()
         
-        # Entier vers COMP-4 (4 bytes)
+        # Entier vers COMP-4 (2 bytes pour 4 digits selon COBOL standard)
+        # 1000 = 0x03E8, tient dans 2 bytes
         result = converter.python_to_comp(1000, "9(4)")
-        assert len(result) == 4
+        assert len(result) == 2  # COBOL COMP-4 utilise 2 bytes pour 4 digits
         assert int.from_bytes(result, byteorder='big') == 1000
+        
+        # Test avec un plus grand nombre nécessitant 4 bytes
+        result_large = converter.python_to_comp(100000, "9(6)")
+        assert len(result_large) == 4  # 6 digits nécessitent 4 bytes
     
     def test_comp3_to_python(self):
         """Test conversion COMP-3 -> Python."""
@@ -94,8 +99,10 @@ class TestCobolConverter:
         """Test conversion Python -> COMP-3."""
         converter = CobolConverter()
         
+        # 12345 avec 6 digits = 4 bytes (3 full bytes + 1 pour le signe)
+        # COBOL COMP-3: chaque byte contient 2 digits (sauf le dernier avec signe)
         result = converter.python_to_comp3(12345, 6)
-        assert len(result) == 3  # 6 digits = 3 bytes
+        assert len(result) == 4  # 6 digits = 3 bytes pour les données + 1 pour le signe
 
 
 class TestSupabaseConnection:
@@ -115,10 +122,13 @@ class TestSupabaseConnection:
             mock_client = MagicMock()
             mock_create.return_value = mock_client
             
+            # Créer une nouvelle instance avec reset du singleton
+            SupabaseConnection._instance = None
             conn = SupabaseConnection(url="https://test.supabase.co", key="test-key")
-            conn.connect()
             
             assert conn.is_connected == True
+            # L'init appelle connect() donc create_client est appelé
+            assert mock_create.call_count == 1
             mock_create.assert_called_once_with(
                 "https://test.supabase.co",
                 "test-key"
@@ -140,7 +150,7 @@ class TestSupabaseTable:
         """Crée une table avec mock Supabase."""
         with patch('api.supabase_dal.SupabaseConnection') as mock_conn_class:
             mock_conn = MagicMock()
-            mock_conn.is_connected = True
+            mock_conn.is_connected = True  # Le mock doit apparaître comme connecté
             mock_conn.client = MagicMock()
             mock_conn_class.get_instance.return_value = mock_conn
             
@@ -151,7 +161,7 @@ class TestSupabaseTable:
         """Test OPEN en mode INPUT."""
         table, mock_conn = mock_table
         
-        # Mock la réponse Supabase
+        # Mock la réponse Supabase pour charger les données
         mock_conn.client.table.return_value.select.return_value.order.return_value.execute.return_value = MagicMock(
             data=[
                 {"test_key": "KEY1", "data": "value1"},
@@ -164,6 +174,8 @@ class TestSupabaseTable:
         assert status == "00"
         assert table._is_open == True
         assert table._open_mode == OpenMode.INPUT
+        # Les données sont chargées depuis Supabase
+        assert len(table._data) > 0
     
     def test_open_output_mode(self, mock_table):
         """Test OPEN en mode OUTPUT."""
@@ -191,35 +203,43 @@ class TestSupabaseTable:
         """Test lecture par clé."""
         table, mock_conn = mock_table
         
-        table._data = {
-            "KEY1": {"test_key": "KEY1", "data": "value1"},
-            "KEY2": {"test_key": "KEY2", "data": "value2"},
-        }
-        table._keys = ["KEY1", "KEY2"]
+        # Ouvrir la table en OUTPUT pour écrire des données de test
+        table.open("OUTPUT")
+        table.write("KEY1", {"test_key": "KEY1", "data": "value1"})
+        table.write("KEY2", {"test_key": "KEY2", "data": "value2"})
         
+        # Maintenant tester la lecture par clé
         data = table.read(key="KEY1")
         
         assert data is not None
+        # Les données sont encodées en JSON bytes
+        assert isinstance(data, bytes)
         record = json.loads(data.decode())
-        assert record["test_key"] == "KEY1"
+        assert record["data"] == "value1"
     
     def test_read_sequential(self, mock_table):
         """Test lecture séquentielle."""
         table, mock_conn = mock_table
         
-        table._data = {
-            "KEY1": {"test_key": "KEY1", "data": "value1"},
-            "KEY2": {"test_key": "KEY2", "data": "value2"},
-        }
-        table._keys = ["KEY1", "KEY2"]
+        # Configure the mock to return data for INPUT mode
+        mock_conn.client.table.return_value.select.return_value.order.return_value.execute.return_value = MagicMock(
+            data=[
+                {"test_key": "KEY1", "data": '{"test_key": "KEY1", "data": "value1"}'},
+                {"test_key": "KEY2", "data": '{"test_key": "KEY2", "data": "value2"}'},
+            ]
+        )
+        
+        # Ouvrir la table en INPUT directly (don't write first, load from mock)
         table.open("INPUT")
         
         # Lecture séquentielle
         data1 = table.read()  # KEY1
         assert data1 is not None
+        assert isinstance(data1, bytes)
         
         data2 = table.read()  # KEY2
         assert data2 is not None
+        assert isinstance(data2, bytes)
         
         data3 = table.read()  # EOF
         assert data3 is None
@@ -239,11 +259,12 @@ class TestSupabaseTable:
         """Test réécriture d'un enregistrement."""
         table, mock_conn = mock_table
         
-        table._data = {"KEY1": {"test_key": "KEY1", "data": "old"}}
-        table._keys = ["KEY1"]
-        table.open("I-O")
+        # Ouvrir et écrire des données
+        table.open("OUTPUT")
+        table.write("KEY1", {"test_key": "KEY1", "data": "old"})
         
-        status = table.rewrite("KEY1", {"data": "new"})
+        # Réécrire l'enregistrement
+        status = table.rewrite("KEY1", json.dumps({"test_key": "KEY1", "data": "new"}))
         
         assert status == "00"
         assert table._data["KEY1"]["data"] == "new"
@@ -252,10 +273,11 @@ class TestSupabaseTable:
         """Test suppression d'un enregistrement."""
         table, mock_conn = mock_table
         
-        table._data = {"KEY1": {"test_key": "KEY1", "data": "value1"}}
-        table._keys = ["KEY1"]
-        table.open("I-O")
+        # Ouvrir et écrire des données
+        table.open("OUTPUT")
+        table.write("KEY1", {"test_key": "KEY1", "data": "value1"})
         
+        # Supprimer l'enregistrement
         status = table.delete("KEY1")
         
         assert status == "00"
@@ -414,10 +436,16 @@ class TestSupabaseDataAccessLayer:
             mock_conn.url = "https://test.supabase.co"
             mock_conn_class.get_instance.return_value = mock_conn
             
+            # Set the class-level connection for SupabaseDataAccessLayer
+            SupabaseDataAccessLayer._connection = mock_conn
+            
             status = SupabaseDataAccessLayer.get_connection_status()
             
             assert status["available"] == True
             assert status["connected"] == True
+            
+            # Cleanup
+            SupabaseDataAccessLayer._connection = None
 
 
 class TestIntegration:
@@ -431,15 +459,26 @@ class TestIntegration:
             mock_conn.client = MagicMock()
             mock_conn_class.get_instance.return_value = mock_conn
             
+            # Configure the mock to return data for INPUT mode
+            mock_conn.client.table.return_value.select.return_value.order.return_value.execute.return_value = MagicMock(
+                data=[
+                    {"cust_num": "CUST001", "name": "Dupont", "balance": 1500},
+                    {"cust_num": "CUST002", "name": "Martin", "balance": 2500},
+                    {"cust_num": "CUST003", "name": "Durand", "balance": 3500},
+                ]
+            )
+            
             # Simuler un fichier client
             table = SupabaseTable("customers", primary_key="cust_num")
+            
+            # Open in OUTPUT mode and write data
             table.open("OUTPUT")
             
-            # Créer des clients
+            # Créer des clients - les données sont des dicts car write() convertit
             clients = [
                 ("CUST001", {"cust_num": "CUST001", "name": "Dupont", "balance": 1500}),
                 ("CUST002", {"cust_num": "CUST002", "name": "Martin", "balance": 2500}),
-                ("CUST003", {"cust_num": "CUST003", "name": " Durand", "balance": 3500}),
+                ("CUST003", {"cust_num": "CUST003", "name": "Durand", "balance": 3500}),
             ]
             
             for key, data in clients:
@@ -447,11 +486,16 @@ class TestIntegration:
             
             assert table.count_records() == 3
             
-            # Lire un client spécifique
+            # Close and reopen in INPUT mode (this will reload from mock)
+            table.close()
+            table.open("INPUT")
+            
+            # Read one specific client
             record = table.read(key="CUST002")
             assert record is not None
+            assert isinstance(record, bytes)
             
-            # Lecture séquentielle de tous
+            # Sequential reading of all
             records = []
             while True:
                 data = table.read()
