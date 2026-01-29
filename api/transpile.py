@@ -12114,7 +12114,7 @@ Test Categories:
                                 _make_attribute_access_via_ast('processor', py_name),
                                 ast.Tuple(
                                     elts=[
-                                        ast.Name(id='Decimal', ctx=ast.Load()),
+                                        ast.Name(id='_Decimal', ctx=ast.Load()),
                                         ast.Name(id='int', ctx=ast.Load())
                                     ],
                                     ctx=ast.Load()
@@ -12219,7 +12219,7 @@ Test Categories:
                             ast.Name(id='val', ctx=ast.Load()),
                             ast.Tuple(
                                 elts=[
-                                    ast.Name(id='Decimal', ctx=ast.Load()),
+                                    ast.Name(id='_Decimal', ctx=ast.Load()),
                                     ast.Name(id='int', ctx=ast.Load())
                                 ],
                                 ctx=ast.Load()
@@ -12242,7 +12242,7 @@ Test Categories:
                                 )],
                                 keywords=[]
                             ),
-                            ast.Name(id='Decimal', ctx=ast.Load())
+                            ast.Name(id='_Decimal', ctx=ast.Load())
                         ],
                         keywords=[]
                     ),
