@@ -8587,21 +8587,26 @@ def transpile_perform_varying_v4(statements: List[str], start_idx: int) -> Tuple
     stmt = statements[start_idx].strip()
     
     def parse_varying_value(val_str: str):
-        """Parse a FROM/BY value - can be numeric or variable."""
+        """Parse a FROM/BY value - can be numeric or variable.
+        Always wraps variables in int() to ensure compatibility with range()."""
         val_str = val_str.strip()
         if val_str.isdigit():
             return ast.Constant(value=int(val_str))
         elif re.match(r'^-?\d+$', val_str):
             return ast.Constant(value=int(val_str))
         else:
-            # It's a variable
+            # It's a variable - wrap in int() for range() compatibility
             var = to_snake_case(val_str)
-            return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
-                                attr=var, ctx=ast.Load())
+            return ast.Call(
+                func=ast.Name(id='int', ctx=ast.Load()),
+                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                   attr=var, ctx=ast.Load())],
+                keywords=[]
+            )
     
     def parse_until_end_value(until_cond: str):
         """Parse UNTIL condition to determine end value for range().
-        Returns an AST node representing the end value."""
+        Always wraps variables in int() to ensure compatibility with range()."""
         until_cond = until_cond.strip()
         
         # Pattern: VAR > number or VAR >= number
@@ -8613,14 +8618,18 @@ def transpile_perform_varying_v4(statements: List[str], start_idx: int) -> Tuple
         if num_match:
             return ast.Constant(value=int(num_match.group(1)))
         
-        # Pattern: VAR > VARIABLE or VAR >= VARIABLE
+        # Pattern: VAR > VARIABLE or VAR >= VARIABLE - wrap in int()
         var_match = re.search(r'>\s*([A-Z][A-Z0-9-]*)', until_cond, re.IGNORECASE)
         if var_match:
             var = to_snake_case(var_match.group(1))
-            # Return self.var + 1
+            # Return int(self.var) + 1
             return ast.BinOp(
-                left=ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
-                                  attr=var, ctx=ast.Load()),
+                left=ast.Call(
+                    func=ast.Name(id='int', ctx=ast.Load()),
+                    args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                       attr=var, ctx=ast.Load())],
+                    keywords=[]
+                ),
                 op=ast.Add(),
                 right=ast.Constant(value=1)
             )
@@ -8628,8 +8637,13 @@ def transpile_perform_varying_v4(statements: List[str], start_idx: int) -> Tuple
         var_match = re.search(r'>=\s*([A-Z][A-Z0-9-]*)', until_cond, re.IGNORECASE)
         if var_match:
             var = to_snake_case(var_match.group(1))
-            return ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
-                                attr=var, ctx=ast.Load())
+            # Return int(self.var)
+            return ast.Call(
+                func=ast.Name(id='int', ctx=ast.Load()),
+                args=[ast.Attribute(value=ast.Name(id='self', ctx=ast.Load()),
+                                   attr=var, ctx=ast.Load())],
+                keywords=[]
+            )
         
         # Default fallback
         return ast.Constant(value=100)
