@@ -1901,7 +1901,7 @@ Parent variable: error_occurred"""
         MOVE WS-HOLD-SYMBOL(HOLD-IDX) TO MKT-SYMBOL
         READ MARKET-DATA RECORD
     """
-        for self.hold_idx in range(1, self.portfolio_size + 1, 1):
+        for self.hold_idx in range(1, int(self.portfolio_size) + 1, 1):
             self.mkt_symbol = self.hold_symbol
             _record = self.file_manager.read_record('market_data')
             if _record is None:

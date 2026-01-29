@@ -1751,12 +1751,9 @@ class TestGlobalTradingBeastIntegration:
         """Test complete file I/O workflow with real operations."""
         # Write test data to file
         with open(temp_file, "w") as f:
-            f.write("RECORD 1
-")
-            f.write("RECORD 2
-")
-            f.write("RECORD 3
-")
+            f.write("RECORD 1\n")
+            f.write("RECORD 2\n")
+            f.write("RECORD 3\n")
         
         # Configure file manager with test file
         processor.file_manager = FileManager({"test": temp_file})
