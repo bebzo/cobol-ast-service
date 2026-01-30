@@ -1,6 +1,6 @@
 /**
  * Python Code Cleaner - Auto-repair loop with Gemini
- * 
+ *
  * Strategy:
  * 1. Apply quick regex fixes (fast, no API)
  * 2. Ask Gemini to validate and fix ALL syntax errors
@@ -8,6 +8,25 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// Pyodide for syntax validation
+let pyodideReady: Promise<any> | null = null;
+
+async function getPyodide() {
+  if (typeof window !== 'undefined') return null;  // Client-side check
+  try {
+    // @ts-ignore - globalThis.loadPyodide may exist
+    if (!globalThis.loadPyodide) return null;
+    // @ts-ignore
+    const loadPyodide = globalThis.loadPyodide;
+    if (!pyodideReady) {
+      pyodideReady = loadPyodide().then((py: any) => py);
+    }
+    return pyodideReady;
+  } catch (e) {
+    return null;
+  }
+}
 
 export const runtime = 'edge';
 
@@ -243,6 +262,40 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         console.error('Specific fix failed:', e);
       }
+    }
+
+    // Step 3: Validate and fix ALL remaining errors with Gemini loop
+    if (GEMINI_API_KEY) {
+      let currentCode = cleanedCode;
+      let attempt = 1;
+      let isValid = false;
+
+      while (attempt <= 10 && !isValid) {
+        console.log(`Validation attempt ${attempt}/10...`);
+        const result = await validateAndFixWithGemini(currentCode, attempt);
+        currentCode = result.code;
+        isValid = result.isValid;
+
+        if (!isValid && attempt < 10) {
+          // Re-validate the fixed code
+          try {
+            const pyodide = await getPyodide();
+            if (pyodide) {
+              const checkResult = pyodide.runPython(`check_syntax(${JSON.stringify(currentCode)})`);
+              if (checkResult === null || checkResult === 'None') {
+                isValid = true;
+                console.log('Code validated by Pyodide!');
+              }
+            }
+          } catch (e) {
+            // Continue to next attempt
+          }
+        }
+        attempt++;
+      }
+
+      cleanedCode = currentCode;
+      console.log(`Validation complete. Valid: ${isValid}, Attempts: ${attempt - 1}`);
     }
 
     const cleanedLineCount = cleanedCode.split('\n').length;
