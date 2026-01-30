@@ -406,83 +406,62 @@ def run_tests(main_code, test_code):
 // Cache for error fixes to avoid duplicate API calls
 const errorFixCache = new Map<string, string>();
 
-// Correct Python code using Pyodide validation + Gemini fixes
+// Correct Python code using Pyodide validation + Gemini fixes (simplified v2.0 - single attempt to avoid infinite loop)
 async function correctPythonCode(
   code: string,
   maxAttempts: number,
   onProgress: (attempt: number, error: string, stopped?: boolean) => void
 ): Promise<{ code: string; success: boolean; attempts: number; stoppedReason?: string }> {
-  let currentCode = code;
-  let attempts = 0;
-  let lastError = '';
-  let sameErrorCount = 0;
-  let apiCalls = 0;
+  // First validate the code
+  const validation = await validatePythonSyntax(code);
   
-  while (attempts < maxAttempts) {
-    const validation = await validatePythonSyntax(currentCode);
+  // If already valid, return success immediately
+  if (validation.valid) {
+    return { code, success: true, attempts: 0, stoppedReason: 'already_valid' };
+  }
+  
+  // If there's an error, try to fix it once (single attempt to avoid infinite loop)
+  onProgress(1, validation.error || 'Unknown error');
+  
+  const cacheKey = `${validation.line}:${validation.error}`;
+  
+  // Check cache first
+  if (errorFixCache.has(cacheKey)) {
+    console.log('Using cached fix for:', cacheKey);
+    // Return the cached code if available, otherwise proceed with correction
+  }
+  
+  try {
+    const response = await fetch('/api/clean', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pythonCode: code,
+        syntaxError: validation.error,
+        errorLine: validation.line
+      })
+    });
     
-    if (validation.valid) {
-      return { code: currentCode, success: true, attempts };
-    }
-    
-    // Detect infinite loop (same error 3 times)
-    const currentError = `${validation.line}:${validation.error}`;
-    if (currentError === lastError) {
-      sameErrorCount++;
-      if (sameErrorCount >= 5) {
-        onProgress(attempts, `Loop detected: ${validation.error}`, true);
-        return { code: currentCode, success: false, attempts, stoppedReason: 'loop_detected' };
-      }
-    } else {
-      sameErrorCount = 1;
-      lastError = currentError;
-    }
-    
-    attempts++;
-    onProgress(attempts, validation.error || 'Unknown error');
-    
-    try {
-      const cacheKey = `${validation.line}:${validation.error}`;
-      
-      // Check cache first - but still validate, don't skip immediately
-      if (errorFixCache.has(cacheKey)) {
-        console.log('Using cached fix for:', cacheKey);
-        // Don't just continue - go back to validation to check if fix worked
-        // But decrement attempts so we don't waste an attempt just checking
-        attempts--;
-        continue;
-      }
-
-      apiCalls++;
-      const response = await fetch('/api/clean', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pythonCode: currentCode,
-          syntaxError: validation.error,
-          errorLine: validation.line
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.cleanedCode) {
-          errorFixCache.set(cacheKey, 'attempted');
-          currentCode = data.cleanedCode;
+    if (response.ok) {
+      const data = await response.json();
+      if (data.cleanedCode) {
+        errorFixCache.set(cacheKey, 'attempted');
+        
+        // Validate the fixed code once
+        const finalValidation = await validatePythonSyntax(data.cleanedCode);
+        if (finalValidation.valid) {
+          return { code: data.cleanedCode, success: true, attempts: 1, stoppedReason: 'fixed' };
         }
+        // Return the corrected code anyway if it was modified
+        return { code: data.cleanedCode, success: finalValidation.valid, attempts: 1, stoppedReason: 'corrected' };
       }
-    } catch (e) {
-      console.error('Correction API error:', e);
-      break;
     }
+  } catch (e) {
+    console.error('Correction API error:', e);
   }
   
-  // Final check
-  const finalValidation = await validatePythonSyntax(currentCode);
-  if (finalValidation.valid) {
-    return { code: currentCode, success: true, attempts, stoppedReason: 'fixed' };
-  }
-  return { code: currentCode, success: false, attempts, stoppedReason: 'max_attempts' };
+  // Return original code with failure status
+  return { code, success: false, attempts: 1, stoppedReason: 'correction_failed' };
 }
 
 // v9.0: Helper function to generate minified Python code
