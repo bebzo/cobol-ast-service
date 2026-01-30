@@ -7025,6 +7025,18 @@ def generate_method_from_paragraph_v4(para: CobolParagraph) -> ast.FunctionDef:
     
     # Enhanced traceability docstring
     safe_para_name = _escape_for_docstring(para.name)
+    # v10.2: Escape COBOL statements to prevent docstring issues
+    # - Escape triple quotes and special chars
+    # - Fix leading zeros in numbers (Python 3 doesn't allow 0123)
+    def _escape_statement(stmt: str) -> str:
+        escaped = _escape_for_docstring(stmt.strip())
+        # Fix leading zeros in decimal integers (e.g., 007 -> 7)
+        import re
+        # Match leading zeros not at start of string and not part of octal
+        escaped = re.sub(r'\b(0+)(\d+)\b', lambda m: m.group(2) if m.group(1) == '0' else m.group(0), escaped)
+        return escaped
+
+    escaped_statements = [_escape_statement(s) for s in para.statements[:3]]
     docstring = f"""Business logic from COBOL paragraph: {safe_para_name}
 
     COBOL Traceability:
@@ -7033,7 +7045,7 @@ def generate_method_from_paragraph_v4(para: CobolParagraph) -> ast.FunctionDef:
         - Statements: {len(para.statements)}
 
     Original COBOL (first 3 statements):
-        {chr(10).join('        ' + s.strip() for s in para.statements[:3])}
+        {chr(10).join('        ' + s for s in escaped_statements)}
     """
     
     return ast.FunctionDef(
