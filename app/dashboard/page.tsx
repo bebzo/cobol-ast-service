@@ -1505,6 +1505,25 @@ export default function Home() {
       // ALWAYS apply post-processing as final step to clean any remaining artifacts
       finalPythonCode = postProcessPythonCode(finalPythonCode, filename || 'PROGRAM');
 
+      // v10.0: Apply auto-correction for syntax errors before running tests
+      console.log('[CORRECTION] Checking for syntax errors...');
+      const correctionResult = await correctPythonCode(finalPythonCode, 3, (attempt, error, stopped) => {
+        console.log(`[CORRECTION] Attempt ${attempt}: ${error}`);
+      });
+      if (correctionResult.success) {
+        console.log(`[CORRECTION] Fixed in ${correctionResult.attempts} attempt(s)`);
+        finalPythonCode = correctionResult.code;
+      } else {
+        console.log(`[CORRECTION] Failed: ${correctionResult.stoppedReason}`);
+      }
+
+      // Validate code after auto-correction
+      const validation = await validatePythonSyntax(finalPythonCode);
+      if (!validation.valid) {
+        console.log('[VALIDATION] Code has syntax errors:', validation.error);
+        finalCodeValid = false;
+      }
+
       // v9.1: Generate additional unit tests if not provided by API
       let finalUnitTests = parsed.unit_tests || '';
       if (finalUnitTests.length < 100 || !finalUnitTests.includes('def test_')) {
