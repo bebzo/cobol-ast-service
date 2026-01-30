@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" id="error-fix">
+  <defs>
+    <linearGradient id="errorBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5c0000"/>
+      <stop offset="100%" style="stop-color:#3a0000"/>
+    </linearGradient>
+    <linearGradient id="fixBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#003300"/>
+      <stop offset="100%" style="stop-color:#001a00"/>
+    </linearGradient>
+    <filter id="glowError">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glowFix">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="#121212"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1920" height="80" fill="#1E1E1E"/>
+  <text x="960" y="52" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="32" font-weight="bold" fill="#FFFFFF">CORRECTION D'ERREUR AUTOMATIQUE</text>
+
+  <!-- Error Badge -->
+  <g transform="translate(960, 130)">
+    <rect x="-200" y="-30" width="400" height="60" rx="30" fill="#FF4444"/>
+    <text x="0" y="8" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF">
+      <tspan fill="#000">⚠ ERREUR DÉTECTÉE</tspan>
+    </text>
+  </g>
+
+  <!-- Main Split View -->
+  <g transform="translate(100, 200)">
+    <!-- Left: Error -->
+    <g>
+      <rect x="0" y="0" width="820" height="600" fill="url(#errorBg)" stroke="#FF4444" stroke-width="3" rx="10"/>
+
+      <!-- Panel Header -->
+      <rect x="0" y="0" width="820" height="50" fill="#FF4444" rx="10"/>
+      <rect x="0" y="40" width="820" height="10" fill="#FF4444"/>
+      <text x="30" y="32" font-family="Consolas, monospace" font-size="18" fill="#000" font-weight="bold">✗ AVANT CORRECTION</text>
+
+      <!-- Error message -->
+      <rect x="30" y="70" width="760" height="60" rx="5" fill="#2a0000"/>
+      <text x="50" y="100" font-family="Inter, Arial, sans-serif" font-size="16" fill="#FF6B6B">SyntaxError: leading zeros in decimal integer literals</text>
+      <text x="50" y="125" font-family="Consolas, monospace" font-size="14" fill="#FF8888">are not permitted; use 0o prefix for octal</text>
+
+      <!-- Error line highlighted -->
+      <rect x="30" y="200" width="760" height="50" fill="#FF4444" opacity="0.3"/>
+      <text x="50" y="232" font-family="Consolas, monospace" font-size="18" fill="#FF6B6B">        salary = <tspan fill="#FF4444" text-decoration="line-through">00750</tspan>  <tspan fill="#FF4444" text-decoration="line-through">+</tspan> bonus</text>
+
+      <!-- Error marker -->
+      <g transform="translate(790, 215)" filter="url(#glowError)">
+        <circle cx="0" cy="0" r="15" fill="#FF4444"/>
+        <text x="0" y="5" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="bold" fill="#000">!</text>
+      </g>
+
+      <!-- Line numbers -->
+      <g font-family="Consolas, monospace" font-size="18" fill="#666">
+        <text x="-40" y="232">245</text>
+      </g>
+    </g>
+
+    <!-- Arrow -->
+    <g transform="translate(900, 280)" filter="url(#glowFix)">
+      <polygon points="-30,-30 50,0 -30,30 -5,30 -5,50 -5,-50 -5,-30" fill="#00C853"/>
+      <text x="60" y="10" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="bold" fill="#00C853">AI FIX</text>
+    </g>
+
+    <!-- Right: Fixed -->
+    <g transform="translate(1050, 0)">
+      <rect x="0" y="0" width="770" height="600" fill="url(#fixBg)" stroke="#00C853" stroke-width="3" rx="10"/>
+
+      <!-- Panel Header -->
+      <rect x="0" y="0" width="770" height="50" fill="#00C853" rx="10"/>
+      <rect x="0" y="40" width="770" height="10" fill="#00C853"/>
+      <text x="30" y="32" font-family="Consolas, monospace" font-size="18" fill="#000" font-weight="bold">✓ APRÈS CORRECTION</text>
+
+      <!-- Success badge -->
+      <g transform="translate(650, 25)">
+        <circle cx="0" cy="0" r="15" fill="#000"/>
+        <text x="0" y="5" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="bold" fill="#00C853">✓</text>
+      </g>
+
+      <!-- Fixed line highlighted -->
+      <rect x="30" y="200" width="710" height="50" fill="#00C853" opacity="0.2"/>
+      <text x="50" y="232" font-family="Consolas, monospace" font-size="18" fill="#00C853">        salary = <tspan fill="#00C853" font-weight="bold">750</tspan> + bonus</text>
+
+      <!-- Fix explanation -->
+      <rect x="30" y="350" width="710" height="80" rx="5" fill="#002200"/>
+      <text x="50" y="380" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Correction appliquée:</text>
+      <text x="50" y="405" font-family="Consolas, monospace" font-size="14" fill="#00C853">• Suppression des zéros non significatifs</text>
+      <text x="50" y="430" font-family="Consolas, monospace" font-size="14" fill="#00C853">• Préservation de la valeur numérique</text>
+
+      <!-- Line numbers -->
+      <g font-family="Consolas, monospace" font-size="18" fill="#666">
+        <text x="-40" y="232">245</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- AI Fix Applied Badge -->
+  <g transform="translate(960, 850)">
+    <rect x="-180" y="-25" width="360" height="50" rx="25" fill="#7C3AED"/>
+    <text x="0" y="8" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="bold" fill="#FFFFFF">🤖 AI FIX APPLIED</text>
+  </g>
+
+  <!-- Stats -->
+  <g transform="translate(150, 900)">
+    <rect x="0" y="0" width="200" height="120" rx="10" fill="#1E1E1E" stroke="#333" stroke-width="2"/>
+    <text x="100" y="35" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#A9B7C6">Type d'erreur</text>
+    <text x="100" y="70" text-anchor="middle" font-family="Courier New, monospace" font-size="20" font-weight="bold" fill="#FF4444">Leading Zeros</text>
+  </g>
+  <g transform="translate(400, 900)">
+    <rect x="0" y="0" width="200" height="120" rx="10" fill="#1E1E1E" stroke="#333" stroke-width="2"/>
+    <text x="100" y="35" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#A9B7C6">Temps de correction</text>
+    <text x="100" y="70" text-anchor="middle" font-family="Courier New, monospace" font-size="20" font-weight="bold" fill="#3776AB">0.34s</text>
+  </g>
+  <g transform="translate(1320, 900)">
+    <rect x="0" y="0" width="200" height="120" rx="10" fill="#1E1E1E" stroke="#333" stroke-width="2"/>
+    <text x="100" y="35" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#A9B7C6">Mode de correction</text>
+    <text x="100" y="70" text-anchor="middle" font-family="Courier New, monospace" font-size="20" font-weight="bold" fill="#FFD43B">Regex Auto</text>
+  </g>
+  <g transform="translate(1570, 900)">
+    <rect x="0" y="0" width="200" height="120" rx="10" fill="#1E1E1E" stroke="#00C853" stroke-width="2"/>
+    <text x="100" y="35" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#A9B7C6">Résultat</text>
+    <text x="100" y="70" text-anchor="middle" font-family="Courier New, monospace" font-size="24" font-weight="bold" fill="#00C853">✓ VALID</text>
+  </g>
+</svg>

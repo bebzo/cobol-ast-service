@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" id="split-transpilation">
+  <defs>
+    <linearGradient id="cobolBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0a0a"/>
+      <stop offset="100%" style="stop-color:#1a1a1a"/>
+    </linearGradient>
+    <linearGradient id="pythonBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E1E1E"/>
+      <stop offset="100%" style="stop-color:#2D2D2D"/>
+    </linearGradient>
+    <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#33FF00"/>
+      <stop offset="100%" style="stop-color:#3776AB"/>
+    </linearGradient>
+    <filter id="glowArrow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="#121212"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1920" height="80" fill="#1E1E1E"/>
+  <text x="960" y="52" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="32" font-weight="bold" fill="#FFFFFF">TRANSPILATION EN TEMPS RÉEL</text>
+
+  <!-- Left Panel - COBOL -->
+  <g transform="translate(50, 120)">
+    <rect width="820" height="800" fill="url(#cobolBg)" stroke="#33FF00" stroke-width="2" rx="10"/>
+
+    <!-- Panel Header -->
+    <rect x="0" y="0" width="820" height="60" fill="#0a0a0a" rx="10"/>
+    <rect x="0" y="50" width="820" height="10" fill="#0a0a0a"/>
+    <circle cx="35" cy="30" r="8" fill="#33FF00"/>
+    <text x="60" y="38" font-family="Courier New, monospace" font-size="20" fill="#33FF00">SOURCE: MAINFRAME</text>
+    <text x="700" y="38" font-family="Courier New, monospace" font-size="16" fill="#008F11">COBOL-85</text>
+
+    <!-- COBOL Code -->
+    <g transform="translate(30, 100)" font-family="Courier New, monospace" font-size="16">
+      <text x="0" y="0" fill="#33FF00">       IDENTIFICATION DIVISION.</text>
+      <text x="0" y="30" fill="#33FF00">       PROGRAM-ID. PAYROLL-SYSTEM.</text>
+      <text x="0" y="60" fill="#33FF00"/>
+      <text x="0" y="90" fill="#33FF00">       DATA DIVISION.</text>
+      <text x="0" y="120" fill="#33FF00">       WORKING-STORAGE SECTION.</text>
+      <text x="0" y="150" fill="#33FF00">       01  WS-EMPLOYEE.</text>
+      <text x="0" y="180" fill="#33FF00">           05  WS-EMP-ID     PIC 9(6).</text>
+      <text x="0" y="210" fill="#33FF00">           05  WS-EMP-NAME   PIC X(50).</text>
+      <text x="0" y="240" fill="#33FF00">           05  WS-SALARY     PIC 9(8)V99.</text>
+      <text x="0" y="270" fill="#33FF00"/>
+      <text x="0" y="300" fill="#33FF00">       PROCEDURE DIVISION.</text>
+      <text x="0" y="330" fill="#33FF00">       000-MAIN-ROUTINE.</text>
+      <text x="0" y="360" fill="#33FF00">           PERFORM 100-CALCULATE.</text>
+      <text x="0" y="390" fill="#33FF00">           STOP RUN.</text>
+      <text x="0" y="420" fill="#33FF00"/>
+      <text x="0" y="450" fill="#33FF00">       100-CALCULATE.</text>
+      <text x="0" y="480" fill="#33FF00">           COMPUTE WS-SALARY =</text>
+      <text x="0" y="510" fill="#33FF00">               WS-BASE-SALARY * 1.15.</text>
+    </g>
+  </g>
+
+  <!-- Center - Transformation Arrow -->
+  <g transform="translate(960, 540)" filter="url(#glowArrow)">
+    <!-- Animated arrow -->
+    <polygon points="-40,-30 60,0 -40,30 -10,30 -10,80 -40,80" fill="url(#arrowGradient)">
+      <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite"/>
+    </polygon>
+    <text x="80" y="10" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="bold" fill="#FFFFFF">TRANSPILATION</text>
+  </g>
+
+  <!-- Right Panel - Python -->
+  <g transform="translate(1050, 120)">
+    <rect width="820" height="800" fill="url(#pythonBg)" stroke="#3776AB" stroke-width="2" rx="10"/>
+
+    <!-- Panel Header -->
+    <rect x="0" y="0" width="820" height="60" fill="#252525" rx="10"/>
+    <rect x="0" y="50" width="820" height="10" fill="#252525"/>
+    <circle cx="35" cy="30" r="8" fill="#3776AB"/>
+    <text x="60" y="38" font-family="Consolas, monospace" font-size="20" fill="#3776AB">TARGET: PYTHON 3.10</text>
+    <text x="660" y="38" font-family="Consolas, monospace" font-size="16" fill="#A9B7C6">✓ VALID</text>
+
+    <!-- Python Code -->
+    <g transform="translate(30, 100)" font-family="Consolas, monospace" font-size="16">
+      <text x="0" y="0" fill="#A9B7C6">"""Business logic from COBOL paragraph"""</text>
+      <text x="0" y="30" fill="#A9B7C6">class PayrollSystem:</text>
+      <text x="0" y="60" fill="#A9B7C6">    """Payroll System - Transpiled from COBOL"""</text>
+      <text x="0" y="90" fill="#A9B7C6"/>
+      <text x="0" y="120" fill="#FFFFFF">    def __init__(self):</text>
+      <text x="0" y="150" fill="#A9B7C6">        # COBOL: WORKING-STORAGE SECTION</text>
+      <text x="0" y="180" fill="#FFFFFF">        self.employee = {</text>
+      <text x="0" y="210" fill="#FFD43B">            "id": "9(6)",</text>
+      <text x="0" y="240" fill="#FFD43B">            "name": "X(50)",</text>
+      <text x="0" y="270" fill="#FFD43B">            "salary": "9(8)V99"</text>
+      <text x="0" y="300" fill="#FFFFFF">        }</text>
+      <text x="0" y="330" fill="#FFFFFF">    </text>
+      <text x="0" y="360" fill="#FFFFFF">    def main_routine(self):</text>
+      <text x="0" y="390" fill="#A9B7C6">        """COBOL: 000-MAIN-ROUTINE"""</text>
+      <text x="0" y="420" fill="#FFFFFF">        self.calculate()</text>
+      <text x="0" y="450" fill="#A9B7C6">        </text>
+      <text x="0" y="480" fill="#FFFFFF">    def calculate(self):</text>
+      <text x="0" y="510" fill="#A9B7C6">        """COBOL: 100-CALCULATE"""</text>
+      <text x="0" y="540" fill="#FFFFFF">        self.salary = self.base_salary * Decimal('1.15')</text>
+    </g>
+  </g>
+
+  <!-- Traceability highlight boxes -->
+  <g stroke="#FFD43B" stroke-width="1" fill="none" opacity="0.6">
+    <rect x="70" y="560" width="780" height="50" rx="5" stroke-dasharray="5,5">
+      <animate attributeName="opacity" values="0.3;0.8;0.3" dur="3s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="1070" y="560" width="780" height="50" rx="5" stroke-dasharray="5,5">
+      <animate attributeName="opacity" values="0.3;0.8;0.3" dur="3s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- Footer info -->
+  <rect x="0" y="960" width="1920" height="120" fill="#1E1E1E"/>
+  <g transform="translate(960, 1010)">
+    <text x="0" y="0" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="18" fill="#A9B7C6">
+      <tspan fill="#33FF00">Ligne 450 COBOL</tspan>
+      →
+      <tspan fill="#3776AB">Ligne 540 Python</tspan>
+    </text>
+    <text x="0" y="35" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#666">Traçabilité complète préservée</text>
+  </g>
+</svg>

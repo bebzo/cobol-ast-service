@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" id="cobol-terminal">
+  <defs>
+    <pattern id="scanlines" patternUnits="userSpaceOnUse" width="4" height="4">
+      <line x1="0" y1="0" x2="1920" y2="0" stroke="#000" stroke-width="1" opacity="0.3"/>
+    </pattern>
+    <filter id="phosphorGlow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="screenGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a1a"/>
+      <stop offset="100%" style="stop-color:#000000"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="#000000"/>
+
+  <!-- Screen frame -->
+  <rect x="100" y="100" width="1720" height="880" fill="url(#screenGradient)" stroke="#333" stroke-width="2" rx="10"/>
+
+  <!-- Screen header -->
+  <rect x="100" y="100" width="1720" height="60" fill="#111" rx="10"/>
+  <rect x="100" y="140" width="1720" height="20" fill="#111"/>
+  <text x="130" y="140" font-family="Courier New, monospace" font-size="24" fill="#33FF00" filter="url(#phosphorGlow)">MAINFRAME TERMINAL - COBOL EDITOR</text>
+
+  <!-- Terminal content area -->
+  <g transform="translate(140, 200)" filter="url(#phosphorGlow)">
+    <!-- Line numbers -->
+    <g font-family="Courier New, monospace" font-size="20" fill="#008F11">
+      <text x="-40" y="0">001</text>
+      <text x="-40" y="30">002</text>
+      <text x="-40" y="60">003</text>
+      <text x="-40" y="90">004</text>
+      <text x="-40" y="120">005</text>
+      <text x="-40" y="150">006</text>
+      <text x="-40" y="180">007</text>
+      <text x="-40" y="210">008</text>
+      <text x="-40" y="240">009</text>
+      <text x="-40" y="270">010</text>
+      <text x="-40" y="300">011</text>
+      <text x="-40" y="330">012</text>
+      <text x="-40" y="360">013</text>
+      <text x="-40" y="390">014</text>
+      <text x="-40" y="420">015</text>
+    </g>
+
+    <!-- COBOL Code -->
+    <g font-family="Courier New, monospace" font-size="20" fill="#33FF00">
+      <text x="0" y="0">       IDENTIFICATION DIVISION.</text>
+      <text x="0" y="30">       PROGRAM-ID. PAYROLL-PROCESSOR.</text>
+      <text x="0" y="60">       AUTHOR. LEGACY-SYSTEMS-TEAM-1985.</text>
+      <text x="0" y="90"/>
+      <text x="0" y="120">       ENVIRONMENT DIVISION.</text>
+      <text x="0" y="150">       INPUT-OUTPUT SECTION.</text>
+      <text x="0" y="180">       FILE-CONTROL.</text>
+      <text x="0" y="210">           SELECT EMP-FILE ASSIGN TO 'EMPLOYEES.DAT'.</text>
+      <text x="0" y="240">           SELECT PAY-FILE ASSIGN TO 'PAYROLL.TXT'.</text>
+      <text x="0" y="270"/>
+      <text x="0" y="300">       DATA DIVISION.</text>
+      <text x="0" y="330">       FILE SECTION.</text>
+      <text x="0" y="360">       FD  EMP-FILE.</text>
+      <text x="0" y="390">       01  EMP-RECORD.</text>
+      <text x="0" y="420">           05  EMP-ID            PIC 9(6).</text>
+    </g>
+  </g>
+
+  <!-- Scanlines overlay -->
+  <rect x="100" y="160" width="1720" height="820" fill="url(#scanlines)" opacity="0.5"/>
+
+  <!-- Blinking cursor -->
+  <g>
+    <rect x="140" y="635" width="12" height="24" fill="#33FF00">
+      <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- Status bar -->
+  <rect x="100" y="940" width="1720" height="40" fill="#111"/>
+  <text x="130" y="965" font-family="Courier New, monospace" font-size="16" fill="#008F11">LINE: 015    COL: 013    FILE: PAYROLL.CBL    MODE: EDIT</text>
+  <text x="1600" y="965" font-family="Courier New, monospace" font-size="16" fill="#008F11">COBOL-85</text>
+
+  <!-- Corner markers -->
+  <rect x="100" y="100" width="30" height="3" fill="#33FF00"/>
+  <rect x="100" y="100" width="3" height="30" fill="#33FF00"/>
+  <rect x="1790" y="100" width="30" height="3" fill="#33FF00"/>
+  <rect x="1817" y="100" width="3" height="30" fill="#33FF00"/>
+  <rect x="100" y="977" width="30" height="3" fill="#33FF00"/>
+  <rect x="100" y="980" width="3" height="30" fill="#33FF00"/>
+  <rect x="1790" y="977" width="30" height="3" fill="#33FF00"/>
+  <rect x="1817" y="980" width="3" height="30" fill="#33FF00"/>
+</svg>

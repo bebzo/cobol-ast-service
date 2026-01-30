@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" id="test-results">
+  <defs>
+    <linearGradient id="successBg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00C853"/>
+      <stop offset="100%" style="stop-color:#00E676"/>
+    </linearGradient>
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2D2D2D"/>
+      <stop offset="100%" style="stop-color:#1E1E1E"/>
+    </linearGradient>
+    <filter id="glowSuccess">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="#121212"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1920" height="80" fill="#1E1E1E"/>
+  <text x="960" y="52" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="32" font-weight="bold" fill="#FFFFFF">VÉRIFICATION AUTOMATIQUE DES TESTS</text>
+
+  <!-- Main Success Banner -->
+  <g transform="translate(960, 200)" filter="url(#glowSuccess)">
+    <circle cx="0" cy="0" r="80" fill="url(#successBg)"/>
+    <path d="M-30 0 L-10 20 L30 -20" stroke="#000" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="960" y="340" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="48" font-weight="bold" fill="#00C853">TOUS LES TESTS PASSÉS</text>
+  <text x="960" y="385" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="24" fill="#A9B7C6">Votre code Python est prêt pour la production</text>
+
+  <!-- Progress Bar -->
+  <g transform="translate(200, 450)">
+    <rect x="0" y="0" width="1520" height="40" rx="20" fill="#2D2D2D"/>
+    <rect x="0" y="0" width="1520" height="40" rx="20" fill="url(#successBg)">
+      <animate attributeName="width" from="0" to="1520" dur="2s" fill="freeze"/>
+    </rect>
+    <text x="760" y="27" text-anchor="middle" font-family="Courier New, monospace" font-size="18" font-weight="bold" fill="#000">100%</text>
+  </g>
+
+  <!-- Stats Cards -->
+  <g transform="translate(150, 540)">
+    <!-- Card 1: Total Tests -->
+    <rect x="0" y="0" width="250" height="150" rx="15" fill="url(#cardBg)" stroke="#333" stroke-width="2"/>
+    <text x="125" y="40" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#A9B7C6">Tests exécutés</text>
+    <text x="125" y="95" text-anchor="middle" font-family="Courier New, monospace" font-size="52" font-weight="bold" fill="#FFFFFF">42</text>
+
+    <!-- Card 2: Passed -->
+    <rect x="300" y="0" width="250" height="150" rx="15" fill="url(#cardBg)" stroke="#00C853" stroke-width="2"/>
+    <circle cx="60" cy="40" r="20" fill="#00C853"/>
+    <path d="M52 40 L58 46 L68 34" stroke="#000" stroke-width="3" fill="none"/>
+    <text x="125" y="40" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#00C853">Tests réussis</text>
+    <text x="125" y="95" text-anchor="middle" font-family="Courier New, monospace" font-size="52" font-weight="bold" fill="#00C853">42</text>
+
+    <!-- Card 3: Failed -->
+    <rect x="600" y="0" width="250" height="150" rx="15" fill="url(#cardBg)" stroke="#333" stroke-width="2"/>
+    <circle cx="60" cy="40" r="20" fill="#333"/>
+    <text x="125" y="40" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#666">Tests échoués</text>
+    <text x="125" y="95" text-anchor="middle" font-family="Courier New, monospace" font-size="52" font-weight="bold" fill="#666">0</text>
+
+    <!-- Card 4: Execution Time -->
+    <rect x="900" y="0" width="250" height="150" rx="15" fill="url(#cardBg)" stroke="#3776AB" stroke-width="2"/>
+    <text x="125" y="40" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#3776AB">Temps d'exécution</text>
+    <text x="125" y="95" text-anchor="middle" font-family="Courier New, monospace" font-size="48" font-weight="bold" fill="#3776AB">1.24s</text>
+  </g>
+
+  <!-- Test Details List -->
+  <g transform="translate(150, 730)">
+    <rect x="0" y="0" width="1620" height="280" rx="15" fill="url(#cardBg)" stroke="#333" stroke-width="2"/>
+
+    <!-- Header row -->
+    <rect x="0" y="0" width="1620" height="50" fill="#252525" rx="15"/>
+    <rect x="0" y="35" width="1620" height="15" fill="#252525"/>
+    <text x="30" y="32" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="bold" fill="#A9B7C6">VÉRIFICATION</text>
+    <text x="800" y="32" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="bold" fill="#A9B7C6">RÉSULTAT</text>
+    <text x="1400" y="32" font-family="Inter, Arial, sans-serif" font-size="16" font-weight="bold" fill="#A9B7C6">DÉTAILS</text>
+
+    <!-- Test 1: Syntax Check -->
+    <g transform="translate(0, 60)">
+      <rect x="0" y="0" width="1620" height="50" fill="none"/>
+      <circle cx="25" cy="25" r="12" fill="#00C853"/>
+      <path d="M19 25 L23 29 L31 19" stroke="#000" stroke-width="2" fill="none"/>
+      <text x="60" y="32" font-family="Consolas, monospace" font-size="16" fill="#FFFFFF">Syntax Check (py_compile)</text>
+      <text x="800" y="32" font-family="Inter, Arial, sans-serif" font-size="14" fill="#00C853">✓ PASSED</text>
+      <text x="1400" y="32" font-family="Consolas, monospace" font-size="14" fill="#A9B7C6">0 erreurs de syntaxe</text>
+    </g>
+
+    <!-- Test 2: Logic Verification -->
+    <g transform="translate(0, 110)">
+      <rect x="0" y="0" width="1620" height="50" fill="none"/>
+      <circle cx="25" cy="25" r="12" fill="#00C853"/>
+      <path d="M19 25 L23 29 L31 19" stroke="#000" stroke-width="2" fill="none"/>
+      <text x="60" y="32" font-family="Consolas, monospace" font-size="16" fill="#FFFFFF">Logic Verification</text>
+      <text x="800" y="32" font-family="Inter, Arial, sans-serif" font-size="14" fill="#00C853">✓ PASSED</text>
+      <text x="1400" y="32" font-family="Consolas, monospace" font-size="14" fill="#A9B7C6">12 assertions validées</text>
+    </g>
+
+    <!-- Test 3: Unit Tests -->
+    <g transform="translate(0, 160)">
+      <rect x="0" y="0" width="1620" height="50" fill="none"/>
+      <circle cx="25" cy="25" r="12" fill="#00C853"/>
+      <path d="M19 25 L23 29 L31 19" stroke="#000" stroke-width="2" fill="none"/>
+      <text x="60" y="32" font-family="Consolas, monospace" font-size="16" fill="#FFFFFF">Unit Tests Coverage</text>
+      <text x="800" y="32" font-family="Inter, Arial, sans-serif" font-size="14" fill="#00C853">✓ PASSED</text>
+      <text x="1400" y="32" font-family="Consolas, monospace" font-size="14" fill="#A9B7C6">28/28 tests réussis (100%)</text>
+    </g>
+
+    <!-- Test 4: COBOL Equivalence -->
+    <g transform="translate(0, 210)">
+      <rect x="0" y="0" width="1620" height="50" fill="none"/>
+      <circle cx="25" cy="25" r="12" fill="#00C853"/>
+      <path d="M19 25 L23 29 L31 19" stroke="#000" stroke-width="2" fill="none"/>
+      <text x="60" y="32" font-family="Consolas, monospace" font-size="16" fill="#FFFFFF">COBOL Equivalence Test</text>
+      <text x="800" y="32" font-family="Inter, Arial, sans-serif" font-size="14" fill="#00C853">✓ PASSED</text>
+      <text x="1400" y="32" font-family="Consolas, monospace" font-size="14" fill="#A9B7C6">Comportement identique</text>
+    </g>
+  </g>
+
+  <!-- Footer Success Message -->
+  <g transform="translate(960, 1050)">
+    <text x="0" y="0" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#00C853">✓ Code validé et prêt pour le déploiement</text>
+  </g>
+</svg>

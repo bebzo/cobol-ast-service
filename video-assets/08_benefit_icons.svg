@@ -1,0 +1,196 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" id="benefit-icons">
+  <defs>
+    <!-- Blue gradient for all icons -->
+    <linearGradient id="iconBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3776AB"/>
+      <stop offset="100%" style="stop-color:#1E3A5F"/>
+    </linearGradient>
+    <linearGradient id="iconBg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#5B8DEF"/>
+      <stop offset="100%" style="stop-color:#2D5A8A"/>
+    </linearGradient>
+    <linearGradient id="iconBg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7BA8F5"/>
+      <stop offset="100%" style="stop-color:#3D6A9F"/>
+    </linearGradient>
+    <linearGradient id="iconBg4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3776AB"/>
+      <stop offset="100%" style="stop-color:#0D2840"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="#1E1E1E"/>
+
+  <!-- Title -->
+  <text x="960" y="80" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="36" font-weight="bold" fill="#FFFFFF">LES 4 PILIERS DE CODESWITCH</text>
+
+  <!-- Icon 1: Modernisation (Fusée) -->
+  <g transform="translate(250, 200)">
+    <rect x="0" y="0" width="350" height="380" rx="20" fill="url(#iconBg)" filter="url(#glow)"/>
+    <rect x="0" y="340" width="350" height="40" fill="#1E3A5F"/>
+    <text x="175" y="320" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="bold" fill="#FFFFFF">MODERNISATION</text>
+
+    <!-- Rocket Icon -->
+    <g transform="translate(175, 150)" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Body -->
+      <path d="M0 -80 L40 20 L20 20 L20 70 L-20 70 L-20 20 L-40 20 Z"/>
+      <!-- Window -->
+      <circle cx="0" cy="-20" r="15" fill="none" stroke="#FFFFFF" stroke-width="4"/>
+      <!-- Fins -->
+      <path d="M-40 20 L-60 50"/>
+      <path d="M40 20 L60 50"/>
+      <!-- Flame -->
+      <path d="M-15 70 L0 100 L15 70" fill="#FFD43B" stroke="none">
+        <animate attributeName="d"
+          values="M-15 70 L0 100 L15 70;M-12 70 L0 110 L12 70;M-15 70 L0 100 L15 70"
+          dur="0.5s" repeatCount="indefinite"/>
+      </path>
+    </g>
+
+    <!-- Description -->
+    <text x="175" y="380" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Passage de COBOL à Python</text>
+    <text x="175" y="400" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Technologie moderne</text>
+  </g>
+
+  <!-- Icon 2: Maintenabilité (Clé + Code) -->
+  <g transform="translate(685, 200)">
+    <rect x="0" y="0" width="350" height="380" rx="20" fill="url(#iconBg2)" filter="url(#glow)"/>
+    <rect x="0" y="340" width="350" height="40" fill="#2D5A8A"/>
+    <text x="175" y="320" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="bold" fill="#FFFFFF">MAINTAINABILITÉ</text>
+
+    <!-- Wrench Icon -->
+    <g transform="translate(175, 160)" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round">
+      <!-- Wrench head -->
+      <circle cx="-40" cy="-40" r="25" stroke-width="8"/>
+      <!-- Wrench body -->
+      <line x1="-20" y1="-20" x2="40" y2="60"/>
+      <!-- Wrench end -->
+      <circle cx="50" cy="70" r="12" stroke-width="6"/>
+    </g>
+
+    <!-- Code brackets decoration -->
+    <g transform="translate(175, 220)" fill="none" stroke="#FFFFFF" stroke-width="4" opacity="0.5">
+      <path d="M-30 -10 L-50 10 L-30 30"/>
+      <path d="M30 -10 L50 10 L30 30"/>
+    </g>
+
+    <!-- Description -->
+    <text x="175" y="380" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Code lisible et documenté</text>
+    <text x="175" y="400" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Facile à maintenir</text>
+  </g>
+
+  <!-- Icon 3: Traçabilité (Loupe + Document) -->
+  <g transform="translate(1120, 200)">
+    <rect x="0" y="0" width="350" height="380" rx="20" fill="url(#iconBg3)" filter="url(#glow)"/>
+    <rect x="0" y="340" width="350" height="40" fill="#3D6A9F"/>
+    <text x="175" y="320" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="bold" fill="#FFFFFF">TRAÇABILITÉ</text>
+
+    <!-- Magnifying Glass -->
+    <g transform="translate(175, 160)" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round">
+      <!-- Glass -->
+      <circle cx="0" cy="0" r="50"/>
+      <!-- Handle -->
+      <line x1="35" y1="35" x2="70" y2="70"/>
+    </g>
+
+    <!-- Document inside glass -->
+    <g transform="translate(175, 160)" fill="#FFFFFF" opacity="0.9">
+      <rect x="-20" y="-25" width="40" height="50" rx="3"/>
+      <line x1="-12" y1="-10" x2="12" y2="-10" stroke="#3776AB" stroke-width="2"/>
+      <line x1="-12" y1="0" x2="12" y2="0" stroke="#3776AB" stroke-width="2"/>
+      <line x1="-12" y1="10" x2="12" y2="10" stroke="#3776AB" stroke-width="2"/>
+    </g>
+
+    <!-- Description -->
+    <text x="175" y="380" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Lien COBOL → Python</text>
+    <text x="175" y="400" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Audit complet</text>
+  </g>
+
+  <!-- Icon 4: Automatisation (Engrenages) -->
+  <g transform="translate(250, 650)">
+    <rect x="0" y="0" width="350" height="380" rx="20" fill="url(#iconBg4)" filter="url(#glow)"/>
+    <rect x="0" y="340" width="350" height="40" fill="#0D2840"/>
+    <text x="175" y="320" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="bold" fill="#FFFFFF">AUTOMATISATION</text>
+
+    <!-- Gears -->
+    <g fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round">
+      <!-- Left gear -->
+      <g transform="translate(120, 150)">
+        <circle cx="0" cy="0" r="45" stroke-width="8"/>
+        <circle cx="0" cy="0" r="20" stroke-width="6"/>
+        <path d="M0 -55 L0 -70 M38 -38 L48 -48 M55 0 L70 0 M38 38 L48 48 M0 55 L0 70 M-38 38 L-48 48 M-55 0 L-70 0 M-38 -38 L-48 -48"/>
+        <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="10s" repeatCount="indefinite"/>
+      </g>
+      <!-- Right gear -->
+      <g transform="translate(230, 150)">
+        <circle cx="0" cy="0" r="35" stroke-width="8"/>
+        <circle cx="0" cy="0" r="15" stroke-width="6"/>
+        <path d="M0 -45 L0 -58 M30 -30 L40 -40 M45 0 L58 0 M30 30 L40 40 M0 45 L0 58 M-30 30 L-40 40 M-45 0 L-58 0 M-30 -30 L-40 -40"/>
+        <animateTransform attributeName="transform" type="rotate" from="360" to="0" dur="8s" repeatCount="indefinite"/>
+      </g>
+    </g>
+
+    <!-- Robot arm suggestion -->
+    <path d="M175 260 L175 280" stroke="#FFFFFF" stroke-width="4" stroke-dasharray="5,5">
+      <animate attributeName="stroke-dashoffset" from="0" to="10" dur="1s" repeatCount="indefinite"/>
+    </path>
+
+    <!-- Description -->
+    <text x="175" y="380" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Corrections automatiques</text>
+    <text x="175" y="400" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Zéro intervention manuelle</text>
+  </g>
+
+  <!-- Bottom CTA -->
+  <g transform="translate(685, 650)">
+    <rect x="0" y="0" width="350" height="380" rx="20" fill="url(#iconBg)" filter="url(#glow)"/>
+    <rect x="0" y="340" width="350" height="40" fill="#1E3A5F"/>
+    <text x="175" y="320" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="bold" fill="#FFFFFF">GAIN DE TEMPS</text>
+
+    <!-- Timer Icon -->
+    <g transform="translate(175, 150)" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round">
+      <circle cx="0" cy="0" r="50"/>
+      <line x1="0" y1="0" x2="0" y2="-35"/>
+      <line x1="0" y1="0" x2="25" y2="10"/>
+    </g>
+    <!-- Hour hand animated -->
+    <line x1="0" y1="0" x2="0" y2="-25" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round">
+      <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="12s" repeatCount="indefinite"/>
+    </line>
+
+    <!-- Percentage -->
+    <text x="175" y="250" text-anchor="middle" font-family="Courier New, monospace" font-size="48" font-weight="bold" fill="#FFD43B">-95%</text>
+
+    <!-- Description -->
+    <text x="175" y="380" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Coûts de maintenance</text>
+    <text x="175" y="400" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Réduits drastiquement</text>
+  </g>
+
+  <!-- Final CTA -->
+  <g transform="translate(1120, 650)">
+    <rect x="0" y="0" width="350" height="380" rx="20" fill="url(#successGradient)" filter="url(#glow)"/>
+    <rect x="0" y="340" width="350" height="40" fill="#0D2840"/>
+    <text x="175" y="320" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="bold" fill="#FFFFFF">CONFIANCE</text>
+
+    <!-- Checkmark shield -->
+    <g transform="translate(175, 160)">
+      <path d="M0 -60 L60 0 L60 40 L0 60 L-60 40 L-60 0 Z" fill="none" stroke="#FFFFFF" stroke-width="6"/>
+      <path d="M-25 5 L-5 25 L35 -15" fill="none" stroke="#00C853" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <!-- Success percentage -->
+    <text x="175" y="260" text-anchor="middle" font-family="Courier New, monospace" font-size="36" font-weight="bold" fill="#00C853">100%</text>
+    <text x="175" y="290" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#FFFFFF">Précision</text>
+
+    <!-- Description -->
+    <text x="175" y="380" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Logique métier</text>
+    <text x="175" y="400" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="14" fill="#A9B7C6">Parfaitement préservée</text>
+  </g>
+</svg>
