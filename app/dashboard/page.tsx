@@ -444,12 +444,15 @@ async function correctPythonCode(
     try {
       const cacheKey = `${validation.line}:${validation.error}`;
       
-      // Check cache first
+      // Check cache first - but still validate, don't skip immediately
       if (errorFixCache.has(cacheKey)) {
         console.log('Using cached fix for:', cacheKey);
-        continue; // Skip API call, error was already attempted
+        // Don't just continue - go back to validation to check if fix worked
+        // But decrement attempts so we don't waste an attempt just checking
+        attempts--;
+        continue;
       }
-      
+
       apiCalls++;
       const response = await fetch('/api/clean', {
         method: 'POST',
@@ -476,6 +479,9 @@ async function correctPythonCode(
   
   // Final check
   const finalValidation = await validatePythonSyntax(currentCode);
+  if (finalValidation.valid) {
+    return { code: currentCode, success: true, attempts, stoppedReason: 'fixed' };
+  }
   return { code: currentCode, success: false, attempts, stoppedReason: 'max_attempts' };
 }
 
