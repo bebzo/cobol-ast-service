@@ -61,7 +61,19 @@ function applyQuickFixes(code: string): string {
   
   // Fix truncated Decimal
   cleaned = cleaned.replace(/Decimal\("[^"]*$/gm, 'Decimal("0")');
-  
+
+  // Fix leading zeros in decimal integer literals (Python 3 doesn't allow 0123)
+  // Only fix standalone numbers, not inside strings
+  cleaned = cleaned.replace(/(?<![\w"'])(\b0+\d+\b)(?!["'\d])/g, (match) => {
+    // Remove leading zeros but keep at least one digit
+    const withoutZeros = match.replace(/^0+/, '') || '0';
+    // If it looks like octal (was 0oXXX), restore the 0o prefix
+    if (withoutZeros.startsWith('o') || withoutZeros.startsWith('O')) {
+      return '0' + withoutZeros;
+    }
+    return withoutZeros;
+  });
+
   // Fix merged lines (def/class appearing mid-line)
   cleaned = cleaned.replace(/([^\n])(def \w+\()/g, '$1\n$2');
   cleaned = cleaned.replace(/([^\n])(class \w+)/g, '$1\n$2');
