@@ -464,7 +464,7 @@ async function correctPythonCode(
   return { code, success: false, attempts: 1, stoppedReason: 'correction_failed' };
 }
 
-}  // v9.0: Get statistics for Python code removed - no longer used with simplified UI
+// v9.0: Get statistics for Python code removed - no longer used with simplified UI
 
 const SAMPLE_COBOL = `       IDENTIFICATION DIVISION.
        PROGRAM-ID.  PAYROLL01.
