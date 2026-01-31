@@ -104,7 +104,7 @@ def hash_pii(value: str, salt: str = None) -> str:
     """One-way hash for PII (for comparison without storing plaintext)
     
     v8.7: Enforces secure salt in production environment.
-    env_salt = os.getenv('PII_HASH_SALT')
+    env_salt = os.getenv('PII_HASH_SALT')"""
     if salt:
         effective_salt = salt
     elif env_salt:
@@ -156,7 +156,7 @@ def get_cobol_context():
     """Get a properly configured decimal context for COBOL operations.
     
     v8.7: Returns a localcontext to avoid affecting the global decimal context.
-    ctx = localcontext()
+    ctx = localcontext()"""
     return ctx
 
 @contextmanager
@@ -164,16 +164,16 @@ def cobol_decimal_context():
     """Context manager for COBOL-compatible decimal operations.
     
     v8.7: Properly isolates decimal context changes from global state.
-    with localcontext() as ctx:
-        ctx.prec = COBOL_DECIMAL_PRECISION
-        ctx.traps[Overflow] = True
-        ctx.traps[InvalidOperation] = True
-        yield ctx
+    with localcontext() as ctx:"""
+    ctx.prec = COBOL_DECIMAL_PRECISION
+    ctx.traps[Overflow] = True
+    ctx.traps[InvalidOperation] = True
+    yield ctx
 
 class CobolOverflowError(Exception):
     """Raised when COBOL ON SIZE ERROR would trigger"""
 def safe_compute(operation: str, func, *args, on_size_error=None, max_value=None, **kwargs):
-    Safe computation wrapper that emulates COBOL ON SIZE ERROR.
+    """Safe computation wrapper that emulates COBOL ON SIZE ERROR.
     
     Args:
         operation: Name of the operation (for error messages)
@@ -182,9 +182,9 @@ def safe_compute(operation: str, func, *args, on_size_error=None, max_value=None
         on_size_error: Callback if overflow occurs (like COBOL ON SIZE ERROR)
         max_value: Maximum allowed value (from PIC clause)
         **kwargs: Keyword arguments for func
-    
     Returns:
         Result of func, or on_size_error result if overflow
+    """
     try:
         with localcontext() as ctx:
             ctx.prec = COBOL_DECIMAL_PRECISION
@@ -201,7 +201,7 @@ def safe_compute(operation: str, func, *args, on_size_error=None, max_value=None
     except (Overflow, InvalidOperation) as e:
         if on_size_error:
             return on_size_error(operation, e)
-        raise CobolOverflowError(operation, Decimal(str(args[0]) if args else '0'))
+            raise CobolOverflowError(operation, Decimal(str(args[0]) if args else "0"))
 
 def safe_add(a: Decimal, b: Decimal, pic_max: Decimal = None, on_size_error=None) -> Decimal:
     """Safe addition with overflow protection"""
@@ -233,8 +233,7 @@ def safe_divide(a: Decimal, b: Decimal, pic_max: Decimal = None, on_size_error=N
 # ============================================================
 
 def round_cobol(value, decimal_places: int = 2, rounding=ROUND_HALF_EVEN) -> Decimal:
-    Standard COBOL rounding using ROUND_HALF_EVEN (banker's rounding).'
-    
+    """Standard COBOL rounding using ROUND_HALF_EVEN (banker's rounding).
     COBOL ROUNDED phrase uses this by default for financial accuracy.
     This prevents the systematic bias of ROUND_HALF_EVEN.
     
@@ -245,6 +244,7 @@ def round_cobol(value, decimal_places: int = 2, rounding=ROUND_HALF_EVEN) -> Dec
     
     Returns:
         Properly rounded Decimal
+    """
     if not isinstance(value, Decimal):
         value = Decimal(str(value))
     
@@ -271,7 +271,7 @@ def sanitize_sql_param(value: str) -> str:
     # Remove or escape dangerous characters
     sanitized = str(value)
     # Escape single quotes (SQL standard)
-    sanitized = sanitized.replace("'", "''")'
+    sanitized = sanitized.replace("\'", "\'\'")
     # Remove semicolons (prevent statement termination)
     sanitized = sanitized.replace(";", "")
     # Remove comment indicators
@@ -424,7 +424,7 @@ class ProductionConfig:
         config = ProductionConfig.load()
         
         # Load from specific file
-        config = ProductionConfig.load('/path/to/config.yaml')
+        config = ProductionConfig.load('/path/to/config.yaml')"""
     buffer_size: int = 10000
     enable_tracing: bool = False
     allow_stubs: bool = False
@@ -449,14 +449,14 @@ class ProductionConfig:
             config_path: Path to YAML configuration file
             
         Returns:
-            ProductionConfig instance with merged settings
+            ProductionConfig instance with merged settings"""
         config_data = {}
         
         # Try to load YAML file
         try:
             import yaml
             if os.path.exists(config_path):
-                with open(os.path.normpath(config_path),  # v9.1: path traversal protection 'r') as f:
+                with open(os.path.normpath(config_path), "r") as f:
                     yaml_data = yaml.safe_load(f) or {}
                     # Flatten nested structure
                     if 'production' in yaml_data:
@@ -483,7 +483,7 @@ class ProductionConfig:
             transaction_log_path=os.getenv('TRANSACTION_LOG_PATH', config_data.get('transaction_log_path', 'data/transactions.dat')),
             audit_trail_path=os.getenv('AUDIT_TRAIL_PATH', config_data.get('audit_trail_path', 'data/audit.dat')),
             secrets_backend=os.getenv('SECRETS_BACKEND', config_data.get('secrets_backend', 'env')),
-            vault_addr=os.getenv('VAULT_ADDR', config_data.get('vault_addr', '')),
+            vault_addr=os.getenv("VAULT_ADDR", config_data.get("vault_addr", "")))
     
     def to_dict(self) -> dict:
         """Export configuration as dictionary."""
