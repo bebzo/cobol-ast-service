@@ -1,0 +1,25 @@
+{
+  "file": "/workspace/user_input_files/pasted-text-2026-01-31T00-31-01.txt",
+  "size": 954803,
+  "valid": false,
+  "token_count": 0,
+  "errors": [
+    {
+      "type": "AST_SYNTAX_ERROR",
+      "line": 81,
+      "offset": 8,
+      "message": "invalid syntax",
+      "context": [
+        "      78: ",
+        "      79: @lru_cache(maxsize=128)  # v8.6: Performance optimization",
+        "      80: def get_secure_credential(name: str, default: str = None) -> str:",
+        ">>>   81:     \"\"\"Retrieve credential from secure storage (env vars, vault, etc.)",
+        "      82:     ",
+        "      83:     v8.7: Added type coercion to handle incorrect test inputs gracefully.",
+        "      84:     # v8.7: Coerce name to string to handle incorrect test inputs"
+      ]
+    }
+  ],
+  "warnings": [],
+  "info": []
+}

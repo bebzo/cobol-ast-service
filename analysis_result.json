@@ -1,0 +1,16 @@
+{
+  "valid_syntax": false,
+  "executable": false,
+  "semantic_score": 0,
+  "issues": [
+    {
+      "type": "syntax_error",
+      "line": 81,
+      "message": "invalid syntax",
+      "offset": 8
+    }
+  ],
+  "warnings": [],
+  "metrics": {},
+  "details": {}
+}

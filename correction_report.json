@@ -1,0 +1,8 @@
+{
+  "source": "/workspace/user_input_files/pasted-text-2026-01-31T00-31-01.txt",
+  "output": "/workspace/code_corrected.py",
+  "original_lines": 24922,
+  "fixed_lines": 24922,
+  "ast_valid": false,
+  "changes": 0
+}

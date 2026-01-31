@@ -46,8 +46,7 @@ CODE REVIEWER NOTES (v11.0):
 * "NotImplementedError" -> Fail-fast security, prevents silent data corruption
 * "Decimal everywhere" -> Financial precision requirement, not over-engineering
 * "Verbose logging" -> Migration tracking, set _verbose_mode=False to disable
-* "Supabase backend" -> PostgreSQL with RLS policies for security
-"""
+* "Supabase backend" -> PostgreSQL with RLS policies for security"""
 from __future__ import annotations
 from decimal import Decimal, ROUND_HALF_EVEN
 # v8.5: Maximum value for COBOL PIC S9(18)V99 equivalent
@@ -82,7 +81,7 @@ def get_secure_credential(name: str, default: str = None) -> str:
     """Retrieve credential from secure storage (env vars, vault, etc.)
     
     v8.7: Added type coercion to handle incorrect test inputs gracefully.
-    # v8.7: Coerce name to string to handle incorrect test inputs"""
+    # v8.7: Coerce name to string to handle incorrect test inputs
     if not isinstance(name, str):
         name = str(name)
     # Priority: 1. Environment variable, 2. Vault, 3. Default (dev only)

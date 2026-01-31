@@ -1,0 +1,210 @@
+{
+  "file": "/workspace/user_input_files/pasted-text-2026-01-31T00-31-01.txt",
+  "size": 954803,
+  "lines": 24922,
+  "ast_valid": false,
+  "quality_score": {
+    "score": 100,
+    "grade": "A",
+    "error_count": 0,
+    "warning_count": 0
+  },
+  "syntax_errors": [
+    {
+      "line": 80,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 80: 'def get_secure_credential(name...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 154,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 154: 'def get_cobol_context():...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 162,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 162: 'def cobol_decimal_context():...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 413,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 413: 'class ProductionConfig:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 504,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 504: 'def get_coverage_config() -> d...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 539,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 539: 'def get_config() -> Production...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1375,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1375: 'class RecordMetadata:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1485,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1485: 'class WsFileStatuses:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1497,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1497: 'class WsCurrentDateData:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1504,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1504: 'class WsCounters:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1516,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1516: 'class WsTotals:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1531,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1531: 'class WsCalculationFields:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1545,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1545: 'class WsFlags:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1554,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1554: 'class WsTaxTable1985:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1578,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1578: 'class WsInterestRates:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1596,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1596: 'class WsFeeSchedule:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1611,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1611: 'class WsInsuranceRates:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1620,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1620: 'class WsTempVariables:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1631,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1631: 'class WsWorkAreas:...' devrait être indentée après le décorateur",
+      "severity": "error"
+    },
+    {
+      "line": 1640,
+      "type": "indentation_after_decorator",
+      "message": "Ligne 1640: 'class MegaEnterpriseSystemConf...' devrait être indentée après le décorateur",
+      "severity": "error"
+    }
+  ],
+  "semantic_issues": [
+    {
+      "line": 489,
+      "type": "unclosed_brace",
+      "message": "Accolades non fermées: return {...",
+      "severity": "warning"
+    },
+    {
+      "line": 513,
+      "type": "unclosed_brace",
+      "message": "Accolades non fermées: return {...",
+      "severity": "warning"
+    },
+    {
+      "line": 514,
+      "type": "unclosed_bracket",
+      "message": "Crochets non fermés: 'pytest_args': [...",
+      "severity": "warning"
+    },
+    {
+      "line": 521,
+      "type": "unclosed_brace",
+      "message": "Accolades non fermées: 'coverage_config': {...",
+      "severity": "warning"
+    },
+    {
+      "line": 526,
+      "type": "unclosed_brace",
+      "message": "Accolades non fermées: 'badge_thresholds': {...",
+      "severity": "warning"
+    },
+    {
+      "line": 844,
+      "type": "unclosed_brace",
+      "message": "Accolades non fermées: FILE_STATUS = {...",
+      "severity": "warning"
+    },
+    {
+      "line": 1410,
+      "type": "unclosed_paren",
+      "message": "Parenthèses non fermées: CREATE TABLE IF NOT EXISTS {self.table_name} (...",
+      "severity": "warning"
+    },
+    {
+      "line": 17355,
+      "type": "unclosed_bracket",
+      "message": "Crochets non fermés: MOVE \\\\'{\\\\\"dailySummaries\\\\\":[\\\\' TO WS-JSON-LINE...",
+      "severity": "warning"
+    },
+    {
+      "line": 17355,
+      "type": "unclosed_brace",
+      "message": "Accolades non fermées: MOVE \\\\'{\\\\\"dailySummaries\\\\\":[\\\\' TO WS-JSON-LINE...",
+      "severity": "warning"
+    },
+    {
+      "line": 17358,
+      "type": "unclosed_bracket",
+      "message": "Crochets non fermés: self.json_line = '{\"dailySummaries\":['...",
+      "severity": "warning"
+    },
+    {
+      "line": 17358,
+      "type": "unclosed_brace",
+      "message": "Accolades non fermées: self.json_line = '{\"dailySummaries\":['...",
+      "severity": "warning"
+    }
+  ],
+  "code_smells": [
+    {
+      "type": "too_long",
+      "message": "Fichier très long (24922 lignes) - considérer la division",
+      "severity": "info"
+    }
+  ],
+  "analysis_timestamp": "2026-01-31 08:47:04.856684"
+}
