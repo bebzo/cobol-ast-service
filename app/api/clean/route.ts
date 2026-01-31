@@ -1,12 +1,10 @@
 /**
- * Python Code Cleaner - Code-Doctor v2 (Sans Gemini)
+ * Python Code Cleaner - Code-Doctor v3 (Corrigé)
  *
- * Stratégie:
- * 1. Appliquer des corrections regex rapides (rapide, pas d'API)
- * 2. Valider la syntaxe avec Pyodide et obtenir les erreurs exactes
- * 3. Corriger les erreurs spécifiques basées sur des patterns reconnus
- * 4. Répéter jusqu'à ce que le code soit valide (max 20 itérations)
- * 5. Appliquer un formatage de base pour la cohérence
+ * Version corrigée avec:
+ * 1. Validation robuste même sans Pyodide
+ * 2. Fallback avec expressions régulières pour les erreurs courantes
+ * 3. Meilleure gestion des cas limites
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -16,57 +14,64 @@ let pyodideReady: Promise<any> | null = null;
 let pyodideInstance: any = null;
 
 async function getPyodide() {
-  if (typeof window !== 'undefined') return null;
+  // Support both browser and Node.js (Edge runtime)
+  // Use type assertion to handle Pyodide's global loading function
+  const getGlobal = (): any => (typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {}));
+  const globalObj = getGlobal();
+  const loadPyodide = globalObj.loadPyodide || null;
+  
+  if (!loadPyodide) {
+    console.log('Pyodide non disponible (loadPyodide non trouvé)');
+    return null;
+  }
+  
   try {
-    // @ts-ignore
-    const loadPyodide = globalThis.loadPyodide;
-    if (!loadPyodide) return null;
-    
     if (!pyodideReady) {
       pyodideReady = loadPyodide({
         indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/'
       }).then(async (py: any) => {
         // Configurer Pyodide avec les fonctions de vérification
         py.runPython(`
-          import sys
-          from io import StringIO
-          
-          def check_syntax(code):
-              """Vérifie la syntaxe Python et retourne les erreurs"""
-              try:
-                  compile(code, '<main>', 'exec')
-                  return None  # Pas d'erreurs
-              except SyntaxError as e:
-                  return {
-                      'msg': str(e.msg),
-                      'filename': e.filename,
-                      'lineno': e.lineno,
-                      'offset': e.offset,
-                      'text': e.text,
-                      'type': 'SyntaxError'
-                  }
-              except Exception as e:
-                  return {
-                      'msg': str(e),
-                      'type': str(type(e).__name__)
-                  }
-          
-          def parse_syntax_tree(code):
-              """Parse le code et retourne les tokens pour analyse"""
-              try:
-                  import ast
-                  tree = ast.parse(code)
-                  return {
-                      'success': True,
-                      'node_count': len(ast.walk(tree))
-                  }
-              except SyntaxError as e:
-                  return {
-                      'success': False,
-                      'error': str(e.msg),
-                      'lineno': e.lineno
-                  }
-        `);
+import sys
+from io import StringIO
+
+def check_syntax(code):
+    """Vérifie la syntaxe Python et retourne les erreurs"""
+    try:
+        compile(code, '<main>', 'exec')
+        return None  # Pas d'erreurs
+    except SyntaxError as e:
+        return {
+            'msg': str(e.msg),
+            'filename': e.filename,
+            'lineno': e.lineno,
+            'offset': e.offset,
+            'text': e.text,
+            'type': 'SyntaxError'
+        }
+    except Exception as e:
+        return {
+            'msg': str(e),
+            'type': str(type(e).__name__)
+        }
+
+def parse_syntax_tree(code):
+    """Parse le code et retourne les tokens pour analyse"""
+    try:
+        import ast
+        tree = ast.parse(code)
+        return {
+            'success': True,
+            'node_count': len(ast.walk(tree))
+        }
+    except SyntaxError as e:
+        return {
+            'success': False,
+            'error': str(e.msg),
+            'lineno': e.lineno
+        }
+`);
+        console.log('Pyodide initialisé avec succès');
         return py;
       });
     }
@@ -144,8 +149,11 @@ function applyQuickFixes(code: string): string {
   cleaned = cleaned.replace(/^(\s*"""[^"]{0,200})$/gm, '$1"""');
   cleaned = cleaned.replace(/^(\s*'''[^'']{0,200})$/gm, "$1'''");
   
-  // Corriger les lignes de logger avec deux-points finaux (simplifié)
+  // Corriger les lignes de logger avec deux-points finaux
   cleaned = cleaned.replace(/^(logger\s*=\s*logging\.getLogger\([^)]*\)):\s*$/gm, '$1');
+  
+  // Corriger les lignes de continuation mal formées
+  cleaned = cleaned.replace(/\\\n\s*/g, ' ');
   
   return cleaned;
 }
@@ -162,12 +170,19 @@ function fixLineByLine(code: string): string {
     let line = lines[i];
     const nextLine = lines[i + 1] || '';
     const lineNum = i + 1;
+    const prevLine = i > 0 ? lines[i - 1] : '';
+    
+    // Ignorer les lignes de commentaires purs
+    const trimmed = line.trim();
+    if (trimmed.startsWith('#')) {
+      fixedLines.push(line);
+      continue;
+    }
     
     // Corriger le docstring orphelin après def
-    if (line.trim() === '"""' && 
-        i > 0 && 
-        lines[i - 1].trim().startsWith('def ') && 
-        lines[i - 1].trim().endsWith(':')) {
+    if (trimmed === '"""' && 
+        prevLine.trim().startsWith('def ') && 
+        prevLine.trim().endsWith(':')) {
       line = '    """TODO"""';
     }
     
@@ -268,20 +283,16 @@ function fixSpecificError(code: string, error: { msg: string; lineno: number; of
   
   // Erreur: "unterminated string" ou "EOL while scanning string literal"
   if (errorMsg.includes('unterminated') || errorMsg.includes('eol while scanning')) {
-    // Trouver la chaîne non fermée et la fermer
     const stringMatch = problemLine.match(/(['"])(?:(?!\1)[^\\]|\\.)*\1(?:(?!\1)[^\\]|\\.)*$/);
     if (stringMatch) {
       const quote = stringMatch[1];
-      // Compter les quotes non fermées
       const beforeError = problemLine.substring(0, error.offset || problemLine.length);
       const quoteCount = (beforeError.match(new RegExp(quote, 'g')) || []).length;
       if (quoteCount % 2 === 1) {
-        // Quote non fermée, ajouter une autre quote
         newLines[errorLine] = problemLine + quote;
         fixed = true;
       }
     } else {
-      // Pas de string match, essayer de fermer à la fin de la ligne
       const lastQuote = Math.max(problemLine.lastIndexOf("'"), problemLine.lastIndexOf('"'));
       if (lastQuote !== -1) {
         const afterLastQuote = problemLine.substring(lastQuote + 1);
@@ -296,12 +307,9 @@ function fixSpecificError(code: string, error: { msg: string; lineno: number; of
   
   // Erreur: "invalid syntax"
   if (errorMsg.includes('invalid syntax')) {
-    // Vérifier les problèmes courants
-    
     // 1. Opérateur ternaire mal formé
     const ternaryMatch = problemLine.match(/(\w+)\s+(if|else)\s+(\w+)\s*:/);
     if (ternaryMatch) {
-      // Corriger: value_if_true if condition else value_if_false
       const parts = problemLine.split(/\s+(?:if|else)\s+/);
       if (parts.length === 3) {
         const corrected = `${parts[1]} if ${parts[0]} else ${parts[2]}`;
@@ -327,7 +335,6 @@ function fixSpecificError(code: string, error: { msg: string; lineno: number; of
   
   // Erreur: "expected ':'"
   if (errorMsg.includes("expected ':'")) {
-    // Ajouter le deux-points manquant
     const trimmed = problemLine.trim();
     if (!trimmed.endsWith(':') && 
         (trimmed.startsWith('if') || trimmed.startsWith('elif') || 
@@ -342,7 +349,6 @@ function fixSpecificError(code: string, error: { msg: string; lineno: number; of
   
   // Erreur: "unexpected indent" ou "indentation error"
   if (errorMsg.includes('unexpected indent') || errorMsg.includes('unindent')) {
-    // Réduire l'indentation de la ligne
     const indentMatch = problemLine.match(/^(\s*)/);
     if (indentMatch && indentMatch[1].length >= 4) {
       newLines[errorLine] = problemLine.substring(4);
@@ -352,14 +358,12 @@ function fixSpecificError(code: string, error: { msg: string; lineno: number; of
   
   // Erreur: "dedent" ou indentation incohérente
   if (errorMsg.includes('dedent') || errorMsg.includes('inconsistent indentation')) {
-    // Essayer différentes indentations
     if (errorLine > 0) {
       const prevLine = lines[errorLine - 1];
       const prevIndent = (prevLine.match(/^(\s*)/)?.[1] || '').length;
       const currentIndent = (problemLine.match(/^(\s*)/)?.[1] || '').length;
       
       if (currentIndent > prevIndent) {
-        // Réduire à l'indentation précédente
         newLines[errorLine] = ' '.repeat(prevIndent) + problemLine.trim();
         fixed = true;
       }
@@ -368,7 +372,6 @@ function fixSpecificError(code: string, error: { msg: string; lineno: number; of
   
   // Erreur: "non-default argument follows default argument"
   if (errorMsg.includes('non-default argument follows default argument')) {
-    // Réorganiser les arguments: les paramètres avec défaut après ceux sans défaut
     const funcMatch = problemLine.match(/(def\s+\w+\([^)]*\)):/);
     if (funcMatch) {
       const fullLine = problemLine;
@@ -376,7 +379,6 @@ function fixSpecificError(code: string, error: { msg: string; lineno: number; of
       const paramList = params.split(',').map(p => p.trim()).filter(p => p);
       
       let foundDefault = false;
-      let reordered: string[] = [];
       const withDefaults: string[] = [];
       const withoutDefaults: string[] = [];
       
@@ -387,12 +389,11 @@ function fixSpecificError(code: string, error: { msg: string; lineno: number; of
         } else if (!foundDefault) {
           withoutDefaults.push(param);
         } else {
-          // Param sans défaut après param avec défaut
           withDefaults.push(param);
         }
       }
       
-      reordered = [...withoutDefaults, ...withDefaults];
+      const reordered = [...withoutDefaults, ...withDefaults];
       const newParams = reordered.join(', ');
       const newLine = fullLine.replace(/\([^)]*\):/, `(${newParams}):`);
       newLines[errorLine] = newLine;
@@ -402,19 +403,100 @@ function fixSpecificError(code: string, error: { msg: string; lineno: number; of
   
   // Erreur: "cannot assign to expression"
   if (errorMsg.includes('cannot assign to expression')) {
-    // Sûrement une assignation comme x = y = 5 mal formée
     if (problemLine.includes('==') && problemLine.includes('=') && !problemLine.includes('==')) {
       newLines[errorLine] = problemLine.replace(/\s*=\s*/g, ' == ');
       fixed = true;
     }
   }
   
-  // Si la correction spécifique n'a pas fonctionné, retourner le code original
   if (!fixed) {
     return code;
   }
   
   return newLines.join('\n');
+}
+
+// ============================================
+// VALIDATION FALLBACK (Sans Pyodide)
+// ============================================
+
+function basicSyntaxValidation(code: string): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const lines = code.split('\n');
+  
+  let inTripleQuote = false;
+  let tripleQuoteChar = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNum = i + 1;
+    
+    // Vérifier les chaînes triples
+    if (!inTripleQuote) {
+      if (line.includes('"""') || line.includes("'''")) {
+        const tripleDouble = line.indexOf('"""');
+        const tripleSingle = line.indexOf("'''");
+        
+        if (tripleDouble !== -1 || tripleSingle !== -1) {
+          if (tripleDouble !== -1 && (tripleSingle === -1 || tripleDouble < tripleSingle)) {
+            if ((line.match(/"""/g) || []).length % 2 === 1) {
+              inTripleQuote = true;
+              tripleQuoteChar = '"""';
+            }
+          } else if (tripleSingle !== -1) {
+            if ((line.match(/'''/g) || []).length % 2 === 1) {
+              inTripleQuote = true;
+              tripleQuoteChar = "'''";
+            }
+          }
+        }
+      }
+    } else {
+      if (line.includes(tripleQuoteChar)) {
+        if ((line.match(new RegExp(tripleQuoteChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length % 2 === 1) {
+          inTripleQuote = false;
+          tripleQuoteChar = '';
+        }
+      }
+    }
+    
+    // Vérifier les parenthèses
+    const openParens = (line.match(/\(/g) || []).length;
+    const closeParens = (line.match(/\)/g) || []).length;
+    if (openParens !== closeParens && !line.trim().endsWith('\\')) {
+      // Only flag if it looks like a complete statement
+      const trimmed = line.trim();
+      if (!trimmed.endsWith(',') && !trimmed.endsWith('\\')) {
+        if (openParens > closeParens) {
+          errors.push(`Ligne ${lineNum}: Parenthèses non fermées (${openParens} ouvrantes, ${closeParens} fermantes)`);
+        }
+      }
+    }
+    
+    // Vérifier les crochets
+    const openBrackets = (line.match(/\[/g) || []).length;
+    const closeBrackets = (line.match(/\]/g) || []).length;
+    if (openBrackets !== closeBrackets) {
+      if (openBrackets > closeBrackets) {
+        errors.push(`Ligne ${lineNum}: Crochets non fermés`);
+      }
+    }
+    
+    // Vérifier les accolades
+    const openBraces = (line.match(/\{/g) || []).length;
+    const closeBraces = (line.match(/\}/g) || []).length;
+    if (openBraces !== closeBraces) {
+      if (openBraces > closeBraces) {
+        errors.push(`Ligne ${lineNum}: Accolades non fermées`);
+      }
+    }
+  }
+  
+  if (inTripleQuote) {
+    errors.push('Docstring non fermé à la fin du fichier');
+  }
+  
+  return { valid: errors.length === 0, errors };
 }
 
 // ============================================
@@ -426,24 +508,59 @@ async function validateAndFixCode(code: string, maxIterations: number = 20): Pro
   let iterations = 0;
   
   const pyodide = await getPyodide();
-  if (!pyodide) {
-    console.log('Pyodide non disponible, utilisation des corrections regex uniquement');
-    return { code: applyQuickFixes(code), success: true, iterations: 0 };
+  const hasPyodide = pyodide !== null;
+  
+  if (!hasPyodide) {
+    console.log('Pyodide non disponible, utilisation des corrections regex avec validation basique');
+    
+    // Appliquer les corrections de base
+    currentCode = applyQuickFixes(currentCode);
+    currentCode = fixLineByLine(currentCode);
+    
+    // Validation basique sans Pyodide
+    const validation = basicSyntaxValidation(currentCode);
+    
+    if (validation.valid) {
+      console.log('✓ Code valide après corrections (validation basique)');
+      return { code: currentCode, success: true, iterations: 0 };
+    } else {
+      console.log('⚠ Erreurs persistantes:', validation.errors);
+      // Essayer de corriger les erreurs spécifiques
+      for (const errorMsg of validation.errors) {
+        const match = errorMsg.match(/Ligne (\d+): (.+)/);
+        if (match) {
+          const error = {
+            msg: match[2],
+            lineno: parseInt(match[1])
+          };
+          currentCode = fixSpecificError(currentCode, error);
+        }
+      }
+      
+      // Réappliquer les corrections
+      currentCode = applyQuickFixes(currentCode);
+      currentCode = fixLineByLine(currentCode);
+      
+      const finalValidation = basicSyntaxValidation(currentCode);
+      return { 
+        code: currentCode, 
+        success: finalValidation.valid, 
+        iterations: 1 
+      };
+    }
   }
   
+  // Pyodide disponible - validation normale
   while (iterations < maxIterations) {
     iterations++;
     
-    // Vérifier la syntaxe
     const checkResult = pyodide.runPython(`check_syntax(${JSON.stringify(currentCode)})`);
     
     if (checkResult === null || checkResult === 'None') {
-      // Code valide!
       console.log(`✓ Code valide après ${iterations} itération(s)`);
       return { code: currentCode, success: true, iterations };
     }
     
-    // Erreur trouvée, extraire les détails
     const errorInfo = {
       msg: checkResult.get('msg'),
       lineno: checkResult.get('lineno'),
@@ -454,16 +571,13 @@ async function validateAndFixCode(code: string, maxIterations: number = 20): Pro
     
     console.log(`Itération ${iterations}: Erreur ligne ${errorInfo.lineno} - ${errorInfo.msg}`);
     
-    // Appliquer la correction spécifique
     const afterSpecificFix = fixSpecificError(currentCode, errorInfo);
     
     if (afterSpecificFix !== currentCode) {
-      // Correction spécifique appliquée, continuer
       currentCode = afterSpecificFix;
       continue;
     }
   
-    // Si pas de correction spécifique, appliquer les corrections ligne par ligne
     const afterLineFix = fixLineByLine(currentCode);
     
     if (afterLineFix !== currentCode) {
@@ -471,7 +585,6 @@ async function validateAndFixCode(code: string, maxIterations: number = 20): Pro
       continue;
     }
     
-    // Dernière tentative: corrections regex globales
     const afterQuickFix = applyQuickFixes(currentCode);
     
     if (afterQuickFix !== currentCode) {
@@ -479,12 +592,10 @@ async function validateAndFixCode(code: string, maxIterations: number = 20): Pro
       continue;
     }
     
-    // Aucune correction possible, arrêter
     console.log(`Impossible de corriger l'erreur après ${iterations} tentatives`);
     break;
   }
   
-  // Vérification finale
   const finalCheck = pyodide.runPython(`check_syntax(${JSON.stringify(currentCode)})`);
   const isValid = finalCheck === null || finalCheck === 'None';
   
@@ -500,19 +611,16 @@ async function validateAndFixCode(code: string, maxIterations: number = 20): Pro
 // ============================================
 
 function formatCode(code: string): string {
-  // Normalisation basique sans dépendre de Black
   const lines = code.split('\n');
   const formatted: string[] = [];
   
   for (const line of lines) {
     const trimmed = line.trim();
     
-    // Ignorer les lignes vides consécutives
     if (trimmed === '' && formatted.length > 0 && formatted[formatted.length - 1].trim() === '') {
       continue;
     }
     
-    // Normaliser les espaces autour des opérateurs
     let formattedLine = line;
     formattedLine = formattedLine.replace(/\s*([=+\-*/%<>!&|^])\s*/g, ' $1 ');
     formattedLine = formattedLine.replace(/\s*,\s*/g, ', ');
@@ -520,7 +628,6 @@ function formatCode(code: string): string {
     formatted.push(formattedLine);
   }
   
-  // Enlever les espaces de fin
   return formatted.map(l => l.replace(/\s+$/, '')).join('\n');
 }
 
@@ -541,7 +648,7 @@ export async function POST(request: NextRequest) {
 
     const originalLineCount = pythonCode.split('\n').length;
     
-    console.log('=== Début correction Code-Doctor v2 ===');
+    console.log('=== Début correction Code-Doctor v3 ===');
     console.log(`Lignes originales: ${originalLineCount}`);
     if (syntaxError) {
       console.log(`Erreur signalée: "${syntaxError}" à la ligne ${errorLine}`);
@@ -581,12 +688,16 @@ export async function POST(request: NextRequest) {
       }, { headers: corsHeaders });
     }
 
-    // Vérification finale avec Pyodide
+    // Vérification finale
     const pyodide = await getPyodide();
     let finalValidation = 'unknown';
     if (pyodide) {
       const checkResult = pyodide.runPython(`check_syntax(${JSON.stringify(cleanedCode)})`);
       finalValidation = (checkResult === null || checkResult === 'None') ? 'valid' : 'invalid';
+    } else {
+      // Fallback: validation basique si Pyodide pas dispo
+      const basicCheck = basicSyntaxValidation(cleanedCode);
+      finalValidation = basicCheck.valid ? 'valid' : 'invalid';
     }
 
     return NextResponse.json({
