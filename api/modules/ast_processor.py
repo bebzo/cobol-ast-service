@@ -9,6 +9,47 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 
+def _escape_for_docstring(text: str) -> str:
+    """Escape special characters for safe use in docstrings and string literals.
+
+    This prevents 'unterminated string literal' errors when COBOL names
+    contain special characters like quotes, backslashes, or triple quotes.
+
+    Args:
+        text: The text to escape
+
+    Returns:
+        Escaped text safe for use in Python code
+    """
+    if text is None:
+        return ""
+    # Replace backslashes first (to avoid double-escaping)
+    text = text.replace('\\', '\\\\')
+    # Escape triple quotes and regular quotes
+    text = text.replace('"""', '\\\"\"\"')
+    text = text.replace("'''", "\\'''")
+    text = text.replace('"', '\\"')
+    text = text.replace("'", "\\'")
+    # Handle other escape sequences
+    text = text.replace('\r', '\\r')
+    text = text.replace('\t', '\\t')
+    # Convert newlines to spaces for docstrings
+    text = text.replace('\n', ' ')
+    return text
+
+
+def _safe_constant(value: str) -> ast.Constant:
+    """Create an ast.Constant with properly escaped string value.
+
+    Args:
+        value: The string value to escape and wrap in ast.Constant
+
+    Returns:
+        ast.Constant node with escaped value
+    """
+    return ast.Constant(value=_escape_for_docstring(value))
+
+
 def to_snake_case(name: str) -> str:
     """Convert COBOL name to Python snake_case."""
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
@@ -247,8 +288,8 @@ def generate_redefines_properties(variables: List) -> List[ast.FunctionDef]:
                         kwarg=None,
                         defaults=[]
                     ),
-                    body=[ast.Expr(value=ast.Constant(
-                        value=f"REDEFINES property for {var.name} (shares storage with {base_name})"
+                    body=[ast.Expr(value=_safe_constant(
+                        f"REDEFINES property for {var.name} (shares storage with {base_name})"
                     )),
                     ast.Return(value=ast.Attribute(
                         value=ast.Name(id='self', ctx=ast.Load()),
