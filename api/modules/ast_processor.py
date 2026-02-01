@@ -143,8 +143,8 @@ def pic_to_python_type(pic: Optional[str], value: Optional[str] = None) -> Tuple
     if 'X' in pic_upper or 'A' in pic_upper:
         # Check for VALUE clause
         if value:
-            # Use the literal value
-            return 'str', ast.Constant(value=value.strip().strip("'\""))
+            # Use the literal value - escape special chars for safety
+            return 'str', _safe_constant(value.strip().strip("'\""))
         # Default to spaces
         x_count = pic_upper.count('X') + pic_upper.count('A')
         return 'str', ast.Constant(value=' ' * min(x_count, 256))
@@ -202,9 +202,9 @@ def cobol_value_to_python_v3(value: Optional[str], picture: Optional[str],
             keywords=[]
         )
     
-    # Alphanumeric literal
+    # Alphanumeric literal - escape special characters for safety
     clean_value = value.strip().strip("'\"")
-    return ast.Constant(value=clean_value)
+    return _safe_constant(clean_value)
 
 
 def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[List] = None) -> bool:
@@ -365,7 +365,7 @@ def generate_config_dataclass(config_vars: List, class_name: str) -> Optional[as
         bases=[],
         keywords=[],
         body=[
-            ast.Expr(value=ast.Constant(value="Configuration settings for rates and fees")),
+            ast.Expr(value=_safe_constant("Configuration settings for rates and fees")),
             *fields
         ],
         decorator_list=[ast.Name(id='dataclass', ctx=ast.Load())]
@@ -509,7 +509,7 @@ def generate_main_block(class_name: str) -> ast.If:
         body=[
             ast.Expr(value=ast.Call(
                 func=ast.Name(id='print', ctx=ast.Load()),
-                args=[ast.Constant(value=f"Running {class_name}...")],
+                args=[_safe_constant(f"Running {class_name}...")],
                 keywords=[]
             )),
             ast.Assign(
@@ -558,8 +558,10 @@ def generate_python_ast_v4(cobol_ast: Any) -> ast.Module:
     body = []
     
     # Module docstring
+    # Escape class_name to prevent issues with special characters
+    safe_class_name = _escape_for_docstring(class_name)
     body.append(ast.Expr(value=ast.Constant(
-        value=f"""{class_name} - Clean Architecture Python Code
+        value=f"""{safe_class_name} - Clean Architecture Python Code
 Auto-transpiled from COBOL [AST Transpiler v6.1.1]
 
 Architecture:
@@ -704,10 +706,8 @@ def generate_method_from_paragraph_v4(para: Any) -> Optional[ast.FunctionDef]:
     
     body = []
     
-    # Docstring
-    body.append(ast.Expr(value=ast.Constant(
-        value=f"Method {para.name} - auto-transpiled from COBOL"
-    )))
+    # Docstring - use safe_constant to escape special characters in para.name
+    body.append(ast.Expr(value=_safe_constant(f"Method {para.name} - auto-transpiled from COBOL")))
     
     # Simple pass for now - full transpile_statements_v4 would go here
     body.append(ast.Pass())
@@ -743,7 +743,7 @@ def transpile_statements_v4(statements: List[str]) -> List[ast.stmt]:
                 content = match.group(1).strip()
                 result.append(ast.Expr(value=ast.Call(
                     func=ast.Name(id='print', ctx=ast.Load()),
-                    args=[ast.Constant(value=content)],
+                    args=[_safe_constant(content)],
                     keywords=[]
                 )))
                 continue
