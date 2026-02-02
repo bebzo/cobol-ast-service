@@ -304,6 +304,9 @@ class MetricsModule:
         self._metrics['total_transactions'] += transaction_count
         
         if total_amount:
+            # Convert float to Decimal if needed
+            if isinstance(total_amount, float):
+                total_amount = Decimal(str(total_amount))
             self._metrics['total_amount'] += total_amount
         
         if transaction_type:

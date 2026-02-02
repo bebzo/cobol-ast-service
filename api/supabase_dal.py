@@ -1291,7 +1291,7 @@ class CobolLayoutMapper:
             level = int(level_match.group(1))
             field_name = level_match.group(2)
             
-            if level > 01 and current_group is None:
+            if level > 1 and current_group is None:
                 continue
             
             # Ignorer les lignes sans nom de champ (07 FILLER)
@@ -1650,7 +1650,7 @@ class TemporalPartitioner:
             # Lister les partitions héritées
             list_sql = f"""
             SELECT tablename FROM pg_tables
-            WHERE tablename LIKE '{self.table_name\_}%'
+            WHERE tablename LIKE '{self.table_name}%'
             AND schemaname = 'public';
             """
             
