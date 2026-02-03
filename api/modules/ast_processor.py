@@ -26,16 +26,37 @@ def _escape_for_docstring(text: str) -> str:
     # Replace backslashes first (to avoid double-escaping)
     text = text.replace('\\', '\\\\')
     # Escape triple quotes and regular quotes
-    text = text.replace('"""', '\\\"\"\"')
-    text = text.replace("'''", "\\'''")
+    text = text.replace('"""', '\\"""\\')
+    text = text.replace("'''", "\\'''\\")
     text = text.replace('"', '\\"')
     text = text.replace("'", "\\'")
     # Handle other escape sequences
     text = text.replace('\r', '\\r')
     text = text.replace('\t', '\\t')
-    # Convert newlines to spaces for docstrings
-    text = text.replace('\n', ' ')
+    # Preserve newlines for docstrings - they are valid in multi-line strings
+    # The caller is responsible for proper formatting
     return text
+
+
+def _create_docstring(text: str) -> ast.Expr:
+    """Create a properly formatted docstring expression node.
+
+    Ensures docstrings are always properly closed with triple quotes
+    and formatted correctly for Python AST.
+
+    Args:
+        text: The docstring content
+
+    Returns:
+        ast.Expr node containing the properly formatted docstring
+    """
+    if text is None:
+        text = ""
+    # Escape triple quotes within the content
+    safe_text = text.replace('"""', '\\"""\\')
+    # Create properly formatted multi-line docstring
+    formatted_docstring = f'"""\n{safe_text}\n"""'
+    return ast.Expr(value=ast.Constant(value=formatted_docstring))
 
 
 def _safe_constant(value: str) -> ast.Constant:
@@ -288,9 +309,9 @@ def generate_redefines_properties(variables: List) -> List[ast.FunctionDef]:
                         kwarg=None,
                         defaults=[]
                     ),
-                    body=[ast.Expr(value=_safe_constant(
+                    body=[_create_docstring(
                         f"REDEFINES property for {var.name} (shares storage with {base_name})"
-                    )),
+                    ),
                     ast.Return(value=ast.Attribute(
                         value=ast.Name(id='self', ctx=ast.Load()),
                         attr=to_snake_case(base_name),
@@ -320,7 +341,10 @@ def generate_redefines_properties(variables: List) -> List[ast.FunctionDef]:
                         kwarg=None,
                         defaults=[]
                     ),
-                    body=[ast.Assign(
+                    body=[_create_docstring(
+                        f"Sets {base_name} through {var.name} REDEFINES"
+                    ),
+                    ast.Assign(
                         targets=[ast.Attribute(
                             value=ast.Name(id='self', ctx=ast.Load()),
                             attr=to_snake_case(base_name),
@@ -365,7 +389,7 @@ def generate_config_dataclass(config_vars: List, class_name: str) -> Optional[as
         bases=[],
         keywords=[],
         body=[
-            ast.Expr(value=_safe_constant("Configuration settings for rates and fees")),
+            _create_docstring("Configuration settings for rates and fees"),
             *fields
         ],
         decorator_list=[ast.Name(id='dataclass', ctx=ast.Load())]
@@ -560,8 +584,7 @@ def generate_python_ast_v4(cobol_ast: Any) -> ast.Module:
     # Module docstring
     # Escape class_name to prevent issues with special characters
     safe_class_name = _escape_for_docstring(class_name)
-    body.append(ast.Expr(value=ast.Constant(
-        value=f"""{safe_class_name} - Clean Architecture Python Code
+    module_docstring_content = f"""{safe_class_name} - Clean Architecture Python Code
 Auto-transpiled from COBOL [AST Transpiler v6.1.1]
 
 Architecture:
@@ -578,7 +601,7 @@ For production use with concurrent requests:
 - Wrap in process-per-request architecture, OR
 - Refactor to use thread-safe repositories
 """
-    )))
+    body.append(_create_docstring(module_docstring_content))
     
     # Imports
     imports = [
@@ -706,8 +729,8 @@ def generate_method_from_paragraph_v4(para: Any) -> Optional[ast.FunctionDef]:
     
     body = []
     
-    # Docstring - use safe_constant to escape special characters in para.name
-    body.append(ast.Expr(value=_safe_constant(f"Method {para.name} - auto-transpiled from COBOL")))
+    # Docstring - use _create_docstring to ensure proper formatting
+    body.append(_create_docstring(f"Method {para.name} - auto-transpiled from COBOL"))
     
     # Simple pass for now - full transpile_statements_v4 would go here
     body.append(ast.Pass())
