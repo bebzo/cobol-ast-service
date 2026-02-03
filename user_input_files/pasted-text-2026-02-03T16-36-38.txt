@@ -1,0 +1,447 @@
+"""EnterpriseSecurityFortress - Clean Architecture Python Code
+Auto-transpiled from COBOL [AST Transpiler v11.0]
+"""
+from __future__ import annotations
+from decimal import Decimal, ROUND_HALF_EVEN
+MAX_DECIMAL = Decimal('999999999999999999.99')
+MIN_DECIMAL = Decimal('-999999999999999999.99')
+
+import decimal
+from functools import lru_cache
+
+decimal.getcontext().prec = 28
+decimal.getcontext().traps[decimal.Overflow] = True
+decimal.getcontext().traps[decimal.InvalidOperation] = True
+
+from dataclasses import dataclass, field
+from typing import Optional, List, Dict, Any, ClassVar
+from datetime import datetime, date
+from enum import Enum, auto
+from contextlib import contextmanager
+import logging
+import os
+import hashlib
+import hmac
+from functools import wraps
+import re
+import json
+import struct
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+# ============================================================
+# SECTION 1: Fonctions avec docstrings non fermées
+# ============================================================
+
+@lru_cache(maxsize=128)
+def get_secure_credential(name: str, default: str = None) -> str:
+    """Retrieve credential from secure storage (env vars, vault, etc.)
+    
+    v8.7: Added type coercion to handle incorrect test inputs gracefully.
+    # v8.7: Coerce name to string to handle incorrect test inputs
+    """
+    if not isinstance(name, str):
+        name = str(name)
+    value = os.getenv(name.upper().replace('-', '_'))
+    if value:
+        return value
+    if os.getenv('ENVIRONMENT', 'development') == 'production' and default is None:
+        raise SecurityError(f"Credential {name} not found in secure storage")
+    return default or ''
+
+def mask_pii(value: str, visible_chars: int = 4) -> str:
+    """Mask PII data for logging/display"""
+    if not value or len(value) <= visible_chars:
+        return '*' * len(value) if value else ''
+    return '*' * (len(value) - visible_chars) + value[-visible_chars:]
+
+def hash_pii(value: str, salt: str = None) -> str:
+    """One-way hash for PII (for comparison without storing plaintext)
+    
+    v8.7: Enforces secure salt in production environment.
+    """
+    env_salt = os.getenv('PII_HASH_SALT')
+    if salt:
+        effective_salt = salt
+    elif env_salt:
+        effective_salt = env_salt
+    else:
+        if os.getenv('ENVIRONMENT', 'development') == 'production':
+            raise SecurityError("PII_HASH_SALT environment variable is required in production")
+        import warnings
+        warnings.warn("PII_HASH_SALT not set - using insecure default.", UserWarning)
+        effective_salt = 'INSECURE-DEV-SALT-' + str(os.getpid())
+    return hashlib.sha256(f"{effective_salt}{value}".encode()).hexdigest()
+
+class SecurityError(Exception):
+    """Raised for security-related errors"""
+
+class PIIField:
+    """Descriptor for PII fields - auto-masks on access for logging"""
+
+    def __init__(self):
+        """Initialize PIIField."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+        return getattr(obj, self._storage_name, '')
+    
+    def __set__(self, obj, value):
+        """
+        setattr(obj, self._storage_name, value)
+
+# ============================================================
+# SECTION 2: Overflow protection avec docstrings cassées
+# ============================================================
+
+        """
+from decimal import Decimal, ROUND_HALF_EVEN, InvalidOperation, Overflow, localcontext
+
+COBOL_DECIMAL_PRECISION = 18
+
+@lru_cache(maxsize=128)
+def get_cobol_context():
+    """Get a properly configured decimal context for COBOL operations.
+    
+    v8.7: Returns a localcontext to avoid affecting the global decimal context.
+    """
+    ctx = localcontext()
+    return ctx
+
+@contextmanager
+def cobol_decimal_context():
+    """Context manager for COBOL-compatible decimal operations.
+    
+    v8.7: Properly isolates decimal context changes from global state.
+    """
+    with localcontext() as ctx:
+        ctx.prec = COBOL_DECIMAL_PRECISION
+        ctx.traps[Overflow] = True
+        ctx.traps[InvalidOperation] = True
+        yield ctx
+
+class CobolOverflowError(Exception):
+    """Raised when COBOL ON SIZE ERROR would trigger"""
+
+def safe_compute(operation: str, func, *args, on_size_error=None, max_value=None, **kwargs):
+    """
+    Safe computation wrapper that emulates COBOL ON SIZE ERROR.
+    
+    Args:
+        operation: Name of the operation (for error messages)
+        func: Function to execute
+        *args: Arguments to pass to func
+        on_size_error: Callback if overflow occurs (like COBOL ON SIZE ERROR)
+        max_value: Maximum allowed value (from PIC clause)
+        **kwargs: Keyword arguments for func
+    
+    Returns:
+        Result of func, or on_size_error result if overflow
+    """
+    try:
+        with localcontext() as ctx:
+            ctx.prec = COBOL_DECIMAL_PRECISION
+            ctx.traps[Overflow] = True
+            ctx.traps[InvalidOperation] = True
+            result = func(*args, **kwargs)
+            if max_value is not None and isinstance(result, Decimal):
+                if abs(result) > abs(max_value):
+                    raise Overflow(f"Value {result} exceeds max {max_value}")
+            return result
+    except (Overflow, InvalidOperation) as e:
+        if on_size_error:
+            return on_size_error(operation, e)
+        raise CobolOverflowError(operation, Decimal(str(args[0]) if args else '0'))
+
+def safe_add(a: Decimal, b: Decimal, pic_max: Decimal = None, on_size_error=None) -> Decimal:
+    """Safe addition with overflow protection"""
+    return safe_compute('ADD', lambda x, y: x + y, a, b, 
+                        max_value=pic_max, on_size_error=on_size_error)
+
+def safe_subtract(a: Decimal, b: Decimal, pic_max: Decimal = None, on_size_error=None) -> Decimal:
+    """Safe subtraction with overflow protection"""
+    return safe_compute('SUBTRACT', lambda x, y: x - y, a, b,
+                        max_value=pic_max, on_size_error=on_size_error)
+
+# ============================================================
+# SECTION 3: round_cobol avec docstring cassée
+# ============================================================
+
+def round_cobol(value, decimal_places: int = 2, rounding=ROUND_HALF_EVEN) -> Decimal:
+    """
+    Standard COBOL rounding using ROUND_HALF_EVEN (banker's rounding).
+    
+    COBOL ROUNDED phrase uses this by default for financial accuracy.
+    
+    Args:
+        value: Value to round (Decimal, int, float, or str)
+        decimal_places: Number of decimal places (from PIC V99 etc.)
+        rounding: Rounding mode (default: ROUND_HALF_EVEN)
+    
+    Returns:
+        Properly rounded Decimal
+    """
+    if not isinstance(value, Decimal):
+        value = Decimal(str(value))
+    if decimal_places == 0:
+        quantizer = Decimal('1')
+    else:
+        quantizer = Decimal('0.' + '0' * decimal_places)
+    return value.quantize(quantizer, rounding=rounding)
+
+banker_round = round_cobol
+
+# ============================================================
+# SECTION 4: SQL avec apostrophe parasite
+# ============================================================
+
+def sanitize_sql_param(value: str) -> str:
+    """Sanitize a value for safe SQL parameter use"""
+    if value is None:
+        return None
+    sanitized = str(value)
+    sanitized = sanitized.replace("'", "''")
+    sanitized = sanitized.replace(";", "")
+    sanitized = re.sub(r'--.*$', '', sanitized)
+    sanitized = sanitized.replace("/*", "").replace("*/", "")
+    return sanitized
+
+class SafeSQLBuilder:
+    """Build SQL queries safely with parameterized values"""
+
+    def __init__(self):
+        """Initialize SafeSQLBuilder."""
+        self.logger = logging.getLogger(__name__)
+        self.data: Dict[str, Any] = {}
+
+    
+    def add(self, sql: str, *params):
+        """Add SQL fragment with parameters"""
+        self.sql_parts.append(sql)
+        self.params.extend(params)
+        return self
+
+# ============================================================
+# SECTION 5: Enums avec __init__ inutiles
+# ============================================================
+
+class FileOrganization(Enum):
+
+
+    INDEXED = "INDEXED"
+    SEQUENTIAL = "SEQUENTIAL"
+    RELATIVE = "RELATIVE"
+
+class AccessMode(Enum):
+
+
+    SEQUENTIAL = "SEQUENTIAL"
+    RANDOM = "RANDOM"
+    DYNAMIC = "DYNAMIC"
+
+class StatusCode(Enum):
+
+
+    ACTIVE = 'A'
+    INACTIVE = 'I'
+    CLOSED = 'C'
+
+# ============================================================
+# SECTION 6: @property cassés
+# ============================================================
+
+class EnterpriseSecurityFortress:
+    VERSION: ClassVar[str] = '4.4.0'
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+        self.password_complexity: Decimal = Decimal('4')
+        self.fs_master: str = '  '
+        self.fraud_decision: str = '          '
+        self.rate_limit_exceeded: str = ' '
+        self.transaction_state: str = '                    '
+        self.error_severity: str = '          '
+        self.error_code: str = ''
+        self.error_message: str = ''
+        self.ls_amount: Decimal = Decimal('0')
+        self.trans_fee: Decimal = Decimal('0')
+        self.trans_tax: Decimal = Decimal('0')
+        self.trans_total: Decimal = Decimal('0')
+        self.fin_daily_limit: Decimal = Decimal('10000')
+        self.fin_daily_used: Decimal = Decimal('0')
+        self.ls_transaction_type: str = ''
+        self.fs_key_vault: str = '  '
+        self.hsm_status: str = ''
+        self.ml_status: str = ''
+        self.bucket_user_id: List = [''] * 1000
+        self.bucket_request_count: List = [Decimal('0')] * 1000
+        self.bucket_window_start: List = [Decimal('0')] * 1000
+        self.current_timestamp: Decimal = Decimal('0')
+        self.max_transactions_per_hour: Decimal = Decimal('1000')
+        self.cache_key_id: List = [''] * 10
+        self.cache_key_value: List = [''] * 10
+        self.cache_key_expiry: List = [Decimal('0')] * 10
+        self.key_identifier: str = ''
+        self.key_encrypted_value: str = ''
+        self.ls_user_id: str = ''
+
+    @property
+    def complexity_high(self):
+        """Parent variable: password_complexity"""
+        return self.password_complexity == Decimal('4')
+
+    @complexity_high.setter
+    def complexity_high(self, value: bool):
+        if value:
+            self.password_complexity = Decimal('4')
+
+    @property
+    def fs_master_ok(self):
+        """Parent variable: fs_master"""
+        return self.fs_master == '00'
+
+    @fs_master_ok.setter
+    def fs_master_ok(self, value: bool):
+        if value:
+            self.fs_master = '00'
+
+    @property
+    def fs_master_eof(self):
+        """Parent variable: fs_master"""
+        return self.fs_master == '10'
+
+    @fs_master_eof.setter
+    def fs_master_eof(self, value: bool):
+        if value:
+            self.fs_master = '10'
+
+    @property
+    def fraud_allow(self):
+        """Parent variable: fraud_decision"""
+        return self.fraud_decision == 'ALLOW'
+
+    @fraud_allow.setter
+    def fraud_allow(self, value: bool):
+        if value:
+            self.fraud_decision = 'ALLOW'
+
+    @property
+    def fraud_block(self):
+        """Parent variable: fraud_decision"""
+        return self.fraud_decision == 'BLOCK'
+
+    @fraud_block.setter
+    def fraud_block(self, value: bool):
+        if value:
+            self.fraud_decision = 'BLOCK'
+
+    @property
+    def rate_limit_ok(self):
+        """Parent variable: rate_limit_exceeded"""
+        return self.rate_limit_exceeded == 'N'
+
+    @rate_limit_ok.setter
+    def rate_limit_ok(self, value: bool):
+        if value:
+            self.rate_limit_exceeded = 'N'
+
+    @property
+    def severity_critical(self):
+        """Parent variable: error_severity"""
+        return self.error_severity == 'CRITICAL'
+
+    @severity_critical.setter
+    def severity_critical(self, value: bool):
+        if value:
+            self.error_severity = 'CRITICAL'
+
+    # ============================================================
+    # SECTION 7: Comparaisons avec "Decimal('00')"
+    # ============================================================
+    
+    def p_110_load_encryption_keys(self) -> None:
+        self.key_identifier = 'MASTER-KEY-2024'
+        if self.fs_key_vault == '00':
+            self.p_111_decrypt_master_key()
+
+    def p_210_verify_session_token(self) -> None:
+        if self.fs_master == '00':
+            pass
+
+    def p_631_decrypt_balance(self) -> None:
+        if self.hsm_status == '00':
+            self.decrypted_buffer = self.hsm_data_out
+
+    def p_720_ml_fraud_prediction(self) -> None:
+        if self.ml_status == '00':
+            self.fraud_score_calculated = self.ml_prediction_score
+
+    # ============================================================
+    # SECTION 8: Fee logic avec pass
+    # ============================================================
+
+    def p_640_calculate_fees_and_taxes(self) -> None:
+        if self.ls_transaction_type == 'WDR':
+            self.trans_fee = (self.ls_amount * Decimal('0.015')).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+            if self.trans_fee < Decimal('5.00'):
+                self.trans_fee = Decimal('5.00')
+        elif self.ls_transaction_type == 'TRF':
+            self.trans_fee = (self.ls_amount * Decimal('0.010')).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+            if self.trans_fee < Decimal('10.00'):
+                self.trans_fee = Decimal('10.00')
+        else:
+            self.trans_fee = Decimal('0')
+        self.trans_tax = (self.trans_fee * Decimal('0.19')).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+        self.trans_total = (self.ls_amount + self.trans_fee + self.trans_tax).quantize(Decimal('0.01'), rounding=ROUND_HALF_EVEN)
+
+    # ============================================================
+    # SECTION 9: Boucles avec self.i écrasé
+    # ============================================================
+
+    def p_112_cache_session_keys(self) -> None:
+        for _loop_i in range(1, 11, 1):
+            self.cache_key_id = self.key_identifier
+            self.cache_key_value = self.key_encrypted_value
+            self.cache_key_expiry = self.current_timestamp + Decimal('3600')
+
+    def p_130_initialize_rate_limiter(self) -> None:
+        for _loop_bucket_idx in range(1, 1001, 1):
+            self.bucket_user_id = ''
+            self.bucket_request_count = Decimal('0')
+            self.bucket_window_start = self.current_timestamp
+
+    def p_411_create_new_bucket(self) -> None:
+        for _loop_bucket_idx in range(1, 1001, 1):
+            if self.bucket_user_id[int(self.bucket_idx) - 1] == '':
+                self.bucket_user_id = self.ls_user_id
+                self.bucket_request_count = Decimal('1')
+
+    # ============================================================
+    # SECTION 10: @staticmethod doublé
+    # ============================================================
+
+    @staticmethod
+    def cobol_add(target: Decimal, *values: Decimal,
+                  rounded: bool = False, places: int = 2) -> Decimal:
+        """COBOL ADD statement emulation."""
+        result = target + sum(values)
+        return result
+
+    # ============================================================
+    # SECTION 11: Boucle simple pour test
+    # ============================================================
+
+    def p_999_audit_log_transaction(self) -> None:
+        self.audit_action = 'TRANSACTION: test'
+        self.file_manager = None  # placeholder
+
+    def run(self):
+        """Main entry point"""
+        self.logger.info('Starting EnterpriseSecurityFortress v%s', self.VERSION)
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    processor = EnterpriseSecurityFortress()
+    processor.run()

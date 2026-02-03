@@ -37,24 +37,28 @@ def add_customers(supabase):
     print("Adding Sample Customers")
     print("=" * 60)
     
+    now = datetime.now().isoformat()
     customers = [
         {
-            'customer_id': 'CUST001',
+            'customer_id': 'C001',
             'name': 'Jean Dupont',
             'email': 'jean.dupont@example.com',
-            'created_at': datetime.now().isoformat()
+            'created_at': now,
+            'updated_at': now
         },
         {
-            'customer_id': 'CUST002',
+            'customer_id': 'C002',
             'name': 'Marie Martin',
             'email': 'marie.martin@example.com',
-            'created_at': datetime.now().isoformat()
+            'created_at': now,
+            'updated_at': now
         },
         {
-            'customer_id': 'CUST003',
+            'customer_id': 'C003',
             'name': 'Pierre Durand',
             'email': 'pierre.durand@example.com',
-            'created_at': datetime.now().isoformat()
+            'created_at': now,
+            'updated_at': now
         }
     ]
     
@@ -77,17 +81,19 @@ def add_accounts(supabase):
     print("Adding Sample Accounts")
     print("=" * 60)
     
+    now = datetime.now().isoformat()
     accounts = [
-        {'account_id': 'ACC001', 'customer_id': 'CUST001', 'account_type': 'CHECKING', 'balance': Decimal('5000.00')},
-        {'account_id': 'ACC002', 'customer_id': 'CUST001', 'account_type': 'SAVINGS', 'balance': Decimal('15000.00')},
-        {'account_id': 'ACC003', 'customer_id': 'CUST002', 'account_type': 'CHECKING', 'balance': Decimal('3500.00')},
-        {'account_id': 'ACC004', 'customer_id': 'CUST002', 'account_type': 'SAVINGS', 'balance': Decimal('25000.00')},
-        {'account_id': 'ACC005', 'customer_id': 'CUST003', 'account_type': 'CHECKING', 'balance': Decimal('8750.00')},
-        {'account_id': 'ACC006', 'customer_id': 'CUST003', 'account_type': 'MONEY_MARKET', 'balance': Decimal('50000.00')}
+        {'account_id': 'A01', 'customer_id': 'C001', 'account_type': 'CHK', 'balance': Decimal('5000.00')},
+        {'account_id': 'A02', 'customer_id': 'C001', 'account_type': 'SAV', 'balance': Decimal('15000.00')},
+        {'account_id': 'A03', 'customer_id': 'C002', 'account_type': 'CHK', 'balance': Decimal('3500.00')},
+        {'account_id': 'A04', 'customer_id': 'C002', 'account_type': 'SAV', 'balance': Decimal('25000.00')},
+        {'account_id': 'A05', 'customer_id': 'C003', 'account_type': 'CHK', 'balance': Decimal('8750.00')},
+        {'account_id': 'A06', 'customer_id': 'C003', 'account_type': 'MMK', 'balance': Decimal('50000.00')}
     ]
     
     for account in accounts:
-        account['created_at'] = datetime.now().isoformat()
+        account['created_at'] = now
+        account['updated_at'] = now
         account['balance'] = float(account['balance'])
         
         try:
@@ -108,25 +114,28 @@ def add_transactions(supabase):
     print("Adding Sample Transactions")
     print("=" * 60)
     
+    now = datetime.now().isoformat()
+    today = datetime.now().strftime('%Y%m%d')
     transactions = [
-        {'transaction_id': 'TXN001', 'account_id': 'ACC001', 'transaction_type': 'DEPOSIT', 'amount': float(Decimal('1000.00'))},
-        {'transaction_id': 'TXN002', 'account_id': 'ACC001', 'transaction_type': 'WITHDRAWAL', 'amount': float(Decimal('200.00'))},
-        {'transaction_id': 'TXN003', 'account_id': 'ACC002', 'transaction_type': 'TRANSFER', 'amount': float(Decimal('500.00'))},
-        {'transaction_id': 'TXN004', 'account_id': 'ACC003', 'transaction_type': 'DEPOSIT', 'amount': float(Decimal('3500.00'))},
-        {'transaction_id': 'TXN005', 'account_id': 'ACC005', 'transaction_type': 'WIRE_TRANSFER', 'amount': float(Decimal('1000.00'))},
-        {'transaction_id': 'TXN006', 'account_id': 'ACC006', 'transaction_type': 'INTEREST', 'amount': float(Decimal('125.50'))}
+        {'trans_id': 'T01', 'source_account': 'A01', 'trans_type': 'DEP', 'trans_amount': 1000.00, 'trans_description': 'Cash deposit'},
+        {'trans_id': 'T02', 'source_account': 'A01', 'trans_type': 'WDL', 'trans_amount': 200.00, 'trans_description': 'ATM withdrawal'},
+        {'trans_id': 'T03', 'source_account': 'A02', 'target_account': 'A01', 'trans_type': 'TRF', 'trans_amount': 500.00, 'trans_description': 'Transfer to checking'},
+        {'trans_id': 'T04', 'source_account': 'A03', 'trans_type': 'DEP', 'trans_amount': 3500.00, 'trans_description': 'Payroll deposit'},
+        {'trans_id': 'T05', 'source_account': 'A05', 'trans_type': 'WIR', 'trans_amount': 1000.00, 'trans_description': 'Wire transfer outgoing'},
+        {'trans_id': 'T06', 'source_account': 'A06', 'trans_type': 'INT', 'trans_amount': 125.50, 'trans_description': 'Monthly interest'}
     ]
     
     for txn in transactions:
-        txn['created_at'] = datetime.now().isoformat()
-        txn['details'] = {}
+        txn['trans_status'] = 'P'
+        txn['trans_date'] = today
+        txn['created_at'] = now
         
         try:
             result = supabase.table('transactions').insert(txn).execute()
-            print(f"  ✅ Transaction added: {txn['transaction_id']} ({txn['transaction_type']}) - ${txn['amount']:,.2f}")
+            print(f"  ✅ Transaction added: {txn['trans_id']} ({txn['trans_type']}) - ${txn['trans_amount']:,.2f}")
         except Exception as e:
             if 'duplicate key' in str(e):
-                print(f"  ⚠️  Transaction exists: {txn['transaction_id']}")
+                print(f"  ⚠️  Transaction exists: {txn['trans_id']}")
             else:
                 print(f"  ❌ Error: {e}")
     
@@ -139,21 +148,29 @@ def add_audit_entries(supabase):
     print("Adding Sample Audit Entries")
     print("=" * 60)
     
-    import secrets
+    now = datetime.now()
+    today = now.strftime('%Y%m%d')
+    current_time = now.strftime('%H%M%S')
+    
+    # Get next available audit_id
+    try:
+        result = supabase.table('audit_trail').select('audit_id').order('audit_id', desc=True).limit(1).execute()
+        if result.data:
+            next_id = result.data[0]['audit_id'] + 1
+        else:
+            next_id = 1
+    except:
+        next_id = 1
     
     audit_entries = [
-        {'action': 'LOGIN', 'user_id': 'CUST001', 'resource': 'web_portal'},
-        {'action': 'DEPOSIT', 'user_id': 'CUST002', 'resource': 'ACC003'},
-        {'action': 'TRANSFER', 'user_id': 'CUST003', 'resource': 'ACC006'},
-        {'action': 'PASSWORD_CHANGE', 'user_id': 'CUST001', 'resource': 'account_settings'},
-        {'action': 'SECURITY_ALERT', 'user_id': 'CUST002', 'resource': 'login_attempt'}
+        {'audit_id': next_id, 'action': 'LOGIN', 'user_id': 'C001', 'audit_date': today, 'audit_time': current_time, 'details': {'portal': 'web'}},
+        {'audit_id': next_id + 1, 'action': 'DEPOSIT', 'user_id': 'C002', 'audit_date': today, 'audit_time': current_time, 'details': {'account': 'A03', 'amount': 3500}},
+        {'audit_id': next_id + 2, 'action': 'TRANSFER', 'user_id': 'C003', 'audit_date': today, 'audit_time': current_time, 'details': {'from': 'A06', 'to': 'A05', 'amount': 5000}},
+        {'audit_id': next_id + 3, 'action': 'PWD', 'user_id': 'C001', 'audit_date': today, 'audit_time': current_time, 'details': {'reason': 'user_requested'}},
+        {'audit_id': next_id + 4, 'action': 'ALERT', 'user_id': 'C002', 'audit_date': today, 'audit_time': current_time, 'details': {'type': 'login_attempt', 'location': 'unknown'}}
     ]
     
     for entry in audit_entries:
-        entry['audit_id'] = secrets.token_hex(16)
-        entry['timestamp'] = datetime.now().isoformat()
-        entry['details'] = {}
-        
         try:
             result = supabase.table('audit_trail').insert(entry).execute()
             print(f"  ✅ Audit entry: {entry['action']} by {entry['user_id']}")
@@ -190,16 +207,23 @@ def main():
     load_env()
     
     url = os.environ.get('SUPABASE_URL')
-    key = os.environ.get('SUPABASE_ANON_KEY')
+    anon_key = os.environ.get('SUPABASE_ANON_KEY')
+    service_key = os.environ.get('SUPABASE_SERVICE_KEY')
     
-    if not url or not key:
+    if not url or not anon_key:
         print("❌ Supabase credentials not configured")
         print("   Run: python setup_supabase.py --url URL --key KEY")
         return 1
     
     try:
         from supabase import create_client
-        supabase = create_client(url, key)
+        # Use service role key to bypass RLS policies for data insertion
+        if service_key:
+            print("  Using service role key (bypasses RLS policies)")
+            supabase = create_client(url, service_key)
+        else:
+            print("  ⚠️  Using anon key - RLS policies may block inserts")
+            supabase = create_client(url, anon_key)
         
         # Add data
         customers_count = add_customers(supabase)

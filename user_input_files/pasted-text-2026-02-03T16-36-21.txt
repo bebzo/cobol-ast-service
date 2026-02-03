@@ -1,0 +1,605 @@
+#!/usr/bin/env python3
+"""
+CodeSwitch Post-Processor v1.1
+Corrige automatiquement les erreurs de syntaxe du transpileur AST v11.0
+
+Fixes appliqués:
+  1.  Docstrings ouvertes non fermées (code traité comme commentaire)
+  2.  @property avec "Parent variable:" au lieu de "def name(self):"
+  3.  __init__ inutiles dans les Enum
+  4.  Comparaisons avec la chaîne "Decimal('00')" au lieu de '00'
+  5.  Fee logic: if < X: pass / fee = X  ->  if < X: fee = X
+  6.  Boucles "for self.i in range" avec self.i écrasé par valeur
+  7.  Apostrophes parasites à la fin des lignes
+  8.  @staticmethod doublés
+  9.  Docstrings de classe mal placées (après __init__)
+  10. os.path.normpath dans les signatures def
+  11. create_vsam_file avec paramètres flottants
+  12. VSAMFile __init__ avec ): flottant
+  13. f-string SQL avec guillemets simples
+  14. ProductionConfig.load parenthèse non fermée
+  15. Corps de fonctions en texte brut (sans guillemets du tout)
+  16. Fee logic v2 (version plus robuste)
+"""
+
+import re
+import sys
+from pathlib import Path
+
+
+# =============================================================
+# Constantes
+# =============================================================
+PYTHON_KEYWORDS_INLINE = (
+    'if ', 'for ', 'return ', 'self.', 'value ', 'env_salt',
+    'ctx ', 'with ', 'try:', 'raise ', 'import ', 'result ',
+    'sanitized ', 'clean ', 'amount ', 'except ', 'warnings.',
+    'effective_salt', 'config_data', 'decimal.',
+)
+
+PYTHON_CODE_STARTS = (
+    'if ', 'for ', 'while ', 'try:', 'return ', 'self.', 'raise ',
+    'with ', 'import ', 'from ', 'class ', 'def ', 'pass', 'break',
+    'continue', 'yield ', 'assert ', 'del ', 'global ', 'nonlocal ',
+    'except', 'finally', 'elif ', 'else:', '@',
+)
+
+PROPERTY_NAME_MAP = {
+    'password_complexity': {('==', "Decimal('4')"): 'complexity_high'},
+    'fs_master': {
+        ('==', "'00'"): 'fs_master_ok',
+        ('==', "'10'"): 'fs_master_eof',
+        ('==', "'92'"): 'fs_master_locked',
+        ('==', "'23'"): 'fs_master_not_found',
+    },
+    'fraud_decision': {
+        ('==', "'ALLOW'"): 'fraud_allow',
+        ('==', "'CHALLENGE'"): 'fraud_challenge',
+        ('==', "'BLOCK'"): 'fraud_block',
+        ('==', "'REVIEW'"): 'fraud_review',
+    },
+    'rate_limit_exceeded': {
+        ('==', "'N'"): 'rate_limit_ok',
+        ('==', "'Y'"): 'rate_limit_blocked',
+    },
+    'transaction_state': {
+        ('==', "'INITIALIZED'"): 'state_initialized',
+        ('==', "'PREPARED'"): 'state_prepared',
+        ('==', "'COMMITTED'"): 'state_committed',
+        ('==', "'ABORTED'"): 'state_aborted',
+    },
+    'participant_status': {
+        ('==', "'READY'"): 'part_ready',
+        ('==', "'COMMITTED'"): 'part_committed',
+        ('==', "'ABORTED'"): 'part_aborted',
+    },
+    'error_severity': {
+        ('==', "'INFO'"): 'severity_info',
+        ('==', "'WARNING'"): 'severity_warning',
+        ('==', "'ERROR'"): 'severity_error',
+        ('==', "'CRITICAL'"): 'severity_critical',
+    },
+}
+
+
+# =============================================================
+# FIX 1: Docstrings ouvertes non fermées
+# =============================================================
+def fix_unclosed_docstrings(source: str) -> str:
+    lines = source.split('\n')
+    result = []
+    in_docstring = False
+    docstring_indent = 0
+    fixes = 0
+
+    for line in lines:
+        stripped = line.lstrip()
+        triple_count = stripped.count('"""')
+
+        if triple_count == 1 and not in_docstring:
+            in_docstring = True
+            docstring_indent = len(line) - len(stripped)
+            result.append(line)
+            continue
+
+        if in_docstring:
+            if '"""' in stripped:
+                in_docstring = False
+                result.append(line)
+                continue
+
+            is_code = any(stripped.startswith(kw) for kw in PYTHON_KEYWORDS_INLINE)
+            is_comment = stripped.startswith('#')
+
+            if is_code and not is_comment:
+                indent = ' ' * docstring_indent
+                result.append(f'{indent}"""')
+                fixes += 1
+                in_docstring = False
+
+        result.append(line)
+
+    if in_docstring:
+        result.append(' ' * docstring_indent + '"""')
+        fixes += 1
+
+    print(f"  [FIX  1] Docstrings fermées: {fixes}")
+    return '\n'.join(result)
+
+
+# =============================================================
+# FIX 2: @property avec "Parent variable:"
+# =============================================================
+def fix_broken_properties(source: str) -> str:
+    """
+    Pattern exact dans le code transpilé:
+        (4 spaces)@property          <- ligne avec indentation classe
+    Parent variable: xxx\"\"\"         <- NO indentation (colonne 0!)
+        (8 spaces)return self.xxx == 'Y'
+    
+    On reconstruit en:
+        (4 spaces)@property
+        (4 spaces)def prop_name(self):
+        (8 spaces)\"\"\"Parent variable: xxx\"\"\"
+        (8 spaces)return self.xxx == 'Y'
+    """
+    lines = source.split('\n')
+    result = []
+    i = 0
+    fixes = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        ind = ' ' * indent
+
+        # Détecte "@property" (avec ou sans indentation)
+        if stripped == '@property' and i + 2 < len(lines):
+            # La ligne suivante peut être "Parent variable: xxx\"\"\""
+            # SANS indentation ou avec une indentation quelconque
+            next_raw   = lines[i + 1]
+            next_strip = next_raw.strip()
+
+            match_parent = re.match(r'^Parent variable:\s*(\w+)"""$', next_strip)
+            if match_parent:
+                parent_var = match_parent.group(1)
+
+                # La ligne après: "return self.xxx == ..."
+                # Elle peut avoir une indentation différente
+                return_raw   = lines[i + 2] if i + 2 < len(lines) else ''
+                return_strip = return_raw.strip()
+
+                match_return = re.match(
+                    r'^return\s+self\.(\w+)\s*(==|!=|>|<|>=|<=)\s*(.+)$',
+                    return_strip
+                )
+                if match_return:
+                    tested_var = match_return.group(1)
+                    operator   = match_return.group(2)
+                    value      = match_return.group(3).strip()
+
+                    # Deviner le nom de propriété
+                    prop_name = f'{tested_var}_check'
+                    if tested_var in PROPERTY_NAME_MAP:
+                        key = (operator, value)
+                        prop_name = PROPERTY_NAME_MAP[tested_var].get(key, prop_name)
+
+                    # Émettre avec l'indentation du @property original
+                    result.append(f'{ind}@property')
+                    result.append(f'{ind}def {prop_name}(self):')
+                    result.append(f'{ind}    """Parent variable: {parent_var}"""')
+                    result.append(f'{ind}    return self.{tested_var} {operator} {value}')
+                    fixes += 1
+                    i += 3
+                    continue
+
+        result.append(line)
+        i += 1
+
+    print(f"  [FIX  2] Properties corrigées: {fixes}")
+    return '\n'.join(result)
+
+
+# =============================================================
+# FIX 3: __init__ inutiles dans Enum
+# =============================================================
+ENUM_INIT_PATTERN = re.compile(
+    r'(class\s+\w+\(Enum\):\s*\n)'
+    r'(\s*)def __init__\(self\):\s*\n'
+    r'\s*"""Initialize \w+\."""\s*\n'
+    r'\s*self\.logger\s*=.*\n'
+    r'\s*self\.data.*\n',
+    re.MULTILINE
+)
+
+def fix_enum_inits(source: str) -> str:
+    result, count = ENUM_INIT_PATTERN.subn(r'\1\n', source)
+    print(f"  [FIX  3] Enum __init__ supprimés: {count}")
+    return result
+
+
+# =============================================================
+# FIX 4: Comparaisons avec "Decimal('00')"
+# =============================================================
+def fix_decimal_string_comparisons(source: str) -> str:
+    fixes = 0
+    # Le pattern dans le code est littéralement:
+    #   == "Decimal('00')":
+    # On remplace par:
+    #   == '00':
+    # On traite d'abord le cas avec deux-points (dans un if)
+    pattern_with_colon = re.compile(r'== "Decimal\(\'(\d+)\'\)"(\s*:)')
+    def rep1(m):
+        nonlocal fixes
+        fixes += 1
+        return f"== '{m.group(1)}'{m.group(2)}"
+    source = pattern_with_colon.sub(rep1, source)
+
+    # Puis le cas sans deux-points
+    pattern_bare = re.compile(r'== "Decimal\(\'(\d+)\'\)"')
+    def rep2(m):
+        nonlocal fixes
+        fixes += 1
+        return f"== '{m.group(1)}'"
+    source = pattern_bare.sub(rep2, source)
+
+    print(f"  [FIX  4] Comparaisons Decimal: {fixes}")
+    return source
+
+
+# =============================================================
+# FIX 5 + 16: Fee logic (pass avant assignment)
+# =============================================================
+def fix_fee_logic(source: str) -> str:
+    lines = source.split('\n')
+    result = []
+    i = 0
+    fixes = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        ind = ' ' * indent
+
+        if re.match(r'^if self\.trans_fee < Decimal\(', stripped):
+            if (i + 1 < len(lines) and lines[i + 1].strip() == 'pass' and
+                i + 2 < len(lines) and
+                re.match(r'^\s*self\.trans_fee = Decimal\(', lines[i + 2])):
+                assignment = lines[i + 2].strip()
+                result.append(line)                      # if self.trans_fee < ...
+                result.append(f'{ind}    {assignment}')  # indentation correcte
+                i += 3
+                fixes += 1
+                continue
+
+        result.append(line)
+        i += 1
+
+    print(f"  [FIX 5/16] Fee logic corrigé: {fixes}")
+    return '\n'.join(result)
+
+
+# =============================================================
+# FIX 6: Boucles avec self.<var> écrasé
+# =============================================================
+def fix_loop_iterator_overwrite(source: str) -> str:
+    lines = source.split('\n')
+    result = []
+    in_fixed_loop = False
+    loop_indent = 0
+    loop_var = ''
+    fixes = 0
+
+    for line in lines:
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+
+        # "for self.xxx in range(...)"
+        loop_match = re.match(r'^for self\.(\w+) in range\((.+)\):', stripped)
+        if loop_match:
+            var_name = loop_match.group(1)
+            range_args = loop_match.group(2)
+            ind = ' ' * indent
+            result.append(f'{ind}for _loop_{var_name} in range({range_args}):')
+            in_fixed_loop = True
+            loop_indent = indent
+            loop_var = var_name
+            fixes += 1
+            continue
+
+        if in_fixed_loop:
+            if stripped and indent <= loop_indent and not stripped.startswith('#'):
+                in_fixed_loop = False
+
+            # Supprime les lignes "self.<itervar> = <valeur>"
+            # qui sont des artefacts du transpileur
+            if in_fixed_loop:
+                artifact = re.match(
+                    rf'^self\.{loop_var}\s*=\s*',
+                    stripped
+                )
+                if artifact and not re.match(rf'^self\.{loop_var}\[', stripped):
+                    continue  # supprimé
+
+        result.append(line)
+
+    print(f"  [FIX  6] Iterateurs boucle: {fixes}")
+    return '\n'.join(result)
+
+
+# =============================================================
+# FIX 7: Apostrophes parasites
+# =============================================================
+def fix_stray_quotes(source: str) -> str:
+    fixes = 0
+    # Ligne se terminant par )' après un replace()
+    pattern = re.compile(r"""(\.replace\("[^"]*",\s*"[^"]*"\))'(\s*)$""", re.MULTILINE)
+    def rep(m):
+        nonlocal fixes
+        fixes += 1
+        return m.group(1) + m.group(2)
+    source = pattern.sub(rep, source)
+
+    # Apostrophe parasite dans docstring de round_cobol
+    source = source.replace("banker's rounding).'", "banker's rounding).")
+    if fixes or "banker's" in source:
+        fixes += 1
+
+    print(f"  [FIX  7] Guillemets parasites: {fixes}")
+    return source
+
+
+# =============================================================
+# FIX 8: @staticmethod doublés
+# =============================================================
+def fix_double_staticmethod(source: str) -> str:
+    pattern = re.compile(r'(@staticmethod\s*\n)(\s*@staticmethod\s*\n)', re.MULTILINE)
+    result, count = pattern.subn(r'\1', source)
+    print(f"  [FIX  8] @staticmethod doublés: {count}")
+    return result
+
+
+# =============================================================
+# FIX 9: Docstrings de classe mal placées
+# =============================================================
+CLASS_MISPLACED_DOCSTRING = re.compile(
+    r'(class\s+(\w+).*?:\s*\n)'
+    r'(\s*)def __init__\(self\):\s*\n'
+    r'\s*"""Initialize \w+\."""\s*\n'
+    r'(\s*self\.logger\s*=.*\n)'
+    r'(\s*self\.data.*\n)\s*\n'
+    r'\s*"""([^"]*?)"""',
+    re.MULTILINE
+)
+
+def fix_misplaced_class_docstrings(source: str) -> str:
+    def replacer(m):
+        class_decl = m.group(1)
+        class_name = m.group(2)
+        indent = m.group(3)
+        logger_line = m.group(4)
+        data_line = m.group(5)
+        docstring_content = m.group(6)
+        return (
+            f'{class_decl}'
+            f'{indent}"""{docstring_content}"""\n\n'
+            f'{indent}def __init__(self):\n'
+            f'{indent}    """Initialize {class_name}."""\n'
+            f'{logger_line}'
+            f'{data_line}'
+        )
+    result, count = CLASS_MISPLACED_DOCSTRING.subn(replacer, source)
+    print(f"  [FIX  9] Docstrings classe: {count}")
+    return result
+
+
+# =============================================================
+# FIX 10: os.path.normpath dans def
+# =============================================================
+def fix_normpath_in_def(source: str) -> str:
+    source = re.sub(
+        r'def open\(os\.path\.normpath\(self\),\s*#[^\n]*\s*mode: str\)',
+        'def open(self, mode: str)',
+        source
+    )
+    source = re.sub(
+        r"with open\(os\.path\.normpath\(([^)]+)\),\s*#\s*v9\.1:[^\n]*\s*'([^']+)',\s*encoding='([^']+)'\)",
+        r"with open(os.path.normpath(\1), '\2', encoding='\3')",
+        source
+    )
+    print(f"  [FIX 10] normpath dans def/open")
+    return source
+
+
+# =============================================================
+# FIX 11: create_vsam_file paramètres
+# =============================================================
+def fix_create_vsam_file(source: str) -> str:
+    old = "def create_vsam_file():\n    file_name: str,"
+    new = "def create_vsam_file(\n    file_name: str,"
+    if old in source:
+        source = source.replace(old, new)
+        print(f"  [FIX 11] create_vsam_file corrigé")
+    else:
+        print(f"  [FIX 11] create_vsam_file OK")
+    return source
+
+
+# =============================================================
+# FIX 12: VSAMFile __init__
+# =============================================================
+def fix_vsam_init(source: str) -> str:
+    old = '    """Émulateur de fichier VSAM KSDS (Key Sequenced Data Set)."""\n    \n    ):\n        self.filename = filename'
+    new = ('    """Émulateur de fichier VSAM KSDS (Key Sequenced Data Set)."""\n'
+           '    \n'
+           '    def __init__(self, filename: str, organization: str = "INDEXED",\n'
+           '                 access_mode: str = "DYNAMIC", record_key: str = None,\n'
+           '                 record_length: int = None):\n'
+           '        self.filename = filename')
+    if old in source:
+        source = source.replace(old, new)
+        print(f"  [FIX 12] VSAMFile __init__ corrigé")
+    else:
+        print(f"  [FIX 12] VSAMFile __init__ OK")
+    return source
+
+
+# =============================================================
+# FIX 13: f-string SQL
+# =============================================================
+def fix_sql_fstring(source: str) -> str:
+    source = source.replace("sql = f''\n", "sql = f'''\n")
+    print(f"  [FIX 13] f-string SQL")
+    return source
+
+
+# =============================================================
+# FIX 14: ProductionConfig.load parenthèse
+# =============================================================
+def fix_production_config_load(source: str) -> str:
+    old = "vault_addr=os.getenv('VAULT_ADDR', config_data.get('vault_addr', '')),\n    \n    def to_dict"
+    new = "vault_addr=os.getenv('VAULT_ADDR', config_data.get('vault_addr', '')),\n        )\n    \n    def to_dict"
+    if old in source:
+        source = source.replace(old, new)
+        print(f"  [FIX 14] ProductionConfig.load fermé")
+    else:
+        print(f"  [FIX 14] ProductionConfig.load OK")
+    return source
+
+
+# =============================================================
+# FIX 15: Corps de fonctions en texte brut (sans guillemets)
+# =============================================================
+def fix_bare_function_bodies(source: str) -> str:
+    lines = source.split('\n')
+    result = []
+    i = 0
+    fixes = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.lstrip()
+
+        # Détecte "def func(...):" sur une seule ligne
+        if stripped.startswith('def ') and stripped.rstrip().endswith(':'):
+            result.append(line)
+            i += 1
+
+            if i < len(lines):
+                next_stripped = lines[i].lstrip()
+                next_indent = len(lines[i]) - len(next_stripped)
+
+                is_docstring = next_stripped.startswith('"""') or next_stripped.startswith("'''")
+                is_code      = any(next_stripped.startswith(kw) for kw in PYTHON_CODE_STARTS)
+                is_empty     = (next_stripped == '')
+                is_comment   = next_stripped.startswith('#')
+
+                # Texte brut détecté
+                if next_stripped and not is_docstring and not is_code and not is_empty and not is_comment:
+                    body_indent = ' ' * next_indent
+                    result.append(f'{body_indent}"""')
+
+                    # Collecter jusqu'au premier bloc de code
+                    while i < len(lines):
+                        curr_stripped = lines[i].lstrip()
+                        curr_indent  = len(lines[i]) - len(curr_stripped)
+
+                        is_curr_code = any(curr_stripped.startswith(kw) for kw in PYTHON_CODE_STARTS)
+
+                        if is_curr_code and curr_indent >= next_indent:
+                            result.append(f'{body_indent}"""')
+                            fixes += 1
+                            break
+                        elif curr_stripped == '' and (i + 1) < len(lines):
+                            peek = lines[i + 1].lstrip()
+                            if any(peek.startswith(kw) for kw in PYTHON_CODE_STARTS):
+                                result.append(lines[i])
+                                result.append(f'{body_indent}"""')
+                                i += 1
+                                fixes += 1
+                                break
+
+                        result.append(lines[i])
+                        i += 1
+                    else:
+                        # Fin du fichier dans la zone texte
+                        result.append(f'{body_indent}"""')
+                        fixes += 1
+            continue
+
+        result.append(line)
+        i += 1
+
+    print(f"  [FIX 15] Corps texte brut: {fixes}")
+    return '\n'.join(result)
+
+
+# =============================================================
+# PIPELINE PRINCIPAL
+# =============================================================
+def run(input_path: str, output_path: str = None):
+    print("=" * 60)
+    print("  CodeSwitch Post-Processor v1.1")
+    print("  Correction automatique du transpileur AST v11.0")
+    print("=" * 60)
+
+    source = Path(input_path).read_text(encoding='utf-8')
+    original_lines = len(source.split('\n'))
+    print(f"\n  Fichier: {input_path}")
+    print(f"  Lignes originales: {original_lines}\n")
+    print("  Corrections appliquées:\n")
+
+    # Ordre optimal: properties d'abord (avant que docstrings ne les casse)
+    source = fix_stray_quotes(source)                 # 7
+    source = fix_double_staticmethod(source)          # 8
+    source = fix_enum_inits(source)                   # 3
+    source = fix_normpath_in_def(source)              # 10
+    source = fix_create_vsam_file(source)             # 11
+    source = fix_vsam_init(source)                    # 12
+    source = fix_sql_fstring(source)                  # 13
+    source = fix_production_config_load(source)       # 14
+    source = fix_decimal_string_comparisons(source)   # 4
+    source = fix_fee_logic(source)                    # 5/16
+    source = fix_broken_properties(source)            # 2  <-- AVANT fix 1 et 15!
+    source = fix_bare_function_bodies(source)         # 15
+    source = fix_unclosed_docstrings(source)          # 1
+    source = fix_misplaced_class_docstrings(source)   # 9
+    source = fix_loop_iterator_overwrite(source)      # 6
+
+    # Sauvegarder
+    if output_path is None:
+        output_path = input_path.replace('.py', '_fixed.py')
+    Path(output_path).write_text(source, encoding='utf-8')
+
+    new_lines = len(source.split('\n'))
+    print(f"\n{'=' * 60}")
+    print(f"  Output: {output_path}")
+    print(f"  Lignes: {original_lines} -> {new_lines}")
+    print(f"{'=' * 60}")
+
+    # Vérification de compilation
+    print("\n  Verification syntaxe Python (compile)...\n")
+    try:
+        compile(source, output_path, 'exec')
+        print("  ✓ SYNTAXE 100% VALIDE — prêt à exécuter!")
+    except SyntaxError as e:
+        print(f"  ✗ Erreur restante, ligne {e.lineno}: {e.msg}")
+        lines = source.split('\n')
+        if e.lineno:
+            start = max(0, e.lineno - 4)
+            end   = min(len(lines), e.lineno + 3)
+            for idx in range(start, end):
+                marker = ">>>" if idx == e.lineno - 1 else "   "
+                print(f"      {marker} {idx+1:4d} | {lines[idx]}")
+
+    print()
+    return source
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print("Usage: python postprocessor.py <input.py> [output.py]")
+        sys.exit(1)
+    run(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
