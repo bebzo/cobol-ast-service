@@ -90,15 +90,12 @@ class PythonPostProcessor:
         
         This handles the case where a function/class docstring starts but never
         closes. The pattern is:
-        - def func():
-        - triple-quote-Docstring line
-        - COBOL Traceability section
-        - Original COBOL (first N statements): <-- MARKER for end of docstring
-        - Translated COBOL code (documentation)
-        - Actual Python code
-        - Next function definition
+        - Any line starting with triple quotes that doesn't end with triple quotes
+        - Followed by content that should be in the docstring
+        - Then followed by actual code (assignments, decorators, etc.)
         
-        We close the docstring after "Original COBOL" and indent the code that follows.
+        Also handles the case where a function definition is followed by
+        docstring-like content but without opening triple quotes.
         """
         lines = self.processed_content.split('\n')
         fixed_lines = []
@@ -108,161 +105,203 @@ class PythonPostProcessor:
             line = lines[i]
             stripped = line.strip()
             
-            # Detect function or class definition
-            if stripped.startswith('def ') or stripped.startswith('class '):
+            # Detect any line that starts with triple quotes (potential docstring start)
+            has_triple_double = self.TRIPLE_DOUBLE in stripped
+            has_triple_single = self.TRIPLE_SINGLE in stripped
+            starts_with_triple = (stripped.startswith(self.TRIPLE_DOUBLE) or 
+                                 stripped.startswith(self.TRIPLE_SINGLE))
+            
+            if (has_triple_double or has_triple_single) and starts_with_triple:
+                # Determine which quote style is used
+                quote_style = 'double' if has_triple_double else 'single'
+                triple = self.TRIPLE_DOUBLE if quote_style == 'double' else self.TRIPLE_SINGLE
+                
+                # Check if docstring closes on the same line
+                if stripped.endswith(triple):
+                    fixed_lines.append(line)
+                    i += 1
+                    continue
+                
+                # Look ahead for closing quote or code
+                docstring_closed = False
+                code_start_line = None
+                
+                # Check if we're inside a @contextmanager function (look back)
+                is_in_contextmanager = False
+                for k in range(max(0, i - 10), i):
+                    if lines[k].strip().startswith('@contextmanager'):
+                        is_in_contextmanager = True
+                        break
+                
+                for j in range(i + 1, len(lines)):
+                    line_j = lines[j]
+                    stripped_j = line_j.strip()
+                    
+                    # Check for closing quote
+                    if triple in stripped_j:
+                        docstring_closed = True
+                        break
+                    
+                    # Check for next function/class definition
+                    if stripped_j.startswith('def ') or stripped_j.startswith('class '):
+                        break
+                    
+                    # Check if this is actual code (not docstring content)
+                    is_assignment = ('=' in stripped_j and 
+                                   not stripped_j.startswith('#') and
+                                   not stripped_j.startswith('-'))
+                    
+                    is_decorator = stripped_j.startswith('@')
+                    
+                    is_code_comment = (stripped_j.startswith('#') and 
+                                     (stripped_j.startswith('# COBOL') or
+                                      stripped_j.startswith('# Original') or
+                                      stripped_j.startswith('# v') or
+                                      stripped_j.startswith('# Standard') or
+                                      stripped_j.startswith('# Priority') or
+                                      stripped_j.startswith('# In production')))
+                    
+                    # Docstring content indicators:
+                    is_bullet_point = stripped_j.startswith('- ') or stripped_j.startswith('* ')
+                    is_checklist = stripped_j.startswith('[ ]') or stripped_j.startswith('[x]') or stripped_j.startswith('[X]')
+                    
+                    # Actual code indicators (NOT docstring content):
+                    # - Import statements
+                    # - Decorators
+                    # - Assignments (except in docstrings)
+                    is_import = stripped_j.startswith('import ') or stripped_j.startswith('from ')
+                    
+                    # In @contextmanager functions, 'with' statements are valid code
+                    # so we should NOT treat them as docstring content
+                    is_with_statement = stripped_j.startswith('with ')
+                    
+                    # If we find actual code (import, decorator, assignment NOT in list)
+                    # OR if we're in a contextmanager and find a 'with' statement
+                    if is_import or is_decorator or (is_assignment and not is_bullet_point and not is_checklist):
+                        code_start_line = j
+                        break
+                    
+                    if is_code_comment and not is_bullet_point and not is_checklist:
+                        code_start_line = j
+                        break
+                    
+                    if is_in_contextmanager and is_with_statement:
+                        code_start_line = j
+                        break
+                
+                if code_start_line is not None and not docstring_closed:
+                    # Docstring is unclosed - close it
+                    self.warnings.append(f"Closing unclosed docstring starting at line {i+1}")
+                    fixed_lines.append(line)  # Opening line
+                    
+                    # Add docstring content up to code start
+                    for j in range(i + 1, code_start_line):
+                        fixed_lines.append(lines[j])
+                    
+                    # Determine appropriate indentation for closing quote
+                    # Use the indentation of the opening quote line
+                    indent = len(line) - len(line.lstrip())
+                    
+                    fixed_lines.append(' ' * indent + triple)  # Closing line
+                    
+                    # Process code from code_start_line
+                    i = code_start_line
+                elif docstring_closed:
+                    # Docstring was properly closed - add all content
+                    fixed_lines.append(line)
+                    for j in range(i + 1, len(lines)):
+                        fixed_lines.append(lines[j])
+                        if triple in lines[j].strip():
+                            i = j + 1
+                            break
+                    else:
+                        i = len(lines)
+                else:
+                    # Fallback - just add the line
+                    fixed_lines.append(line)
+                    i += 1
+            
+            # Handle function definitions followed by docstring-like content (without opening """)
+            elif stripped.startswith('def '):
                 func_def = line
                 i += 1
+                fixed_lines.append(func_def)
                 
-                # Skip any decorators on the next lines
-                while i < len(lines) and lines[i].strip().startswith('@'):
-                    fixed_lines.append(lines[i])
-                    i += 1
+                # Look ahead to see if next lines look like docstring content
+                docstring_start = None
+                docstring_end = None
+                docstring_indent = 4  # Standard indentation for function body
                 
-                if i >= len(lines):
-                    fixed_lines.append(func_def)
-                    break
-                
-                current = lines[i]
-                current_stripped = current.strip()
-                
-                # Check if next line starts a docstring (contains 3+ consecutive quotes)
-                has_triple_double = self.TRIPLE_DOUBLE in current_stripped
-                has_triple_single = self.TRIPLE_SINGLE in current_stripped
-                starts_with_triple = (current_stripped.startswith(self.TRIPLE_DOUBLE) or 
-                                     current_stripped.startswith(self.TRIPLE_SINGLE))
-                
-                if (has_triple_double or has_triple_single) and starts_with_triple:
-                    # Determine which quote style is used
-                    quote_style = 'double' if has_triple_double else 'single'
-                    triple = self.TRIPLE_DOUBLE if quote_style == 'double' else self.TRIPLE_SINGLE
+                for j in range(i, min(i + 40, len(lines))):
+                    line_j = lines[j]
+                    stripped_j = line_j.strip()
                     
-                    # Check if docstring closes on the same line
-                    if current_stripped.endswith(triple):
-                        fixed_lines.append(func_def)
-                        fixed_lines.append(current)
-                        i += 1
-                        continue
+                    # Stop if we hit another definition
+                    if stripped_j.startswith('def ') or stripped_j.startswith('class '):
+                        break
                     
-                    # Look ahead for closing quote or next definition
-                    docstring_closed = False
-                    code_start_line = None
-                    original_cobol_marker = None
+                    # Look for actual code that indicates end of docstring
+                    # (try, with, return, etc.)
+                    is_code_start = (
+                        stripped_j.startswith('try:') or
+                        stripped_j.startswith('except:') or
+                        stripped_j.startswith('with ') or
+                        stripped_j.startswith('return ') or
+                        stripped_j.startswith('if ') or
+                        stripped_j.startswith('for ') or
+                        stripped_j.startswith('while ') or
+                        stripped_j.startswith('raise ')
+                    )
                     
-                    for j in range(i + 1, len(lines)):
-                        line_j = lines[j]
-                        stripped_j = line_j.strip()
-                        
-                        # Check for closing quote
-                        if triple in stripped_j:
-                            docstring_closed = True
-                            break
-                        
-                        # Check for next function/class definition
-                        if stripped_j.startswith('def ') or stripped_j.startswith('class '):
-                            break
-                        
-                        # Check for "Original COBOL" marker - this indicates end of docstring
-                        if 'Original COBOL' in stripped_j:
-                            original_cobol_marker = j
-                            continue
-                        
-                        # If we've passed the Original COBOL marker and find code at column 0
-                        if original_cobol_marker is not None:
-                            if stripped_j and not stripped_j.startswith('#'):
-                                # This is code that should be inside the function
-                                if len(line_j) == len(line_j.lstrip()):
-                                    code_start_line = j
-                                    break
+                    # Look for docstring-like content
+                    is_docstring_header = (
+                        stripped_j.startswith('Args:') or
+                        stripped_j.startswith('Returns:') or
+                        stripped_j.startswith('Parameters:') or
+                        stripped_j.startswith('Raises:') or
+                        stripped_j.startswith('Example:') or
+                        stripped_j.startswith('Note:') or
+                        stripped_j.startswith('Warning:') or
+                        stripped_j.startswith('Attributes:') or
+                        stripped_j.startswith('Members:')
+                    )
                     
-                    if code_start_line is not None and not docstring_closed:
-                        # Docstring is unclosed - close it and indent the code
-                        self.warnings.append(f"Closing unclosed docstring after {func_def[:30]}...")
-                        fixed_lines.append(func_def)
-                        fixed_lines.append(current)  # Opening line
-                        
-                        # Add docstring content up to and including Original COBOL line
-                        for j in range(i + 1, code_start_line):
-                            fixed_lines.append(lines[j])
-                        
-                        fixed_lines.append('    ' + triple)  # Closing line
-                        
-                        # Process function body with indentation
-                        for k in range(code_start_line, len(lines)):
-                            body_line = lines[k]
-                            body_stripped = body_line.strip()
-                            
-                            # Stop at next definition
-                            if body_stripped.startswith('def ') or body_stripped.startswith('class '):
-                                i = k  # Reset i for next iteration
-                                break
-                            
-                            # Skip blank lines at start of body
-                            if not body_stripped:
-                                fixed_lines.append(body_line)
-                                continue
-                            
-                            # Add 4-space indentation to body lines
-                            if body_line.strip():
-                                fixed_lines.append('    ' + body_line)
-                            else:
-                                fixed_lines.append(body_line)
+                    # Look for indented content that should be in docstring
+                    is_indented_content = (
+                        line_j.startswith('    ') and  # 4 spaces
+                        stripped_j and 
+                        not stripped_j.startswith('#') and
+                        not is_code_start
+                    )
+                    
+                    if docstring_start is None and (is_docstring_header or is_indented_content):
+                        docstring_start = j
+                    
+                    if docstring_start is not None and is_code_start:
+                        docstring_end = j
+                        break
+                
+                if docstring_start is not None and docstring_end is not None:
+                    # Add opening triple quote with proper indentation
+                    fixed_lines.append(' ' * docstring_indent + triple)
+                    
+                    # Add all docstring content (from original line after def to before code)
+                    for j in range(docstring_start, docstring_end):
+                        # Re-indent content to proper docstring indentation
+                        orig_line = lines[j]
+                        if orig_line.strip():
+                            # Keep original indentation or use docstring indent
+                            fixed_lines.append(' ' * docstring_indent + orig_line.strip())
                         else:
-                            i = len(lines)
-                    elif docstring_closed:
-                        # Docstring was properly closed
-                        fixed_lines.append(func_def)
-                        fixed_lines.append(current)
-                        # Add remaining docstring lines
-                        for j in range(i + 1, len(lines)):
-                            if triple in lines[j].strip():
-                                fixed_lines.append(lines[j])
-                                i = j + 1
-                                break
-                        else:
-                            i += 1
-                    else:
-                        # Fallback: if no Original COBOL marker, look for code at column 0
-                        for j in range(i + 1, len(lines)):
-                            line_j = lines[j]
-                            stripped_j = line_j.strip()
-                            
-                            if stripped_j.startswith('def ') or stripped_j.startswith('class '):
-                                break
-                            
-                            if stripped_j and not stripped_j.startswith('#'):
-                                if len(line_j) == len(line_j.lstrip()):
-                                    # Code at column 0 - close docstring and indent
-                                    self.warnings.append(f"Closing unclosed docstring (fallback) after {func_def[:30]}...")
-                                    fixed_lines.append(func_def)
-                                    fixed_lines.append(current)
-                                    fixed_lines.append('    ' + triple)
-                                    
-                                    for k in range(j, len(lines)):
-                                        body_line = lines[k]
-                                        body_stripped = body_line.strip()
-                                        
-                                        if body_stripped.startswith('def ') or body_stripped.startswith('class '):
-                                            i = k
-                                            break
-                                        
-                                        if not body_stripped:
-                                            fixed_lines.append(body_line)
-                                            continue
-                                        
-                                        if body_line.strip():
-                                            fixed_lines.append('    ' + body_line)
-                                        else:
-                                            fixed_lines.append(body_line)
-                                    else:
-                                        i = len(lines)
-                                    break
-                        else:
-                            # No code found, just add the function definition
-                            fixed_lines.append(func_def)
-                            fixed_lines.append(current)
-                            i += 1
-                else:
-                    fixed_lines.append(func_def)
+                            fixed_lines.append('')
+                    
+                    # Add closing triple quote
+                    fixed_lines.append(' ' * docstring_indent + triple)
+                    
+                    # Skip the docstring content lines and process code
+                    i = docstring_end
+                continue
+            
             else:
                 fixed_lines.append(line)
                 i += 1
