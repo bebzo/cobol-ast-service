@@ -80,8 +80,8 @@ def simple_fixes(code: str) -> Tuple[str, List[str]]:
         indent = len(line) - len(line.lstrip())
         
         # Check if we're starting a docstring (opening """ not followed by closing """ on same line)
-        # We detect opening by looking for """ at the start, but NOT a line that is JUST """
-        is_opening = (stripped.startswith('"""') and 
+        # We detect opening by looking for """ at the start of the content (after leading whitespace)
+        is_opening = (line.lstrip().startswith('"""') and 
                       not stripped.strip() == '"""' and
                       stripped.count('"""') == 1)
         
@@ -103,14 +103,17 @@ def simple_fixes(code: str) -> Tuple[str, List[str]]:
                 docstring_state[indent][1] = True
         
         # Check if we're encountering code at a level where we're in an unclosed docstring
+        # Close docstring ONLY if we're at the EXACT SAME indentation level
+        # (not a lower level, which would incorrectly close module-level docstrings)
         for doc_indent, (start_line, has_closing) in list(docstring_state.items()):
             if not has_closing and indent == doc_indent and is_real_code(stripped):
                 print(f"DEBUG LINE {i+1}: Closing docstring before code at indent {doc_indent}: {stripped[:50]}")
-                # Close the docstring before this code
+                # Close the docstring with correct indentation
+                closing_quote = ' ' * doc_indent + '"""'
                 if fixed_lines and fixed_lines[-1].rstrip().endswith('.'):
                     fixed_lines[-1] = fixed_lines[-1].rstrip() + '"""'
                 else:
-                    fixed_lines.append('"""')
+                    fixed_lines.append(closing_quote)
                 docstring_state[doc_indent][1] = True
                 changes.append(f"Line {i+1}: Closed unterminated docstring (indent={doc_indent})")
                 break
