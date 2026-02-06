@@ -31,11 +31,11 @@
 
 ## ✨ The Solution
 
-CodeSwitch uses **Google Gemini 2.0** to deliver enterprise-grade COBOL modernization:
+CodeSwitch uses **Google Gemini 3** to deliver enterprise-grade COBOL modernization:
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   COBOL Code    │────▶│   Gemini 2.0    │────▶│   Python Code   │
+│   COBOL Code    │────▶│   Gemini 3.0    │────▶│   Python Code   │
 │   (Legacy)      │     │   Analysis      │     │   (Modern)      │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
                                │
@@ -191,7 +191,7 @@ audit_id = audit.log_action("DEPOSIT", user_id="user123",
          └────────┬───────────┘
                   ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                  🧠 GOOGLE GEMINI 2.0 FLASH                      │
+│                  🧠 GOOGLE GEMINI 3 pro                     │
 │                                                                  │
 │    2M Token Context  •  65K Output Tokens  •  Multimodal        │
 │                                                                  │
@@ -228,7 +228,7 @@ For large-scale migrations (1M+ lines), we offer:
 |-------|------------|
 | **Frontend** | Next.js 14, React 18, TypeScript, Tailwind CSS |
 | **Editor** | Monaco Editor (VS Code engine) |
-| **AI** | Google Gemini 2.0 Flash (2M context) |
+| **AI** | Google Gemini 3.0 Flash (2M context) |
 | **Backend** | Next.js API Routes, Edge Runtime |
 | **Auth** | Supabase (OAuth: Google, GitHub) |
 | **Hosting** | Vercel Edge Network (global CDN) |
@@ -293,7 +293,7 @@ curl -X POST https://cobol-ast-service.vercel.app/api/analyse \
 
 **Built for Google Gemini API Developer Competition 2024**
 
-*Showcasing the power of Gemini 2.0 for enterprise code modernization*
+*Showcasing the power of Gemini 3.0 for enterprise code modernization*
 
 </div>
 
@@ -311,7 +311,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-Made with ❤️ by the CodeSwitch Team | Powered by Google Gemini 2.0
+Made with ❤️ by the CodeSwitch Team | Powered by Google Gemini 3.0
 
 </div>
 Redeploy at Tue Jan 20 18:48:33 CST 2026
