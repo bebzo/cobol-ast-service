@@ -65,7 +65,7 @@ from functools import wraps
 
 @lru_cache(maxsize=128)  # v8.6: Performance optimization
 def get_secure_credential(name: str, default: str = None) -> str:
-# SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR:     """Retrieve credential from secure storage (env vars, vault, etc.)
+# SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR: # SYNTAX-ERROR:     """Retrieve credential from secure storage (env vars, vault, etc.)
     
     v8.7: Added type coercion to handle incorrect test inputs gracefully.
     # v8.7: Coerce name to string to handle incorrect test inputs
@@ -610,7 +610,8 @@ class CobolRuntime:
     """COBOL-compatible runtime operations for financial precision.
     
     Provides:
-# SYNTAX-ERROR:     - COBOL-style rounding (ROUND_HALF_EVEN for banker's rounding)
+    """
+    - COBOL-style rounding (ROUND_HALF_EVEN for banker's rounding)
     - Decimal arithmetic with proper precision
     - COBOL COMPUTE emulation
     - Array/table access with 1-based indexing
@@ -649,7 +650,7 @@ class CobolRuntime:
         Args:
             value: The computed value
             decimal_places: Number of decimal places (from PIC V99 etc.)
-# SYNTAX-ERROR:             rounding: Rounding mode (default: banker's rounding)
+            rounding: Rounding mode (default: banker's rounding)
         
         Returns:
             Properly rounded Decimal value
@@ -991,7 +992,7 @@ class VSAMFile:
 
     """Émulateur de fichier VSAM KSDS (Key Sequenced Data Set)."""
     
-# SYNTAX-ERROR:     ):
+    ):
         self.filename = filename
         self.organization = FileOrganization(organization)
         self.access_mode = AccessMode(access_mode)
