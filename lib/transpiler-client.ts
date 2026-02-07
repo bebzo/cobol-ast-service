@@ -32,6 +32,9 @@ export interface TranspileResult {
     replacements_applied: number;
   };
   error?: string;
+  confidence_score?: number;
+  business_patterns?: string[];
+  validation_warnings?: string[];
 }
 
 export interface ParseResult {
