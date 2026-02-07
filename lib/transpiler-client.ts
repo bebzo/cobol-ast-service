@@ -77,24 +77,25 @@ export async function transpileCobolViaPython(
     let baseUrl: string;
     let endpoint: string;
 
+    let url: string;
+
     if (useExternalTranspiler) {
       // Use external Vercel transpiler service
-      baseUrl = externalTranspilerUrl;
-      endpoint = '/api/transpile';
-      console.log(`[Transpiler] Using EXTERNAL transpiler: ${baseUrl}${endpoint} (allow_stubs=${allowStubs})`);
+      url = `${externalTranspilerUrl}/api/transpile`;
+      console.log(`[Transpiler] Using EXTERNAL transpiler: ${url} (allow_stubs=${allowStubs})`);
     } else {
-      // Use local API route
-      // In Next.js, relative paths work for same-origin API calls
-      baseUrl = '';
-      endpoint = '/api/transpile';
-      console.log(`[Transpiler] Using LOCAL transpiler: ${endpoint} (allow_stubs=${allowStubs})`);
+      // Use local API route - construct full URL for server-side fetch
+      const protocol = process.env.VERCEL_ENV === 'production' ? 'https' : 'http';
+      const host = process.env.VERCEL_URL || 'localhost:3000';
+      url = `${protocol}://${host}/api/transpile`;
+      console.log(`[Transpiler] Using LOCAL transpiler: ${url} (allow_stubs=${allowStubs})`);
     }
 
     // Timeout: 120s for transpilation (large files need more time)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-    const response = await fetch(`${baseUrl}${endpoint}`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
