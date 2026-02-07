@@ -57,45 +57,66 @@ export interface ParagraphInfo {
 
 /**
  * Call the Python transpiler API
- * Works both locally and on Vercel (internal routing)
+ * Uses local API route by default, can fall back to external Vercel service
  */
 export async function transpileCobolViaPython(
-  cobolCode: string, 
+  cobolCode: string,
   enhance: boolean = false,
   copybooks?: Record<string, string>,
   allowStubs: boolean = true  // v8.6: Allow stubs for external CALL programs
 ): Promise<TranspileResult> {
   try {
-    // Use stable production URL - Vercel serverless requires full URL for internal calls
-    // VERCEL_URL gives preview URLs which can cause issues, use stable domain instead
-    const baseUrl = 'https://cobol-ast-service.vercel.app';
-    
-    console.log(`[Transpiler] Calling ${baseUrl}/api/transpile (allow_stubs=${allowStubs})`);
-    
+    // Determine which transpiler URL to use
+    // Use local route by default, fall back to external only if explicitly configured
+    const useExternalTranspiler = process.env.USE_EXTERNAL_TRANSPILER === 'true';
+    const externalTranspilerUrl = process.env.EXTERNAL_TRANSPILER_URL || 'https://cobol-ast-service.vercel.app';
+
+    let baseUrl: string;
+    let endpoint: string;
+
+    if (useExternalTranspiler) {
+      // Use external Vercel transpiler service
+      baseUrl = externalTranspilerUrl;
+      endpoint = '/api/transpile';
+      console.log(`[Transpiler] Using EXTERNAL transpiler: ${baseUrl}${endpoint} (allow_stubs=${allowStubs})`);
+    } else {
+      // Use local API route
+      // In Next.js, relative paths work for same-origin API calls
+      baseUrl = '';
+      endpoint = '/api/transpile';
+      console.log(`[Transpiler] Using LOCAL transpiler: ${endpoint} (allow_stubs=${allowStubs})`);
+    }
+
     // Timeout: 120s for transpilation (large files need more time)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000);
-    
-    const response = await fetch(`${baseUrl}/api/transpile`, {
+
+    const response = await fetch(`${baseUrl}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        cobolCode, 
-        enhance, 
+      body: JSON.stringify({
+        cobolCode,
+        enhance,
         copybooks: copybooks || {},
-        allow_stubs: allowStubs  // Pass to Python transpiler
+        allow_stubs: allowStubs,  // Pass to Python transpiler
+        exception_mode: 'cobol',
+        minified_mode: false,
+        production_quality: true,
+        backend: 'supabase'
       }),
       signal: controller.signal,
     });
-    
+
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Transpiler] API error (${response.status}): ${errorText}`);
       throw new Error(`Transpiler API error: ${response.status}`);
     }
-    
+
     const result = await response.json();
-    
+
     // Normalize response format
     return {
       success: result.success ?? true,
@@ -108,8 +129,12 @@ export async function transpileCobolViaPython(
       stats: result.stats || {},
       copybook_stats: result.copybook_stats,
       error: result.error,
+      confidence_score: result.confidence_score,
+      business_patterns: result.business_patterns,
+      validation_warnings: result.validation_warnings,
     };
   } catch (error: any) {
+    console.error('[Transpiler] Error:', error.message);
     return {
       success: false,
       python_code: '',
