@@ -151,7 +151,6 @@ export default function LandingPage() {
           </div>
           
           <div className="flex items-center gap-3">
-            <Link href="/login" className="text-slate-400 hover:text-white transition text-sm px-4 py-2">Login</Link>
             <Link href="/dashboard" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-5 py-2.5 rounded-full font-semibold text-sm transition transform hover:scale-105 flex items-center gap-2">
               Try Free <ArrowRight className="w-4 h-4" />
             </Link>

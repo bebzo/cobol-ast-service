@@ -729,53 +729,17 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   
-  // Authentication check - requires login
+  // Authentication check - DISABLED for hackathon (public access)
   useEffect(() => {
     const checkAuth = async () => {
-      // Check for dev mode bypass
-      const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
-      if (isDevMode) {
-        // Dev mode: bypass authentication
-        console.log('Dev mode enabled - bypassing authentication');
-        setUser({ email: 'demo@codeswitch.dev', id: 'demo-user' });
-        setAuthLoading(false);
-        return;
-      }
-
-      try {
-        const { data: { session } } = await supabase.auth.getSession() as { data: { session: any } };
-        if (session == null || !session.user) {
-          // No session - redirect to login
-          router.push('/login?redirect=/dashboard');
-          return;
-        }
-        setUser(session.user);
-        setAuthLoading(false);
-      } catch (error) {
-        // On error, redirect to login
-        console.error('Auth check failed:', error);
-        router.push('/login?redirect=/dashboard');
-      }
+      // Hackathon mode: bypass authentication - public access
+      console.log('Hackathon mode - bypassing authentication');
+      setUser({ email: 'demo@codeswitch.dev', id: 'demo-user' });
+      setAuthLoading(false);
+      return;
     };
     checkAuth();
-
-    // Listen for auth changes (skip in dev mode)
-    const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
-    if (isDevMode) {
-      return undefined;
-    }
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
-      if (event === "SIGNED_OUT" || session == null || !session.user) {
-        router.push('/login');
-      } else {
-        setUser(session.user);
-        setAuthLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [router]);
+  }, []);
   
   const handleLogout = async () => {
     await supabase.auth.signOut();

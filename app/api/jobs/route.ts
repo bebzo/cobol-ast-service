@@ -38,16 +38,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { cobol_code, file_name, webhook_url, webhook_secret } = body;
     
-    const userId = request.headers.get('x-user-id');
-    const userEmail = request.headers.get('x-user-email');
+    const userId = request.headers.get('x-user-id') || 'anonymous';
+    const userEmail = request.headers.get('x-user-email') || 'demo@codeswitch.dev';
     
-    // Require authentication - no anonymous transpilation allowed
+    // Hackathon mode: allow anonymous transpilation
     if (!userId || !userEmail) {
-      return NextResponse.json({
-        error: 'Veuillez vous connecter',
-        message: 'Please sign in to use the transpilation service',
-        loginUrl: '/auth/login'
-      }, { status: 401, headers: corsHeaders });
+      // Allow anonymous access for hackathon
+      console.log('Hackathon mode - allowing anonymous access');
     }
     
     if (!cobol_code) {
@@ -135,15 +132,9 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const jobId = searchParams.get('id');
-  const userId = request.headers.get('x-user-id');
+  const userId = request.headers.get('x-user-id') || 'anonymous';
   
-  // Require authentication
-  if (!userId) {
-    return NextResponse.json({
-      error: 'Veuillez vous connecter',
-      loginUrl: '/auth/login'
-    }, { status: 401, headers: corsHeaders });
-  }
+  // Hackathon mode: allow anonymous access
   
   if (jobId) {
     const job = getJob(jobId);
