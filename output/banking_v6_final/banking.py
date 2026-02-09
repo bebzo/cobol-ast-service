@@ -1272,7 +1272,7 @@ Parent variable: eof_flag"""
     @end_of_file.setter
     def end_of_file(self, value: bool):
         if value:
-            self.eof_flag = 'Y'
+            self.eof_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
 
     @property
     def not_end_of_file(self) -> bool:
@@ -1284,7 +1284,7 @@ Parent variable: eof_flag"""
     @not_end_of_file.setter
     def not_end_of_file(self, value: bool):
         if value:
-            self.eof_flag = 'N'
+            self.eof_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
 
     @property
     def data_valid(self) -> bool:
@@ -1296,7 +1296,7 @@ Parent variable: validation_flag"""
     @data_valid.setter
     def data_valid(self, value: bool):
         if value:
-            self.validation_flag = 'Y'
+            self.validation_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
 
     @property
     def data_invalid(self) -> bool:
@@ -1308,7 +1308,7 @@ Parent variable: validation_flag"""
     @data_invalid.setter
     def data_invalid(self, value: bool):
         if value:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
 
     @property
     def security_pass(self) -> bool:
@@ -1344,7 +1344,7 @@ Parent variable: audit_flag"""
     @audit_enabled.setter
     def audit_enabled(self, value: bool):
         if value:
-            self.audit_flag = 'Y'
+            self.audit_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
 
     @property
     def audit_disabled(self) -> bool:
@@ -1356,7 +1356,7 @@ Parent variable: audit_flag"""
     @audit_disabled.setter
     def audit_disabled(self, value: bool):
         if value:
-            self.audit_flag = 'N'
+            self.audit_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
 
     @property
     def debug_mode(self) -> bool:
@@ -1368,7 +1368,7 @@ Parent variable: debug_flag"""
     @debug_mode.setter
     def debug_mode(self, value: bool):
         if value:
-            self.debug_flag = 'Y'
+            self.debug_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
 
     @property
     def severity_info(self) -> bool:
@@ -1719,16 +1719,16 @@ Parent variable: error_severity"""
         IF LS-AMOUNT <= 0
         MOVE 'N' TO WS-VALIDATION-FLAG
     """
-        self.validation_flag = 'Y'
+        self.validation_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
         if self.ls_amount <= 0:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'INVALID AMOUNT'
         if self.ls_amount > self.max_single_transaction:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'EXCEEDS LIMIT'
         self.calculate_fraud_score()
         if self.fraud_score > self.fraud_threshold:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'FRAUD SUSPECTED'
 
     def p_312_execute_deposit(self) -> None:
@@ -1813,23 +1813,23 @@ Parent variable: error_severity"""
         IF LS-AMOUNT <= 0
         MOVE 'N' TO WS-VALIDATION-FLAG
     """
-        self.validation_flag = 'Y'
+        self.validation_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
         if self.ls_amount <= 0:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'INVALID AMOUNT'
         if self.ls_amount > self.cm_available_balance:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'INSUFFICIENT FUNDS'
         if self.ls_amount > self.daily_limit:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'DAILY LIMIT EXCEEDED'
         self.daily_total = (self.daily_total + self.ls_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         if self.daily_total > self.daily_limit:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'DAILY TOTAL EXCEEDED'
         self.calculate_fraud_score()
         if self.fraud_score > self.fraud_threshold:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'FRAUD SUSPECTED'
 
     def p_322_execute_withdrawal(self) -> None:
@@ -1896,15 +1896,15 @@ Parent variable: error_severity"""
         IF LS-AMOUNT <= 0
         MOVE 'N' TO WS-VALIDATION-FLAG
     """
-        self.validation_flag = 'Y'
+        self.validation_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
         if self.ls_amount <= 0:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'INVALID AMOUNT'
         if self.ls_amount > self.cm_available_balance:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'INSUFFICIENT FUNDS'
         if self.ls_from_account == self.ls_to_account:
-            self.validation_flag = 'N'
+            self.validation_flag: str = \'N\'  # CORRIGE: Flag COBOL Y/N explicite
             self.error_message = 'SAME ACCOUNT'
 
     def p_332_debit_source(self) -> None:
@@ -2065,7 +2065,7 @@ Parent variable: error_severity"""
         self.index = Decimal('1')
         while not (self.index > 100 or self.end_of_file):
             self.transaction_file_record = self.file_manager.read_record('transaction_file')
-            self.eof_flag = 'Y'
+            self.eof_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
             if self.trans_source_account == self.ls_from_account:
                 self.p_354_add_to_results()
             self.index += Decimal('1')
@@ -2222,7 +2222,7 @@ Parent variable: error_severity"""
         self.cm_customer_id = Decimal('1')
         while not self.end_of_file:
             self.customer_master_file_record = self.file_manager.read_record('customer_master_file')
-            self.eof_flag = 'Y'
+            self.eof_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
             if self.cm_account_balance > 0:
                 self.p_410_calculate_daily_interest()
                 self.p_411_update_account()
@@ -2402,7 +2402,7 @@ Parent variable: error_severity"""
         self.cm_customer_id = Decimal('1')
         while not self.end_of_file:
             self.customer_master_file_record = self.file_manager.read_record('customer_master_file')
-            self.eof_flag = 'Y'
+            self.eof_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
             self.display_balance = self.cm_account_balance
             self.file_manager.write_record('report_line', str(self.report_line))
 
@@ -2437,7 +2437,7 @@ Parent variable: error_severity"""
         self.index = Decimal('1')
         while not (self.index > 100 or self.end_of_file):
             self.customer_master_file_record = self.file_manager.read_record('customer_master_file')
-            self.eof_flag = 'Y'
+            self.eof_flag: str = \'Y\'  # CORRIGE: Flag COBOL Y/N explicite
             self.p_632_calculate_risk_score()
             if self.cm_risk_score > self.risk_threshold:
                 self.p_633_flag_high_risk()
