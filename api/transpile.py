@@ -8755,6 +8755,7 @@ def transpile_perform_v4(stmt: str) -> Optional[ast.stmt]:
 def transpile_perform_until_block_v4(statements: List[str], start_idx: int) -> Tuple[Optional[ast.stmt], int]:
     """
     v5.7.0: Transpile inline PERFORM UNTIL ... END-PERFORM blocks.
+    v11.1: EOF Pattern Fix - Add EOF check at loop start to prevent processing None records.
     
     Handles:
         PERFORM UNTIL EOF-REACHED
@@ -8762,8 +8763,11 @@ def transpile_perform_until_block_v4(statements: List[str], start_idx: int) -> T
             PROCESS-RECORD
         END-PERFORM
     
-    Generates:
+    Generates (v11.1 - SAFE pattern):
         while not self.eof_reached:
+            # v11.1: Check EOF before any processing
+            if self.file_manager.is_eof("transaction_file"):
+                break
             # block statements
     """
     stmt = statements[start_idx].strip()
@@ -8785,10 +8789,18 @@ def transpile_perform_until_block_v4(statements: List[str], start_idx: int) -> T
     consumed = 1
     nesting = 1  # Track nested PERFORM blocks
     
+    # v11.1: Track file names used in READ statements for EOF pre-check
+    file_names_in_block = set()
+    
     for i in range(start_idx + 1, len(statements)):
         line = statements[i].strip()
         line_upper = line.upper()
         consumed += 1
+        
+        # v11.1: Extract file names from READ statements for EOF pre-check
+        read_match = re.match(r'READ\s+([A-Z0-9][-A-Z0-9]*)', line_upper)
+        if read_match:
+            file_names_in_block.add(to_snake_case(read_match.group(1)))
         
         # Track nested PERFORM blocks
         if line_upper.startswith('PERFORM ') and 'UNTIL' in line_upper:
@@ -8803,6 +8815,34 @@ def transpile_perform_until_block_v4(statements: List[str], start_idx: int) -> T
     
     # Transpile the block as a whole (allows IF/ELSE/END-IF to be processed correctly)
     body_stmts = transpile_statements_v4(block_stmts)
+    
+    # v11.1: Add EOF pre-check at the start of the loop body for each file
+    # This prevents processing None records by checking EOF BEFORE read_record()
+    eof_check_stmts = []
+    for file_name in file_names_in_block:
+        # Generate: if self.file_manager.is_eof("file_name"): break
+        eof_check = ast.If(
+            test=ast.Call(
+                func=ast.Attribute(
+                    value=ast.Attribute(
+                        value=ast.Name(id='self', ctx=ast.Load()),
+                        attr='file_manager',
+                        ctx=ast.Load()
+                    ),
+                    attr='is_eof',
+                    ctx=ast.Load()
+                ),
+                args=[ast.Constant(value=file_name)],
+                keywords=[]
+            ),
+            body=[ast.Break()],
+            orelse=[]
+        )
+        eof_check_stmts.append(eof_check)
+    
+    # Prepend EOF checks to body
+    if eof_check_stmts:
+        body_stmts = eof_check_stmts + body_stmts
     
     # Ensure body is not empty
     if not body_stmts:
