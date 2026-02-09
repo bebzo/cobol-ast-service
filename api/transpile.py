@@ -3783,11 +3783,12 @@ def is_flag_variable(name: str, value: Optional[str], conditions_88: Optional[Li
             if hasattr(cond, 'values') and cond.values:
                 for val in cond.values:
                     # Any string value in 88-level means field must be str
-                    if isinstance(val, str) and val.upper() in ('Y', 'N'):
-                        return False  # v5.7.26: Stay str, not bool
-                    if val.upper() not in ('TRUE', 'FALSE', '0', '1'):
-                        # Non-boolean value like 'P', 'F', 'H', 'L' - use str
-                        return False
+                    if isinstance(val, str):
+                        if val.upper() in ('Y', 'N'):
+                            return False  # v5.7.26: Stay str, not bool
+                        if val.upper() not in ('TRUE', 'FALSE', '0', '1'):
+                            # Non-boolean value like 'P', 'F', 'H', 'L' - use str
+                            return False
     
     # Only return True for explicit Y/N values WITHOUT 88-levels
     if value and value.upper() in ('Y', 'N', 'TRUE', 'FALSE'):
@@ -11905,7 +11906,7 @@ def generate_python_code(
                 for cond in var.conditions_88:
                     for val in cond.values:
                         # If 88-level compares with 'Y' or 'N' as string, field must stay string
-                        if val.upper() in ('Y', 'N'):
+                        if isinstance(val, str) and val.upper() in ('Y', 'N'):
                             has_string_88 = True
                             break
                     if has_string_88:
