@@ -291,8 +291,6 @@ Methods:
         """Business logic from: 2210-VALIDATE-WITHDRAWAL"""
         self.valid = True
         if self.calc_amount > self.acct_available:
-            if True:
-                pass
             self.invalid = True
         else:
             self.p_2215_apply_overdraft_fee()
@@ -2848,7 +2846,7 @@ Methods:
             self.valid_flag = 'N'
             self.error_msg = 'INVALID ACCOUNT ID'
             pass
-        if True:
+        if self.calc_amount < Decimal('0.01'):
             self.valid_flag = 'N'
             self.error_msg = 'INVALID AMOUNT'
             pass
